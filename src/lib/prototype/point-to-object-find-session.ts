@@ -28,6 +28,7 @@ const SCENARIOS = new Set<ExploreScenarioId>([
   "b2b_commercial_real_estate"
 ]);
 const GROUPS = new Set<PointObjectFindGroup>(POINT_OBJECT_FIND_GROUPS);
+export type PointObjectFindComparisonView = "results" | "mini" | "dashboard";
 
 export type PointObjectFindSessionState = {
   version: 1;
@@ -42,6 +43,8 @@ export type PointObjectFindSessionState = {
   result: PointObjectFindResult | null;
   shortlist: PointObjectFindCandidate[];
   comparisonOpen: boolean;
+  /** Optional for backward compatibility with previously saved v1 artifacts. */
+  comparisonView?: PointObjectFindComparisonView;
   analysisTargetSourceFeatureId: PointObjectFindCandidate["sourceFeatureId"] | null;
   updatedAt: string;
 };
@@ -124,6 +127,7 @@ export function parsePointObjectFindSessionState(value: unknown): PointObjectFin
       !(value.result === null || isPointObjectFindResult(value.result)) || !Array.isArray(value.shortlist) ||
       value.shortlist.length > 3 || !value.shortlist.every(isCandidate) ||
       typeof value.comparisonOpen !== "boolean" ||
+      !(value.comparisonView === undefined || value.comparisonView === "results" || value.comparisonView === "mini" || value.comparisonView === "dashboard") ||
       !(value.analysisTargetSourceFeatureId === null || (typeof value.analysisTargetSourceFeatureId === "string" && /^(?:node|way|relation)\/[1-9]\d{0,19}$/.test(value.analysisTargetSourceFeatureId))) ||
       typeof value.updatedAt !== "string") return null;
   const audience = value.audience;
@@ -148,6 +152,11 @@ export function parsePointObjectFindSessionState(value: unknown): PointObjectFin
     return !candidate || canonicalJson(candidate) !== canonicalJson(item);
   })) return null;
   if (value.analysisTargetSourceFeatureId !== null && !candidateIds.has(value.analysisTargetSourceFeatureId as PointObjectFindCandidate["sourceFeatureId"])) return null;
+  const comparisonView = value.comparisonView as PointObjectFindComparisonView | undefined;
+  if (comparisonView !== undefined && (
+    (shortlist.length < 2 && comparisonView !== "results") ||
+    value.comparisonOpen !== (comparisonView !== "results")
+  )) return null;
   return {
     version: 1,
     marketKey: value.marketKey,
@@ -160,7 +169,11 @@ export function parsePointObjectFindSessionState(value: unknown): PointObjectFin
     mappedMaximumLevels: value.mappedMaximumLevels,
     result,
     shortlist,
-    comparisonOpen: value.comparisonOpen && shortlist.length >= 2,
+    comparisonOpen: value.comparisonOpen,
+    // Do not materialize the additive dashboard field while parsing a legacy
+    // v1 session. Saved-project verification hashes the strictly parsed
+    // payload, so preserving absence is part of the historical byte contract.
+    ...(comparisonView === undefined ? {} : { comparisonView }),
     analysisTargetSourceFeatureId: value.analysisTargetSourceFeatureId as PointObjectFindCandidate["sourceFeatureId"] | null,
     updatedAt: value.updatedAt
   };
@@ -180,6 +193,16 @@ export function readPointObjectFindSession(): PointObjectFindSessionState | null
     return parsePointObjectFindSessionState(JSON.parse(raw));
   } catch {
     return null;
+  }
+}
+
+/** Clears only the transient canvas session. Saved project artifacts are retained separately. */
+export function clearPointObjectFindSession(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // The overview remains usable when browser session storage is unavailable.
   }
 }
 

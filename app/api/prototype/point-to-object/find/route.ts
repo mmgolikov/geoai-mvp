@@ -93,7 +93,7 @@ export async function POST(request: Request) {
   }
   const rate = consumeRateLimit(request);
   if (!rate.allowed) {
-    return NextResponse.json({ mode: "unavailable", error: "Open-map Find is temporarily rate limited.", retryable: true }, {
+    return NextResponse.json({ mode: "unavailable", code: "APPLICATION_RATE_LIMITED", error: "Open-map Find is temporarily rate limited.", retryable: true }, {
       status: 429,
       headers: noStoreHeaders({ "Retry-After": String(rate.retryAfterSeconds) })
     });
@@ -102,9 +102,9 @@ export async function POST(request: Request) {
     return NextResponse.json(await findPointObjects(parsedRequest.value), { headers: noStoreHeaders() });
   } catch (error) {
     if (error instanceof PointObjectFindError) {
-      return NextResponse.json({ mode: "unavailable", error: error.message, retryable: error.retryable }, {
+      return NextResponse.json({ mode: "unavailable", code: error.code, error: error.message, retryable: error.retryable }, {
         status: error.httpStatus,
-        headers: noStoreHeaders()
+        headers: noStoreHeaders(error.httpStatus === 429 ? { "Retry-After": String(error.retryAfterSeconds ?? 15) } : {})
       });
     }
     return NextResponse.json({ mode: "unavailable", error: "Open-map Find could not be completed.", retryable: true }, {

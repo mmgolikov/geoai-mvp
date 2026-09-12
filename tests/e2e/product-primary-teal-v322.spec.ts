@@ -100,9 +100,9 @@ test("historical v3.2.2 SVG labels stay intact while the current Cycle 05 landin
     const heroHeading = page.getByRole("heading", { name: "Turn a location into a decision path." });
     const hero = page.locator("section").filter({ has: heroHeading }).first();
     const heroVisual = hero.getByRole("img", {
-      name: "GeoAI map-first workspace showing a three-dimensional Dubai map and the Analyse, Find and Create product modes"
+      name: "A real three-dimensional map of Dubai with a selected building highlighted in teal"
     });
-    const primaryCta = hero.getByRole("link", { name: "Open map", exact: true });
+    const primaryCta = hero.getByRole("link", { name: "Open map", exact: true }).filter({ hasText: /^Open map$/ });
     await expect(heroHeading).toBeVisible();
     await expect(heroVisual).toBeVisible();
     await expect.poll(() => heroVisual.evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0)).toBe(true);
@@ -172,10 +172,12 @@ test("Product primary and selected controls remain teal from Workspace through a
 test("Projects, Profile and report actions use the same Product-primary teal", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await signInDemo(page, "/projects");
-
-  await expectProductPrimary(page.getByRole("button", { name: "B2B", exact: true }).first(), "Projects selected B2B");
-  await expectProductPrimary(page.getByRole("link", { name: "Open workspace", exact: true }).first(), "Projects Open workspace action");
-  await expectProductPrimary(page.getByRole("button", { name: "Create project", exact: true }), "Projects Create project action");
+  await expect(page.getByTestId("hub-summary")).toBeVisible();
+  await expectProductPrimary(page.getByRole("button", { name: "+ New project", exact: true }), "Canonical Project Hub new project action");
+  await page.goto("/projects/legacy");
+  await expectProductPrimary(page.getByRole("button", { name: "B2B", exact: true }).first(), "Legacy projects selected B2B");
+  await expectProductPrimary(page.getByRole("link", { name: "Open workspace", exact: true }).first(), "Legacy projects Open workspace action");
+  await expectProductPrimary(page.getByRole("button", { name: "Create project", exact: true }), "Legacy projects Create project action");
 
   await page.goto("/profile");
   const profileAudience = page.getByRole("group", { name: "Default audience" });

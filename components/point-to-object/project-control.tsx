@@ -27,6 +27,7 @@ export function PointObjectProjectControl() {
   identityRef.current = identityKey;
   const [store, setStore] = useState<PointObjectProjectStore | null>(null);
   const [receipt, setReceipt] = useState<PointObjectProjectEventDetail | null>(null);
+  const [navigationPending, setNavigationPending] = useState(false);
 
   const refresh = useCallback(async () => {
     if (!identityKey) {
@@ -92,12 +93,14 @@ export function PointObjectProjectControl() {
   return (
     <div className="flex min-w-0 items-center gap-1.5" data-testid="point-object-project-control">
       <Link
-        href="/projects?view=spatial"
+        href="/projects"
         aria-label={locale === "ru" ? "Проекты" : "Projects"}
-        title={locale === "ru" ? "Проекты" : "Projects"}
-        className="inline-flex h-11 items-center justify-center rounded-lg border border-line bg-white px-2 text-[11px] font-bold text-[#345c54] hover:border-[#087f8c] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] sm:px-3"
+        title={locale === "ru" ? "Проекты сохранены локально на этом устройстве" : "Projects saved locally on this device"}
+        onClick={(event) => { if (event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) setNavigationPending(true); }}
+        aria-busy={navigationPending}
+        className="inline-flex h-11 min-w-11 items-center justify-center gap-1.5 rounded-lg border border-line bg-white px-2 text-[11px] font-bold text-[#345c54] hover:border-[#087f8c] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] sm:px-3"
       >
-        <span aria-hidden="true" className="sm:hidden">P</span>
+        <svg aria-hidden="true" className="h-5 w-5 sm:h-4 sm:w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><rect x="4" y="5" width="16" height="14" rx="2" /><path d="M8 9h8M8 14h3" /></svg>
         <span className="hidden sm:inline">{locale === "ru" ? "Проекты" : "Projects"}</span>
       </Link>
       {identityKey && store?.projects.length ? (
@@ -111,8 +114,9 @@ export function PointObjectProjectControl() {
           {store.projects.map((project) => <option key={project.projectId} value={project.projectId}>{project.name}</option>)}
         </ReliableSelect>
       ) : null}
-      {identityKey ? <button type="button" onClick={() => void createProject()} className="hidden h-11 rounded-lg border border-line bg-white px-2 text-[11px] font-bold text-[#345c54] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] sm:inline-flex sm:items-center">{locale === "ru" ? "+ Новый" : "+ New"}</button> : null}
-      {statusLabel ? <span className={`hidden max-w-28 text-[10px] font-semibold xl:inline ${receipt?.status === "failed" || receipt?.status === "conflict" ? "text-[#b54708]" : "text-[#176548]"}`} role="status" title={receipt?.message}>{statusLabel}</span> : null}
+      {identityKey ? <button type="button" onClick={() => void createProject()} aria-label={locale === "ru" ? "Новый локальный проект" : "New local project"} title={locale === "ru" ? "Новый локальный проект" : "New local project"} className="hidden h-11 min-w-11 items-center justify-center rounded-lg px-2 text-xl font-black leading-none text-[#176548] hover:bg-[#eefaf8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] sm:inline-flex">+</button> : null}
+      {navigationPending ? <span className="pointer-events-none fixed right-3 top-[68px] z-50 rounded-lg border border-line bg-white px-3 py-2 text-xs font-semibold text-[#345c54] shadow-soft" role="status">{locale === "ru" ? "Открываем проекты…" : "Opening projects…"}</span> : null}
+      {statusLabel ? <span className={receipt?.status === "saved" ? "sr-only" : `hidden max-w-28 text-[10px] font-semibold xl:inline ${receipt?.status === "failed" || receipt?.status === "conflict" ? "text-[#b54708]" : "text-[#176548]"}`} role="status" title={receipt?.message}>{statusLabel}</span> : null}
       {identityKey && (receipt?.status === "failed" || receipt?.status === "capacity" || receipt?.status === "conflict" || receipt?.status === "damaged") ? <button
         type="button"
         data-testid="point-object-project-recovery"

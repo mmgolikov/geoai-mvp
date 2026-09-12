@@ -1,7 +1,7 @@
 # GeoAI Current Release State
 
 Status: Active release guidance with current and historical runtime evidence
-Last verified: 2026-09-06
+Last verified: 2026-09-12
 Owner: GeoAI Release Engineering
 Authority: Repository release policy and interpretation of external runtime evidence
 Successor: None; any replacement must update `DOCUMENTATION_INDEX.md`
@@ -9,6 +9,14 @@ Operational dashboard: [Confluence Project Hub](https://geoaimvp.atlassian.net/w
 Navigation: [Documentation Index](DOCUMENTATION_INDEX.md) · [Full System Audit](FULL_SYSTEM_AUDIT_2026_07_16.md) · [Architecture](architecture.md) · [Data Strategy](data-strategy.md) · [QA Checklist](qa-checklist.md) · [Codex Backlog](CODEX_BACKLOG_2026_07_16.md)
 
 ## Current externally verified release
+
+The Sprint09 pre-release inspection on 2026-09-12 independently read GitHub and Vercel: PR [#147](https://github.com/mmgolikov/geoai-mvp/pull/147) is merged at `42c68171aaec6ff2f875c1c98f4ba4527c8f4232`; the Production alias resolves to Ready deployment `dpl_9D6c6t2hcSkGm4iFwt5V3EjKmdKc` at `https://geoai-gd56czies-geoaidev.vercel.app`, on that exact commit. This is the Sprint09 rollback baseline, not an assertion that the successor is released.
+
+The current implementation is governed by the [Sprint09 Production Change Request](change-requests/point-to-object-001/experience-v6/SPRINT09_PRODUCTION_CHANGE_REQUEST.md), building on the [September 10 correction CR](change-requests/point-to-object-001/experience-v6/SEPT10_REGRESSION_PROJECT_HUB_CHANGE_REQUEST.md). The founder explicitly authorized a bounded release to main and Production after exact-head checks and live tests. PR [#148](https://github.com/mmgolikov/geoai-mvp/pull/148) remains the single integration path. Its external post-release receipt, exact deployment metadata and route smoke must establish completion; local tests and this file do not promote the candidate.
+
+## Historical September 4 release snapshot
+
+The following PR #113 snapshot and Cycle 05 candidate notes are retained as historical evidence. They predate the merged PR #147 baseline verified above and must not be used to infer current Production, source activation, UI shape or the current authority boundary.
 
 | Item | Verified state |
 | --- | --- |

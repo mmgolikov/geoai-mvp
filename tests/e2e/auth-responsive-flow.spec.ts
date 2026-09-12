@@ -54,10 +54,10 @@ for (const viewport of viewports) {
       await expect(page.getByRole("heading", { level: 1, name: "Turn a location into a decision path." })).toBeVisible();
 
       const hero = page.locator("main > section").first();
-      const mapLink = hero.getByRole("link", { name: "Open map", exact: true });
-      const projectsLink = hero.getByRole("link", { name: "Projects", exact: true });
+      const mapLink = hero.getByRole("link", { name: "Open map", exact: true }).filter({ hasText: /^Open map$/ });
+      const requestLink = hero.getByRole("link", { name: "Leave a request", exact: true });
       await expect(mapLink).toHaveAttribute("href", "/prototype/point-to-object");
-      await expect(projectsLink).toHaveAttribute("href", "/projects?view=spatial");
+      await expect(requestLink).toHaveAttribute("href", "/request-access");
       await expect(page.getByRole("link", { name: "Profile", exact: true }).last()).toHaveAttribute("href", "/profile");
       await expectNoHorizontalOverflow(page);
 
@@ -79,11 +79,11 @@ test.describe("mobile keyboard and target-size access", () => {
 
     await expect(page.getByRole("heading", { level: 1, name: "Turn a location into a decision path." })).toBeVisible();
     const hero = page.locator("main > section").first();
-    const mapLink = hero.getByRole("link", { name: "Open map", exact: true });
-    const projectsLink = hero.getByRole("link", { name: "Projects", exact: true });
+    const mapLink = hero.getByRole("link", { name: "Open map", exact: true }).filter({ hasText: /^Open map$/ });
+    const requestLink = hero.getByRole("link", { name: "Leave a request", exact: true });
     const russianLocale = page.getByRole("button", { name: "RU", exact: true });
 
-    for (const control of [mapLink, projectsLink, russianLocale]) {
+    for (const control of [mapLink, requestLink, russianLocale]) {
       const box = await control.boundingBox();
       expect(box, "Primary mobile controls must have a rendered box").not.toBeNull();
       expect(box?.width ?? 0).toBeGreaterThanOrEqual(40);
@@ -93,8 +93,8 @@ test.describe("mobile keyboard and target-size access", () => {
     await russianLocale.click();
     await expect(page.getByRole("heading", { level: 1, name: "Превратите локацию в понятный путь к решению." })).toBeVisible();
     const russianHero = page.locator("main > section").first();
-    await expect(russianHero.getByRole("link", { name: "Открыть карту", exact: true })).toHaveAttribute("href", "/prototype/point-to-object");
-    await expect(russianHero.getByRole("link", { name: "Проекты", exact: true })).toHaveAttribute("href", "/projects?view=spatial");
+    await expect(russianHero.getByRole("link", { name: "Открыть карту", exact: true }).filter({ hasText: /^Открыть карту$/ })).toHaveAttribute("href", "/prototype/point-to-object");
+    await expect(russianHero.getByRole("link", { name: "Оставить заявку", exact: true })).toHaveAttribute("href", "/request-access");
 
     await page.getByRole("button", { name: "EN", exact: true }).click();
     await tabUntil(page, (control) => control.href === "/prototype/point-to-object", 40);

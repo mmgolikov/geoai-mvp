@@ -1,4 +1,9 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
+import { installLocalWebKitHttpCsp } from "./helpers/local-webkit-csp";
+
+test.beforeEach(async ({ page, browserName }, testInfo) => {
+  await installLocalWebKitHttpCsp(page, browserName, testInfo.project.use.baseURL);
+});
 
 const CAVEAT = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
 const CLICKED_AT = "2026-09-06T08:59:00.000Z";
@@ -328,6 +333,51 @@ function syntheticV6Response(locale: "en" | "ru") {
   };
 }
 
+function syntheticV9StandardResponse() {
+  const response = syntheticV6Response("en");
+  return {
+    ...response,
+    content: {
+      ...response.content,
+      depthReview: {
+        depth: "standard",
+        basis: "structured_review_of_existing_evidence",
+        purpose: "decision_criteria",
+        analyticChecks: [{
+          title: "Mapped-use gate",
+          observation: "The returned open-map record identifies a hotel use.",
+          implication: "Treat the use as screening evidence until an official record confirms it.",
+          evidenceClass: "observed",
+          evidenceRefs: ["EVD-ALLOWED-FIELDS"],
+          confidence: "medium"
+        }],
+        alternatives: [{
+          title: "Retain the existing-use path",
+          rationale: "The observed hotel tag supports checking an operating-asset path before redevelopment.",
+          evidenceClass: "hypothesis",
+          evidenceRefs: ["EVD-ALLOWED-FIELDS"]
+        }],
+        uncertainties: [{
+          title: "Official permitted use",
+          statement: "The open-map tag is not an official planning record.",
+          decisionImpact: "The development path remains conditional on official validation.",
+          evidenceRefs: ["EVD-ALLOWED-FIELDS"]
+        }],
+        decisionTriggers: [{
+          title: "Confirm the official use",
+          action: "Obtain the current planning record for the selected object.",
+          decisionImpact: "A conflicting official use would change the programme screened next.",
+          evidenceRefs: ["EVD-ALLOWED-FIELDS"]
+        }]
+      }
+    },
+    telemetry: {
+      ...response.telemetry,
+      promptVersion: "POINT_OBJECT_AI_PROMPT_V9_2026_09_12"
+    }
+  };
+}
+
 function syntheticLegacyV5Response() {
   const current = syntheticV6Response("en");
   const { linkedEntity: _linkedEntity, ...subject } = current.subject;
@@ -457,11 +507,11 @@ async function signInDemo(page: Page, nextPath: string) {
         return null;
       }
     }).toBe("active");
-    await page.goto(loginNextPath);
+    // The demo action owns navigation; a competing goto can abort that redirect.
     await expect(page).toHaveURL((url) => url.pathname === loginNextPath);
   }
   if (loginNextPath === nextPath) return;
-  await expect(page.getByRole("link", { name: "Open demo profile" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Open demo profile" })).toHaveAttribute("data-authenticated", "true");
   await page.goto(nextPath);
 }
 
@@ -491,18 +541,126 @@ async function expectNoVisibleResolverBoilerplate(page: Page) {
   expect(visibleCopy).not.toMatch(/way\/91001|Q777|EVD-|SHA-256|sourceResponseHash|resolver/i);
 }
 
+test('fresh guest retains selection and unsent RU analysis draft after normal Back and reload', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 430, height: 932 });
+  const { apiCalls } = await installAnalysisRoutes(page);
+  await page.route('https://tiles.openfreemap.org/styles/**', route => route.fulfill({ json: { version: 8, sources: {}, layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#e8edf0' } }] } }));
+  await page.route('**/api/prototype/point-to-object/suggest', route => route.fulfill({ json: {
+    protocol: 'POINT_TO_OBJECT_001_AUTOCOMPLETE_V1', mode: 'results', provider: 'Photon',
+    results: [{ id: 'way/91001', label: 'Synthetic Harbour Hotel', secondaryLabel: 'Dubai', longitude: 55.27, latitude: 25.2, category: 'tourism', featureType: 'hotel', boundingBox: null }],
+    source: { attribution: '© OpenStreetMap contributors', licenceId: 'ODbL-1.0', licenceUrl: 'https://www.openstreetmap.org/copyright', serviceUrl: 'https://photon.komoot.io/', officialStatus: 'open_context_not_official' }
+  } }));
+  await page.route('**/api/prototype/point-to-object/context', route => route.fulfill({ json: { mode: 'resolved', subject: selection.resolvedObject } }));
+  await page.context().addCookies([{ name: 'geoai_locale', value: 'ru', url: testInfo.project.use.baseURL! }]);
+  await page.goto('/prototype/point-to-object');
+  await page.getByRole('combobox', { name: 'Поиск адреса или места', exact: true }).fill('Synthetic Harbour');
+  await page.getByRole('option').filter({ hasText: 'Synthetic Harbour Hotel' }).click();
+  await page.getByRole('button', { name: 'Открыть задачу', exact: true }).click();
+  await page.getByRole('button', { name: 'Анализировать', exact: true }).click();
+  await expect(page).toHaveURL(/\/prototype\/point-to-object\/analysis$/, { timeout: 60_000 });
+  await expect(page.getByTestId('ai-success')).toBeVisible();
+  const draft = 'GUEST06 несохранённое уточнение: транспорт и подъезд';
+  const input = page.getByRole('textbox', { name: 'Провести целевой анализ', exact: true });
+  await input.fill(draft);
+  const state = () => page.evaluate(() => ({
+    selection: sessionStorage.getItem('geoai:point-to-object:selection:v3'),
+    draft: sessionStorage.getItem('geoai:point-to-object:analysis-draft:v1'),
+    analysis: sessionStorage.getItem('geoai:point-to-object:analysis:v8'),
+    question: sessionStorage.getItem('geoai:point-to-object:question:v2'),
+    identity: localStorage.getItem('geoai:point-to-object:browser-identity:v1')
+  }));
+  const before = await state();
+  expect(before.identity).toBeNull();
+  expect(before.draft).toContain(draft);
+  expect(before.selection).not.toBeNull();
+  const count = () => apiCalls.filter(call => call.path.endsWith('/ai')).map(call => call.method);
+  expect(count()).toEqual(['GET', 'POST']);
+  await page.getByRole('link', { name: 'Вернуться к карте', exact: true }).click();
+  await expect(page).toHaveURL(/\/prototype\/point-to-object$/);
+  await page.getByRole('button', { name: 'Открыть задачу', exact: true }).click();
+  await expect(page.getByRole('textbox', { name: 'Что вы хотите узнать?', exact: true })).toBeVisible();
+  const afterMap = await state();
+  expect(afterMap.selection).not.toBeNull();
+  expect(JSON.parse(afterMap.selection!).clickedAt).toBe(JSON.parse(before.selection!).clickedAt);
+  expect(afterMap.draft).toBe(before.draft);
+  expect(afterMap.question).toBe(before.question);
+  await page.screenshot({ path: testInfo.outputPath('guest-map-after-back-430-ru.png') });
+  await page.goBack();
+  await expect(page).toHaveURL(/\/prototype\/point-to-object\/analysis$/);
+  await expect(page.getByTestId('ai-success')).toBeVisible();
+  await expect(input).toHaveValue(draft);
+  expect(count()).toEqual(['GET', 'POST']);
+  await page.reload();
+  await expect(page.getByTestId('ai-success')).toBeVisible();
+  await expect(input).toHaveValue(draft);
+  expect(count()).toEqual(['GET', 'POST']);
+  await page.goto('/prototype/point-to-object/analysis');
+  await expect(page.getByTestId('ai-success')).toBeVisible();
+  await expect(input).toHaveValue(draft);
+  expect(count()).toEqual(['GET', 'POST']);
+  const final = await state();
+  expect(final.identity).toBeNull();
+  expect(final.draft).toBe(before.draft);
+  await page.screenshot({ path: testInfo.outputPath('guest-analysis-restored-430-ru.png'), fullPage: true });
+  console.log(JSON.stringify({ result: 'PASS', viewport: '430x932', locale: 'ru', guest: true, aiRequests: count(), selectionRetainedAfterMap: true, draftRecoveredAfterBrowserBack: true, reloadAndDirectEntryRecovered: true }));
+});
+
+test("V9 Standard renders its structured criteria review and restores it without another AI request", async ({ page }) => {
+  const { apiCalls, unexpectedExternal } = await installAnalysisRoutes(page);
+  await page.route("**/api/prototype/point-to-object/ai", async (route) => {
+    if (route.request().method() === "GET") return json(route, { mode: "ready", challenge: "A".repeat(43) });
+    await json(route, syntheticV9StandardResponse());
+  });
+  await seedSelection(page);
+
+  await signInDemo(page, "/prototype/point-to-object/analysis");
+  const review = page.getByTestId("analysis-depth-review");
+  await expect(review).toBeVisible();
+  await expect(review).toHaveAttribute("data-depth", "standard");
+  await expect(review.getByRole("heading", { name: "Decision criteria review" })).toBeVisible();
+  await expect(review.getByText("Retain the existing-use path", { exact: true })).toBeVisible();
+  await expect(review.getByText("Official permitted use", { exact: true })).toBeVisible();
+  await expect(review.getByRole("heading", { name: "Confirm the official use", exact: true })).toBeVisible();
+  await expect.poll(() => apiCalls.filter((call) => call.path.endsWith("/ai") && call.method === "POST").length).toBe(1);
+
+  await page.reload();
+  await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
+  expect(apiCalls.filter((call) => call.path.endsWith("/ai") && call.method === "POST")).toHaveLength(1);
+  expect(unexpectedExternal).toEqual([]);
+});
+
 test("V6 renders useful GeoContext and linked-source facts in EN/RU and restores each locale without automatic calls", async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
   const { apiCalls, unexpectedExternal } = await installAnalysisRoutes(page);
   await seedSelection(page);
 
   await signInDemo(page, "/prototype/point-to-object/analysis");
   await expect(page.getByTestId("ai-success")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Continue bounded object screening" })).toBeVisible();
+  await expect(page.getByTestId("role-decision-cards")).toBeVisible();
+  await expect(page.getByTestId("infrastructure-cards").locator("[data-infrastructure]")).toHaveCount(7);
+  await expect(page.locator('[data-infrastructure="transport"]')).toContainText("120 m");
+  await expect(page.locator('[data-infrastructure="transport"]')).toContainText("not travel time");
+  await expect(page.locator('[data-infrastructure="tourism"]')).toContainText("2");
+  await expect(page.locator('[data-infrastructure="health"]')).toContainText("No matching feature was returned in this sample.");
+  await expect(page.getByTestId("infrastructure-cards").getByText("Not returned in sample", { exact: true })).toHaveCount(0);
+  await page.getByTestId("role-decision-cards").screenshot({ path: testInfo.outputPath("decision-cards-1440.png") });
+  await page.setViewportSize({ width: 393, height: 852 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.getByTestId("role-decision-cards").screenshot({ path: testInfo.outputPath("decision-cards-393.png") });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const beforeProfileSwitch = apiCalls.length;
+  await page.getByRole("combobox", { name: "Viewing profile", exact: true }).selectOption("living");
+  await expect(page.locator("[data-card]").first()).toHaveAttribute("data-card", "daily_needs");
+  expect(apiCalls).toHaveLength(beforeProfileSwitch);
+  await page.getByRole("combobox", { name: "Viewing profile", exact: true }).selectOption("development");
+  await page.getByText("Decision reasoning & context", { exact: true }).click();
+  await page.getByText("Measurements & sample details", { exact: true }).click();
   await expect(page.getByText("Decision context", { exact: true })).toBeVisible();
   await expect(page.getByText("Nearest returned transit is 120 m and the nearest major road is 80 m away in a straight line.")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Surroundings within 400 m" })).toBeVisible();
-  await expect(page.getByText("Commercial", { exact: true })).toBeVisible();
-  await expect(page.getByText("Hospitality", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("analysis-geocontext").getByText("Commercial", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("analysis-geocontext").getByText("Hospitality", { exact: true })).toBeVisible();
   await expect(page.getByText("Transit: 120 m", { exact: true })).toBeVisible();
   await expect(page.getByText("Major road: 80 m", { exact: true })).toBeVisible();
 
@@ -533,8 +691,9 @@ test("V6 renders useful GeoContext and linked-source facts in EN/RU and restores
     return store?.projects?.[0]?.artifacts?.[0]?.kind;
   })).toBe("analyse");
   await page.goto("/projects?view=spatial");
-  await expect(page.getByText("Storage mode: on this device.")).toBeVisible();
-  await page.getByRole("button", { name: "Reopen without rerunning" }).click();
+  await expect(page.getByText("Saved on this device")).toBeVisible();
+  await expect(page.getByTestId("hub-count-analyse").getByTestId("hub-count-value")).toHaveText("1");
+  await page.getByRole("button", { name: "Open result", exact: true }).click();
   await expect(page).toHaveURL(/\/prototype\/point-to-object\/analysis$/);
   await expect(page.getByRole("heading", { name: "Continue bounded object screening" })).toBeVisible();
   expect(apiCalls).toHaveLength(callsAfterEnglish);
@@ -543,14 +702,21 @@ test("V6 renders useful GeoContext and linked-source facts in EN/RU and restores
   expect(apiCalls).toHaveLength(callsAfterEnglish);
 
   await page.getByRole("button", { name: "ru", exact: true }).click();
+  await expect(page.locator("html")).toHaveAttribute("lang", "ru");
+  await expect(page.locator('[data-infrastructure="transport"]')).toContainText("120 м");
+  await expect(page.locator('[data-infrastructure="health"]')).toContainText("Совпадающие объекты не вернулись в этой выборке.");
+  expect(apiCalls).toHaveLength(callsAfterEnglish);
+  await page.getByRole("button", { name: "Обновить на русском", exact: true }).click();
   await expect.poll(() => apiCalls.filter((call) => call.path.endsWith("/ai") && call.method === "POST").map((call) => call.body?.locale)).toEqual(["en", "ru"]);
   await expect(page.locator("html")).toHaveAttribute("lang", "ru");
   await expect(page.getByRole("heading", { name: "Продолжить ограниченный скрининг объекта" })).toBeVisible();
+  await page.getByText("Обоснование и контекст решения", { exact: true }).click();
+  await page.getByText("Измерения и состав выборки", { exact: true }).click();
   await expect(page.getByText("Контекст решения", { exact: true })).toBeVisible();
   await expect(page.getByText("Ближайший найденный транспорт — 120 м, магистраль — 80 м по прямой.")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Окружение в радиусе 400 м" })).toBeVisible();
-  await expect(page.getByText("Деловые объекты", { exact: true })).toBeVisible();
-  await expect(page.getByText("Гостиницы", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("analysis-geocontext").getByText("Деловые объекты", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("analysis-geocontext").getByText("Гостиницы", { exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Геоконтекст" }).locator("..")).toContainText("Wikidata указывает 321,4 м; значение расходится с OpenStreetMap и не выбирается автоматически.");
   await expectNoVisibleResolverBoilerplate(page);
   await page.screenshot({ path: testInfo.outputPath("v6-analysis-ru.png"), fullPage: true });
@@ -561,6 +727,59 @@ test("V6 renders useful GeoContext and linked-source facts in EN/RU and restores
   expect(apiCalls).toHaveLength(callsAfterRussian);
   expect(pointObjectCalls(apiCalls).filter((call) => !call.path.endsWith("/ai"))).toEqual([]);
   expect(unexpectedExternal).toEqual([]);
+});
+
+test("a rendered tile selection never promotes a nearest POI into the requested exact identity", async ({ page }) => {
+  const { apiCalls, unexpectedExternal } = await installAnalysisRoutes(page);
+  const tileSelection = { ...selection, object: { ...selection.object, name: "Selected building footprint", sourceFeatureId: "18290731" } };
+  await page.addInitScript((value) => sessionStorage.setItem("geoai:point-to-object:selection:v3", JSON.stringify(value)), tileSelection);
+  await page.route("**/api/prototype/point-to-object/ai", async (route) => {
+    if (route.request().method() === "GET") return json(route, { mode: "ready", challenge: "A".repeat(43) });
+    const response = syntheticV6Response("en");
+    response.subject = { ...response.subject, name: "Synthetic nearby fountain", sourceFeatureId: "node/91099", coordinateAssociation: "reverse_nearest_indexed_object_not_point_in_polygon", resultCentroidDistanceM: 63 };
+    await json(route, response);
+  });
+  await signInDemo(page, "/prototype/point-to-object/analysis");
+  await expect(page.getByTestId("ai-success")).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Selected building footprint");
+  await expect(page.getByText(/Nearest mapped context.*63/)).toBeVisible();
+  await expect(page.getByText("Exact mapped object", { exact: true })).toHaveCount(0);
+  expect(apiCalls.find(call => call.method === "POST")?.body?.expectedSourceFeatureId).toBeNull();
+  await expect.poll(() => savedAnalyseArtifactCount(page)).toBe(1);
+  const saved = await page.evaluate(() => {
+    const key = Object.keys(localStorage).find(item => item.startsWith("geoai:point-to-object:projects:v1:"));
+    const project = JSON.parse(localStorage.getItem(key!)!).projects[0];
+    return { name: project.name, artifact: project.artifacts[0] };
+  });
+  expect(saved.name).not.toContain("fountain");
+  expect(saved.artifact.label).toBe("Selected building footprint");
+  // The selected name is presentation metadata; the original provider receipt
+  // and its nearby-object evidence must remain unmodified and hash-verifiable.
+  expect(saved.artifact.payload.analysis.subject.name).toBe("Synthetic nearby fountain");
+  const callsBeforeReopen = apiCalls.length;
+  await page.goto("/projects");
+  await expect(page.getByTestId("saved-result-card")).toContainText("Selected building footprint");
+  await page.getByRole("button", { name: "Open result", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Selected building footprint");
+  expect(apiCalls).toHaveLength(callsBeforeReopen);
+  expect(unexpectedExternal).toEqual([]);
+});
+
+test("a legacy exact-identity mismatch stays immutable and displays its warning without a provider call", async ({ page }) => {
+  const { apiCalls } = await installAnalysisRoutes(page);
+  const tileSelection = { ...selection, object: { ...selection.object, name: "Selected building footprint", sourceFeatureId: "18290731" } };
+  const legacy = syntheticLegacyV5Response();
+  const stored = JSON.stringify({ selectionFingerprint: selectionFingerprint(), analysis: legacy });
+  await page.addInitScript(({ value, raw }) => {
+    sessionStorage.setItem("geoai:point-to-object:selection:v3", JSON.stringify(value));
+    sessionStorage.setItem("geoai:point-to-object:analysis:v7", raw);
+  }, { value: tileSelection, raw: stored });
+  await signInDemo(page, "/prototype/point-to-object/analysis");
+  await expect(page.getByTestId("ai-success")).toBeVisible();
+  await expect(page.getByText(/This saved report labelled a nearby object as exact/)).toBeVisible();
+  await expect(page.getByText("Exact mapped object", { exact: true })).toHaveCount(0);
+  expect(await page.evaluate(() => sessionStorage.getItem("geoai:point-to-object:analysis:v7"))).toBe(stored);
+  expect(pointObjectCalls(apiCalls)).toEqual([]);
 });
 
 test("a persisted legacy V5 result restores and survives EN/RU locale changes with zero source or AI requests", async ({ page }, testInfo) => {
@@ -605,13 +824,16 @@ test("Saved Analyse reopens RU from EN Projects and EN from RU Projects without 
   await expect(page.getByRole("heading", { name: "Continue bounded object screening" })).toBeVisible();
   await expect.poll(() => savedAnalyseArtifactCount(page)).toBe(1);
   await page.getByRole("button", { name: "ru", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Continue bounded object screening" })).toBeVisible();
+  expect(apiCalls.filter((call) => call.method === "POST")).toHaveLength(1);
+  await page.getByRole("button", { name: "Обновить на русском", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Продолжить ограниченный скрининг объекта" })).toBeVisible();
   await expect.poll(() => savedAnalyseArtifactCount(page)).toBe(2);
 
   const callsBeforeReopen = pointObjectCalls(apiCalls).length;
   await page.goto("/projects?view=spatial");
   await page.getByRole("button", { name: "en", exact: true }).click();
-  await page.getByRole("button", { name: "Reopen without rerunning" }).first().click();
+  await page.getByRole("button", { name: "Open result", exact: true }).first().click();
   await expect(page.getByRole("heading", { name: "Продолжить ограниченный скрининг объекта" })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("lang", "ru");
   expect(pointObjectCalls(apiCalls)).toHaveLength(callsBeforeReopen);
@@ -621,8 +843,8 @@ test("Saved Analyse reopens RU from EN Projects and EN from RU Projects without 
   await expect(page.getByRole("heading", { name: "Продолжить ограниченный скрининг объекта" })).toBeVisible();
   expect(pointObjectCalls(apiCalls)).toHaveLength(callsBeforeReopen);
   await page.goBack();
-  await expect(page.getByRole("heading", { name: "Проекты GeoAI" })).toBeVisible();
-  await page.getByRole("button", { name: "Открыть без повторного запроса" }).nth(1).click();
+  await expect(page.getByRole("heading", { name: "Центр проектов" })).toBeVisible();
+  await page.getByRole("button", { name: "Открыть результат", exact: true }).nth(1).click();
   await expect(page.getByRole("heading", { name: "Continue bounded object screening" })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
   expect(pointObjectCalls(apiCalls)).toHaveLength(callsBeforeReopen);
@@ -632,9 +854,36 @@ test("Saved Analyse reopens RU from EN Projects and EN from RU Projects without 
   await expect(page.getByRole("heading", { name: "Continue bounded object screening" })).toBeVisible();
   expect(pointObjectCalls(apiCalls)).toHaveLength(callsBeforeReopen);
   await page.goBack();
-  await expect(page.getByRole("heading", { name: "GeoAI Projects" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Project Hub", exact: true })).toBeVisible();
   expect(pointObjectCalls(apiCalls)).toHaveLength(callsBeforeReopen);
   expect(unexpectedExternal).toEqual([]);
+});
+
+test("an optional Supabase subscription chunk failure falls back to the server-verified anonymous session", async ({ page }) => {
+  const pageErrors: string[] = [];
+  let sessionGets = 0;
+  let subscriptionChunkRequests = 0;
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  await page.route("**/api/auth/session", async (route) => {
+    sessionGets += 1;
+    await json(route, { isAuthenticated: false, user: null });
+  });
+  await page.route(/\/_next\/static\/chunks\/.*supabase.*browser.*\.js(?:\?.*)?$/, async (route) => {
+    subscriptionChunkRequests += 1;
+    if (subscriptionChunkRequests === 1) {
+      await route.abort("failed");
+      return;
+    }
+    await route.continue();
+  });
+
+  await page.goto("/login?next=%2Fworkspace");
+  await expect(page.getByRole("heading", { name: "Sign in to GeoAI" })).toBeVisible();
+  await expect.poll(() => subscriptionChunkRequests).toBeGreaterThanOrEqual(1);
+  await expect.poll(() => sessionGets).toBeGreaterThanOrEqual(2);
+  await expect(page).toHaveURL(/\/login\?/);
+  expect(await page.evaluate(() => localStorage.getItem("geoai-mock-demo-session-v1"))).toBeNull();
+  expect(pageErrors).toEqual([]);
 });
 
 test("Projects preserves bytes and permits explicit retry when integrity hashing is temporarily unavailable", async ({ page }) => {
@@ -671,7 +920,7 @@ test("Projects preserves bytes and permits explicit retry when integrity hashing
   });
   const callsBeforeReopen = pointObjectCalls(apiCalls).length;
 
-  await page.getByRole("button", { name: "Открыть без повторного запроса" }).click();
+  await page.getByRole("button", { name: "Открыть результат", exact: true }).click();
   await expect(page).toHaveURL(/\/projects\?view=spatial$/);
   await expect(page.locator("main").getByRole("alert")).toHaveText("Проверка целостности временно недоступна. Сохранённые данные не изменены; попробуйте открыть ещё раз.");
   expect(await page.evaluate((key) => localStorage.getItem(key), before.key)).toBe(before.raw);
@@ -680,7 +929,7 @@ test("Projects preserves bytes and permits explicit retry when integrity hashing
   expect(pageErrors).toEqual([]);
   expect(await page.evaluate(() => (window as typeof window & { __geoAiUnhandled?: string[] }).__geoAiUnhandled ?? [])).toEqual([]);
 
-  await page.getByRole("button", { name: "Открыть без повторного запроса" }).click();
+  await page.getByRole("button", { name: "Открыть результат", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Continue bounded object screening" })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
   expect(pointObjectCalls(apiCalls)).toHaveLength(callsBeforeReopen);

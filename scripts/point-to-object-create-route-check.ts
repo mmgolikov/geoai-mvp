@@ -28,6 +28,7 @@ const feasible = [[[37.62, 55.75], [37.621596, 55.75], [37.621596, 55.750905], [
 const fixtureGlobal = globalThis as typeof globalThis & {
   __geoaiCreateSourceCalls?: number;
   __geoaiCreateRuntimeStatus?: () => { enabled: boolean };
+  __geoaiCreateOversizedInput?: boolean;
 };
 const previousSourceCalls = fixtureGlobal.__geoaiCreateSourceCalls;
 fixtureGlobal.__geoaiCreateSourceCalls = 0;
@@ -41,6 +42,8 @@ fixtureGlobal.__geoaiCreateRuntimeStatus = () => ({
 // Execute the actual handler and geometry. Only platform/source adapters and
 // network transport are fixtures; no environment file or live key is accessed.
 const source = readFileSync(new URL("app/api/prototype/point-to-object/create/route.ts", repositoryRoot), "utf8")
+  .replace("serializeBoundedPointObjectCreateRequest(requestBody)",
+    "serializeBoundedPointObjectCreateRequest(globalThis.__geoaiCreateOversizedInput ? { value: 'a'.repeat(16000) } : requestBody)")
   .replace('import { NextResponse } from "next/server";', `
     const NextResponse = { json(body, init = {}) { return new Response(JSON.stringify(body), {
       status: init.status ?? 200, headers: { "Content-Type": "application/json", ...(init.headers ?? {}) }
@@ -66,6 +69,7 @@ globalThis.fetch = async (input, init) => {
   assert.equal(String(input), "https://api.openai.com/v1/responses", "All network attempts must terminate in the offline provider fixture.");
   providerCalls += 1;
   const requestBody = JSON.parse(String(init?.body));
+  assert.ok(Buffer.byteLength(String(init?.body), "utf8") <= 16_000, "Every initial/repair provider body must pass the byte cap.");
   providerInputs.push(JSON.parse(requestBody.input[1].content[0].text));
   if (providerBehavior === "network-error") throw new TypeError("Offline network failure");
   const programme = { ...conceptTemplate("commercial_hub", "en"), ...controls };
@@ -184,7 +188,17 @@ try {
   assert.ok(customBody.massing.featureCollection.features.every((item: { properties: { use: string } }) => item.properties.use !== "retail"));
   assert.equal(customBody.telemetry.attempts, 1);
 
-  for (let index = 0; index < 15; index += 1) {
+  fixtureGlobal.__geoaiCreateOversizedInput = true;
+  const callsBeforeOversize = providerCalls;
+  const oversized = await invoke(feasible, "203.0.113.97");
+  assert.equal(oversized.status, 413);
+  const oversizedBody = await oversized.json();
+  assert.equal(oversizedBody.code, "CREATE_REQUEST_TOO_LARGE");
+  assert.deepEqual(oversizedBody.telemetry, { attempts: 0, providerCalls: 0, estimatedCostUsd: 0 });
+  assert.equal(providerCalls, callsBeforeOversize, "Oversized input must be rejected before any provider dispatch or attempt receipt.");
+  delete fixtureGlobal.__geoaiCreateOversizedInput;
+
+  for (let index = 0; index < 14; index += 1) {
     const bounded = await invoke(negative, `198.51.100.${index + 1}`);
     assert.equal(bounded.status, 422, "The first 20 process-local attempts in the window remain available.");
   }
@@ -194,6 +208,7 @@ try {
 
   console.log("Create actual-route offline checks passed: Production flag/key matrix, Preview compatibility, origin, no-fit, suggestion, success, unknown-usage failure, custom intent and process-local global cap. No live network or credentials used.");
 } finally {
+  delete fixtureGlobal.__geoaiCreateOversizedInput;
   globalThis.fetch = originalFetch;
   if (previousSourceCalls === undefined) delete fixtureGlobal.__geoaiCreateSourceCalls;
   else fixtureGlobal.__geoaiCreateSourceCalls = previousSourceCalls;

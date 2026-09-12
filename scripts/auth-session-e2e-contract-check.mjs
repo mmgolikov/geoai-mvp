@@ -179,6 +179,7 @@ for (const marker of [
 for (const marker of [
   "axe-project-comparison-results.json",
   'signInDemoWithKeyboard(page, "/projects")',
+  'page.goto("/projects/legacy")',
   'name: "Create project"',
   'name: "Project name"',
   "local-projects-v1",
@@ -240,8 +241,8 @@ for (const marker of [
   'name: "Turn a location into a decision path."',
   'name: "Open map"',
   '"/prototype/point-to-object"',
-  'name: "Projects"',
-  '"/projects?view=spatial"',
+  'name: "Leave a request"',
+  '"/request-access"',
   'name: "Sign in to GeoAI"',
   'name: "Your profile"',
   "landing-${viewport.name}.png",
@@ -265,14 +266,14 @@ for (const marker of [
   'aria-label="Mobile product navigation"',
   'aria-controls="mobile-product-navigation-menu"',
   'aria-current={isCurrent ? "page" : undefined}',
-  'href: "/workspace"',
+  'href: "/prototype/point-to-object"',
   'href: "/projects"',
   "triggerRef.current?.focus()"
 ]) requireText(productNavigation, marker, `Product navigation component is missing ${marker}`);
 
 
 for (const marker of [
-  'canonicalProductRoute: "/workspace"',
+  'canonicalProductRoute: "/prototype/point-to-object"',
   'compatibilityRoute: "/explore"',
   'name: "Criteria-first"',
   'name: "Compare Candidates"',

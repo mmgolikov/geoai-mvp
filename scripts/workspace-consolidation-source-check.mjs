@@ -44,7 +44,7 @@ function requireCondition(condition, message) {
 }
 
 requireCondition(
-  navigation.includes('{ href: "/workspace", label: "Workspace"') &&
+  navigation.includes('{ href: "/prototype/point-to-object", label: "Workspace"') &&
     navigation.includes('{ href: "/projects", label: "Projects"'),
   "Product navigation must expose Workspace and Projects."
 );
@@ -57,7 +57,7 @@ requireCondition(
     landingRoute.includes("<GeoAILandingPage />") &&
     landing.includes('const mapHref = "/prototype/point-to-object";') &&
     landing.includes("href={mapHref}") &&
-    landing.includes('const projectsHref = "/projects?view=spatial";') &&
+    landing.includes('const projectsHref = "/projects";') &&
     landing.includes("href={projectsHref}") &&
     !landing.includes("Explore platform"),
   "Landing must render the accepted component, enter Point-to-Object and local Projects, and must not advertise Explore as a separate Product."
@@ -122,7 +122,7 @@ requireCondition(
 const evidence = {
   schemaVersion: "1.0",
   status: failures.length === 0 ? "pass" : "fail",
-  canonicalProductRoute: "/workspace",
+  canonicalProductRoute: "/prototype/point-to-object",
   canonicalProductDestinations: ["Workspace", "Projects"],
   compatibilityRoute: "/explore",
   compatibilityDestination: "/workspace",

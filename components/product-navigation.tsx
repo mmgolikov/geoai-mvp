@@ -6,11 +6,14 @@ import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 
 const productRoutes = [
-  { href: "/workspace", label: "Workspace", description: "Screen, search and compare locations" },
+  { href: "/prototype/point-to-object", label: "Workspace", description: "Screen, search and compare locations" },
   { href: "/projects", label: "Projects", description: "Open saved decision work" }
 ] as const;
 
 function isCurrentRoute(pathname: string, href: string) {
+  // The legacy page remains directly addressable, but its Workspace action
+  // always leads to the canonical product. Keep its active-state compatibility.
+  if (href === "/prototype/point-to-object" && (pathname === "/workspace" || pathname.startsWith("/workspace/"))) return true;
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
@@ -48,7 +51,7 @@ export function ProductNavigation() {
 
   return (
     <>
-      <nav aria-label="Primary product navigation" data-figma-node="219:425" className="hidden h-10 items-center gap-1 md:flex">
+      <nav aria-label="Primary product navigation" data-figma-node="219:425" className="hidden h-11 items-center gap-1 md:flex">
         {productRoutes.map((route) => {
           const isCurrent = isCurrentRoute(pathname, route.href);
           return (
@@ -56,7 +59,7 @@ export function ProductNavigation() {
               key={route.href}
               href={route.href}
               aria-current={isCurrent ? "page" : undefined}
-              className={`inline-flex h-10 min-w-[84px] items-center justify-center rounded-control px-3 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 ${
+              className={`inline-flex h-11 min-w-[84px] items-center justify-center rounded-control px-3 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 ${
                 isCurrent
                   ? "bg-surface text-ink"
                   : "text-muted hover:bg-surface hover:text-ink"
@@ -77,7 +80,7 @@ export function ProductNavigation() {
             aria-expanded={isOpen}
             aria-controls="mobile-product-navigation-menu"
             onClick={() => setIsOpen((current) => !current)}
-            className={`inline-flex h-10 w-10 items-center justify-center rounded-control border transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 ${
+            className={`inline-flex h-11 w-11 items-center justify-center rounded-control border transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 ${
               isOpen
                 ? "border-brand bg-surface text-brand"
                 : "border-line bg-white text-muted hover:border-brand hover:text-brand"

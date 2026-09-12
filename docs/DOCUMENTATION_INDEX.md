@@ -13,6 +13,14 @@ This index is the repository entry point for current documentation. If a version
 
 ## Start here
 
+September 10 evening: [Sprint07 User Journey Recovery and Role-Based Decision Cards](change-requests/point-to-object-001/experience-v6/SPRINT07_USER_JOURNEY_RECOVERY_CR.md) is the founder-approved successor correction scope for the existing Sprint06 Preview branch. Mobile/desktop feedback reopens exact-result recovery, object identity, map replacement, Find correspondence and visual acceptance. It does not authorize main/Production, hosted configuration or commercial activation.
+
+Sprint07 dashboard handoff: [Role / Scenario / Dashboard Matrix v1](change-requests/point-to-object-001/experience-v6/ROLE_SCENARIO_DASHBOARD_MATRIX_V1.md) distinguishes the two implemented context-view presets from source-dependent role specifications, commercial decision packs and future permissions/MCP capabilities.
+
+Sprint07 verification: [Acceptance and remaining field checks](change-requests/point-to-object-001/experience-v6/SPRINT07_ACCEPTANCE_RECEIPT.md) consolidates the founder's feedback, local evidence and unverified physical/live-provider coverage. The [short request form](change-requests/point-to-object-001/experience-v6/LANDING_REQUEST_FORM_PROPOSAL.md) is a proposal only, not a new contact-submission feature.
+
+September 10 Preview correction: [Map reliability, unified Project Hub and landing CR](change-requests/point-to-object-001/experience-v6/SEPT10_REGRESSION_PROJECT_HUB_CHANGE_REQUEST.md) is the owner-approved authority for the existing Sprint06 branch. It explicitly supersedes the older requirement to retain the product Data readiness / Saved spatial work split. Physical-device findings reopen the affected map/source acceptance areas; old passing receipts remain bounded historical evidence. This does not authorize main or Production changes.
+
 | Need | Current authority | What it answers |
 | --- | --- | --- |
 | Repository overview | [README](../README.md) | Supported prototype features, setup, routes and current public-demo restrictions |

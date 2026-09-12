@@ -30,15 +30,25 @@ const {
   inferPromptMassingStyle,
   parsePointObjectCreateProgram,
   resolvePointObjectCreateModelProfile,
+  serializeBoundedPointObjectCreateRequest,
   selectPointObjectCreateRequestedParameters,
   validatePointObjectCreateLockedControlKeys
 } = await import("../src/lib/prototype/point-to-object-create-ai-core");
+assert.equal(serializeBoundedPointObjectCreateRequest({ value: "a".repeat(16_000) }), null);
+assert.equal(serializeBoundedPointObjectCreateRequest({ value: "я".repeat(8_000) }), null, "The provider limit measures UTF-8 bytes, not characters.");
+assert.equal(serializeBoundedPointObjectCreateRequest({ value: "safe" }), '{"value":"safe"}');
 const { calculatePolygonMeasurements } = await import("../src/lib/polygon-aoi");
 const {
   createPointObjectCreateDraftKey,
   createPointObjectCreateEditorScopeKey,
   restorePointObjectCreateEditorSnapshot
 } = await import("../src/lib/prototype/point-to-object-create-editor");
+const {
+  POINT_OBJECT_CREATE_SESSION_MAX_BYTES,
+  parsePointObjectCreateSessionState,
+  serializePointObjectCreateSession
+} = await import("../src/lib/prototype/point-to-object-create-session");
+const { POINT_OBJECT_CREATE_RESULT_CAVEAT } = await import("../src/lib/prototype/point-to-object-create-result");
 
 function geometrySignature(result: ReturnType<typeof generateConceptMassing>) {
   return JSON.stringify(result.featureCollection.features.map((feature) => ({
@@ -167,6 +177,86 @@ function normalizedPrimaryCentroidSpan(
       Math.max(Number.EPSILON, maxLongitude - minLongitude) +
     (Math.max(...centers.map((point) => point[1])) - Math.min(...centers.map((point) => point[1]))) /
       Math.max(Number.EPSILON, maxLatitude - minLatitude);
+}
+
+function normalizeUndirectedAngle(angle: number) {
+  let normalized = angle;
+  while (normalized >= Math.PI / 2) normalized -= Math.PI;
+  while (normalized < -Math.PI / 2) normalized += Math.PI;
+  return normalized;
+}
+
+function undirectedAngleDifference(left: number, right: number) {
+  const delta = Math.abs(normalizeUndirectedAngle(left) - normalizeUndirectedAngle(right));
+  return Math.min(delta, Math.PI - delta);
+}
+
+function pointToSegmentDistanceM(
+  point: [number, number],
+  start: [number, number],
+  end: [number, number]
+) {
+  const latitude = point[1] * Math.PI / 180;
+  const metresPerLongitude = 111_320 * Math.cos(latitude);
+  const toMetric = (candidate: [number, number]) => ({
+    x: (candidate[0] - point[0]) * metresPerLongitude,
+    y: (candidate[1] - point[1]) * 110_540
+  });
+  const metricStart = toMetric(start);
+  const metricEnd = toMetric(end);
+  const deltaX = metricEnd.x - metricStart.x;
+  const deltaY = metricEnd.y - metricStart.y;
+  const lengthSquared = deltaX * deltaX + deltaY * deltaY;
+  const projection = lengthSquared <= Number.EPSILON ? 0 : Math.max(0, Math.min(1,
+    -(metricStart.x * deltaX + metricStart.y * deltaY) / lengthSquared
+  ));
+  return Math.hypot(metricStart.x + deltaX * projection, metricStart.y + deltaY * projection);
+}
+
+function featureBoundaryAlignment(
+  polygon: [number, number][][],
+  feature: ReturnType<typeof generateConceptMassing>["featureCollection"]["features"][number]
+) {
+  const center = featureCenter(feature);
+  const siteRing = polygon[0].slice(0, -1);
+  let nearestDistanceM = Number.POSITIVE_INFINITY;
+  let nearestBoundaryAngle = 0;
+  for (let index = 0; index < siteRing.length; index += 1) {
+    const start = siteRing[index];
+    const end = siteRing[(index + 1) % siteRing.length];
+    const distanceM = pointToSegmentDistanceM(center, start, end);
+    if (distanceM < nearestDistanceM) {
+      nearestDistanceM = distanceM;
+      const latitude = (start[1] + end[1]) / 2 * Math.PI / 180;
+      nearestBoundaryAngle = Math.atan2(
+        (end[1] - start[1]) * 110_540,
+        (end[0] - start[0]) * 111_320 * Math.cos(latitude)
+      );
+    }
+  }
+  const footprint = feature.geometry.coordinates[0].slice(0, -1);
+  const footprintAngles = footprint.map((start, index) => {
+    const end = footprint[(index + 1) % footprint.length];
+    const latitude = (start[1] + end[1]) / 2 * Math.PI / 180;
+    return Math.atan2(
+      (end[1] - start[1]) * 110_540,
+      (end[0] - start[0]) * 111_320 * Math.cos(latitude)
+    );
+  });
+  return {
+    errorDeg: Math.min(...footprintAngles.map((angle) =>
+      undirectedAngleDifference(angle, nearestBoundaryAngle))) * 180 / Math.PI,
+    boundaryAngle: normalizeUndirectedAngle(nearestBoundaryAngle)
+  };
+}
+
+function distinctOrientationCount(angles: number[], toleranceDeg: number) {
+  const tolerance = toleranceDeg * Math.PI / 180;
+  const unique: number[] = [];
+  for (const angle of angles) {
+    if (unique.every((candidate) => undirectedAngleDifference(candidate, angle) > tolerance)) unique.push(angle);
+  }
+  return unique.length;
 }
 
 function assertTowerPodiumContract(
@@ -309,6 +399,58 @@ assert.notEqual(geometrySignature(alternatives[0].massing), geometrySignature(al
   "Alternative B must change real geometry or vertical arrangement, not only its label.");
 assert.deepEqual(generateConceptMassingAlternatives(aoi, validated.value, "geoai-create-alternatives", "en"), alternatives,
   "Alternative generation must remain deterministic.");
+
+const guestAoiMeasurements = calculatePolygonMeasurements(aoi[0].slice(0, -1));
+const guestAoi = {
+  id: "create-aoi-guest-session-check",
+  coordinates: aoi,
+  areaSqM: guestAoiMeasurements.areaSqM,
+  perimeterM: guestAoiMeasurements.perimeterM,
+  vertexCount: aoi[0].length - 1
+};
+const guestGenerated = {
+  mode: "openai_concept" as const,
+  generatedAt: "2026-09-12T15:00:00.000Z",
+  promptVersion: "POINT_OBJECT_CREATE_GUEST_SESSION_CHECK",
+  program: validated.value,
+  massing: alternatives[0].massing,
+  alternatives,
+  telemetry: { model: "offline-check", reasoningEffort: "none", latencyMs: 1, attempts: 1, estimatedCostUsd: 0 },
+  caveat: POINT_OBJECT_CREATE_RESULT_CAVEAT
+};
+const guestSessionRaw = serializePointObjectCreateSession({
+  marketKey: "dubai",
+  locale: "en",
+  aoi: guestAoi,
+  editorSnapshot: null,
+  generated: guestGenerated,
+  generatedLocale: "en",
+  activeAlternativeId: "B",
+  areaContext: null,
+  dashboardOpen: false
+});
+assert.ok(guestSessionRaw, "A valid guest result must fit the bounded Create session.");
+const guestSession = parsePointObjectCreateSessionState(JSON.parse(guestSessionRaw));
+assert.equal(guestSession?.activeAlternativeId, "B");
+assert.equal(guestSession?.dashboardOpen, false);
+assert.equal(POINT_OBJECT_CREATE_SESSION_MAX_BYTES, 768 * 1024);
+assert.equal(parsePointObjectCreateSessionState({ ...guestSession, schemaVersion: 2 }), null,
+  "Unknown guest Create session schemas must fail closed.");
+assert.equal(parsePointObjectCreateSessionState({ ...guestSession, unexpected: true }), null,
+  "Guest Create sessions must reject additive unreviewed fields.");
+assert.equal(parsePointObjectCreateSessionState({ ...guestSession, activeAlternativeId: "C" }), null,
+  "A guest view cannot restore an alternative absent from the verified result.");
+const translatedGuestGenerated = structuredClone(guestGenerated);
+for (const massing of [translatedGuestGenerated.massing, ...(translatedGuestGenerated.alternatives ?? []).map((alternative) => alternative.massing)]) {
+  for (const feature of massing.featureCollection.features) {
+    feature.geometry.coordinates = feature.geometry.coordinates.map((ring) =>
+      ring.map(([longitude, latitude]) => [longitude + 0.25, latitude]));
+  }
+}
+assert.equal(parsePointObjectCreateSessionState({ ...guestSession, generated: translatedGuestGenerated }), null,
+  "A guest Create session must reject concept geometry translated outside its exact AOI.");
+assert.equal(parsePointObjectCreateSessionState({ ...guestSession, marketKey: "singapore" }), null,
+  "A guest Create session must reject an AOI outside the declared market bounds.");
 
 const perimeterValidation = validateRedevelopmentProgram({
   ...programInput,
@@ -676,6 +818,55 @@ for (const squareCampusAoi of [aoi, [[...aoi[0]].reverse()] as [number, number][
     "Both roomy-square alternatives must retain real articulation for the independent audit seed and either AOI winding.");
   }
 }
+
+const siteResponsiveCenter = [55.28, 25.218] as const;
+const siteResponsiveMetresPerLongitude = 111_320 * Math.cos(siteResponsiveCenter[1] * Math.PI / 180);
+const siteResponsivePoint = (x: number, y: number): [number, number] => [
+  siteResponsiveCenter[0] + x / siteResponsiveMetresPerLongitude,
+  siteResponsiveCenter[1] + y / 110_540
+];
+const siteResponsiveAoi = [[
+  siteResponsivePoint(-180, -120),
+  siteResponsivePoint(160, -100),
+  siteResponsivePoint(220, 20),
+  siteResponsivePoint(80, 180),
+  siteResponsivePoint(-160, 140),
+  siteResponsivePoint(-180, -120)
+]] as [number, number][][];
+const siteResponsiveStarted = performance.now();
+const siteResponsiveAlternatives = generateConceptMassingAlternatives(
+  siteResponsiveAoi,
+  civicValidation.value,
+  "cycle04:site-responsive-campus"
+);
+const siteResponsiveElapsedMs = performance.now() - siteResponsiveStarted;
+assert.ok(siteResponsiveElapsedMs < 2_500,
+  "Two site-responsive campus alternatives must complete inside the bounded per-case budget.");
+assert.equal(siteResponsiveAlternatives.length, 2);
+assert.deepEqual(
+  generateConceptMassingAlternatives(siteResponsiveAoi, civicValidation.value, "cycle04:site-responsive-campus"),
+  siteResponsiveAlternatives,
+  "Local boundary orientation must remain deterministic."
+);
+for (const alternative of siteResponsiveAlternatives) {
+  assertGeometryContract(siteResponsiveAoi, civicValidation.value, alternative.massing);
+  const primary = alternative.massing.featureCollection.features
+    .filter((feature) => feature.properties.primaryBlock);
+  const alignment = primary.map((feature) => featureBoundaryAlignment(siteResponsiveAoi, feature));
+  assert.ok(alignment.filter((item) => item.errorDeg <= 3).length >= 5,
+    "At least five of six campus blocks must expose an edge aligned to their nearest local AOI boundary.");
+  assert.ok(distinctOrientationCount(alignment.map((item) => item.boundaryAngle), 20) >= 2,
+    "A non-orthogonal AOI must produce at least two distinct local boundary-orientation families.");
+}
+console.log("cycle04 site-responsive campus metric", {
+  elapsedMs: Number(siteResponsiveElapsedMs.toFixed(1)),
+  alignments: siteResponsiveAlternatives.map((alternative) => ({
+    id: alternative.id,
+    errorDeg: alternative.massing.featureCollection.features
+      .filter((feature) => feature.properties.primaryBlock)
+      .map((feature) => Number(featureBoundaryAlignment(siteResponsiveAoi, feature).errorDeg.toFixed(2)))
+  }))
+});
 const overlapCounterexample = structuredClone(campus);
 overlapCounterexample.featureCollection.features[1].geometry.coordinates = structuredClone(
   overlapCounterexample.featureCollection.features[0].geometry.coordinates
@@ -1054,6 +1245,7 @@ assert.equal(resolvePointObjectCreateModelProfile("quick", "gpt-5.6-terra-malici
   "Only exact GPT-5.6 aliases or dated snapshots may override Create routing.");
 
 const responsesRequest = buildPointObjectCreateResponsesRequest(aiInput, standardProfile);
+assert.notEqual(serializeBoundedPointObjectCreateRequest(responsesRequest), null, "A standard Create request must fit the provider request budget.");
 assert.equal(responsesRequest.model, "gpt-5.6-sol");
 assert.equal(responsesRequest.service_tier, "default");
 assert.equal(responsesRequest.store, false);

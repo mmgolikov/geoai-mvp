@@ -34,7 +34,11 @@ const {
   normalizePointObjectAreaContext,
   parsePointObjectAreaContextRequest
 } = await import("../src/lib/prototype/point-to-object-area-context-contract");
-const { normalizeOverpassUrbanFabric } = await import("../src/lib/prototype/point-to-object-live-evidence");
+const {
+  normalizeOverpassUrbanFabric,
+  pointObjectDisplayGeometry,
+  pointObjectTrustedDisplayGeometry
+} = await import("../src/lib/prototype/point-to-object-live-evidence");
 
 const point = [55.2715, 25.2065] as [number, number];
 const request = parsePointObjectAreaContextRequest({
@@ -107,5 +111,61 @@ assert.equal(nonCivicFabric.nearestMajorRoadM, null,
   "Mapped parking must not be reported as proximity to a major road.");
 assert.equal(nonCivicFabric.nearestTransitM, null,
   "Mapped parking and general amenities must not be reported as public transport proximity.");
+
+const polygonWithHole: { type: "Polygon"; coordinates: number[][][] } = {
+  type: "Polygon",
+  coordinates: [
+    [[55.27, 25.2], [55.28, 25.2], [55.28, 25.21], [55.27, 25.21], [55.27, 25.2]],
+    [[55.273, 25.203], [55.277, 25.203], [55.277, 25.207], [55.273, 25.207], [55.273, 25.203]]
+  ]
+};
+assert.deepEqual(pointObjectDisplayGeometry(polygonWithHole), polygonWithHole,
+  "The display projection must preserve an intact exact polygon and its holes byte-equivalently.");
+assert.equal(pointObjectDisplayGeometry({ type: "LineString", coordinates: [[55.27, 25.2], [55.28, 25.21]] }), null,
+  "Non-surface source geometry must remain marker-only.");
+const overBudgetRing = Array.from({ length: 5_001 }, (_, index) => [55.27 + index * 1e-8, 25.2]);
+overBudgetRing[overBudgetRing.length - 1] = overBudgetRing[0];
+assert.equal(pointObjectDisplayGeometry({ type: "Polygon", coordinates: [overBudgetRing] }), null,
+  "An over-budget source polygon must fail closed instead of being truncated or simplified.");
+
+// Exact upstream fixture: Nominatim returns way/491945907 as category=building,
+// type=residential and an intact Polygon, but does not duplicate its primary
+// building=residential tag in extratags.
+const crownePlazaApartmentTower = {
+  type: "Polygon" as const,
+  coordinates: [[
+    [55.2806166, 25.2205305],
+    [55.2800331, 25.2208448],
+    [55.2803053, 25.2212584],
+    [55.2808888, 25.2209441],
+    [55.2806166, 25.2205305]
+  ]]
+};
+const crowneLookup = {
+  expectedSourceFeatureId: "way/491945907",
+  resolvedSourceFeatureId: "way/491945907",
+  primaryCategory: "building",
+  selectedTags: {
+    "classification.category": "building",
+    "classification.type": "residential",
+    "tag.building:levels": "23"
+  },
+  geometry: crownePlazaApartmentTower
+};
+assert.deepEqual(pointObjectTrustedDisplayGeometry(crowneLookup), crownePlazaApartmentTower,
+  "An exact primary building classification must retain its intact polygon when extratags omits building=*.");
+for (const primaryCategory of ["office", "tourism"]) {
+  assert.equal(pointObjectTrustedDisplayGeometry({ ...crowneLookup, primaryCategory }), null,
+    `A primary ${primaryCategory} classification must remain marker-only without an explicit surface tag.`);
+}
+assert.equal(pointObjectTrustedDisplayGeometry({
+  ...crowneLookup,
+  expectedSourceFeatureId: "node/491945907",
+  resolvedSourceFeatureId: "node/491945907"
+}), null, "A node identity must remain marker-only even when its primary category is building.");
+assert.equal(pointObjectTrustedDisplayGeometry({
+  ...crowneLookup,
+  resolvedSourceFeatureId: "way/491945908"
+}), null, "A mismatched exact identity must not receive display geometry.");
 
 console.log("Point-to-object point/AOI context classification contract passed.");

@@ -102,7 +102,7 @@ test.describe("accessible critical screens and keyboard-only workspace journey",
     await expect(page.getByRole("heading", { level: 1, name: "Turn a location into a decision path." })).toBeVisible();
     await recordAccessibilityResult(page, "Landing hub", evidence);
 
-    const mapLink = page.locator("main > section").first().getByRole("link", { name: "Open map", exact: true });
+    const mapLink = page.locator("main > section").first().getByRole("link", { name: "Open map", exact: true }).filter({ hasText: /^Open map$/ });
     await tabUntilLocator(page, mapLink, { maximumTabs: 40 });
     await page.keyboard.press("Enter");
     await expect(page).toHaveURL((url) => url.pathname === "/prototype/point-to-object");

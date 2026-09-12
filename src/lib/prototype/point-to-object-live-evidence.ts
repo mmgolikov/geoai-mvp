@@ -1,6 +1,8 @@
 import "server-only";
 
 import { unstable_cache } from "next/cache";
+import type { MultiPolygon, Polygon, Position } from "geojson";
+import { sourceRetryAfterSeconds, waitForSourceAdmission } from "./point-to-object-source-recovery";
 
 import { LIVE_POINT_CAVEAT } from "@/src/lib/point-to-object/contracts";
 import { semanticHash, sha256 } from "@/src/lib/point-to-object/hash";
@@ -38,6 +40,7 @@ const NOMINATIM_RESPONSE_MAX_BYTES = 384 * 1024;
 const NOMINATIM_REVALIDATE_SECONDS = 24 * 60 * 60;
 const NOMINATIM_MIN_INTERVAL_MS = 1_000;
 const MAX_GEOMETRY_POSITIONS = 25_000;
+const MAX_DISPLAY_GEOMETRY_POSITIONS = 5_000;
 const OVERPASS_TIMEOUT_MS = 4_500;
 const OVERPASS_RESPONSE_MAX_BYTES = 512 * 1024;
 export const POINT_OBJECT_OVERPASS_EXECUTION_MEMORY_MAX_BYTES = 32 * 1024 * 1024;
@@ -133,6 +136,8 @@ type SafeGeometry = {
   type: "Point" | "LineString" | "MultiLineString" | "Polygon" | "MultiPolygon";
   coordinates: unknown;
 };
+
+export type PointObjectDisplayGeometry = Polygon | MultiPolygon;
 
 type SafeNominatimPlace = {
   placeId: string | null;
@@ -272,6 +277,8 @@ export type LivePointObjectEvidencePack = {
   evidencePackHash: string;
   caseKey: "live";
   caseId: string;
+  /** Display-only, exact-object geometry. Deliberately excluded from evidencePackHash and model projection. */
+  displayGeometry: PointObjectDisplayGeometry | null;
   coordinates: { longitude: number; latitude: number; crs: "EPSG:4326" };
   resolution: {
     status: "resolved";
@@ -358,7 +365,8 @@ export class LivePointEvidenceError extends Error {
     public readonly code: LivePointEvidenceErrorCode,
     public readonly httpStatus: number,
     message: string,
-    public readonly retryable: boolean
+    public readonly retryable: boolean,
+    public readonly retryAfterSeconds?: number
   ) {
     super(message);
     this.name = "LivePointEvidenceError";
@@ -466,7 +474,7 @@ function configuredOverpassEndpoint(): URL {
   return endpoint;
 }
 
-async function waitForNominatimSlot(): Promise<void> {
+async function waitForNominatimSlot(signal: AbortSignal): Promise<void> {
   let release: (() => void) | undefined;
   const previous = nominatimGate;
   nominatimGate = new Promise<void>((resolve) => {
@@ -474,17 +482,19 @@ async function waitForNominatimSlot(): Promise<void> {
   });
   await previous;
   try {
+    signal.throwIfAborted();
     const waitMs = Math.max(0, lastNominatimDispatchAt + NOMINATIM_MIN_INTERVAL_MS - Date.now());
     if (waitMs > 0) {
       await new Promise((resolve) => setTimeout(resolve, waitMs));
     }
+    signal.throwIfAborted();
     lastNominatimDispatchAt = Date.now();
   } finally {
     release?.();
   }
 }
 
-async function waitForOverpassSlot(): Promise<void> {
+async function waitForOverpassSlot(signal: AbortSignal): Promise<void> {
   let release: (() => void) | undefined;
   const previous = overpassGate;
   overpassGate = new Promise<void>((resolve) => {
@@ -492,10 +502,12 @@ async function waitForOverpassSlot(): Promise<void> {
   });
   await previous;
   try {
+    signal.throwIfAborted();
     const waitMs = Math.max(0, lastOverpassDispatchAt + OVERPASS_MIN_INTERVAL_MS - Date.now());
     if (waitMs > 0) {
       await new Promise((resolve) => setTimeout(resolve, waitMs));
     }
+    signal.throwIfAborted();
     lastOverpassDispatchAt = Date.now();
   } finally {
     release?.();
@@ -556,13 +568,14 @@ type NominatimResponseReceipt = {
 };
 
 async function fetchNominatimJsonUncached(urlString: string): Promise<NominatimResponseReceipt> {
-  await waitForNominatimSlot();
+  const signal = AbortSignal.timeout(NOMINATIM_TIMEOUT_MS);
   let response: Response;
   try {
+    await waitForSourceAdmission(waitForNominatimSlot(signal), signal);
     response = await fetch(new URL(urlString), {
       method: "GET",
       redirect: "error",
-      signal: AbortSignal.timeout(NOMINATIM_TIMEOUT_MS),
+      signal,
       headers: {
         Accept: "application/json",
         Referer: APPLICATION_REFERER,
@@ -593,7 +606,8 @@ async function fetchNominatimJsonUncached(urlString: string): Promise<NominatimR
         "NOMINATIM_RATE_LIMITED",
         429,
         "The live OpenStreetMap resolver is temporarily rate limited.",
-        true
+        true,
+        sourceRetryAfterSeconds(response.headers.get("retry-after"))
       );
     }
     throw new LivePointEvidenceError(
@@ -732,13 +746,14 @@ function assertNoOverpassRuntimeRemark(payload: unknown): void {
 }
 
 async function fetchOverpassJsonUncached(query: string): Promise<unknown> {
-  await waitForOverpassSlot();
+  const signal = AbortSignal.timeout(OVERPASS_TIMEOUT_MS);
+  await waitForSourceAdmission(waitForOverpassSlot(signal), signal);
   const url = configuredOverpassEndpoint();
   url.searchParams.set("data", query);
   const response = await fetch(url, {
     method: "GET",
     redirect: "error",
-    signal: AbortSignal.timeout(OVERPASS_TIMEOUT_MS),
+    signal,
     headers: {
       Accept: "application/json",
       Referer: APPLICATION_REFERER,
@@ -796,6 +811,84 @@ function sanitizeGeometry(value: unknown): SafeGeometry | null {
   const counter = { count: 0 };
   const coordinates = normalizeCoordinates(value.coordinates, depthByType[type], counter);
   return coordinates === null ? null : { type, coordinates };
+}
+
+function displayPosition(value: unknown, counter: { count: number }): Position | null {
+  if (!Array.isArray(value) || value.length !== 2) return null;
+  const longitude = finiteCoordinate(value[0], 180);
+  const latitude = finiteCoordinate(value[1], 90);
+  if (longitude === null || latitude === null) return null;
+  counter.count += 1;
+  return counter.count <= MAX_DISPLAY_GEOMETRY_POSITIONS ? [longitude, latitude] : null;
+}
+
+function displayRing(value: unknown, counter: { count: number }): Position[] | null {
+  if (!Array.isArray(value) || value.length < 4) return null;
+  const ring: Position[] = [];
+  for (const rawPosition of value) {
+    const position = displayPosition(rawPosition, counter);
+    if (!position) return null;
+    ring.push(position);
+  }
+  const first = ring[0];
+  const last = ring[ring.length - 1];
+  if (first[0] !== last[0] || first[1] !== last[1]) return null;
+  const distinct = new Set(ring.slice(0, -1).map((position) => `${position[0]},${position[1]}`));
+  return distinct.size >= 3 ? ring : null;
+}
+
+function displayPolygonCoordinates(value: unknown, counter: { count: number }): Position[][] | null {
+  if (!Array.isArray(value) || value.length === 0) return null;
+  const polygon: Position[][] = [];
+  for (const rawRing of value) {
+    const ring = displayRing(rawRing, counter);
+    if (!ring) return null;
+    polygon.push(ring);
+  }
+  return polygon;
+}
+
+/**
+ * Export only an intact GeoJSON surface under the stricter UI budget. Returning
+ * null instead of truncating or simplifying keeps complete-footprint provenance
+ * from being attached to a partial shape.
+ */
+export function pointObjectDisplayGeometry(geometry: SafeGeometry | null): PointObjectDisplayGeometry | null {
+  if (!geometry || (geometry.type !== "Polygon" && geometry.type !== "MultiPolygon")) return null;
+  const counter = { count: 0 };
+  if (geometry.type === "Polygon") {
+    const coordinates = displayPolygonCoordinates(geometry.coordinates, counter);
+    return coordinates ? { type: "Polygon", coordinates } : null;
+  }
+  if (!Array.isArray(geometry.coordinates) || geometry.coordinates.length === 0) return null;
+  const coordinates: Position[][][] = [];
+  for (const rawPolygon of geometry.coordinates) {
+    const polygon = displayPolygonCoordinates(rawPolygon, counter);
+    if (!polygon) return null;
+    coordinates.push(polygon);
+  }
+  return { type: "MultiPolygon", coordinates };
+}
+
+/**
+ * Return display geometry only for an exact, surface-like OSM identity. Nominatim
+ * exposes the primary `building=*` classification as `category`/`type` and does
+ * not consistently duplicate that primary tag in `extratags`; accepting the
+ * sanitized `building` category keeps that exact polygon eligible without
+ * promoting office, tourism or other POI classifications to physical surfaces.
+ */
+export function pointObjectTrustedDisplayGeometry(input: {
+  expectedSourceFeatureId: string | null;
+  resolvedSourceFeatureId: string;
+  primaryCategory: string | null;
+  selectedTags: Readonly<Record<string, string>>;
+  geometry: SafeGeometry | null;
+}): PointObjectDisplayGeometry | null {
+  if (input.expectedSourceFeatureId !== input.resolvedSourceFeatureId ||
+      !/^(?:way|relation)\/[1-9]\d{0,19}$/.test(input.expectedSourceFeatureId ?? "")) return null;
+  const mappedSurface = input.primaryCategory === "building" ||
+    Boolean(input.selectedTags["tag.building"] || input.selectedTags["tag.landuse"]);
+  return mappedSurface ? pointObjectDisplayGeometry(input.geometry) : null;
 }
 
 function sanitizeMap(
@@ -1406,6 +1499,9 @@ async function lookupPlace(
 ): Promise<{ place: SafeNominatimPlace | null; receipt: NominatimResponseReceipt }> {
   const url = new URL("lookup", endpoint);
   addCommonParameters(url, locale);
+  // Exact Find hydration must not receive Nominatim's generalized display
+  // polygon: a simplified edge cannot support complete-footprint provenance.
+  url.searchParams.set("polygon_threshold", "0");
   url.searchParams.set("osm_ids", sourceFeatureId.lookupId);
   const receipt = await fetchNominatimJson(url.toString());
   if (!Array.isArray(receipt.payload)) return { place: null, receipt };
@@ -1789,6 +1885,13 @@ export async function buildLivePointObjectEvidencePack(
     ? await resolveLiveUrbanFabric(point, async () => fabricPayload.payload)
     : { profile: normalizeOverpassUrbanFabric(null, point), responseHash: null, observedAt: null };
   const selectedTags = displayTags(place);
+  const displayGeometry = pointObjectTrustedDisplayGeometry({
+    expectedSourceFeatureId: input.osmFeatureId ?? null,
+    resolvedSourceFeatureId: sourceFeatureId,
+    primaryCategory: place.category,
+    selectedTags,
+    geometry: place.geometry
+  });
   const selectedMetrics = geometryMetrics(place.geometry);
   const wikidata = await resolvePointObjectWikidata({
     qid: selectedTags["tag.wikidata"] ?? null,
@@ -1921,7 +2024,7 @@ export async function buildLivePointObjectEvidencePack(
         ? "The expected OpenStreetMap node, way or relation identity is checked server-side and spatially bound to the selected anchor; the request fails closed if the exact identity cannot be resolved consistently."
         : "A rendered vector-tile feature identity is not treated as authoritative; context is resolved server-side from the map-selected analysis point.",
       "OpenStreetMap is open community context and may be incomplete, stale or differently classified from authoritative registers.",
-      "Raw source geometry is used only to derive its type and semantic hash; it is not sent to the AI model.",
+      "Raw source geometry is excluded from the AI model; an intact exact-object polygon may be returned separately to the map UI within its display budget.",
       nearby.status === "available"
         ? `Nearby context is a bounded OpenStreetMap/Overpass sample within ${OVERPASS_RADIUS_M} m; it is not a complete inventory and absent records do not prove real-world absence.`
         : "Nearby OpenStreetMap context was unavailable for this request; the primary Nominatim object remains usable, but no inference may be made from the empty nearby list.",
@@ -1940,6 +2043,7 @@ export async function buildLivePointObjectEvidencePack(
   return {
     evidencePackId: `p2o_live_evidence_${evidencePackHash.slice(0, 24)}`,
     evidencePackHash,
+    displayGeometry,
     ...core
   };
 }

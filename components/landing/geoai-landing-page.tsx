@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import { getImageProps } from "next/image";
 import Link from "next/link";
 import { useState, type KeyboardEvent } from "react";
 
@@ -11,7 +11,26 @@ import { landingContent, landingRoleKeys, type LandingRoleKey } from "./content"
 import styles from "./landing.module.css";
 
 const mapHref = "/prototype/point-to-object";
-const projectsHref = "/projects?view=spatial";
+const projectsHref = "/projects";
+const requestHref = "/request-access";
+const { props: widePreview } = getImageProps({
+  src: "/landing/sprint07-workspace-capture.png",
+  alt: "",
+  width: 3418,
+  height: 1602,
+  loading: "eager",
+  fetchPriority: "high",
+  // The image is deliberately windowed and enlarged inside its frame; request
+  // enough of the original bitmap for that covered region at retina density.
+  sizes: "(max-width: 1199px) 150vw, 1224px"
+});
+const { props: narrowPreview } = getImageProps({
+  src: "/landing/sprint07-workspace-capture.png",
+  alt: "",
+  width: 3418,
+  height: 1602,
+  sizes: "230vw"
+});
 
 export function GeoAILandingPage() {
   const { locale, setLocale } = usePointObjectLocale();
@@ -87,7 +106,7 @@ export function GeoAILandingPage() {
             <p className={styles.heroBody}>{copy.hero.body}</p>
             <div className={styles.heroActions}>
               <Link href={mapHref} className={styles.primaryAction}>{copy.actions.openMap}</Link>
-              <Link href={projectsHref} className={styles.secondaryAction}>{copy.actions.projects}</Link>
+              <Link href={requestHref} className={styles.secondaryAction}>{copy.actions.request}</Link>
             </div>
             <p className={styles.heroNote}>{copy.hero.note}</p>
           </div>
@@ -97,17 +116,34 @@ export function GeoAILandingPage() {
               <span>{copy.hero.previewLabel}</span>
               <span>{copy.workflow.paths.slice(0, 3).map((path) => path.name).join(" · ")}</span>
             </div>
-            <Image
-              src={locale === "en"
-                ? "/landing/geoai-map-workspace-preview.png"
-                : "/landing/geoai-map-workspace-preview-ru.png"}
-              alt={copy.hero.previewAlt}
-              width={1280}
-              height={720}
-              priority
-              sizes="(max-width: 767px) 94vw, (max-width: 1199px) 88vw, 760px"
-            />
-            <figcaption>{copy.hero.previewCaption}</figcaption>
+            <div className={styles.previewScene}>
+              <Link href={mapHref} className={styles.previewLink} aria-label={copy.actions.openMap}>
+                <picture className={styles.previewPicture}>
+                  <source media="(max-width: 620px)" srcSet={narrowPreview.srcSet} sizes={narrowPreview.sizes} width={430} height={400} />
+                  {/* getImageProps retains Next optimization; picture selects one asset without a hidden-image preload. */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img {...widePreview} className={styles.previewImage} alt={copy.hero.previewAlt} />
+                </picture>
+              </Link>
+              <nav className={styles.objectActions} aria-label={copy.hero.objectActions}>
+                {(["analyse", "find", "create"] as const).map((mode, index) => (
+                  <Link key={mode} href={`${mapHref}?mode=${mode}`} className={styles.objectAction}>
+                    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                      {mode === "analyse" ? <path d="M5 19V5M5 19h14M9 15v-4M13 15V7M17 15v-6" /> : mode === "find" ? <><circle cx="10.5" cy="10.5" r="5.5" /><path d="m15 15 4 4" /></> : <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z M4 7.5l8 4.5 8-4.5M12 12v9" />}
+                    </svg>
+                    {copy.hero.objectActionLabels[index]}
+                  </Link>
+                ))}
+              </nav>
+            </div>
+            <figcaption>
+              <span>{copy.hero.previewCaption}</span>
+              <span className={styles.previewAttribution}>
+                <a href="https://openfreemap.org/" target="_blank" rel="noopener noreferrer">OpenFreeMap</a>
+                {" © "}<a href="https://openmaptiles.org/" target="_blank" rel="noopener noreferrer">OpenMapTiles</a>
+                {" · "}<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">{locale === "en" ? "Data from OpenStreetMap" : "Данные OpenStreetMap"}</a>
+              </span>
+            </figcaption>
           </figure>
         </div>
       </section>
@@ -220,7 +256,7 @@ export function GeoAILandingPage() {
         </div>
         <div className={styles.finalActions}>
           <Link href={mapHref} className={styles.primaryAction}>{copy.actions.openMap}</Link>
-          <Link href={projectsHref} className={styles.secondaryAction}>{copy.actions.projects}</Link>
+          <Link href={requestHref} className={styles.secondaryAction}>{copy.actions.request}</Link>
         </div>
       </section>
 

@@ -27,9 +27,10 @@ assert(
   "Landing must enter the accepted public Point-to-Object product route"
 );
 assert(
-  landing.includes('const projectsHref = "/projects?view=spatial";') && landing.includes("href={projectsHref}"),
-  "Landing must expose the accepted device-local spatial Projects route"
+  landing.includes('const projectsHref = "/projects";') && landing.includes("href={projectsHref}"),
+  "Landing must expose the canonical Project Hub route"
 );
+assert(landing.includes('const requestHref = "/request-access";') && landing.includes("href={requestHref}"), "Landing request action must open the existing unsent local brief, not transmit contacts or use Login");
 assert(!landing.includes("intent=request"), "Landing must not route a commercial request through Login");
 assert(login.includes('intent === "request"') && login.includes('redirect("/request-access")'), "Legacy Login request intent must redirect deterministically to /request-access");
 assert(requestPage.includes("RequestAccessPanel") && !requestPage.includes("AuthenticatedRouteGate"), "Request route must remain public and independent of Auth");

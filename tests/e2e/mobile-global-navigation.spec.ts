@@ -1,9 +1,23 @@
 import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page, type Request } from "@playwright/test";
+import { installLocalWebKitHttpCsp } from "./helpers/local-webkit-csp";
 
 const visualDirectory = path.join(process.cwd(), "artifacts", "mobile-visual-evidence");
+
+test.beforeEach(async ({ page }, testInfo) => {
+  await installLocalWebKitHttpCsp(page, testInfo.project.use.browserName, testInfo.project.use.baseURL);
+  await page.route(/^https:\/\//, async route => {
+    const url = new URL(route.request().url());
+    // Only external requests are fixtures; HTTPS loopback must exercise the
+    // real application and its CSP just like an HTTP/remote baseURL does.
+    if (testInfo.project.use.baseURL && url.origin === new URL(testInfo.project.use.baseURL).origin) return route.fallback();
+    if (url.hostname === "tiles.openfreemap.org" && url.pathname.startsWith("/styles/")) {
+      await route.fulfill({ json: { version: 8, sources: {}, layers: [{ id: "offline-background", type: "background", paint: { "background-color": "#eef3f2" } }] } });
+    } else await route.abort();
+  });
+});
 
 async function signInDemo(page: Page, nextPath: "/workspace") {
   await page.goto(`/login?next=${encodeURIComponent(nextPath)}&intent=demo`);
@@ -15,9 +29,27 @@ async function signInDemo(page: Page, nextPath: "/workspace") {
     return;
   }
   await page.getByRole("button", { name: "Open demo access" }).click();
-  await page.getByRole("button", { name: "Open demo", exact: true }).click();
-  await expect(page).toHaveURL((url) => url.pathname === nextPath);
-  await expect(page.getByRole("link", { name: "Open demo profile" })).toHaveAttribute("data-authenticated", "true");
+  const origin = new URL(page.url()).origin;
+  let destinationDocumentRequests = 0;
+  const countDestinationNavigation = (request: Request) => {
+    const url = new URL(request.url());
+    if (request.isNavigationRequest() && request.frame() === page.mainFrame() && url.origin === origin && url.pathname === nextPath) {
+      destinationDocumentRequests += 1;
+    }
+  };
+  page.on("request", countDestinationNavigation);
+  try {
+    await page.getByRole("button", { name: "Open demo", exact: true }).click();
+    await expect(page).toHaveURL((url) => url.pathname === nextPath);
+    await expect(page.getByRole("link", { name: "Open demo profile" })).toHaveAttribute("data-authenticated", "true");
+    expect(destinationDocumentRequests, "Successful sign-in must issue one destination document navigation, without assign/replace racing").toBe(1);
+  } finally {
+    page.off("request", countDestinationNavigation);
+    await test.info().attach("signin-document-navigation-count", {
+      contentType: "application/json",
+      body: JSON.stringify({ destinationPath: nextPath, destinationDocumentRequests })
+    });
+  }
 }
 
 async function expectNoHorizontalOverflow(page: Page) {
@@ -32,11 +64,15 @@ async function expectNoHorizontalOverflow(page: Page) {
 }
 
 async function expectMinimumTargetSize(label: string, locator: Locator, minimum = 40) {
-  await expect(locator, `${label} must be visible`).toBeVisible();
-  const box = await locator.boundingBox();
-  expect(box, `${label} must have a rendered box`).not.toBeNull();
-  expect(box?.width ?? 0, `${label} width`).toBeGreaterThanOrEqual(minimum);
-  expect(box?.height ?? 0, `${label} height`).toBeGreaterThanOrEqual(minimum);
+  // Hydration can replace the dynamic fallback header between visibility and
+  // geometry reads. Retry the complete sample; never relax the size/null checks.
+  await expect(async () => {
+    await expect(locator, `${label} must be visible`).toBeVisible();
+    const box = await locator.boundingBox();
+    expect(box, `${label} must have a rendered box`).not.toBeNull();
+    expect(box?.width ?? 0, `${label} width`).toBeGreaterThanOrEqual(minimum);
+    expect(box?.height ?? 0, `${label} height`).toBeGreaterThanOrEqual(minimum);
+  }).toPass({ timeout: 5_000 });
 }
 
 async function captureAcceptedNavigationEvidence(page: Page) {
@@ -76,7 +112,7 @@ async function captureAcceptedNavigationEvidence(page: Page) {
 
 async function openMobileNavigation(page: Page) {
   const trigger = page.locator('button[aria-controls="mobile-product-navigation-menu"]');
-  await expectMinimumTargetSize("Mobile navigation trigger", trigger);
+  await expectMinimumTargetSize("Mobile navigation trigger", trigger, 44);
   await expect(trigger).toHaveAccessibleName("Open product navigation");
   await trigger.click();
   await expect(trigger).toHaveAttribute("aria-expanded", "true");
@@ -87,10 +123,24 @@ async function openMobileNavigation(page: Page) {
   return navigation;
 }
 
+async function expectCanonicalWorkspace(page: Page) {
+  await expect(page).toHaveURL((url) => url.pathname === "/prototype/point-to-object");
+  await expect(page.getByTestId("mobile-workspace-shell")).toBeVisible();
+  // The canonical map has its own header, not the legacy Product menu.
+  await expect(page.locator('button[aria-controls="mobile-product-navigation-menu"]')).toHaveCount(0);
+  const projects = page.locator("[data-point-object-header]").getByRole("link", { name: "Projects", exact: true });
+  await expectMinimumTargetSize("Canonical map Projects link", projects, 44);
+  await expect(projects).toHaveAttribute("href", "/projects");
+  await expectNoHorizontalOverflow(page);
+  return projects;
+}
+
 test.describe("global product navigation", () => {
   test("opens every canonical Product route from an iPhone Pro Max width", async ({ page }) => {
     await page.setViewportSize({ width: 430, height: 932 });
-    await page.clock.setFixedTime(new Date("2026-07-17T20:15:00.000Z"));
+    // This header contains no date/time content. Keep the real browser clock
+    // through Auth/navigation; the two exact screenshot hashes below still
+    // enforce deterministic navigation evidence without instrumenting Date.
     await signInDemo(page, "/workspace");
     await expect(page.getByRole("heading", { level: 1, name: "Workspace location screening" })).toBeVisible();
     await expectNoHorizontalOverflow(page);
@@ -103,25 +153,44 @@ test.describe("global product navigation", () => {
       ["Projects navigation link", projectsLink]
     ] as Array<[string, Locator]>) await expectMinimumTargetSize(label, locator);
     await expect(workspaceLink).toHaveAttribute("aria-current", "page");
+    await expect(workspaceLink).toHaveAttribute("href", "/prototype/point-to-object");
 
     await captureAcceptedNavigationEvidence(page);
 
-    await projectsLink.click();
+    // Keyboard and outside-dismissal belong to the directly visited legacy
+    // shell; the destination map intentionally uses a different header.
+    await page.keyboard.press("Escape");
+    const trigger = page.getByRole("button", { name: "Open product navigation" });
+    await expect(trigger).toBeFocused();
+    await expect(trigger).toHaveAttribute("aria-expanded", "false");
+    await page.keyboard.press("Enter");
+    await expect(navigation).toBeVisible();
+    await expect(page.getByRole("button", { name: "Close product navigation" })).toHaveAttribute("aria-expanded", "true");
+    // Header gutter is outside the popup and does not activate a destination.
+    await page.mouse.click(4, 4);
+    await expect(navigation).toBeHidden();
+    await expect(trigger).toHaveAttribute("aria-expanded", "false");
+    navigation = await openMobileNavigation(page);
+
+    await navigation.getByRole("link", { name: /Projects/ }).click();
     await expect(page).toHaveURL((url) => url.pathname === "/projects");
     await expect(page.getByRole("heading", { level: 1, name: "Project Hub" })).toBeVisible();
     await expectNoHorizontalOverflow(page);
 
     navigation = await openMobileNavigation(page);
     await expect(navigation.getByRole("link", { name: /Projects/ })).toHaveAttribute("aria-current", "page");
+    await expect(navigation.getByRole("link", { name: /Workspace/ })).toHaveAttribute("href", "/prototype/point-to-object");
     await navigation.getByRole("link", { name: /Workspace/ }).click();
-    await expect(page).toHaveURL((url) => url.pathname === "/workspace");
-    await expect(page.getByRole("heading", { level: 1, name: "Workspace location screening" })).toBeVisible();
+    const mapProjects = await expectCanonicalWorkspace(page);
+    await mapProjects.focus();
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL((url) => url.pathname === "/projects");
+    await expect(page.getByRole("heading", { level: 1, name: "Project Hub" })).toBeVisible();
     await expectNoHorizontalOverflow(page);
 
     navigation = await openMobileNavigation(page);
-    await expect(navigation.getByRole("link", { name: /Workspace/ })).toHaveAttribute("aria-current", "page");
+    await expect(navigation.getByRole("link", { name: /Projects/ })).toHaveAttribute("aria-current", "page");
     await page.keyboard.press("Escape");
-    const trigger = page.getByRole("button", { name: "Open product navigation" });
     await expect(trigger).toBeFocused();
     await expect(trigger).toHaveAttribute("aria-expanded", "false");
   });
@@ -134,17 +203,23 @@ test.describe("global product navigation", () => {
     await expect(page.getByRole("button", { name: "Open product navigation" })).toBeHidden();
     await expect(navigation.getByRole("link", { name: "Explore", exact: true })).toHaveCount(0);
 
-    for (const route of [
-      { href: "/workspace", label: "Workspace", heading: "Workspace location screening" },
-      { href: "/projects", label: "Projects", heading: "Project Hub" }
-    ]) {
-      const link = navigation.getByRole("link", { name: route.label, exact: true });
-      await expectMinimumTargetSize(`${route.label} tablet navigation`, link);
-      await link.click();
-      await expect(page).toHaveURL((url) => url.pathname === route.href);
-      await expect(page.getByRole("heading", { level: 1, name: route.heading })).toBeVisible();
-      await expect(link).toHaveAttribute("aria-current", "page");
-      await expectNoHorizontalOverflow(page);
-    }
+    const workspace = navigation.getByRole("link", { name: "Workspace", exact: true });
+    const projects = navigation.getByRole("link", { name: "Projects", exact: true });
+    await expectMinimumTargetSize("Workspace tablet navigation", workspace);
+    await expectMinimumTargetSize("Projects tablet navigation", projects);
+    await expect(workspace).toHaveAttribute("aria-current", "page");
+    await expect(workspace).toHaveAttribute("href", "/prototype/point-to-object");
+    await projects.click();
+    await expect(page).toHaveURL((url) => url.pathname === "/projects");
+    await expect(page.getByRole("heading", { level: 1, name: "Project Hub" })).toBeVisible();
+    await expect(projects).toHaveAttribute("aria-current", "page");
+    await expectNoHorizontalOverflow(page);
+    await workspace.click();
+    const mapProjects = await expectCanonicalWorkspace(page);
+    await mapProjects.click();
+    await expect(page).toHaveURL((url) => url.pathname === "/projects");
+    await expect(page.getByRole("heading", { level: 1, name: "Project Hub" })).toBeVisible();
+    await expect(projects).toHaveAttribute("aria-current", "page");
+    await expectNoHorizontalOverflow(page);
   });
 });

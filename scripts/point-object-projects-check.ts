@@ -31,6 +31,7 @@ const projects = await import("../src/lib/prototype/point-object-projects.ts");
 const create = await import("../src/lib/prototype/point-to-object-create");
 const createAi = await import("../src/lib/prototype/point-to-object-create-ai-core");
 const createResult = await import("../src/lib/prototype/point-to-object-create-result");
+const browserDemoStorage = await import("../src/lib/browser-demo-storage");
 const {
   continuePendingPointObjectOperationInNewProject,
   createPointObjectProject,
@@ -41,6 +42,7 @@ const {
   readPointObjectProjects,
   readVerifiedPointObjectProjects,
   reconcilePointObjectBrowserIdentity,
+  renamePointObjectProject,
   retryPendingPointObjectOperations,
   savePointObjectOperation,
   selectPointObjectProject,
@@ -155,6 +157,71 @@ assert.equal(saved.status, "saved");
 if (saved.status !== "saved") throw new Error("Expected saved result.");
 assert.equal(await verifySavedPointObjectArtifact(saved.artifact), true);
 
+const originalArtifactBytes = JSON.stringify(saved.artifact);
+const renamed = await renamePointObjectProject(demoIdentity, firstProject.projectId, "  Dubai   decision room  ", firstProject.name, "en");
+assert.equal(renamed.name, "Dubai decision room");
+assert.equal(renamed.projectId, firstProject.projectId);
+assert.equal(readPointObjectProjects(demoIdentity).activeProjectId, firstProject.projectId);
+assert.equal(JSON.stringify(renamed.artifacts[0]), originalArtifactBytes, "renaming must preserve immutable artifact bytes");
+assert.equal(await verifySavedPointObjectArtifact(renamed.artifacts[0]), true);
+await assert.rejects(renamePointObjectProject(demoIdentity, firstProject.projectId, "   ", renamed.name, "en"), /1 and 120/);
+await assert.rejects(renamePointObjectProject(demoIdentity, firstProject.projectId, "x".repeat(121), renamed.name, "en"), /1 and 120/);
+await assert.rejects(renamePointObjectProject(demoIdentity, firstProject.projectId, "Stale overwrite", firstProject.name, "en"), /another tab/);
+await assert.rejects(renamePointObjectProject(userIdentity, firstProject.projectId, "Wrong identity", renamed.name, "en"), /identity changed/);
+localStorage.failWrites = 1;
+await assert.rejects(renamePointObjectProject(demoIdentity, firstProject.projectId, "Must not persist", renamed.name, "en"), /Quota exceeded/);
+assert.equal(readPointObjectProjects(demoIdentity).projects[0].name, renamed.name, "failed rename leaves original metadata intact");
+assert.equal(JSON.stringify(readPointObjectProjects(demoIdentity).projects[0].artifacts[0]), originalArtifactBytes);
+
+const renameStorageKey = `geoai:point-to-object:projects:v1:${encodeURIComponent(demoIdentity)}`;
+const legacyRenameStore = JSON.parse(localStorage.getItem(renameStorageKey)!);
+delete legacyRenameStore.projects[0].artifacts[0].updatedAt;
+delete legacyRenameStore.projects[0].artifacts[0].viewRevision;
+localStorage.setItem(renameStorageKey, JSON.stringify(legacyRenameStore));
+const legacyArtifactBytes = JSON.stringify(legacyRenameStore.projects[0].artifacts);
+await renamePointObjectProject(demoIdentity, firstProject.projectId, "Legacy-safe name", renamed.name, "en");
+assert.equal(JSON.stringify(JSON.parse(localStorage.getItem(renameStorageKey)!).projects[0].artifacts), legacyArtifactBytes,
+  "Renaming must not materialize legacy artifact defaults in storage.");
+
+const originalDigest = crypto.subtle.digest.bind(crypto.subtle);
+let releaseVerification: (() => void) | null = null;
+let verificationStarted: (() => void) | null = null;
+const verificationReady = new Promise<void>((resolve) => { verificationStarted = resolve; });
+const verificationDelay = new Promise<void>((resolve) => { releaseVerification = resolve; });
+Object.defineProperty(crypto.subtle, "digest", { configurable: true, value: async (...args: Parameters<typeof originalDigest>) => {
+  verificationStarted!(); await verificationDelay; return originalDigest(...args);
+} });
+const racingRename = renamePointObjectProject(demoIdentity, firstProject.projectId, "Stale async write", "Legacy-safe name", "en");
+await verificationReady;
+const otherTabStore = JSON.parse(localStorage.getItem(renameStorageKey)!);
+otherTabStore.projects[0].name = "Other tab preserved";
+const otherTabBytes = JSON.stringify(otherTabStore);
+localStorage.setItem(renameStorageKey, otherTabBytes);
+releaseVerification!();
+await assert.rejects(racingRename, /another tab/);
+assert.equal(localStorage.getItem(renameStorageKey), otherTabBytes, "Cross-tab changes during verification must not be overwritten.");
+Object.defineProperty(crypto.subtle, "digest", { configurable: true, value: originalDigest });
+
+let releaseIdentityVerification: (() => void) | null = null;
+let identityVerificationStarted: (() => void) | null = null;
+const identityVerificationReady = new Promise<void>((resolve) => { identityVerificationStarted = resolve; });
+const identityVerificationDelay = new Promise<void>((resolve) => { releaseIdentityVerification = resolve; });
+Object.defineProperty(crypto.subtle, "digest", { configurable: true, value: async (...args: Parameters<typeof originalDigest>) => {
+  identityVerificationStarted!(); await identityVerificationDelay; return originalDigest(...args);
+} });
+try {
+  const identityRaceRename = renamePointObjectProject(demoIdentity, firstProject.projectId, "Wrong session write", "Other tab preserved", "en");
+  await identityVerificationReady;
+  reconcilePointObjectBrowserIdentity(userIdentity);
+  releaseIdentityVerification!();
+  await assert.rejects(identityRaceRename, /identity changed/);
+  assert.equal(localStorage.getItem(renameStorageKey), otherTabBytes,
+    "An identity switch during asynchronous verification must not write project metadata.");
+} finally {
+  Object.defineProperty(crypto.subtle, "digest", { configurable: true, value: originalDigest });
+  reconcilePointObjectBrowserIdentity(demoIdentity);
+}
+
 const replay = await savePointObjectOperation(demoIdentity, findInput(1), "operation-stable-1");
 assert.equal(replay.status, "replayed", "identical retry must replay without a duplicate");
 assert.equal(readPointObjectProjects(demoIdentity).projects.find((item) => item.projectId === firstProject.projectId)?.artifacts.length, 1);
@@ -231,6 +298,23 @@ assert.equal(sessionStorage.getItem("geoai:point-to-object:selection:v3"), null,
 assert.equal(readPointObjectProjects(demoIdentity).projects.length >= 1, true, "identity transition must not destroy scoped saved projects");
 reconcilePointObjectBrowserIdentity(demoIdentity);
 await retryPendingPointObjectOperations(demoIdentity);
+
+// Startup must retain an account owner until this resolved-identity guard runs.
+localStorage.setItem(projects.POINT_OBJECT_BROWSER_IDENTITY_KEY, userIdentity);
+sessionStorage.setItem("geoai:point-to-object:analysis-draft:v1", "same-account-draft");
+browserDemoStorage.clearBrowserDemoStorage({ reason: "startup" });
+reconcilePointObjectBrowserIdentity(userIdentity);
+assert.equal(sessionStorage.getItem("geoai:point-to-object:analysis-draft:v1"), "same-account-draft", "Same account startup and reconciliation must retain its draft");
+for (const targetIdentity of [userIdentity, null] as const) {
+  localStorage.setItem(projects.POINT_OBJECT_BROWSER_IDENTITY_KEY, "user:other-account");
+  const transientKeys = ["selection:v3", "question:v2", "analysis-draft:v1", "analysis:v8", "find:v1", "project-restore:v1", "project-overview:v1", "analysis-restore:v1"];
+  for (const key of transientKeys) sessionStorage.setItem(`geoai:point-to-object:${key}`, "other-account-state");
+  browserDemoStorage.clearBrowserDemoStorage({ reason: "startup" });
+  assert.equal(localStorage.getItem(projects.POINT_OBJECT_BROWSER_IDENTITY_KEY), "user:other-account", "Startup must not erase the owner before reconciliation");
+  reconcilePointObjectBrowserIdentity(targetIdentity);
+  for (const key of transientKeys) assert.equal(sessionStorage.getItem(`geoai:point-to-object:${key}`), null, `Account switch to ${targetIdentity} must clear ${key}`);
+}
+reconcilePointObjectBrowserIdentity(demoIdentity);
 
 const invalidAnalyse = await savePointObjectOperation(demoIdentity, {
   kind: "analyse", locale: "en", marketKey: "dubai", label: "Invalid analysis", payload: { selection: { locationKey: "dubai" }, analysis: { mode: "openai" } }
@@ -443,5 +527,54 @@ if (reopenedArtifact?.kind === "create") {
   assert.equal(reopenedArtifact.payload.generated.massing.seed.length, 389, "reopen must preserve the accepted producer seed exactly");
   assert.equal(reopenedArtifact.payload.generated.alternatives?.[1]?.massing.seed.length, 389, "reopen must preserve alternative seeds exactly");
 }
+
+// A deliberate new project clears only the transient all-project map intent.
+// It must never erase the verified result that existed before that workspace.
+const newWorkspaceIdentity = "demo:new-workspace-overview" as const;
+reconcilePointObjectBrowserIdentity(newWorkspaceIdentity);
+const priorWorkspace = await createPointObjectProject(newWorkspaceIdentity, "en", "Prior saved workspace");
+const priorWorkspaceSave = await savePointObjectOperation(newWorkspaceIdentity, findInput(36), "operation-new-workspace-prior");
+assert.equal(priorWorkspaceSave.status, "saved");
+if (priorWorkspaceSave.status !== "saved") throw new Error("Expected a saved result before the overview reset.");
+const priorArtifactBytes = JSON.stringify(priorWorkspaceSave.artifact);
+assert.equal(await projects.queuePointObjectProjectOverview(newWorkspaceIdentity), true);
+assert.ok(sessionStorage.getItem(projects.POINT_OBJECT_PROJECT_OVERVIEW_KEY), "Expected a valid all-project overview receipt.");
+const isolatedWorkspace = await createPointObjectProject(newWorkspaceIdentity, "en", "Isolated new workspace");
+assert.equal(await projects.consumePointObjectProjectOverview(newWorkspaceIdentity), null, "A new project must not restore the prior all-project map overview.");
+const afterNewWorkspace = readPointObjectProjects(newWorkspaceIdentity);
+const preservedArtifact = afterNewWorkspace.projects.find((project) => project.projectId === priorWorkspace.projectId)?.artifacts[0];
+assert.equal(JSON.stringify(preservedArtifact), priorArtifactBytes, "Creating a new workspace must preserve the previous saved result bytes.");
+assert.equal(afterNewWorkspace.activeProjectId, isolatedWorkspace.projectId, "The new workspace must become active without reusing the prior overview.");
+
+// An overview supports the same capacity as the validated local store, not an
+// accidental 8KB subset of its operation IDs. Receipt bytes stay immutable.
+const overviewIdentity = "demo:overview-capacity" as const;
+reconcilePointObjectBrowserIdentity(overviewIdentity);
+const overviewStoreKey = `geoai:point-to-object:projects:v1:${encodeURIComponent(overviewIdentity)}`;
+const overviewStore = {
+  schemaVersion: 1,
+  identityKey: overviewIdentity,
+  activeProjectId: "overview-project-0",
+  projects: Array.from({ length: 20 }, (_, projectIndex) => ({
+    ...saved.project,
+    projectId: `overview-project-${projectIndex}`,
+    artifacts: Array.from({ length: 30 }, (_, resultIndex) => ({
+      ...saved.artifact,
+      artifactId: `artifact-${projectIndex}-${resultIndex}-${"x".repeat(80)}`,
+      idempotencyKey: `overview-operation-${projectIndex}-${resultIndex}`
+    }))
+  }))
+};
+const overviewBytes = JSON.stringify(overviewStore);
+localStorage.setItem(overviewStoreKey, overviewBytes);
+assert.equal((await readVerifiedPointObjectProjects(overviewIdentity)).status, "ready");
+assert.equal(await projects.queuePointObjectProjectOverview(overviewIdentity), true);
+assert.ok((sessionStorage.getItem(projects.POINT_OBJECT_PROJECT_OVERVIEW_KEY)?.length ?? 0) > 8_192);
+assert.equal((await projects.consumePointObjectProjectOverview(overviewIdentity))?.length, 600);
+assert.equal(localStorage.getItem(overviewStoreKey), overviewBytes);
+const pendingOverview = projects.queuePointObjectProjectOverview(overviewIdentity);
+reconcilePointObjectBrowserIdentity(userIdentity);
+assert.equal(await pendingOverview, false, "identity change during integrity checks must not write an old-owner overview");
+assert.equal(sessionStorage.getItem(projects.POINT_OBJECT_PROJECT_OVERVIEW_KEY), null);
 
 console.log("point-to-object browser-local project contract checks passed");

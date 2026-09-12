@@ -1,11 +1,31 @@
 # Changelog
 
 Status: Active chronological change authority
-Last verified: 2026-09-06
+Last verified: 2026-09-10
 Owner: GeoAI Release Engineering
 Authority: Chronological released/unreleased change record; runtime truth remains `docs/CURRENT_RELEASE_STATE.md`
 Successor: None; any replacement must update `docs/DOCUMENTATION_INDEX.md`
 Navigation: [Documentation Index](docs/DOCUMENTATION_INDEX.md) · [Current Release State](docs/CURRENT_RELEASE_STATE.md) · [Full System Audit](docs/FULL_SYSTEM_AUDIT_2026_07_16.md) · [Codex Backlog](docs/CODEX_BACKLOG_2026_07_16.md)
+
+## Unreleased — 2026-09-10 Sprint07 founder journey recovery
+
+- Keeps original selected identity distinct from reverse-resolved neighbouring POIs; historical inconsistent exact labels are qualified without changing saved report bytes. Separates inner-radius observations from farther nearby context.
+- Adds six source-backed decision cards with two explicitly presentation-only viewing profiles. No arbitrary access score, valuation, route time or missing-as-zero claims. Language/profile changes do not automatically call AI; report refresh is deliberate.
+- Adds exact saved-result map overview, synchronized numbered Find results and a co-located-result picker. Saved operation restore remains owner-scoped and integrity-checked; no cloud collaboration is implied.
+- Makes Find readiness explicit across saved-profile reconciliation and the 3D-to-2D camera transition. A search cannot be lost between an enabled-looking pointer press and a delayed map movement event; already-2D and not-yet-loaded maps acknowledge their actual movement state.
+- Makes point/AOI deadline recovery explicit before request cancellation, supports the full bounded overview capacity and clears its transient intent on identity change. A UI-only navigation guard prevents the sign-in success callback and authenticated-state effect from issuing competing document transitions; sign-in methods and server access rules are unchanged.
+- Partitions mixed native tile MultiPolygons by complete members, preserving outside/boundary-crossing members before suppressing originals. Ambiguous multipart selection fails safely or uses a provenance-labelled flat member outline, never fabricated source identity or geometry.
+- Refines mobile task/drawing/camera spacing and result actions, consistent header controls, current Project Hub navigation and desktop/mobile landing composition. The short contact form remains a [proposal only](docs/change-requests/point-to-object-001/experience-v6/LANDING_REQUEST_FORM_PROPOSAL.md).
+- Adds one bounded campus local-boundary orientation heuristic with deterministic existing fallbacks, geometry containment/no-overlap checks and no new provider. Other concept typologies are not redesigned.
+- Scope and acceptance are governed by the [Sprint07 CR](docs/change-requests/point-to-object-001/experience-v6/SPRINT07_USER_JOURNEY_RECOVERY_CR.md) and [role/scenario dashboard contract](docs/change-requests/point-to-object-001/experience-v6/ROLE_SCENARIO_DASHBOARD_MATRIX_V1.md). Local synthetic Chrome/WebKit coverage is not physical iOS 27 RC or protected Preview runtime acceptance. Main, Production, hosted Auth/data, keys, plans and source rights remain unchanged.
+
+## Unreleased — 2026-09-10 Sprint06 regression correction
+
+- Recolors connected native building geometry without an overlapping copied extrusion; preserves holes, multipart and unrelated same-ID neighbors. Exact-footprint replacement uses a bounded numerical tolerance, with outside/cross-boundary retention and reversible style/zoom/reset behavior.
+- Adds bounded context caching, request cancellation and truthful timeout/rate-limit recovery for context, Find and polygon context. Protective limits and provider contracts remain unchanged; a failed source response is not an empty result.
+- Unifies `/projects` into an identity-scoped, device-local Project Hub with three result widgets, search/filter/sort and unchanged saved-result reopening. The old dashboard is retained only at the explicit compatibility route; unowned demo records are not imported.
+- Updates desktop/mobile landing actions and centered selected-object presentation, with three working mode-entry bubbles. Compact contact collection remains a proposal, not a new submission integration.
+- Adds native vector geometry, source recovery, Project Hub and mobile landing navigation regressions, including local WebKit coverage. See the [approved correction scope](docs/change-requests/point-to-object-001/experience-v6/SEPT10_REGRESSION_PROJECT_HUB_CHANGE_REQUEST.md). Main, Production, Auth, hosted persistence and provider keys are unchanged; exact runtime acceptance remains in the private operational receipt.
 
 ## Unreleased — 2026-09-06 Cycle 05 controlled release candidate
 

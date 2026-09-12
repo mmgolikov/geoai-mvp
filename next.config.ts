@@ -1,4 +1,6 @@
 import type { NextConfig } from "next";
+import { readFileSync } from "node:fs";
+import packageManifest from "./package.json";
 
 const contentSecurityPolicy = [
   "default-src 'self'",
@@ -85,11 +87,33 @@ const nextConfig: NextConfig = {
       }
     ];
   },
-  webpack: (config) => {
+  webpack: (config, { isServer, webpack }) => {
     config.watchOptions = {
       ...config.watchOptions,
       ignored: ["**/.git/**", "**/.next/**", "**/node_modules/**"]
     };
+
+    if (!isServer) {
+      // MapLibre v6's module worker imports a sibling shared module. Keep both
+      // same-origin and version-scoped so deployments cannot reuse stale bytes.
+      const assetPath = `static/maplibre/${packageManifest.dependencies["maplibre-gl"]}`;
+      config.module.rules.push({
+        test: /maplibre-gl-worker\.mjs$/,
+        type: "asset/resource",
+        generator: { filename: `${assetPath}/[name][ext]` }
+      });
+      config.plugins.push({
+        apply(compiler: import("next/dist/compiled/webpack/webpack").webpack.Compiler) {
+          compiler.hooks.thisCompilation.tap("MapLibreWorkerSharedAsset", (compilation: import("next/dist/compiled/webpack/webpack").webpack.Compilation) => {
+            compilation.hooks.processAssets.tap({ name: "MapLibreWorkerSharedAsset", stage: webpack.Compilation.PROCESS_ASSETS_STAGE_ADDITIONAL }, () => {
+              compilation.emitAsset(`${assetPath}/maplibre-gl-shared.mjs`, new webpack.sources.RawSource(
+                readFileSync(require.resolve("maplibre-gl/dist/maplibre-gl-shared.mjs"))
+              ));
+            });
+          });
+        }
+      });
+    }
 
     return config;
   }

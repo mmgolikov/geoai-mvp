@@ -67,7 +67,7 @@ export async function POST(request: Request) {
   }
   const rate = consumeRateLimit(request);
   if (!rate.allowed) {
-    return NextResponse.json({ mode: "unavailable", error: "Open-map area context is temporarily rate limited.", retryable: true }, {
+    return NextResponse.json({ mode: "unavailable", code: "APPLICATION_RATE_LIMITED", error: "Open-map area context is temporarily rate limited.", retryable: true }, {
       status: 429,
       headers: noStoreHeaders({ "Retry-After": String(rate.retryAfterSeconds) })
     });
@@ -76,7 +76,7 @@ export async function POST(request: Request) {
     return NextResponse.json(await resolvePointObjectAreaContext(parsedRequest.value), { headers: noStoreHeaders() });
   } catch (error) {
     if (error instanceof PointObjectAreaContextError) {
-      return NextResponse.json({ mode: "unavailable", error: error.message, retryable: error.retryable }, { status: error.httpStatus, headers: noStoreHeaders() });
+      return NextResponse.json({ mode: "unavailable", code: error.httpStatus === 429 ? "OVERPASS_RATE_LIMITED" : error.httpStatus === 504 ? "OVERPASS_TIMEOUT" : "OVERPASS_UNAVAILABLE", error: error.message, retryable: error.retryable }, { status: error.httpStatus, headers: noStoreHeaders(error.httpStatus === 429 ? { "Retry-After": String(error.retryAfterSeconds ?? 15) } : {}) });
     }
     return NextResponse.json({ mode: "unavailable", error: "Open-map area context could not be completed.", retryable: true }, { status: 502, headers: noStoreHeaders() });
   }

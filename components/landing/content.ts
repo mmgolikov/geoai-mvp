@@ -23,7 +23,7 @@ type LandingPath = {
 export type LandingContent = {
   brandSubtitle: string;
   nav: [string, string, string];
-  actions: { openMap: string; projects: string; profile: string; menu: string };
+  actions: { openMap: string; request: string; projects: string; profile: string; menu: string };
   hero: {
     eyebrow: string;
     title: string;
@@ -32,6 +32,8 @@ export type LandingContent = {
     previewLabel: string;
     previewCaption: string;
     previewAlt: string;
+    objectActions: string;
+    objectActionLabels: [string, string, string];
   };
   workflow: {
     eyebrow: string;
@@ -76,7 +78,7 @@ export const landingContent: Record<PointObjectLocale, LandingContent> = {
   en: {
     brandSubtitle: "Location intelligence",
     nav: ["Product", "For your decision", "What is available"],
-    actions: { openMap: "Open map", projects: "Projects", profile: "Profile", menu: "Menu" },
+    actions: { openMap: "Open map", request: "Leave a request", projects: "Project Hub", profile: "Profile", menu: "Menu" },
     hero: {
       eyebrow: "Spatial decision intelligence",
       title: "Turn a location into a decision path.",
@@ -84,9 +86,11 @@ export const landingContent: Record<PointObjectLocale, LandingContent> = {
         "Select a mapped object or area, inspect available context, compare candidates and shape bounded development concepts — with assumptions and missing evidence kept visible.",
       note: "Uses open-map and sample contexts. Do not enter confidential data.",
       previewLabel: "GeoAI workspace · Dubai",
-      previewCaption: "Real GeoAI interface using OpenFreeMap and OpenStreetMap context.",
+      objectActions: "Choose an action for the selected place",
+      objectActionLabels: ["Analyse", "Find", "Create"],
+      previewCaption: "A selected mapped building in Dubai, captured in GeoAI.",
       previewAlt:
-        "GeoAI map-first workspace showing a three-dimensional Dubai map and the Analyse, Find and Create product modes"
+        "A real three-dimensional map of Dubai with a selected building highlighted in teal"
     },
     workflow: {
       eyebrow: "What you can do",
@@ -202,15 +206,17 @@ export const landingContent: Record<PointObjectLocale, LandingContent> = {
   ru: {
     brandSubtitle: "Геопространственная аналитика",
     nav: ["Продукт", "Для вашей задачи", "Что доступно"],
-    actions: { openMap: "Открыть карту", projects: "Проекты", profile: "Профиль", menu: "Меню" },
+    actions: { openMap: "Открыть карту", request: "Оставить заявку", projects: "Центр проектов", profile: "Профиль", menu: "Меню" },
     hero: {
       eyebrow: "Пространственный интеллект для решений",
       title: "Превратите локацию в понятный путь к решению.",
       body: "Выберите объект или зону на карте, изучите доступный контекст, сравните варианты и сформируйте ограниченные концепции развития — с видимыми допущениями и пробелами в данных.",
       note: "Используются открытые и демонстрационные контексты. Не вводите конфиденциальные данные.",
       previewLabel: "Рабочее пространство GeoAI · Дубай",
-      previewCaption: "Реальный интерфейс GeoAI на базе OpenFreeMap и контекста OpenStreetMap.",
-      previewAlt: "Интерфейс GeoAI с трехмерной картой Дубая и режимами Анализ, Поиск и Создать"
+      objectActions: "Выберите действие с объектом",
+      objectActionLabels: ["Анализ", "Поиск", "Генерация"],
+      previewCaption: "Выбранное здание на карте Dubai, снято в GeoAI.",
+      previewAlt: "Реальная трёхмерная карта Dubai: выбранное здание выделено бирюзовым"
     },
     workflow: {
       eyebrow: "Что можно сделать",

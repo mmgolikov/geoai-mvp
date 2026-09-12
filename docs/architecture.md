@@ -14,6 +14,10 @@ This page separates the current released public-demo implementation from explici
 
 ## Runtime topology
 
+### September 10 isolated Preview correction
+
+The [approved correction](change-requests/point-to-object-001/experience-v6/SEPT10_REGRESSION_PROJECT_HUB_CHANGE_REQUEST.md) makes `/projects` the canonical identity-scoped, device-local Project Hub. `?view=spatial` remains a compatible alias; `/projects/legacy` retains the prior auth-gated dashboard without importing unowned demo records. No storage schema, hosted persistence or authorization changes are part of this work. Landing action links pass only an allowlisted `mode` to the existing map page. Native map highlighting, replacement containment and source request recovery are under renewed regression acceptance, not a Production claim.
+
 | Layer | Implemented state | Current boundary |
 | --- | --- | --- |
 | Web | Next.js 15 App Router, React 19, TypeScript, Tailwind | Vercel Production is a public demo |

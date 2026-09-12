@@ -1165,6 +1165,7 @@ function targetFractions(variantId: ConceptAlternativeId): Array<[number, number
 }
 
 type DistributedRectangleOptions = {
+  alignToNearestBoundary?: boolean;
   aspectRatios?: number[];
   areaFactors?: number[];
   gridDivisions?: number;
@@ -1172,6 +1173,19 @@ type DistributedRectangleOptions = {
   scaleSteps?: number[];
   targetFractions?: Array<[number, number]>;
 };
+
+function nearestBoundaryEdgeAngle(point: MetricPoint, ring: MetricPoint[]): number {
+  let nearestDistance = Number.POSITIVE_INFINITY;
+  let nearestAngle = dominantEdgeAngle(ring);
+  for (const [start, end] of polygonEdges(ring)) {
+    const distance = pointToSegmentDistance(point, start, end);
+    if (distance + GEOMETRY_EPSILON_M < nearestDistance) {
+      nearestDistance = distance;
+      nearestAngle = Math.atan2(end.y - start.y, end.x - start.x);
+    }
+  }
+  return normalizeRectangleAngle(nearestAngle);
+}
 
 function placeDistributedRectangles(
   rings: MetricPoint[][],
@@ -1214,7 +1228,6 @@ function placeDistributedRectangles(
       const width = Math.sqrt(blockArea * aspect);
       const height = blockArea / width;
       const offset = angleOffsets[index % angleOffsets.length] ?? 0;
-      const angle = dominant + toRadians(offset);
       const fraction = targets[index % targets.length];
       const target = {
         x: bounds.minX + (bounds.maxX - bounds.minX) * fraction[0],
@@ -1222,6 +1235,9 @@ function placeDistributedRectangles(
       };
       let choice: { rectangle: OrientedRectangle; score: number } | null = null;
       for (const candidate of candidates) {
+        const angle = (options.alignToNearestBoundary
+          ? nearestBoundaryEdgeAngle(candidate, rings[0])
+          : dominant) + toRadians(offset);
         const rectangle = orientedRectangle(candidate, width, height, angle);
         if (!polygonInsideAoi(rectangle.points, rings, setbackM)) continue;
         if (placed.some((other) => polygonGap(rectangle.points, other.points) < gapM)) continue;
@@ -1314,22 +1330,32 @@ function planShapedCampus(
   const targetProfiles = variantId === "B" && program.blockCount >= 3
     ? [targetFractions("B"), targetFractions("A")]
     : [targetFractions(variantId)];
+  const angleProfiles = [
+    ...(boundaryAlignedAngles(rings[0]).length >= 3
+      ? [{ offsets: [0], alignToNearestBoundary: true }]
+      : []),
+    { offsets: angles, alignToNearestBoundary: false },
+    { offsets: [0], alignToNearestBoundary: false }
+  ];
+  const boundaryAlignedCandidates: PlannedVolume[][] = [];
   const orientedCandidates: PlannedVolume[][] = [];
   const axisAlignedFallbackCandidates: PlannedVolume[][] = [];
   for (const gapM of gapProfiles) {
-    for (const angleProfile of [angles, [0]]) {
+    for (const angleProfile of angleProfiles) {
       for (let targetProfileIndex = 0; targetProfileIndex < targetProfiles.length; targetProfileIndex += 1) {
         const envelopes = placeDistributedRectangles(
           rings,
           program,
           variantId,
           desiredEnvelopeArea,
-          `${seed}:shaped:${gapM}:${angleProfile.join(",")}` +
+          `${seed}:shaped:${gapM}:${angleProfile.offsets.join(",")}` +
+            (angleProfile.alignToNearestBoundary ? ":nearest-boundary" : "") +
             (targetProfileIndex === 0 ? "" : `:targets:${targetProfileIndex}`),
           program.setbackM,
           gapM,
-          angleProfile,
+          angleProfile.offsets,
           {
+            alignToNearestBoundary: angleProfile.alignToNearestBoundary,
             areaFactors: envelopeAreas,
             gridDivisions: 28,
             scaleSteps: [10],
@@ -1360,12 +1386,15 @@ function planShapedCampus(
           baseLevels: 0,
           use: useForPrimary(program, index)
         }));
-        if (angleProfile.length === 1 && angleProfile[0] === 0) axisAlignedFallbackCandidates.push(candidate);
+        if (angleProfile.alignToNearestBoundary) boundaryAlignedCandidates.push(candidate);
+        else if (angleProfile.offsets.length === 1 && angleProfile.offsets[0] === 0) axisAlignedFallbackCandidates.push(candidate);
         else orientedCandidates.push(candidate);
       }
     }
   }
-  const candidates = orientedCandidates.length ? orientedCandidates : axisAlignedFallbackCandidates;
+  const candidates = boundaryAlignedCandidates.length
+    ? boundaryAlignedCandidates
+    : orientedCandidates.length ? orientedCandidates : axisAlignedFallbackCandidates;
   return candidates.sort((left, right) =>
     footprintDistributionScore(right.map((item) => item.footprint), rings[0]) -
     footprintDistributionScore(left.map((item) => item.footprint), rings[0])

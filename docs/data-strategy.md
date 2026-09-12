@@ -11,6 +11,8 @@ Navigation: [Confluence Hub](https://geoaimvp.atlassian.net/wiki/spaces/PH/overv
 
 ## Operating principle
 
+September 10 Preview recovery uses the same existing allowlisted public sources and protective request/geometry/response caps. Typed application-versus-provider throttling, bounded deadlines and short-lived validated context reuse improve recovery without introducing a source SLA, new source identity, new provider, paid plan or hosted persistence. True empty Find results must remain distinct from upstream timeout/429/invalid responses. See the [approved correction](change-requests/point-to-object-001/experience-v6/SEPT10_REGRESSION_PROJECT_HUB_CHANGE_REQUEST.md).
+
 GeoAI is source-lineage-first and fail-closed. A registered connector, sample file, successful catalogue request or provider name is not evidence activation. A source can affect Product claims or scoring only after access rights, license/attribution, custody, schema, visibility, quality and fallback behavior are independently verified.
 
 The isolated Free Auth rehearsal now proves the SOURCE-01 schema can coexist with the rebuilt and lifecycle-remediated tenant/Auth/Admin model: hosted SQL personas pass `183/183`, the Data API exposes only reviewed `api` RPCs, and direct `public` HTTP access is denied. No provider is connected and no trusted worker exists; therefore this evidence changes database readiness only and authorizes no source fetch, write, scoring or Product claim. [Receipt](SUPABASE_AUTH_REHEARSAL_RECEIPT_2026_07_16.json).

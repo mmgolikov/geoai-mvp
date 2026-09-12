@@ -10,6 +10,7 @@ import type {
 import {
   POINT_OBJECT_ANALYSIS_LEGACY_PROMPT_VERSION,
   POINT_OBJECT_ANALYSIS_LEGACY_RESULT_SCHEMA_VERSION,
+  POINT_OBJECT_ANALYSIS_PREVIOUS_PROMPT_VERSION,
   POINT_OBJECT_ANALYSIS_PROMPT_VERSION,
   POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION
 } from "@/components/point-to-object/live-types";
@@ -27,6 +28,7 @@ import type {
   PointObjectAnalysisRequestReceipt,
   PointObjectDecisionBrief,
   PointObjectDecisionSignal,
+  PointObjectDepthReview,
   PointObjectFocusedAnswer,
   PointObjectOpportunity,
   PointObjectGeoContext,
@@ -40,6 +42,7 @@ import type {
 export const POINT_OBJECT_SESSION_KEYS = {
   selection: "geoai:point-to-object:selection:v3",
   question: "geoai:point-to-object:question:v2",
+  analysisDraft: "geoai:point-to-object:analysis-draft:v1",
   analysis: "geoai:point-to-object:analysis:v8",
   legacyAnalysis: "geoai:point-to-object:analysis:v7"
 } as const;
@@ -263,11 +266,55 @@ export function parseLiveResolvedObject(value: unknown): LiveResolvedObjectConte
   const metrics = value.metrics === null ? null : parseGeometryMetrics(value.metrics);
   const geoContext = parseGeoContext(value.geoContext);
   const linkedEntity = value.linkedEntity === null || value.linkedEntity === undefined ? null : parseWikidataLinkedEntity(value.linkedEntity);
+  const hasDisplayGeometry = Object.prototype.hasOwnProperty.call(value, "displayGeometry");
+  const hasGeometryProvenance = Object.prototype.hasOwnProperty.call(value, "geometryProvenance");
+  const displayGeometry = !hasDisplayGeometry || value.displayGeometry === null
+    ? null
+    : geometry(value.displayGeometry);
+  const geometryProvenance = !hasGeometryProvenance || value.geometryProvenance === null
+    ? null
+    : value.geometryProvenance === "confirmed_complete_footprint"
+      ? value.geometryProvenance
+      : undefined;
+  const hasRenderHeight = Object.prototype.hasOwnProperty.call(value, "renderHeightM");
+  const hasRenderMinHeight = Object.prototype.hasOwnProperty.call(value, "renderMinHeightM");
+  const renderHeightM = !hasRenderHeight || value.renderHeightM === null
+    ? null
+    : finiteNumber(value.renderHeightM, 0, 1_500);
+  const renderMinHeightM = !hasRenderMinHeight || value.renderMinHeightM === null
+    ? null
+    : finiteNumber(value.renderMinHeightM, 0, 1_500);
   if ((value.name !== null && !name) || (value.address !== null && !address) || !featureClass || !sourceFeatureId ||
       geometryType === undefined || !coordinateAssociation || resultCentroidDistanceM === null || !addressParts || !tags ||
       (value.metrics !== null && !metrics) || !geoContext ||
-      (value.linkedEntity !== null && value.linkedEntity !== undefined && !linkedEntity)) return null;
-  return { name, address, featureClass, sourceFeatureId, geometryType, coordinateAssociation, resultCentroidDistanceM, addressParts, tags, metrics, geoContext, linkedEntity };
+      (value.linkedEntity !== null && value.linkedEntity !== undefined && !linkedEntity) ||
+      hasDisplayGeometry !== hasGeometryProvenance ||
+      (hasDisplayGeometry && value.displayGeometry !== null && (!displayGeometry || (displayGeometry.type !== "Polygon" && displayGeometry.type !== "MultiPolygon"))) ||
+      (hasGeometryProvenance && value.geometryProvenance !== null && geometryProvenance === undefined) ||
+      (displayGeometry !== null) !== (geometryProvenance === "confirmed_complete_footprint") ||
+      (displayGeometry !== null && (displayGeometry.type !== geometryType || !/^(?:way|relation)\/[1-9]\d{0,19}$/.test(sourceFeatureId))) ||
+      (hasRenderHeight && value.renderHeightM !== null && renderHeightM === null) ||
+      (hasRenderMinHeight && value.renderMinHeightM !== null && renderMinHeightM === null) ||
+      ((renderHeightM !== null || renderMinHeightM !== null) && displayGeometry === null) ||
+      (renderMinHeightM !== null && (renderHeightM === null || renderMinHeightM >= renderHeightM))) return null;
+  return {
+    name,
+    address,
+    featureClass,
+    sourceFeatureId,
+    geometryType,
+    coordinateAssociation,
+    resultCentroidDistanceM,
+    addressParts,
+    tags,
+    metrics,
+    geoContext,
+    linkedEntity,
+    ...(hasDisplayGeometry ? { displayGeometry: displayGeometry as LiveResolvedObjectContext["displayGeometry"] } : {}),
+    ...(hasGeometryProvenance ? { geometryProvenance } : {}),
+    ...(hasRenderHeight ? { renderHeightM } : {}),
+    ...(hasRenderMinHeight ? { renderMinHeightM } : {})
+  };
 }
 
 export function parsePointObjectSearchResponse(value: unknown): PointObjectSearchResponse | null {
@@ -371,15 +418,23 @@ export function parsePointObjectSelection(value: unknown): LiveMapSelection | nu
     const renderMinHeightM = value.object.renderMinHeightM === null || value.object.renderMinHeightM === undefined
       ? null
       : finiteNumber(value.object.renderMinHeightM, 0, 1_500);
+    const geometryProvenance = value.object.geometryProvenance === undefined
+      ? undefined
+      : value.object.geometryProvenance === "rendered_tile_polygon_member" || value.object.geometryProvenance === "confirmed_complete_footprint"
+        ? value.object.geometryProvenance
+        : null;
     if (!point || !center || !clickedAt || !featureClass ||
         typeof value.viewport.zoom !== "number" || !Number.isFinite(value.viewport.zoom) ||
         value.viewport.zoom < 0 || value.viewport.zoom > 24 ||
         (value.object.name !== null && name === null) ||
         (value.object.sourceFeatureId !== null && sourceFeatureId === null) ||
         (value.object.renderHeightM !== null && value.object.renderHeightM !== undefined && renderHeightM === null) ||
-        (value.object.renderMinHeightM !== null && value.object.renderMinHeightM !== undefined && renderMinHeightM === null)) return null;
+        (value.object.renderMinHeightM !== null && value.object.renderMinHeightM !== undefined && renderMinHeightM === null) ||
+        geometryProvenance === null) return null;
     const restoredGeometry = value.object.geometry === null ? null : geometry(value.object.geometry);
     if (value.object.geometry !== null && restoredGeometry === null) return null;
+    if (geometryProvenance === "confirmed_complete_footprint" &&
+        (!restoredGeometry || (restoredGeometry.type !== "Polygon" && restoredGeometry.type !== "MultiPolygon"))) return null;
     const nearbyLabels = Array.isArray(value.nearbyLabels)
       ? value.nearbyLabels.flatMap((item) => {
           if (!isRecord(item)) return [];
@@ -408,7 +463,7 @@ export function parsePointObjectSelection(value: unknown): LiveMapSelection | nu
       longitude: point[0],
       latitude: point[1],
       clickedAt,
-      object: { name, featureClass, sourceFeatureId, geometry: restoredGeometry, renderHeightM, renderMinHeightM },
+      object: { name, featureClass, sourceFeatureId, geometry: restoredGeometry, renderHeightM, renderMinHeightM, ...(geometryProvenance ? { geometryProvenance } : {}) },
       resolvedObject: restoredResolvedObject,
       viewport: { center, zoom: value.viewport.zoom, pitch, bearing, viewMode, basemapId },
       provider: "OpenFreeMap / OpenStreetMap",
@@ -445,6 +500,42 @@ export function clearPointObjectSelection(): void {
   }
 }
 
+export type PointObjectQuestionScope = {
+  selection: LiveMapSelection;
+  identityKey: string | null;
+  projectId: string | null;
+  locale: "en" | "ru";
+  profileKey: string;
+};
+
+function questionScopeKey(scope: PointObjectQuestionScope): string {
+  return JSON.stringify([selectionFingerprint(scope.selection), scope.identityKey, scope.projectId, scope.locale, scope.profileKey]);
+}
+
+export function readPointObjectQuestionDraft(scope: PointObjectQuestionScope): string | null {
+  try {
+    const value = window.sessionStorage.getItem(POINT_OBJECT_SESSION_KEYS.analysisDraft);
+    if (typeof value !== "string" || value.length > 4096) return null;
+    const draft: unknown = JSON.parse(value);
+    return scope && isRecord(draft) && hasExactKeys(draft, ["version", "scope", "question"]) &&
+      draft.version === 1 && draft.scope === questionScopeKey(scope) && typeof draft.question === "string" && draft.question.length <= 500
+      ? draft.question : null;
+  } catch {
+    return null;
+  }
+}
+
+export function writePointObjectQuestionDraft(question: string, scope: PointObjectQuestionScope): boolean {
+  try {
+    const value = JSON.stringify({ version: 1, scope: questionScopeKey(scope), question: question.slice(0, 500) });
+    window.sessionStorage.setItem(POINT_OBJECT_SESSION_KEYS.analysisDraft, value);
+    return window.sessionStorage.getItem(POINT_OBJECT_SESSION_KEYS.analysisDraft) === value;
+  } catch {
+    // The current in-memory question remains available.
+    return false;
+  }
+}
+
 export function readPointObjectQuestion(): string {
   try {
     const value = window.sessionStorage.getItem(POINT_OBJECT_SESSION_KEYS.question);
@@ -457,6 +548,7 @@ export function readPointObjectQuestion(): string {
 export function writePointObjectQuestion(question: string): void {
   try {
     window.sessionStorage.setItem(POINT_OBJECT_SESSION_KEYS.question, question.slice(0, 500));
+    window.sessionStorage.removeItem(POINT_OBJECT_SESSION_KEYS.analysisDraft);
   } catch {
     // The current in-memory question remains available.
   }
@@ -546,6 +638,80 @@ function parseInitialSemanticBrief(value: unknown): PointObjectInitialSemanticBr
     access,
     implication,
     confidence: value.confidence
+  };
+}
+
+function parseDepthReview(value: unknown): PointObjectDepthReview | null {
+  if (!isRecord(value) || !hasExactKeys(value, [
+    "depth", "basis", "purpose", "analyticChecks", "alternatives", "uncertainties", "decisionTriggers"
+  ])) return null;
+  const depth = value.depth === "quick" || value.depth === "standard" || value.depth === "deep" ? value.depth : null;
+  const purpose = value.purpose === "identity_evidence" || value.purpose === "decision_criteria" || value.purpose === "decision_challenge"
+    ? value.purpose : null;
+  const limits = depth === "quick"
+    ? { checks: 2, alternatives: 0, uncertainties: 1, triggers: 1 }
+    : depth === "standard"
+      ? { checks: 3, alternatives: 1, uncertainties: 2, triggers: 2 }
+      : depth === "deep"
+        ? { checks: 4, alternatives: 2, uncertainties: 3, triggers: 3 }
+        : null;
+  const expectedPurpose = depth === "quick" ? "identity_evidence" : depth === "standard" ? "decision_criteria" : "decision_challenge";
+  if (!depth || !purpose || !limits || value.basis !== "structured_review_of_existing_evidence" ||
+      purpose !== expectedPurpose ||
+      !Array.isArray(value.analyticChecks) || value.analyticChecks.length < 1 || value.analyticChecks.length > limits.checks ||
+      !Array.isArray(value.alternatives) || value.alternatives.length > limits.alternatives ||
+      !Array.isArray(value.uncertainties) || value.uncertainties.length < 1 || value.uncertainties.length > limits.uncertainties ||
+      !Array.isArray(value.decisionTriggers) || value.decisionTriggers.length < 1 || value.decisionTriggers.length > limits.triggers) return null;
+  const analyticChecks = value.analyticChecks.map((item) => {
+    if (!isRecord(item) || !hasExactKeys(item, ["title", "observation", "implication", "evidenceClass", "evidenceRefs", "confidence"])) return null;
+    const title = nonEmptyText(item.title, 160);
+    const observation = nonEmptyText(item.observation, 700);
+    const implication = nonEmptyText(item.implication, 900);
+    const refs = evidenceRefs(item.evidenceRefs);
+    const evidenceClass = item.evidenceClass === "observed" || item.evidenceClass === "derived" || item.evidenceClass === "hypothesis"
+      ? item.evidenceClass : null;
+    const confidence = item.confidence === "low" || item.confidence === "medium" ? item.confidence : null;
+    return title && observation && implication && refs && evidenceClass && confidence
+      ? { title, observation, implication, evidenceClass, evidenceRefs: refs, confidence }
+      : null;
+  });
+  const alternatives = value.alternatives.map((item) => {
+    if (!isRecord(item) || !hasExactKeys(item, ["title", "rationale", "evidenceClass", "evidenceRefs"])) return null;
+    const title = nonEmptyText(item.title, 160);
+    const rationale = nonEmptyText(item.rationale, 900);
+    const refs = evidenceRefs(item.evidenceRefs);
+    return title && rationale && item.evidenceClass === "hypothesis" && refs
+      ? { title, rationale, evidenceClass: "hypothesis" as const, evidenceRefs: refs }
+      : null;
+  });
+  const uncertainties = value.uncertainties.map((item) => {
+    if (!isRecord(item) || !hasExactKeys(item, ["title", "statement", "decisionImpact", "evidenceRefs"])) return null;
+    const title = nonEmptyText(item.title, 160);
+    const statement = nonEmptyText(item.statement, 800);
+    const decisionImpact = nonEmptyText(item.decisionImpact, 800);
+    const refs = evidenceRefs(item.evidenceRefs);
+    return title && statement && decisionImpact && refs ? { title, statement, decisionImpact, evidenceRefs: refs } : null;
+  });
+  const decisionTriggers = value.decisionTriggers.map((item) => {
+    if (!isRecord(item) || !hasExactKeys(item, ["title", "action", "decisionImpact", "evidenceRefs"])) return null;
+    const title = nonEmptyText(item.title, 160);
+    const action = nonEmptyText(item.action, 900);
+    const decisionImpact = nonEmptyText(item.decisionImpact, 800);
+    const refs = evidenceRefs(item.evidenceRefs);
+    return title && action && decisionImpact && refs ? { title, action, decisionImpact, evidenceRefs: refs } : null;
+  });
+  if (!analyticChecks.every((item): item is PointObjectDepthReview["analyticChecks"][number] => item !== null) ||
+      !alternatives.every((item): item is PointObjectDepthReview["alternatives"][number] => item !== null) ||
+      !uncertainties.every((item): item is PointObjectDepthReview["uncertainties"][number] => item !== null) ||
+      !decisionTriggers.every((item): item is PointObjectDepthReview["decisionTriggers"][number] => item !== null)) return null;
+  return {
+    depth,
+    basis: "structured_review_of_existing_evidence",
+    purpose,
+    analyticChecks,
+    alternatives,
+    uncertainties,
+    decisionTriggers
   };
 }
 
@@ -665,10 +831,15 @@ function parseValidationActions(value: unknown): PointObjectValidationAction[] |
 }
 
 function parseContent(value: unknown): PointObjectAiContent | null {
-  if (!isRecord(value) || !hasExactKeys(value, [
+  const legacyKeys = [
     "initialSemanticBrief", "decisionBrief", "signals", "opportunities", "risks", "sourceFacts", "locationContext", "nextValidation", "answerToQuestion", "geoContext", "caveat"
-  ])) return null;
+  ];
+  const currentKeys = [
+    "initialSemanticBrief", "depthReview", "decisionBrief", "signals", "opportunities", "risks", "sourceFacts", "locationContext", "nextValidation", "answerToQuestion", "geoContext", "caveat"
+  ];
+  if (!isRecord(value) || (!hasExactKeys(value, legacyKeys) && !hasExactKeys(value, currentKeys))) return null;
   const initialSemanticBrief = parseInitialSemanticBrief(value.initialSemanticBrief);
+  const depthReview = Object.prototype.hasOwnProperty.call(value, "depthReview") ? parseDepthReview(value.depthReview) : undefined;
   const decisionBrief = parseDecisionBrief(value.decisionBrief);
   const signals = parseSignals(value.signals);
   const opportunities = parseOpportunities(value.opportunities);
@@ -678,10 +849,12 @@ function parseContent(value: unknown): PointObjectAiContent | null {
   const nextValidation = parseValidationActions(value.nextValidation);
   const answerToQuestion = value.answerToQuestion === null ? null : parseFocusedAnswer(value.answerToQuestion);
   const geoContext = parseGeoContext(value.geoContext);
-  if (!initialSemanticBrief || !decisionBrief || !signals || !opportunities || !risks || !sourceFacts || !locationContext || !nextValidation ||
+  if (!initialSemanticBrief || (Object.prototype.hasOwnProperty.call(value, "depthReview") && !depthReview) ||
+      !decisionBrief || !signals || !opportunities || !risks || !sourceFacts || !locationContext || !nextValidation ||
       (value.answerToQuestion !== null && !answerToQuestion) || !geoContext || value.caveat !== LIVE_POINT_CAVEAT) return null;
   return {
     initialSemanticBrief,
+    ...(depthReview ? { depthReview } : {}),
     decisionBrief,
     signals,
     opportunities,
@@ -862,7 +1035,7 @@ type ParsedPointObjectAiTelemetry = Extract<PointObjectAiResponse, { mode: "open
 function parsePointObjectAiTelemetryFor(
   value: unknown,
   expectedSchemaVersion: typeof POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION | typeof POINT_OBJECT_ANALYSIS_LEGACY_RESULT_SCHEMA_VERSION,
-  expectedPromptVersion: typeof POINT_OBJECT_ANALYSIS_PROMPT_VERSION | typeof POINT_OBJECT_ANALYSIS_LEGACY_PROMPT_VERSION
+  expectedPromptVersion: typeof POINT_OBJECT_ANALYSIS_PROMPT_VERSION | typeof POINT_OBJECT_ANALYSIS_PREVIOUS_PROMPT_VERSION | typeof POINT_OBJECT_ANALYSIS_LEGACY_PROMPT_VERSION
 ): ParsedPointObjectAiTelemetry | null {
   if (!isRecord(value) || !hasExactKeys(value, [
     "provider", "schemaVersion", "model", "reasoningEffort", "depth", "promptVersion", "requestId", "latencyMs", "attempts", "attemptTrace",
@@ -938,11 +1111,15 @@ function parsePointObjectAiTelemetryFor(
 }
 
 export function parsePointObjectAiTelemetry(value: unknown): PointObjectAiTelemetry | null {
-  return parsePointObjectAiTelemetryFor(
+  return (parsePointObjectAiTelemetryFor(
     value,
     POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION,
     POINT_OBJECT_ANALYSIS_PROMPT_VERSION
-  ) as PointObjectAiTelemetry | null;
+  ) ?? parsePointObjectAiTelemetryFor(
+    value,
+    POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION,
+    POINT_OBJECT_ANALYSIS_PREVIOUS_PROMPT_VERSION
+  )) as PointObjectAiTelemetry | null;
 }
 
 export function parsePointObjectAiResponse(value: unknown): PointObjectAiResponse | null {
@@ -966,8 +1143,12 @@ export function parsePointObjectAiResponse(value: unknown): PointObjectAiRespons
   const content = parseContent(value.content);
   const subject = parseSubject(value.subject);
   const telemetry = parsePointObjectAiTelemetry(value.telemetry);
+  const currentDepthReview = telemetry?.promptVersion === POINT_OBJECT_ANALYSIS_PROMPT_VERSION;
+  const previousWithoutDepthReview = telemetry?.promptVersion === POINT_OBJECT_ANALYSIS_PREVIOUS_PROMPT_VERSION;
   if (!generatedAt || !evidencePackId || !/^[A-Za-z0-9_.:-]+$/.test(evidencePackId) || !evidencePackHash ||
       !request || !content || !subject || !telemetry || telemetry.depth !== request.depth ||
+      (currentDepthReview && (!content.depthReview || content.depthReview.depth !== request.depth)) ||
+      (previousWithoutDepthReview && content.depthReview !== undefined) ||
       telemetry.attemptTrace[0]?.purpose !== (request.focused ? "focused" : "initial") ||
       (request.focused && content.answerToQuestion === null) ||
       (!request.focused && content.answerToQuestion !== null) ||

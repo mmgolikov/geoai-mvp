@@ -139,7 +139,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (authStatus.effectiveMode !== "demo_public" && !isMockDemoSessionActive()) {
-      clearBrowserDemoStorage();
+      clearBrowserDemoStorage({ reason: "startup" });
     }
     void refreshSession();
     // Run once at startup; auth mode is static per deployment.
@@ -157,13 +157,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     window.addEventListener("focus", synchronize);
     document.addEventListener("visibilitychange", synchronize);
-    void loadSupabaseBrowserClient().then((supabase) => {
-      if (!active || !supabase) return;
-      const { data } = supabase.auth.onAuthStateChange(() => {
+    void loadSupabaseBrowserClient()
+      .then((supabase) => {
+        if (!active || !supabase) return;
+        const { data } = supabase.auth.onAuthStateChange(() => {
+          if (active) void refreshSession();
+        });
+        unsubscribe = () => data.subscription.unsubscribe();
+      })
+      .catch(() => {
+        // The realtime subscription is optional. If its lazy client cannot load,
+        // keep the authoritative server session refresh as the fallback.
         if (active) void refreshSession();
       });
-      unsubscribe = () => data.subscription.unsubscribe();
-    });
 
     return () => {
       active = false;

@@ -16,6 +16,10 @@ Exact-head receipt: head `80645d64662699bd646f96718d300df5d2b84f5f`, tree `0fb79
 
 ## Mandatory pre-Auth / real-source gates
 
+### September 10 Preview regression acceptance
+
+Apply the [correction CR checklist](change-requests/point-to-object-001/experience-v6/SEPT10_REGRESSION_PROJECT_HUB_CHANGE_REQUEST.md#acceptance): native complex building/highlight, exact-footprint and outside/multipart replacement, throttled context recovery without permanent loading, Find timeout/429 versus valid zero results, canonical Hub filtering and identity-safe reopen, desktop/mobile landing bubbles and mode links. Include real public-source bounded checks after local fixture tests. Local Chromium/WebKit does not certify a physical iPhone 15 Pro running iOS 27 RC. Existing legacy-product checks should retain their coverage on the explicit compatibility route rather than be deleted or mistaken for new-Hub coverage.
+
 - [ ] Request-scoped caller JWT/profile/project membership is implemented and negative 401/403 cases pass. **Current status: blocked.**
 - [ ] `profiles.auth_user_id` has an upgrade-safe `auth.users(id)` FK plus required uniqueness; authenticated AOI writes enforce an explicit authorized role, not membership alone. **Current status: blocked.**
 - [x] Every API handler is classified in `security/api-route-access.json`; static guard contract passes.

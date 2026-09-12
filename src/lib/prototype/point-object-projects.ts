@@ -29,6 +29,7 @@ export const POINT_OBJECT_PROJECTS_SCHEMA_VERSION = 1 as const;
 export const POINT_OBJECT_PROJECTS_EVENT = "geoai:point-to-object:projects-change";
 export const POINT_OBJECT_PROJECT_RESTORE_KEY = "geoai:point-to-object:project-restore:v1";
 export const POINT_OBJECT_ANALYSIS_RESTORE_KEY = "geoai:point-to-object:analysis-restore:v1";
+export const POINT_OBJECT_PROJECT_OVERVIEW_KEY = "geoai:point-to-object:project-overview:v1";
 export const POINT_OBJECT_BROWSER_IDENTITY_KEY = "geoai:point-to-object:browser-identity:v1";
 export const POINT_OBJECT_FIND_SESSION_KEY = "geoai:point-to-object:find:v1";
 
@@ -37,6 +38,9 @@ const MAX_STORE_BYTES = 4 * 1024 * 1024;
 const MAX_ARTIFACT_BYTES = 768 * 1024;
 const MAX_PROJECTS = 20;
 const MAX_ARTIFACTS_PER_PROJECT = 30;
+// Account for every supported ID, including worst-case JSON escaping. The
+// overview must not reject a valid 20-project store after writing its intent.
+const MAX_OVERVIEW_BYTES = MAX_PROJECTS * MAX_ARTIFACTS_PER_PROJECT * (160 * 6 + 3) + 4_096;
 const MAX_PENDING_OPERATIONS_PER_IDENTITY = 20;
 
 export type PointObjectProjectSaveResult =
@@ -69,6 +73,14 @@ export type PointObjectProjectDestination = {
   projectId: string;
   projectName: string;
   projectCreatedAt: string;
+};
+
+export type PointObjectProjectOverviewMarker = {
+  artifactId: string;
+  kind: SavedPointObjectArtifact["kind"];
+  label: string;
+  longitude: number;
+  latitude: number;
 };
 
 export type PointObjectProjectStoreReadResult =
@@ -227,8 +239,59 @@ export async function createPointObjectProject(identityKey: PointObjectProjectId
   };
   assertCurrentIdentity(identityKey);
   writeStore({ ...store, activeProjectId: project.projectId, projects: [project, ...store.projects] });
+  // Starting a distinct local workspace is deliberate. A previous exact-result
+  // restore or all-project overview receipt must not repopulate this new
+  // project after reload.
+  clearPointObjectProjectRestore();
+  clearPointObjectProjectOverview();
+  try {
+    window.sessionStorage.removeItem(POINT_OBJECT_ANALYSIS_RESTORE_KEY);
+  } catch {
+    // The new project remains valid when transient browser storage is blocked.
+  }
   emitState(identityKey, { status: "idle", message: locale === "ru" ? "Новый проект выбран на этом устройстве." : "New project selected on this device." });
   return project;
+}
+
+export function renamePointObjectProject(
+  identityKey: PointObjectProjectIdentity,
+  projectId: string,
+  name: string,
+  expectedName: string,
+  locale: PointObjectLocale
+): Promise<SavedPointObjectProject> {
+  const normalized = name.normalize("NFKC").trim().replace(/\s+/g, " ");
+  if (!normalized || normalized.length > 120 || /[\u0000-\u001f\u007f]/.test(name)) {
+    return Promise.reject(new Error(locale === "ru" ? "Введите название от 1 до 120 символов." : "Enter a name between 1 and 120 characters."));
+  }
+  const previous = operationChains.get(identityKey) ?? Promise.resolve();
+  const current = previous.catch(() => undefined).then(async () => {
+    assertCurrentIdentity(identityKey);
+    const before = window.localStorage.getItem(projectStorageKey(identityKey));
+    const read = await readVerifiedPointObjectProjects(identityKey);
+    if (!read.store) throw new Error(read.message);
+    const project = read.store.projects.find((item) => item.projectId === projectId);
+    if (!project) throw new Error(locale === "ru" ? "Проект больше не доступен." : "This project is no longer available.");
+    assertCurrentIdentity(identityKey);
+    if (project.name !== expectedName || window.localStorage.getItem(projectStorageKey(identityKey)) !== before) {
+      throw new Error(locale === "ru" ? "Проект изменился в другой вкладке. Обновите страницу и повторите." : "The project changed in another tab. Refresh and try again.");
+    }
+    if (project.name === normalized) return project;
+    // Project metadata is not part of immutable artifact receipts. Do not
+    // regenerate results, change their IDs/hashes, or switch active projects.
+    const renamed = { ...project, name: normalized, updatedAt: new Date().toISOString() };
+    // Verification uses the canonical reader, but it may supply display-only
+    // legacy defaults. Persist only metadata into the original validated shape.
+    const rawStore = JSON.parse(before!) as PointObjectProjectStore;
+    writeStore({ ...rawStore, projects: rawStore.projects.map((item) => item.projectId === projectId
+      ? { ...item, name: normalized, updatedAt: renamed.updatedAt } : item) });
+    emitState(identityKey, { status: "saved", message: locale === "ru" ? "Название проекта сохранено." : "Project name saved." });
+    return renamed;
+  });
+  operationChains.set(identityKey, current);
+  const clear = () => { if (operationChains.get(identityKey) === current) operationChains.delete(identityKey); };
+  void current.then(clear, clear);
+  return current;
 }
 
 export async function selectPointObjectProject(identityKey: PointObjectProjectIdentity, projectId: string): Promise<boolean> {
@@ -476,7 +539,7 @@ async function updateArtifactViewState(
 export function updatePointObjectFindViewState(
   identityKey: PointObjectProjectIdentity,
   artifactId: string,
-  view: Pick<PointObjectFindProjectPayload["session"], "shortlist" | "comparisonOpen" | "analysisTargetSourceFeatureId">
+  view: Pick<PointObjectFindProjectPayload["session"], "shortlist" | "comparisonOpen" | "comparisonView" | "analysisTargetSourceFeatureId">
 ): Promise<PointObjectProjectSaveResult> {
   return updateArtifactViewState(identityKey, artifactId, (artifact) => {
     if (artifact.kind !== "find") return null;
@@ -501,10 +564,76 @@ export function updatePointObjectCreateViewState(
 export function queuePointObjectProjectRestore(identityKey: PointObjectProjectIdentity, artifact: SavedPointObjectArtifact): boolean {
   try {
     assertCurrentIdentity(identityKey);
+    window.sessionStorage.removeItem(POINT_OBJECT_PROJECT_OVERVIEW_KEY);
     window.sessionStorage.setItem(POINT_OBJECT_PROJECT_RESTORE_KEY, JSON.stringify({ schemaVersion: 1, identityKey, artifactId: artifact.artifactId }));
     return true;
   } catch {
     return false;
+  }
+}
+
+function overviewMarker(artifact: SavedPointObjectArtifact): PointObjectProjectOverviewMarker {
+  if (artifact.kind === "analyse") {
+    return { artifactId: artifact.artifactId, kind: artifact.kind, label: artifact.label, longitude: artifact.payload.selection.longitude, latitude: artifact.payload.selection.latitude };
+  }
+  if (artifact.kind === "find") {
+    const [west, south, east, north] = artifact.payload.session.result.criteria.bounds;
+    return { artifactId: artifact.artifactId, kind: artifact.kind, label: artifact.label, longitude: (west + east) / 2, latitude: (south + north) / 2 };
+  }
+  const ring = artifact.payload.aoi.coordinates[0] ?? [];
+  const longitudes = ring.map((coordinate) => coordinate[0]);
+  const latitudes = ring.map((coordinate) => coordinate[1]);
+  const longitude = (Math.min(...longitudes) + Math.max(...longitudes)) / 2;
+  const latitude = (Math.min(...latitudes) + Math.max(...latitudes)) / 2;
+  return { artifactId: artifact.artifactId, kind: artifact.kind, label: artifact.label, longitude, latitude };
+}
+
+/**
+ * Opens an owner-verified browser-local overview. This transient intent does
+ * not alter saved receipts or any result payload; a chosen marker replaces it
+ * with the exact-result restore intent.
+ */
+export async function queuePointObjectProjectOverview(identityKey: PointObjectProjectIdentity): Promise<boolean> {
+  try {
+    assertCurrentIdentity(identityKey);
+    const read = await readVerifiedPointObjectProjects(identityKey);
+    if (!read.store) return false;
+    assertCurrentIdentity(identityKey);
+    const artifactIds = read.store.projects.flatMap((project) => project.artifacts).map((artifact) => artifact.artifactId);
+    const intent = JSON.stringify({ schemaVersion: 1, identityKey, artifactIds });
+    if (new TextEncoder().encode(intent).byteLength > MAX_OVERVIEW_BYTES) return false;
+    window.sessionStorage.setItem(POINT_OBJECT_PROJECT_OVERVIEW_KEY, intent);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function consumePointObjectProjectOverview(identityKey: PointObjectProjectIdentity): Promise<PointObjectProjectOverviewMarker[] | null> {
+  try {
+    const raw = window.sessionStorage.getItem(POINT_OBJECT_PROJECT_OVERVIEW_KEY);
+    if (!raw || new TextEncoder().encode(raw).byteLength > MAX_OVERVIEW_BYTES) return null;
+    const value: unknown = JSON.parse(raw);
+    if (!isRecord(value) || value.schemaVersion !== 1 || value.identityKey !== identityKey || !Array.isArray(value.artifactIds) ||
+        value.artifactIds.length > MAX_PROJECTS * MAX_ARTIFACTS_PER_PROJECT || value.artifactIds.some((id) => typeof id !== "string" || !id.trim() || id.length > 160)) return null;
+    const requested = new Set(value.artifactIds);
+    if (requested.size !== value.artifactIds.length) return null;
+    const read = await readVerifiedPointObjectProjects(identityKey);
+    assertCurrentIdentity(identityKey);
+    const artifacts = read.store?.projects.flatMap((project) => project.artifacts).filter((artifact) => requested.has(artifact.artifactId)) ?? [];
+    // The overview receipt is only valid if every captured saved operation is
+    // still present and integrity-verified for the same browser identity.
+    return artifacts.length === requested.size ? artifacts.map(overviewMarker) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function clearPointObjectProjectOverview(): void {
+  try {
+    window.sessionStorage.removeItem(POINT_OBJECT_PROJECT_OVERVIEW_KEY);
+  } catch {
+    // The overview is already non-durable when session storage is unavailable.
   }
 }
 
@@ -529,12 +658,17 @@ export function queuePointObjectAnalysisRestore(identityKey: PointObjectProjectI
 export function consumePointObjectAnalysisRestore(identityKey: PointObjectProjectIdentity): { locale: PointObjectLocale; artifactId: string; payloadHash: string } | null {
   try {
     const raw = window.sessionStorage.getItem(POINT_OBJECT_ANALYSIS_RESTORE_KEY);
-    window.sessionStorage.removeItem(POINT_OBJECT_ANALYSIS_RESTORE_KEY);
     if (!raw || raw.length > 2_048) return null;
     const value: unknown = JSON.parse(raw);
     if (!isRecord(value) || value.schemaVersion !== 1 || value.identityKey !== identityKey ||
         (value.locale !== "en" && value.locale !== "ru") || typeof value.artifactId !== "string" ||
-        typeof value.payloadHash !== "string" || !/^[a-f0-9]{64}$/.test(value.payloadHash)) return null;
+        typeof value.payloadHash !== "string" || !/^[a-f0-9]{64}$/.test(value.payloadHash)) {
+      window.sessionStorage.removeItem(POINT_OBJECT_ANALYSIS_RESTORE_KEY);
+      return null;
+    }
+    // Keep an exact, owner-scoped receipt through reload and Back.  The receipt
+    // only controls reopening a verified local result; a deliberate new action
+    // replaces or clears it, so it cannot create a fresh operation by itself.
     return { locale: value.locale, artifactId: value.artifactId, payloadHash: value.payloadHash };
   } catch {
     return null;
@@ -552,7 +686,10 @@ export async function consumePointObjectProjectRestore(identityKey: PointObjectP
     }
     const read = await readVerifiedPointObjectProjects(identityKey);
     const artifact = read.store?.projects.flatMap((project) => project.artifacts).find((candidate) => candidate.artifactId === value.artifactId) ?? null;
-    if (!artifact) window.sessionStorage.removeItem(POINT_OBJECT_PROJECT_RESTORE_KEY);
+    if (!artifact || !await verifySavedPointObjectArtifact(artifact)) {
+      window.sessionStorage.removeItem(POINT_OBJECT_PROJECT_RESTORE_KEY);
+      return null;
+    }
     return artifact;
   } catch {
     return null;
@@ -567,10 +704,12 @@ export function reconcilePointObjectBrowserIdentity(identityKey: PointObjectProj
       for (const key of [
         "geoai:point-to-object:selection:v3",
         "geoai:point-to-object:question:v2",
+        "geoai:point-to-object:analysis-draft:v1",
         "geoai:point-to-object:analysis:v8",
         "geoai:point-to-object:analysis:v7",
         POINT_OBJECT_FIND_SESSION_KEY,
         POINT_OBJECT_PROJECT_RESTORE_KEY,
+        POINT_OBJECT_PROJECT_OVERVIEW_KEY,
         POINT_OBJECT_ANALYSIS_RESTORE_KEY
       ]) window.sessionStorage.removeItem(key);
     }

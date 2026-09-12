@@ -29,8 +29,17 @@ async function loadAiCore(): Promise<Record<string, any>> {
     /import \{ semanticHash \} from "@\/src\/lib\/point-to-object\/hash";\n/,
     `import { createHash } from "node:crypto";\nconst semanticHash = (value) => { const canonicalize = (entry) => Array.isArray(entry) ? entry.map(canonicalize) : entry && typeof entry === "object" ? Object.fromEntries(Object.entries(entry).sort(([a], [b]) => a.localeCompare(b)).map(([key, child]) => [key, canonicalize(child)])) : entry; return createHash("sha256").update(JSON.stringify(canonicalize(value))).digest("hex"); };\n`
   );
+  source = source.replace(
+    /import \{\n  POINT_OBJECT_ANALYSIS_DEPTH_CONTRACT_VERSION,[\s\S]*?\} from "\.\/point-to-object-analysis-depth-contract";\n/,
+    `const POINT_OBJECT_ANALYSIS_DEPTH_CONTRACT_VERSION = "POINT_OBJECT_DEPTH_CONTRACT_V1_2026_09_12";\nconst pointObjectAnalysisDepthContract = (depth) => ({\n  quick: { depth: "quick", purpose: "identity_evidence", selectionCounts: { decisionReasons: 2, signals: 3, opportunities: 1, risks: 2 }, reviewCounts: { criteria: 2, alternatives: 0, counterEvidence: 1, decisionTriggers: 1 }, instruction: "quick" },\n  standard: { depth: "standard", purpose: "decision_criteria", selectionCounts: { decisionReasons: 3, signals: 4, opportunities: 2, risks: 3 }, reviewCounts: { criteria: 3, alternatives: 1, counterEvidence: 2, decisionTriggers: 2 }, instruction: "standard" },\n  deep: { depth: "deep", purpose: "decision_challenge", selectionCounts: { decisionReasons: 4, signals: 5, opportunities: 3, risks: 3 }, reviewCounts: { criteria: 4, alternatives: 2, counterEvidence: 3, decisionTriggers: 3 }, instruction: "deep" }\n}[depth]);\n`
+  );
   const javascript = stripTypeScriptTypes(source, { mode: "transform", sourceMap: false });
-  return await import(`data:text/javascript;base64,${Buffer.from(javascript).toString("base64")}`) as Record<string, any>;
+  try {
+    return await import(`data:text/javascript;base64,${Buffer.from(javascript).toString("base64")}`) as Record<string, any>;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "AI core import failed";
+    throw new Error(message.slice(-800));
+  }
 }
 
 function geoContext(sparse = false) {
@@ -60,7 +69,7 @@ function geoContext(sparse = false) {
   };
 }
 
-function evidencePack(sparse = false, market: "dubai" | "singapore" = "dubai", named = true): any {
+export function evidencePack(sparse = false, market: "dubai" | "singapore" = "dubai", named = true): any {
   // Synthetic semantic fixtures, not observations of actual buildings or districts.
   const city = market === "singapore" ? "Singapore" : "Dubai";
   const country = market === "singapore" ? "Singapore" : "United Arab Emirates";
@@ -238,7 +247,7 @@ function wikidataEvidence(entity: any) {
   ];
 }
 
-const core = await loadAiCore();
+export const core = await loadAiCore();
 const buildRequest = core.buildPointObjectResponsesRequest as Function;
 const validate = core.validatePointObjectAiContentDetailed as Function;
 const projectionFor = core.buildModelEvidenceProjection as Function;
@@ -273,6 +282,25 @@ assert.match(outputs[0].context.statement, /business and office uses — 3.*hote
 assert.match(outputs[0].implication.statement, /hotel\/business programme.*permitted use.*access capacity/);
 assert.match(outputs[1].implication.statement, /Longer-term view:.*investment review.*income history.*comparable transactions/);
 assert.match(outputs[2].implication.statement, /1–3 year view:.*reuse choices.*condition.*refurbishment phasing/);
+
+// Two provider samples have different radii. A 759 m place must never be
+// narrated as inside the 400 m urban-fabric sample (founder regression).
+const mixedRadiusPack = evidencePack();
+mixedRadiusPack.nearbyContext[1].distanceM = 759;
+const distantItem = mixedRadiusPack.nearbyContext[1];
+mixedRadiusPack.evidence.find((entry: any) => entry.id === "EVD-CONTEXT-2").value = JSON.stringify({
+  sourceFeatureId: distantItem.sourceFeatureId, name: distantItem.name, categories: distantItem.categories,
+  featureClass: distantItem.featureClass, distanceM: distantItem.distanceM, method: distantItem.method
+});
+for (const locale of ["en", "ru"]) {
+  const mixed = validate(rawPlan(), mixedRadiusPack, { ...requests[0], locale });
+  assert.equal(mixed.ok, true, mixed.detail);
+  const statement = mixed.content.initialSemanticBrief.context.statement;
+  const outsideLabel = locale === "en" ? "Further nearby (outside that radius)" : "Другие объекты поблизости (за пределами этого радиуса)";
+  assert.ok(statement.includes(outsideLabel));
+  assert.ok(statement.indexOf("759") > statement.indexOf(outsideLabel));
+  assert.ok(!statement.slice(0, statement.indexOf(outsideLabel)).includes("Harbour Offices"));
+}
 for (const output of outputs) {
   assert.doesNotMatch(JSON.stringify(output), /linked community entity|bounded open-map subject|mapped records|close .*gates|downside protection|optionality/i);
 }

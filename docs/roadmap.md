@@ -1,5 +1,7 @@
 # GeoAI Delivery Roadmap
 
+Current isolated Preview work: [September 10 correction](change-requests/point-to-object-001/experience-v6/SEPT10_REGRESSION_PROJECT_HUB_CHANGE_REQUEST.md). Order: map/source reliability → unified Project Hub and mobile/desktop landing → combined tests and exact Preview → founder physical-device retest. Contact-form transmission, cloud synchronization and collaborative projects remain later, separately scoped capabilities.
+
 Status: Active
 Last verified: 2026-09-04
 Owner: GeoAI Product / Engineering

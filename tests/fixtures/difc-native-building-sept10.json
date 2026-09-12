@@ -1,0 +1,20 @@
+{
+  "provenance": "Read from the founder-authorized GeoAI Preview map selection on 2026-09-10; OpenFreeMap/OpenMapTiles data from OpenStreetMap. Public render feature, not an official building boundary or OSM identity mapping.",
+  "selection": {
+    "locationKey": "dubai",
+    "latitude": 25.211038786815212,
+    "longitude": 55.28224001429404,
+    "object": {
+      "name": null,
+      "featureClass": "building",
+      "sourceFeatureId": "3933610102",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[55.281803011894226,25.210386853485247],[55.281583070755005,25.21065864674067],[55.28216779232025,25.211046921766908],[55.28173863887787,25.211571091087336],[55.282098054885864,25.21181376130444],[55.28294563293457,25.21077027593759],[55.282586216926575,25.21053245709041],[55.2823930978775,25.210775129378618],[55.281803011894226,25.210386853485247]]]
+      },
+      "renderHeightM": 235,
+      "renderMinHeightM": 0
+    },
+    "viewport": { "center": [55.28238300000123,25.21325500000006], "zoom": 17, "pitch": 55, "bearing": 0, "viewMode": "3d", "basemapId": "street" }
+  }
+}

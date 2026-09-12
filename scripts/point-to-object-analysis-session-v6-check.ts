@@ -116,7 +116,31 @@ assert.ok(restored && restored.mode === "openai" && restored.schemaVersion === 5
 assert.equal(restored.telemetry.requestId, "resp_historical", "Historical telemetry must remain historical and exact.");
 
 const clientSource = readFileSync(path.join(process.cwd(), "components/point-to-object/analysis-client.tsx"), "utf8");
-assert.match(clientSource, /analysis\.schemaVersion !== POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION\) return;/,
-  "Locale changes must not automatically regenerate a restored V5 analysis.");
+assert.doesNotMatch(clientSource, /localeRefreshAttemptRef|const refreshKey = `\$\{selection\.clickedAt\}:\$\{locale\}`/,
+  "The former locale-triggered regeneration effect must not exist for any saved schema; browser regressions verify zero calls.");
+assert.ok(clientSource.includes("Update in English") && clientSource.includes("Обновить на русском"),
+  "Language-specific regeneration must have an explicit user action.");
 
-console.log("point-to-object-analysis-session-v6-check: PASS (strict V6 current path and zero-call V5 restoration)");
+const draftScope = { selection, identityKey: "demo:qa06", projectId: "project-qa06", locale: "ru", profileKey: "b2b:developer" };
+const draftText = "QA06 несохранённое уточнение: транспорт и подъезд";
+assert.equal(session.writePointObjectQuestionDraft(draftText, draftScope), true);
+assert.equal(session.readPointObjectQuestionDraft(draftScope), draftText);
+assert.equal(session.readPointObjectQuestion(), "", "Unsubmitted draft must not replace the canonical question.");
+for (const otherScope of [
+  { ...draftScope, identityKey: "demo:other" },
+  { ...draftScope, identityKey: null },
+  { ...draftScope, projectId: "project-other" },
+  { ...draftScope, locale: "en" },
+  { ...draftScope, profileKey: "b2c:tourist" },
+  { ...draftScope, selection: { ...selection, longitude: 55.28 } },
+  { ...draftScope, selection: { ...selection, clickedAt: "2026-09-04T12:00:00.000Z" } }
+]) assert.equal(session.readPointObjectQuestionDraft(otherScope), null, "Different context must not receive a scoped draft.");
+session.writePointObjectQuestionDraft("", draftScope);
+assert.equal(session.readPointObjectQuestionDraft(draftScope), "", "Explicit draft clearing must persist.");
+session.writePointObjectQuestion("legacy submitted question");
+assert.equal(session.readPointObjectQuestionDraft(draftScope), null, "Explicit submission clears the prior unsent draft.");
+assert.equal(session.readPointObjectQuestion(), "legacy submitted question", "Existing unscoped submitted records remain readable.");
+window.sessionStorage.setItem = () => { throw new Error("Storage denied"); };
+assert.equal(session.writePointObjectQuestionDraft(draftText, draftScope), false, "Storage denial must be reported to the client.");
+
+console.log("point-to-object-analysis-session-v6-check: PASS (V6/V5 restoration and scoped zero-call question drafts)");

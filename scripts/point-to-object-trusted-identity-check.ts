@@ -18,10 +18,30 @@ const {
   POINT_OBJECT_TRUSTED_IDENTITY_ANCHOR_MAX_DISTANCE_M,
   matchPointObjectTrustedIdentityAnchor,
   pointObjectIdentityEvidenceDescriptor,
-  pointObjectLookupAssociation
+  pointObjectLookupAssociation,
+  pointObjectSelectedLookupId,
+  pointObjectHasSelectedIdentity,
+  pointObjectSelectionLabel
 } = await import("../src/lib/prototype/point-to-object-trusted-identity");
 
 const dubaiAnchor = [55.271928, 25.20811] as const;
+
+const renderedBuilding = { object: { sourceFeatureId: "openfreemap:building:123" }, resolvedObject: { sourceFeatureId: "node/456" } };
+assert.equal(pointObjectSelectedLookupId(renderedBuilding), null, "A nearest fountain must not pin the selected building's analysis lookup.");
+assert.equal(pointObjectHasSelectedIdentity(renderedBuilding, { sourceFeatureId: "node/456", coordinateAssociation: "trusted_open_map_identity" }), false, "Legacy nearest-to-exact upgrades are not trusted on display.");
+const selectedCanonical = { object: { sourceFeatureId: "way/123" } };
+const namedTile = { object: { sourceFeatureId: "18290731", name: "Selected tower" } };
+const neighbour = { sourceFeatureId: "node/456", name: "Nearby fountain", coordinateAssociation: "reverse_nearest_indexed_object_not_point_in_polygon" };
+assert.equal(pointObjectSelectionLabel(namedTile, neighbour, "Selected object"), "Selected tower", "Saved labels must not rename a tower after a reverse neighbour.");
+assert.equal(pointObjectSelectionLabel(namedTile, { ...neighbour, coordinateAssociation: "trusted_open_map_identity" }, "Selected object"), "Selected tower", "A historical false exact label cannot rename a selected tile.");
+assert.equal(pointObjectSelectionLabel({ object: { sourceFeatureId: "node/456", name: null } }, { ...neighbour, coordinateAssociation: "trusted_open_map_identity" }, "Selected object"), "Nearby fountain");
+assert.equal(pointObjectSelectionLabel(null, neighbour, "Selected object"), "Selected object");
+assert.equal(pointObjectSelectedLookupId(selectedCanonical), "way/123");
+assert.equal(pointObjectHasSelectedIdentity(selectedCanonical, { sourceFeatureId: "way/123", coordinateAssociation: "trusted_open_map_identity" }), true);
+assert.equal(pointObjectHasSelectedIdentity(selectedCanonical, { sourceFeatureId: "node/456", coordinateAssociation: "trusted_open_map_identity" }), false);
+for (const invalidId of ["123", "way/0", "way/-1", "way/123 extra", "node/12\n", "relation/1.1"]) {
+  assert.equal(pointObjectSelectedLookupId({ object: { sourceFeatureId: invalidId } }), null);
+}
 
 const closeCentroid = matchPointObjectTrustedIdentityAnchor({
   anchor: dubaiAnchor,

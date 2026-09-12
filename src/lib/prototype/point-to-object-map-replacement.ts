@@ -1,10 +1,18 @@
 import { convertFilter } from "@maplibre/maplibre-gl-style-spec";
-import type { FilterSpecification } from "maplibre-gl";
+import type { FilterSpecification, Map as MapLibreMap } from "maplibre-gl";
 import type { Feature, MultiPolygon, Polygon, Position } from "geojson";
 
 export const pointObjectReplacementSnapshotVersion = 1 as const;
 export const pointObjectReplacementMaxVertices = 1_000;
 export const pointObjectReplacementMinimumReliableZoom = 13 as const;
+// OpenMapTiles marks outlines covered by building parts with hide_3d. Drawing
+// those outlines as well creates an invented uniform prism over native parts.
+export const pointObjectNativeBuilding3dFilter: FilterSpecification = [
+  "!", ["in", ["to-string", ["coalesce", ["get", "hide_3d"], false]], ["literal", ["true", "1"]]]
+];
+// Numerical boundary inclusion, not a site buffer: 1 mm normal displacement,
+// capped at 2 mm at corners. Native tile quantization remains the source limit.
+export const pointObjectReplacementBoundaryToleranceM = 0.001;
 
 const WGS84_WORLD_RING: Position[] = [
   [-180, -90],
@@ -31,6 +39,27 @@ export type PointObjectBuildingReplacementFilterPlan = {
   aoi: Polygon | null;
   reason: string | null;
 };
+
+export type PointObjectKnownFootprintFilterPlan = {
+  applied: boolean;
+  filter: FilterSpecification | null;
+  hiddenPredicateCount: number;
+  reason: string | null;
+};
+
+/**
+ * Avoid reopening MapLibre's render/style cycle when a lifecycle callback is
+ * only reaffirming an already-applied layer visibility.
+ */
+export function setPointObjectLayerVisibilityIfChanged(
+  map: Pick<MapLibreMap, "getLayer" | "getLayoutProperty" | "setLayoutProperty">,
+  layerId: string,
+  visibility: "visible" | "none"
+): boolean {
+  if (!map.getLayer(layerId) || map.getLayoutProperty(layerId, "visibility") === visibility) return false;
+  map.setLayoutProperty(layerId, "visibility", visibility);
+  return true;
+}
 
 function cloneJsonValue<T>(value: T, path = "value"): T {
   if (value === null || typeof value === "string" || typeof value === "boolean") {
@@ -281,6 +310,52 @@ export function validatePointObjectReplacementAoi(input: unknown): PointObjectRe
  * right. This lets MapLibre distinguish a feature that is wholly internal from
  * one that crosses the boundary or has any disjoint component outside it.
  */
+export function buildPointObjectReplacementBoundaryAoi(aoi: Polygon): Polygon | null {
+  const latitude = aoi.coordinates[0][0][1];
+  const longitudeScale = 111_320 * Math.cos(latitude * Math.PI / 180);
+  if (longitudeScale < 1_000) return null;
+  const latitudeScale = 110_574;
+  const origin = aoi.coordinates[0][0];
+  const coordinates: Position[][] = [];
+  for (const [ringIndex, ring] of aoi.coordinates.entries()) {
+    const points = ring.slice(0, -1).map(([x, y]) => [(x - origin[0]) * longitudeScale, (y - origin[1]) * latitudeScale]);
+    const closed = [...points, points[0]];
+    const direction = Math.sign(signedRingArea(closed)) * (ringIndex === 0 ? 1 : -1);
+    if (!direction) return null;
+    const normals = points.map((point, index) => {
+      const next = points[(index + 1) % points.length];
+      const dx = next[0] - point[0]; const dy = next[1] - point[1];
+      const length = Math.hypot(dx, dy);
+      return [direction * dy / length, -direction * dx / length];
+    });
+    const expanded: Position[] = [];
+    for (const [index, point] of points.entries()) {
+      const previous = normals[(index + points.length - 1) % points.length];
+      const next = normals[index];
+      const denominator = 1 + previous[0] * next[0] + previous[1] * next[1];
+      if (denominator <= 0) return null;
+      const dx = (previous[0] + next[0]) * pointObjectReplacementBoundaryToleranceM / denominator;
+      const dy = (previous[1] + next[1]) * pointObjectReplacementBoundaryToleranceM / denominator;
+      if (!Number.isFinite(dx + dy)) return null;
+      // A sharp but valid corner must not reject the entire AOI. Bevel the
+      // numerical join at the two 1 mm edge offsets instead of extending a
+      // long miter. The full output still passes topology validation below.
+      if (Math.hypot(dx, dy) > 2 * pointObjectReplacementBoundaryToleranceM) {
+        for (const normal of [previous, next]) expanded.push([
+          origin[0] + (point[0] + normal[0] * pointObjectReplacementBoundaryToleranceM) / longitudeScale,
+          origin[1] + (point[1] + normal[1] * pointObjectReplacementBoundaryToleranceM) / latitudeScale
+        ]);
+        continue;
+      }
+      expanded.push([origin[0] + (point[0] + dx) / longitudeScale, origin[1] + (point[1] + dy) / latitudeScale]);
+    }
+    expanded.push([...expanded[0]]);
+    coordinates.push(expanded);
+  }
+  const validation = validatePointObjectReplacementAoi({ type: "Polygon", coordinates });
+  return validation.valid ? validation.aoi : null;
+}
+
 function buildPointObjectOutsideAoi(aoi: Polygon): MultiPolygon {
   const [exterior, ...holes] = aoi.coordinates;
   return {
@@ -292,10 +367,35 @@ function buildPointObjectOutsideAoi(aoi: Polygon): MultiPolygon {
   };
 }
 
+/** Native highlight containment, not proximity: touching/reused IDs are not identity. */
+export function buildPointObjectNativeSelectionOutside(geometry: Polygon | MultiPolygon): MultiPolygon | null {
+  const polygons = geometry.type === "Polygon" ? [geometry.coordinates] : geometry.coordinates;
+  const bounded: Polygon[] = [];
+  for (const coordinates of polygons) {
+    // Native tile clipping can make a courtyard ring touch the exterior at the
+    // tile edge. Validate each ring first; the bounded offset separates those
+    // coincident edges and must still pass the full topology validator afterward.
+    // This exception is native-highlight-only; uploaded Create AOIs stay strict.
+    if (!coordinates.length || coordinates.some(ring => !validatePointObjectReplacementAoi({ type: "Polygon", coordinates: [ring] }).valid)) return null;
+    const polygon = buildPointObjectReplacementBoundaryAoi({ type: "Polygon", coordinates });
+    if (!polygon) return null;
+    bounded.push(polygon);
+  }
+  if (!bounded.length) return null;
+  return {
+    type: "MultiPolygon",
+    coordinates: [
+      [cloneJsonValue(WGS84_WORLD_RING, "world"), ...bounded.map(polygon => polygon.coordinates[0])],
+      ...bounded.flatMap(polygon => polygon.coordinates.slice(1).map(hole => [hole]))
+    ]
+  };
+}
+
 /**
  * Builds a fail-safe filter for a primary building layer. A polygon is hidden
  * only when MapLibre can prove that it intersects the AOI and has no geometry
- * in the world outside it. Boundary-crossing and mixed/disjoint multipart
+ * in the world outside the bounded numerical envelope (1 mm edge / 2 mm corner).
+ * Boundary-crossing and mixed/disjoint multipart
  * features are retained whole because a style filter cannot clip one component
  * without also removing the feature's outside geometry.
  *
@@ -319,7 +419,9 @@ export function buildPointObjectBuildingReplacementFilter(
   }
 
   const aoi = cloneJsonValue(validation.aoi, "aoi");
-  const outsideAoi = buildPointObjectOutsideAoi(aoi);
+  const boundaryAoi = buildPointObjectReplacementBoundaryAoi(aoi);
+  if (!boundaryAoi) return { applied: false, filter: restorePointObjectMapFilter(originalSnapshot), aoi, reason: "AOI boundary cannot be included within the bounded 2 mm numerical tolerance." };
+  const outsideAoi = buildPointObjectOutsideAoi(boundaryAoi);
   const outsideAoiFilter = [
     "any",
     ["<", ["zoom"], pointObjectReplacementMinimumReliableZoom],
@@ -336,6 +438,48 @@ export function buildPointObjectBuildingReplacementFilter(
     applied: true,
     filter: clonePointObjectMapFilter(filter),
     aoi: cloneJsonValue(aoi, "aoi"),
+    reason: null
+  };
+}
+
+/**
+ * Compose a source layer's immutable baseline with predicates for footprints
+ * already proven complete by the source planner. Geometry discovery and the
+ * 50% policy deliberately stay outside this style-expression helper.
+ */
+export function buildPointObjectKnownFootprintFilter(
+  originalFilter: FilterSpecification | null | undefined,
+  hiddenPredicates: readonly FilterSpecification[]
+): PointObjectKnownFootprintFilterPlan {
+  const originalSnapshot = snapshotPointObjectMapFilter(originalFilter);
+  if (hiddenPredicates.length > 1_000) {
+    return {
+      applied: false,
+      filter: restorePointObjectMapFilter(originalSnapshot),
+      hiddenPredicateCount: 0,
+      reason: "Complete-footprint replacement exceeds 1,000 source parents."
+    };
+  }
+  let predicates: FilterSpecification[];
+  try {
+    predicates = hiddenPredicates.map((predicate, index) => cloneJsonValue(predicate, `hiddenPredicates[${index}]`));
+  } catch (error) {
+    return {
+      applied: false,
+      filter: restorePointObjectMapFilter(originalSnapshot),
+      hiddenPredicateCount: 0,
+      reason: error instanceof Error ? error.message : "Complete-footprint predicates are invalid."
+    };
+  }
+  const original = restorePointObjectMapFilter(originalSnapshot);
+  if (!predicates.length) {
+    return { applied: true, filter: original, hiddenPredicateCount: 0, reason: null };
+  }
+  const exclusion = ["!", ["any", ...predicates]] as unknown as FilterSpecification;
+  return {
+    applied: true,
+    filter: original === null ? exclusion : ["all", convertFilter(original), exclusion] as FilterSpecification,
+    hiddenPredicateCount: predicates.length,
     reason: null
   };
 }

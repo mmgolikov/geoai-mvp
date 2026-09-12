@@ -186,6 +186,9 @@ for (const definition of definitions) {
   const rateLimited = await route.POST(request(definition, validBody, "https://production.example.test"));
   assert.equal(rateLimited.status, 429, `${definition.name} must preserve its per-client rate cap.`);
   assert.ok(Number(rateLimited.headers.get("Retry-After")) >= 1);
+  if (["context", "find", "area-context"].includes(definition.name)) {
+    assert.equal((await rateLimited.json()).code, "APPLICATION_RATE_LIMITED", "Application quota must be distinguishable from an upstream 429.");
+  }
   assert.equal(fixtureGlobal.__geoaiSourceCalls[definition.name], definition.clientRateLimit);
 }
 

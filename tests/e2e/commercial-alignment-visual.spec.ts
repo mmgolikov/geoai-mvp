@@ -115,10 +115,10 @@ test.describe("commercial Landing and Account visual acceptance", () => {
       await expect(page.getByRole("heading", { level: 1, name: "Turn a location into a decision path." })).toBeVisible();
       await expect(page.locator('header img[src="/brand/geoai-identity-symbol-32.svg"]')).toBeVisible();
       const landingPreview = page.getByRole("img", {
-        name: "GeoAI map-first workspace showing a three-dimensional Dubai map and the Analyse, Find and Create product modes"
+        name: "A real three-dimensional map of Dubai with a selected building highlighted in teal"
       });
       await expect(landingPreview).toBeVisible();
-      await expect(landingPreview).toHaveAttribute("src", /geoai-map-workspace-preview\.png/);
+      await expect.poll(() => landingPreview.evaluate((image: HTMLImageElement) => decodeURIComponent(image.currentSrc))).toMatch(/sprint07-workspace-capture\.png/);
       const previewDimensions = await landingPreview.evaluate((image) => ({
         naturalHeight: (image as HTMLImageElement).naturalHeight,
         naturalWidth: (image as HTMLImageElement).naturalWidth
@@ -126,8 +126,8 @@ test.describe("commercial Landing and Account visual acceptance", () => {
       expect(previewDimensions.naturalWidth).toBeGreaterThanOrEqual(350);
       expect(previewDimensions.naturalHeight).toBeGreaterThanOrEqual(190);
       const hero = page.locator("main > section").first();
-      await expect(hero.getByRole("link", { name: "Open map", exact: true })).toHaveAttribute("href", "/prototype/point-to-object");
-      await expect(hero.getByRole("link", { name: "Projects", exact: true })).toHaveAttribute("href", "/projects?view=spatial");
+      await expect(hero.getByRole("link", { name: "Open map", exact: true }).filter({ hasText: /^Open map$/ })).toHaveAttribute("href", "/prototype/point-to-object");
+      await expect(hero.getByRole("link", { name: "Leave a request", exact: true })).toHaveAttribute("href", "/request-access");
       await expectNoHorizontalOverflow(page);
       await captureCommercialVisual(page, `${viewport.name} Landing`, `landing-${viewport.name}.png`);
 

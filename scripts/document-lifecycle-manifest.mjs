@@ -27,6 +27,9 @@ const excludedDirectories = new Set([
   resolve(root, ".git"),
   resolve(root, ".next"),
   resolve(root, "node_modules"),
+  // Local browser captures are private QA output, not publishable documentation.
+  resolve(root, "output"),
+  resolve(root, ".playwright-cli"),
   resolve(root, "artifacts")
 ]);
 
