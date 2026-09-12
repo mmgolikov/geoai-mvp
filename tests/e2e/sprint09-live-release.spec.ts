@@ -188,6 +188,7 @@ async function enter(page: Page, baseURL: string) {
   const target = new URL(baseURL);
   await page.goto(`${target.origin}/prototype/point-to-object`);
   await expect(page.getByRole("tab", { name: "Analyse", exact: true })).toBeVisible();
+  await expect(page.locator("nextjs-portal")).toHaveCount(0);
 }
 
 function depthReviewShape(value: unknown, expectedDepth: LiveDepth) {
@@ -257,6 +258,7 @@ test("authorized live provider journey with persistent USD 2 ceiling", async ({ 
       const response = await firstResponse;
       const initial = await response.json();
       expect(response.status()).toBe(200); expect(initial.mode).toBe("openai");
+      writeFileSync(testInfo.outputPath("live-standard-result.json"), JSON.stringify(initial, null, 2), { mode: 0o600 });
       await expect(page.getByTestId("ai-success")).toBeVisible({ timeout: 30_000 });
       expect(initial.content.depthReview.depth).toBe("standard");
       depthReviewShape(initial.content.depthReview, "standard");
@@ -272,6 +274,7 @@ test("authorized live provider journey with persistent USD 2 ceiling", async ({ 
           await form.getByRole("button", { name: "Run focused analysis", exact: true }).click();
           const next = await pending; const payload = await next.json();
           expect(next.status()).toBe(200); expect(payload.mode).toBe("openai");
+          writeFileSync(testInfo.outputPath(`live-${depth}-result.json`), JSON.stringify(payload, null, 2), { mode: 0o600 });
           expect(payload.content.depthReview.depth).toBe(depth);
           depthReviewShape(payload.content.depthReview, depth);
           reviews[depth] = payload.content.depthReview;
@@ -306,6 +309,7 @@ test("authorized live provider journey with persistent USD 2 ceiling", async ({ 
       await page.getByTestId("create-generate-action").click();
       const response = await pending; const payload = await response.json();
       expect(response.status()).toBe(200); expect(payload.mode).toBe("openai_concept");
+      writeFileSync(testInfo.outputPath("live-create-result.json"), JSON.stringify(payload, null, 2), { mode: 0o600 });
       await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
       await budget.verify();
       const count = budget.count();

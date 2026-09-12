@@ -61,6 +61,11 @@ import {
   validatePointObjectCreateAoiVertices
 } from "@/src/lib/prototype/point-to-object-create";
 import {
+  clearPointObjectCreateSession,
+  readPointObjectCreateSession,
+  writePointObjectCreateSession
+} from "@/src/lib/prototype/point-to-object-create-session";
+import {
   type PointObjectFindBounds,
   type PointObjectFindCandidate,
   type PointObjectFindGroup,
@@ -424,6 +429,8 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
   const suppressRestoredAreaContextRequestRef = useRef(false);
   const projectIdentityRef = useRef<PointObjectProjectIdentity | null>(projectIdentity);
   const createSaveContextRef = useRef<CreateSaveContext | null>(null);
+  const createGenerationIdentityRef = useRef<PointObjectProjectIdentity | null | undefined>(undefined);
+  const createSessionOwnerRef = useRef<PointObjectProjectIdentity | null | undefined>(undefined);
   const restoreRemovedCreateRef = useRef<(() => void) | null>(null);
   const [canRestoreRemovedCreate, setCanRestoreRemovedCreate] = useState(false);
   const findShortlistRef = useRef(findShortlist);
@@ -562,7 +569,51 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     setFindSavedArtifactId(null);
     setCreateSavedArtifactId(null);
     createSaveContextRef.current = null;
-    if (!projectIdentity) return;
+    createGenerationIdentityRef.current = undefined;
+    createSessionOwnerRef.current = undefined;
+    setIsDrawing(false);
+    setDraftCoordinates([]);
+    setCreateAoi(null);
+    setCreateAoiFitRequest(null);
+    setCreateEditorSnapshot(null);
+    setGeneratedConcept(null);
+    setGeneratedConceptLocale(null);
+    setActiveCreateAlternativeId("A");
+    setCreateResultDashboardOpen(false);
+    setCreateAreaCleared(false);
+    setCreateReplacementStatus("idle");
+    setCreateReplacementRevision(0);
+    setAreaContext(null);
+    setAreaContextStatus("idle");
+    setAreaContextRetryAfterSeconds(0);
+    setCreateError(null);
+    if (!projectIdentity) {
+      const restored = readPointObjectCreateSession();
+      if (!restored) return;
+      createSessionOwnerRef.current = null;
+      suppressRestoredAreaContextRequestRef.current = true;
+      setLocale(restored.locale);
+      setLocationKey(restored.marketKey);
+      if (initialMode !== "find") setMode("create");
+      setIsDrawing(false);
+      setDraftCoordinates(restored.aoi.coordinates[0]?.slice(0, -1) ?? []);
+      setCreateAoi(restored.aoi);
+      setCreateAoiFitRequest({ requestId: `restore-guest-create:${restored.updatedAt}`, bounds: createAoiBounds(restored.aoi.coordinates[0] ?? []) });
+      setCreateEditorSnapshot(restored.editorSnapshot);
+      setGeneratedConcept(restored.generated);
+      setGeneratedConceptLocale(restored.generatedLocale);
+      setActiveCreateAlternativeId(restored.activeAlternativeId);
+      setCreateResultDashboardOpen(restored.dashboardOpen);
+      setAreaContext(restored.areaContext);
+      setAreaContextStatus("idle");
+      setCreateAreaCleared(true);
+      setCreateReplacementStatus("idle");
+      setCreateReplacementRevision((revision) => revision + 1);
+      return;
+    }
+    // A guest result is never adopted into an authenticated owner's projects.
+    clearPointObjectCreateSession();
+    createSessionOwnerRef.current = projectIdentity;
     void Promise.all([consumePointObjectProjectOverview(projectIdentity), consumePointObjectProjectRestore(projectIdentity)]).then(([overview, artifact]) => {
       if (projectIdentityRef.current !== projectIdentity) return;
       if (overview) {
@@ -618,7 +669,24 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
         setCreateReplacementRevision((revision) => revision + 1);
       }
     });
-  }, [isSessionResolved, projectIdentity, sessionReady, setLocale]);
+  }, [initialMode, isSessionResolved, projectIdentity, sessionReady, setLocale]);
+
+  useEffect(() => {
+    if (!sessionReady || !isSessionResolved || projectIdentity || !createAoi || !generatedConcept || !generatedConceptLocale) return;
+    persistGuestCreateSession();
+  }, [
+    activeCreateAlternativeId,
+    areaContext,
+    createAoi,
+    createEditorSnapshot,
+    createResultDashboardOpen,
+    generatedConcept,
+    generatedConceptLocale,
+    isSessionResolved,
+    locale,
+    projectIdentity,
+    sessionReady
+  ]);
 
   useEffect(() => {
     if (!sessionReady || !isSessionResolved) return;
@@ -1003,6 +1071,9 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     pendingRestoredFindBoundsRef.current = null;
     setRestoredFindViewportBounds(null);
     setFindSavedArtifactId(null);
+    clearPointObjectCreateSession();
+    createGenerationIdentityRef.current = undefined;
+    createSessionOwnerRef.current = undefined;
     searchRequestRef.current?.abort();
     suggestionRequestRef.current?.abort();
     findRequestRef.current?.abort();
@@ -1126,6 +1197,39 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     createViewSaveQueueRef.current = createViewSaveQueueRef.current
       .catch(() => undefined)
       .then(async () => { await updatePointObjectCreateViewState(identityKey, artifactId, id); });
+  }
+
+  function persistGuestCreateSession(input: {
+    aoi?: PointObjectCreateAoi | null;
+    editorSnapshot?: PointObjectCreateEditorSnapshot | null;
+    generated?: PointObjectGeneratedConcept | null;
+    generatedLocale?: "en" | "ru" | null;
+    activeAlternativeId?: "A" | "B";
+    dashboardOpen?: boolean;
+    areaContext?: PointObjectAreaContextResult | null;
+  } = {}) {
+    if (projectIdentityRef.current || createSessionOwnerRef.current !== null) return;
+    const sessionAoi = input.aoi === undefined ? createAoi : input.aoi;
+    const sessionGenerated = input.generated === undefined ? generatedConcept : input.generated;
+    const sessionGeneratedLocale = input.generatedLocale === undefined ? generatedConceptLocale : input.generatedLocale;
+    if (!sessionAoi || !sessionGenerated || !sessionGeneratedLocale) return;
+    const candidateAreaContext = input.areaContext === undefined ? areaContext : input.areaContext;
+    const compatibleAreaContext = candidateAreaContext && candidateAreaContext.request.marketKey === locationKey &&
+      candidateAreaContext.request.locale === sessionGeneratedLocale &&
+      JSON.stringify(candidateAreaContext.request.aoiCoordinates) === JSON.stringify(sessionAoi.coordinates)
+      ? candidateAreaContext
+      : null;
+    writePointObjectCreateSession({
+      marketKey: locationKey,
+      locale,
+      aoi: sessionAoi,
+      editorSnapshot: input.editorSnapshot === undefined ? createEditorSnapshot : input.editorSnapshot,
+      generated: sessionGenerated,
+      generatedLocale: sessionGeneratedLocale,
+      activeAlternativeId: input.activeAlternativeId ?? activeCreateAlternativeId,
+      areaContext: compatibleAreaContext,
+      dashboardOpen: input.dashboardOpen ?? createResultDashboardOpen
+    });
   }
 
   async function saveCreateArtifact(
@@ -1383,6 +1487,9 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
       else setCreateError(t("create.uploadError"));
       return;
     }
+    clearPointObjectCreateSession();
+    createGenerationIdentityRef.current = undefined;
+    createSessionOwnerRef.current = undefined;
     const ring = closePolygonRing(vertices);
     restoreRemovedCreateRef.current = null;
     setCanRestoreRemovedCreate(false);
@@ -1436,6 +1543,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
   function resetCreate() {
     if (createAoi) {
       restoreRemovedCreateRef.current = () => {
+        createSessionOwnerRef.current = projectIdentityRef.current;
         suppressRestoredAreaContextRequestRef.current = true;
         setCreateAoi(createAoi);
         setDraftCoordinates(createAoi.coordinates[0].slice(0, -1));
@@ -1449,11 +1557,23 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
         setCreateSavedArtifactId(createSavedArtifactId);
         setCreateReplacementRevision((revision) => revision + 1);
         setSheet("full");
+        persistGuestCreateSession({
+          aoi: createAoi,
+          editorSnapshot: createEditorSnapshot,
+          generated: generatedConcept,
+          generatedLocale: generatedConceptLocale,
+          activeAlternativeId: activeCreateAlternativeId,
+          dashboardOpen: false,
+          areaContext
+        });
       };
       setCanRestoreRemovedCreate(true);
     }
     clearPointObjectProjectRestore();
+    clearPointObjectCreateSession();
     createSaveContextRef.current = null;
+    createGenerationIdentityRef.current = undefined;
+    createSessionOwnerRef.current = undefined;
     setCreateSavedArtifactId(null);
     setIsDrawing(false);
     setDraftCoordinates([]);
@@ -1497,6 +1617,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     setCreateReplacementRevision((revision) => revision + 1);
     const identityKey = projectIdentityRef.current;
     if (identityKey && createSavedArtifactId) queueCreateViewUpdate(identityKey, createSavedArtifactId, id);
+    else persistGuestCreateSession({ activeAlternativeId: id });
   }
 
   async function searchPlace(event: React.FormEvent<HTMLFormElement>) {
@@ -1804,8 +1925,8 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
                   {areaContextStatus === "error" ? <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-[#e6bd74] bg-[#fff9ed] p-3 text-xs text-[#79520d]" role="alert"><span>{areaContextFailure === "unavailable" ? (locale === "ru" ? "Контекст зоны временно недоступен." : "Area context is temporarily unavailable.") : sourceFailureMessage(areaContextFailure, 0, locale)}</span><button type="button" onClick={() => setAreaContextRetryVersion((value) => value + 1)} className="min-h-8 rounded-lg border border-[#d6b36e] bg-white px-2 font-bold">{t("selection.retry")}</button></div> : null}
                   {areaContext ? <><div className="mt-3 grid grid-cols-3 gap-2"><div className="rounded-lg bg-white p-2"><span className="block text-[10px] text-muted">{locale === "ru" ? "Объекты на карте" : "Mapped objects"}</span><strong className="mt-1 block text-sm">{areaContext.summary.sampleSize}</strong></div><div className="rounded-lg bg-white p-2"><span className="block text-[10px] text-muted">{locale === "ru" ? "Здания на карте" : "Mapped buildings"}</span><strong className="mt-1 block text-sm">{areaContext.summary.mappedBuildingCount}</strong></div><div className="rounded-lg bg-white p-2"><span className="block text-[10px] text-muted">{locale === "ru" ? "Медиана этажей" : "Median levels"}</span><strong className="mt-1 block text-sm">{areaContext.summary.medianMappedLevels ?? "—"}</strong></div></div><div className="mt-3 flex flex-wrap gap-1.5">{areaContext.summary.groups.slice(0, 5).map((group) => <span key={group.group} className="rounded-full bg-white px-2.5 py-1 text-[10px] font-semibold text-[#475467] ring-1 ring-inset ring-[#d7dee4]">{areaGroupLabels[group.group]} · {group.count}</span>)}</div>{areaContext.coverage.capReached ? <p className="mt-3 text-[10px] font-semibold leading-4 text-[#79520d]">{locale === "ru" ? "Нарисуйте меньшую зону, чтобы сузить список объектов на карте." : "Draw a smaller area to narrow the mapped objects."}</p> : null}</> : null}
                 </section>
-                <PointObjectCreatePanel locale={locale} marketKey={locationKey} aoi={createAoi} depth="standard" generated={generatedConcept} generatedLocale={generatedConceptLocale} editorSnapshot={createEditorSnapshot} onEditorSnapshotChange={setCreateEditorSnapshot} activeAlternativeId={activeCreateAlternativeId} onGenerationStart={() => { clearPointObjectProjectRestore(); setCreateSavedArtifactId(null); const identityKey = projectIdentityRef.current; createSaveContextRef.current = identityKey ? { identityKey, destination: capturePointObjectProjectDestination(identityKey, { label: locale === "ru" ? "Созданная концепция" : "Generated concept" }), aoi: structuredClone(createAoi), editorSnapshot: structuredClone(createEditorSnapshot), locale, marketKey: locationKey, areaContext: structuredClone(areaContext) } : null; }} onGenerated={(concept, committedEditorSnapshot) => { const saveContext = createSaveContextRef.current; const committedSaveContext = saveContext ? { ...saveContext, editorSnapshot: structuredClone(committedEditorSnapshot) } : null; setCreateEditorSnapshot(committedEditorSnapshot); setGeneratedConcept(concept); setGeneratedConceptLocale(locale); setActiveCreateAlternativeId("A"); setCreateResultDashboardOpen(false); setCreateReplacementStatus("idle"); setCreateAreaCleared(true); setCreateReplacementRevision((revision) => revision + 1); void saveCreateArtifact(concept, "A", committedSaveContext); }} onAlternativeChange={changeCreateAlternative} onReset={() => { clearPointObjectProjectRestore(); createSaveContextRef.current = null; setCreateSavedArtifactId(null); setGeneratedConcept(null); setGeneratedConceptLocale(null); setActiveCreateAlternativeId("A"); setCreateResultDashboardOpen(false); setCreateAreaCleared(false); setCreateReplacementStatus("idle"); setCreateReplacementRevision(0); }} />
-                {generatedConcept ? <button type="button" data-testid="create-open-result-dashboard" onClick={() => setCreateResultDashboardOpen(true)} className="min-h-11 w-full rounded-xl bg-[#087f8c] px-3 text-sm font-bold text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] focus-visible:ring-offset-2">{locale === "ru" ? "Открыть результат" : "Open result"}</button> : null}
+                <PointObjectCreatePanel locale={locale} marketKey={locationKey} aoi={createAoi} depth="standard" generated={generatedConcept} generatedLocale={generatedConceptLocale} editorSnapshot={createEditorSnapshot} onEditorSnapshotChange={(snapshot) => { setCreateEditorSnapshot(snapshot); persistGuestCreateSession({ editorSnapshot: snapshot }); }} activeAlternativeId={activeCreateAlternativeId} onGenerationStart={() => { clearPointObjectProjectRestore(); setCreateSavedArtifactId(null); const identityKey = projectIdentityRef.current; createGenerationIdentityRef.current = identityKey; createSaveContextRef.current = identityKey ? { identityKey, destination: capturePointObjectProjectDestination(identityKey, { label: locale === "ru" ? "Созданная концепция" : "Generated concept" }), aoi: structuredClone(createAoi), editorSnapshot: structuredClone(createEditorSnapshot), locale, marketKey: locationKey, areaContext: structuredClone(areaContext) } : null; }} onGenerated={(concept, committedEditorSnapshot) => { if (createGenerationIdentityRef.current !== projectIdentityRef.current) return; createGenerationIdentityRef.current = undefined; createSessionOwnerRef.current = projectIdentityRef.current; const saveContext = createSaveContextRef.current; const committedSaveContext = saveContext ? { ...saveContext, editorSnapshot: structuredClone(committedEditorSnapshot) } : null; setCreateEditorSnapshot(committedEditorSnapshot); setGeneratedConcept(concept); setGeneratedConceptLocale(locale); setActiveCreateAlternativeId("A"); setCreateResultDashboardOpen(false); setCreateReplacementStatus("idle"); setCreateAreaCleared(true); setCreateReplacementRevision((revision) => revision + 1); persistGuestCreateSession({ aoi: createAoi, editorSnapshot: committedEditorSnapshot, generated: concept, generatedLocale: locale, activeAlternativeId: "A", dashboardOpen: false, areaContext }); void saveCreateArtifact(concept, "A", committedSaveContext); }} onAlternativeChange={changeCreateAlternative} onReset={() => { clearPointObjectProjectRestore(); clearPointObjectCreateSession(); createSaveContextRef.current = null; createGenerationIdentityRef.current = undefined; createSessionOwnerRef.current = undefined; setCreateSavedArtifactId(null); setGeneratedConcept(null); setGeneratedConceptLocale(null); setActiveCreateAlternativeId("A"); setCreateResultDashboardOpen(false); setCreateAreaCleared(false); setCreateReplacementStatus("idle"); setCreateReplacementRevision(0); }} />
+                {generatedConcept ? <button type="button" data-testid="create-open-result-dashboard" onClick={() => { setCreateResultDashboardOpen(true); persistGuestCreateSession({ dashboardOpen: true }); }} className="min-h-11 w-full rounded-xl bg-[#087f8c] px-3 text-sm font-bold text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] focus-visible:ring-offset-2">{locale === "ru" ? "Открыть результат" : "Open result"}</button> : null}
                 {createAreaCleared && createReplacementStatus !== "applied" ? (
                   <p className={`rounded-xl border px-3 py-2 text-[10px] leading-4 ${createReplacementStatus === "error" ? "border-[#e6bd74] bg-[#fff9ed] text-[#79520d]" : "border-[#d8e2df] bg-[#f8faf9] text-[#62716d]"}`} role="status">
                     {createReplacementStatus === "zoom-required"
@@ -1842,8 +1963,8 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
         generatedLocale={generatedConceptLocale}
         activeAlternativeId={activeCreateAlternativeId}
         onAlternativeChange={changeCreateAlternative}
-        onBackToEditor={() => setCreateResultDashboardOpen(false)}
-        onShowMap={() => { setCreateResultDashboardOpen(false); setCreateAreaCleared(true); setCreateReplacementStatus("idle"); setCreateReplacementRevision((revision) => revision + 1); setSheet("peek"); }}
+        onBackToEditor={() => { setCreateResultDashboardOpen(false); persistGuestCreateSession({ dashboardOpen: false }); }}
+        onShowMap={() => { setCreateResultDashboardOpen(false); setCreateAreaCleared(true); setCreateReplacementStatus("idle"); setCreateReplacementRevision((revision) => revision + 1); setSheet("peek"); persistGuestCreateSession({ dashboardOpen: false }); }}
       /> : null}
     </main>
   );

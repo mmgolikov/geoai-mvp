@@ -8,7 +8,30 @@ test.beforeEach(async ({ page, browserName }, testInfo) => {
 
 const createPosts: Array<Record<string, unknown>> = [];
 let challengeGets = 0;
+let lateResponseGate: Promise<void> | null = null;
+let resolveLateResponseGate: (() => void) | null = null;
 const fixedControlKeys = ["blockCount", "levelsMin", "levelsMax", "targetSiteCoveragePct", "openSpacePct", "setbackM"];
+
+function armLateResponseGate() {
+  if (lateResponseGate) throw new Error("Late response gate is already armed.");
+  lateResponseGate = new Promise<void>((resolve) => {
+    resolveLateResponseGate = resolve;
+  });
+}
+
+function releaseLateResponseGate() {
+  if (!resolveLateResponseGate) throw new Error("Late response gate is not armed.");
+  const resolve = resolveLateResponseGate;
+  lateResponseGate = null;
+  resolveLateResponseGate = null;
+  resolve();
+}
+
+test.afterEach(() => {
+  resolveLateResponseGate?.();
+  lateResponseGate = null;
+  resolveLateResponseGate = null;
+});
 
 async function json(route: Route, body: unknown, status = 200) {
   await route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
@@ -154,7 +177,9 @@ async function installRoutes(page: Page) {
       return;
     }
     if (request.customPrompt === "late response") {
-      await new Promise((resolve) => setTimeout(resolve, 350));
+      const gate = lateResponseGate;
+      if (!gate) throw new Error("Late response gate must be armed before dispatch.");
+      await gate;
     }
     await json(route, conceptResponse(request, createPosts.length)).catch(() => undefined);
   });
@@ -650,13 +675,14 @@ test("Create separates draft from committed geometry and never spends on local-o
   await expect(page.getByTestId("generated-concept-summary")).toContainText("Generation 2 committed result.");
   expect(createPosts).toHaveLength(3);
 
+  armLateResponseGate();
   await prompt.fill("late response");
   await generate.click();
   await expect.poll(() => createPosts.length).toBe(4);
   await prompt.fill("newer draft");
-  await page.waitForTimeout(450);
-  await expect(page.getByTestId("generated-concept-summary")).toContainText("Generation 2 committed result.");
+  releaseLateResponseGate();
   await expect(generate).toHaveText("Update concept");
+  await expect(page.getByTestId("generated-concept-summary")).toContainText("Generation 2 committed result.");
   expect(createPosts).toHaveLength(4);
 
   await test.step("a late empty building layer remains unmodified and does not trigger a reconciliation loop", async () => {

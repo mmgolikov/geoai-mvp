@@ -870,6 +870,27 @@ export function pointObjectDisplayGeometry(geometry: SafeGeometry | null): Point
   return { type: "MultiPolygon", coordinates };
 }
 
+/**
+ * Return display geometry only for an exact, surface-like OSM identity. Nominatim
+ * exposes the primary `building=*` classification as `category`/`type` and does
+ * not consistently duplicate that primary tag in `extratags`; accepting the
+ * sanitized `building` category keeps that exact polygon eligible without
+ * promoting office, tourism or other POI classifications to physical surfaces.
+ */
+export function pointObjectTrustedDisplayGeometry(input: {
+  expectedSourceFeatureId: string | null;
+  resolvedSourceFeatureId: string;
+  primaryCategory: string | null;
+  selectedTags: Readonly<Record<string, string>>;
+  geometry: SafeGeometry | null;
+}): PointObjectDisplayGeometry | null {
+  if (input.expectedSourceFeatureId !== input.resolvedSourceFeatureId ||
+      !/^(?:way|relation)\/[1-9]\d{0,19}$/.test(input.expectedSourceFeatureId ?? "")) return null;
+  const mappedSurface = input.primaryCategory === "building" ||
+    Boolean(input.selectedTags["tag.building"] || input.selectedTags["tag.landuse"]);
+  return mappedSurface ? pointObjectDisplayGeometry(input.geometry) : null;
+}
+
 function sanitizeMap(
   value: unknown,
   allowedKeys: Set<string>,
@@ -1864,10 +1885,13 @@ export async function buildLivePointObjectEvidencePack(
     ? await resolveLiveUrbanFabric(point, async () => fabricPayload.payload)
     : { profile: normalizeOverpassUrbanFabric(null, point), responseHash: null, observedAt: null };
   const selectedTags = displayTags(place);
-  const displayGeometry = trustedIdentity && (trustedIdentity.type === "way" || trustedIdentity.type === "relation") &&
-    (selectedTags["tag.building"] || selectedTags["tag.landuse"])
-    ? pointObjectDisplayGeometry(place.geometry)
-    : null;
+  const displayGeometry = pointObjectTrustedDisplayGeometry({
+    expectedSourceFeatureId: input.osmFeatureId ?? null,
+    resolvedSourceFeatureId: sourceFeatureId,
+    primaryCategory: place.category,
+    selectedTags,
+    geometry: place.geometry
+  });
   const selectedMetrics = geometryMetrics(place.geometry);
   const wikidata = await resolvePointObjectWikidata({
     qid: selectedTags["tag.wikidata"] ?? null,

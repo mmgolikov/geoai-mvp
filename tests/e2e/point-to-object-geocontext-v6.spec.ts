@@ -557,6 +557,7 @@ test('fresh guest retains selection and unsent RU analysis draft after normal Ba
   await page.getByRole('option').filter({ hasText: 'Synthetic Harbour Hotel' }).click();
   await page.getByRole('button', { name: 'Открыть задачу', exact: true }).click();
   await page.getByRole('button', { name: 'Анализировать', exact: true }).click();
+  await expect(page).toHaveURL(/\/prototype\/point-to-object\/analysis$/, { timeout: 60_000 });
   await expect(page.getByTestId('ai-success')).toBeVisible();
   const draft = 'GUEST06 несохранённое уточнение: транспорт и подъезд';
   const input = page.getByRole('textbox', { name: 'Провести целевой анализ', exact: true });

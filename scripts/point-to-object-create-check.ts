@@ -43,6 +43,12 @@ const {
   createPointObjectCreateEditorScopeKey,
   restorePointObjectCreateEditorSnapshot
 } = await import("../src/lib/prototype/point-to-object-create-editor");
+const {
+  POINT_OBJECT_CREATE_SESSION_MAX_BYTES,
+  parsePointObjectCreateSessionState,
+  serializePointObjectCreateSession
+} = await import("../src/lib/prototype/point-to-object-create-session");
+const { POINT_OBJECT_CREATE_RESULT_CAVEAT } = await import("../src/lib/prototype/point-to-object-create-result");
 
 function geometrySignature(result: ReturnType<typeof generateConceptMassing>) {
   return JSON.stringify(result.featureCollection.features.map((feature) => ({
@@ -393,6 +399,58 @@ assert.notEqual(geometrySignature(alternatives[0].massing), geometrySignature(al
   "Alternative B must change real geometry or vertical arrangement, not only its label.");
 assert.deepEqual(generateConceptMassingAlternatives(aoi, validated.value, "geoai-create-alternatives", "en"), alternatives,
   "Alternative generation must remain deterministic.");
+
+const guestAoiMeasurements = calculatePolygonMeasurements(aoi[0].slice(0, -1));
+const guestAoi = {
+  id: "create-aoi-guest-session-check",
+  coordinates: aoi,
+  areaSqM: guestAoiMeasurements.areaSqM,
+  perimeterM: guestAoiMeasurements.perimeterM,
+  vertexCount: aoi[0].length - 1
+};
+const guestGenerated = {
+  mode: "openai_concept" as const,
+  generatedAt: "2026-09-12T15:00:00.000Z",
+  promptVersion: "POINT_OBJECT_CREATE_GUEST_SESSION_CHECK",
+  program: validated.value,
+  massing: alternatives[0].massing,
+  alternatives,
+  telemetry: { model: "offline-check", reasoningEffort: "none", latencyMs: 1, attempts: 1, estimatedCostUsd: 0 },
+  caveat: POINT_OBJECT_CREATE_RESULT_CAVEAT
+};
+const guestSessionRaw = serializePointObjectCreateSession({
+  marketKey: "dubai",
+  locale: "en",
+  aoi: guestAoi,
+  editorSnapshot: null,
+  generated: guestGenerated,
+  generatedLocale: "en",
+  activeAlternativeId: "B",
+  areaContext: null,
+  dashboardOpen: false
+});
+assert.ok(guestSessionRaw, "A valid guest result must fit the bounded Create session.");
+const guestSession = parsePointObjectCreateSessionState(JSON.parse(guestSessionRaw));
+assert.equal(guestSession?.activeAlternativeId, "B");
+assert.equal(guestSession?.dashboardOpen, false);
+assert.equal(POINT_OBJECT_CREATE_SESSION_MAX_BYTES, 768 * 1024);
+assert.equal(parsePointObjectCreateSessionState({ ...guestSession, schemaVersion: 2 }), null,
+  "Unknown guest Create session schemas must fail closed.");
+assert.equal(parsePointObjectCreateSessionState({ ...guestSession, unexpected: true }), null,
+  "Guest Create sessions must reject additive unreviewed fields.");
+assert.equal(parsePointObjectCreateSessionState({ ...guestSession, activeAlternativeId: "C" }), null,
+  "A guest view cannot restore an alternative absent from the verified result.");
+const translatedGuestGenerated = structuredClone(guestGenerated);
+for (const massing of [translatedGuestGenerated.massing, ...(translatedGuestGenerated.alternatives ?? []).map((alternative) => alternative.massing)]) {
+  for (const feature of massing.featureCollection.features) {
+    feature.geometry.coordinates = feature.geometry.coordinates.map((ring) =>
+      ring.map(([longitude, latitude]) => [longitude + 0.25, latitude]));
+  }
+}
+assert.equal(parsePointObjectCreateSessionState({ ...guestSession, generated: translatedGuestGenerated }), null,
+  "A guest Create session must reject concept geometry translated outside its exact AOI.");
+assert.equal(parsePointObjectCreateSessionState({ ...guestSession, marketKey: "singapore" }), null,
+  "A guest Create session must reject an AOI outside the declared market bounds.");
 
 const perimeterValidation = validateRedevelopmentProgram({
   ...programInput,

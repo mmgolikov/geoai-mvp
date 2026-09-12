@@ -1,4 +1,6 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
+import { conceptTemplate, generateConceptMassingAlternatives, validateRedevelopmentProgram } from "../../src/lib/prototype/point-to-object-create";
+import { POINT_OBJECT_CREATE_RESULT_CAVEAT } from "../../src/lib/prototype/point-to-object-create-result";
 import { installLocalWebKitHttpCsp } from "./helpers/local-webkit-csp";
 
 test.beforeEach(async ({ page, browserName }, testInfo) => {
@@ -11,6 +13,19 @@ const contextRequests: Array<Record<string, unknown>> = [];
 const findPostRequests: Array<Record<string, unknown>> = [];
 const createPostRequests: Array<Record<string, unknown>> = [];
 let areaContextPostRequests = 0;
+
+const guestCreateAoiCoordinates = [[
+  [55.278, 25.216], [55.281, 25.216], [55.281, 25.219],
+  [55.278, 25.219], [55.278, 25.216]
+]] as [number, number][][];
+const guestCreateProgramValidation = validateRedevelopmentProgram(conceptTemplate("residential_mixed_use", "en"));
+if (!guestCreateProgramValidation.ok) throw new Error(guestCreateProgramValidation.errors.join("; "));
+const guestCreateAlternatives = generateConceptMassingAlternatives(
+  guestCreateAoiCoordinates,
+  guestCreateProgramValidation.value,
+  "geoai-guest-create-e2e",
+  "en"
+);
 
 const candidates = [
   candidate("way", "2001", "Marina Candidate One", 55.2704, 25.2054, 12),
@@ -1223,6 +1238,117 @@ test("empty saved Find restores its query viewport without a fabricated selectio
   expect(selectionAfterRestore.clickedAt).toBe(priorSelection.clickedAt);
   expect(findPostRequests).toHaveLength(1);
   expect(contextRequests).toHaveLength(contextCalls);
+  expect(unexpectedExternal).toEqual([]);
+});
+
+test("true guest Create restores its exact result and mode without another request", async ({ page }) => {
+  createPostRequests.length = 0;
+  areaContextPostRequests = 0;
+  const createRequestMethods: string[] = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname === "/api/prototype/point-to-object/create") createRequestMethods.push(request.method());
+  });
+  const unexpectedExternal = await installOfflineRoutes(page);
+  await page.unroute("**/api/prototype/point-to-object/create");
+  await page.route("**/api/prototype/point-to-object/create", async (route) => {
+    if (route.request().method() === "GET") return json(route, { mode: "ready", challenge: "G".repeat(43) });
+    createPostRequests.push(route.request().postDataJSON() as Record<string, unknown>);
+    return json(route, {
+      mode: "openai_concept",
+      generatedAt: acquiredAt,
+      promptVersion: "POINT_OBJECT_CREATE_GUEST_E2E",
+      program: guestCreateProgramValidation.value,
+      massing: guestCreateAlternatives[0].massing,
+      alternatives: guestCreateAlternatives,
+      telemetry: { model: "offline-fixture", reasoningEffort: "none", latencyMs: 1, attempts: 1, estimatedCostUsd: 0 },
+      caveat: POINT_OBJECT_CREATE_RESULT_CAVEAT
+    });
+  });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/prototype/point-to-object?mode=create");
+  await expect(page.getByRole("link", { name: "Sign in to GeoAI", exact: true })).toBeVisible();
+  await page.getByLabel("Upload GeoJSON").setInputFiles({
+    name: "guest-create-area.geojson",
+    mimeType: "application/geo+json",
+    buffer: Buffer.from(JSON.stringify({
+      type: "Polygon",
+      coordinates: guestCreateAoiCoordinates
+    }))
+  });
+  await page.getByTestId("create-generate-action").click();
+  await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
+  await page.getByTestId("create-alternative-b").click();
+  await page.getByTestId("create-open-result-dashboard").click();
+  await expect(page.getByTestId("create-dashboard-alternative-b")).toHaveAttribute("aria-selected", "true");
+  const requestMethodsAfterGeneration = [...createRequestMethods];
+  const areaContextCallsAfterGeneration = areaContextPostRequests;
+  await page.goto("/prototype/point-to-object?mode=find");
+  await expect(page.getByRole("tab", { name: "Find", exact: true })).toHaveAttribute("aria-selected", "true");
+  expect(createRequestMethods).toEqual(requestMethodsAfterGeneration);
+  expect(areaContextPostRequests).toBe(areaContextCallsAfterGeneration);
+  await page.getByRole("tab", { name: "Create", exact: true }).click();
+  await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
+  await expect(page.getByTestId("create-alternative-b")).toHaveAttribute("aria-selected", "true");
+  await page.getByTestId("create-open-result-dashboard").click();
+  await expect(page.getByTestId("create-dashboard-alternative-b")).toHaveAttribute("aria-selected", "true");
+  await page.getByRole("button", { name: "Show on map", exact: true }).click();
+  await page.reload();
+  await expect(page.getByRole("tab", { name: "Find", exact: true })).toHaveAttribute("aria-selected", "true");
+  await page.getByRole("tab", { name: "Create", exact: true }).click();
+  await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
+  await page.evaluate(() => window.history.replaceState(null, "", "/prototype/point-to-object?mode=create"));
+  await page.reload();
+  await expect(page.getByRole("tab", { name: "Create", exact: true })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
+  await expect(page.getByTestId("create-alternative-b")).toHaveAttribute("aria-selected", "true");
+  expect(createRequestMethods).toEqual(requestMethodsAfterGeneration);
+  expect(areaContextPostRequests).toBe(areaContextCallsAfterGeneration);
+  const restoredSession = await page.evaluate(() => JSON.parse(sessionStorage.getItem("geoai:point-to-object:create:v1") ?? "null"));
+  expect(restoredSession).toMatchObject({ schemaVersion: 1, marketKey: "dubai", locale: "en", generatedLocale: "en", activeAlternativeId: "B", dashboardOpen: false });
+
+  await page.getByRole("button", { name: "ru", exact: true }).click();
+  await expect(page.getByTestId("create-result-language-stale")).toBeVisible();
+  await expect.poll(() => page.evaluate(() => {
+    const session = JSON.parse(sessionStorage.getItem("geoai:point-to-object:create:v1") ?? "null") as { locale?: string; generatedLocale?: string } | null;
+    return session ? `${session.locale}:${session.generatedLocale}` : null;
+  })).toBe("ru:en");
+  const requestMethodsBeforeLocaleReload = [...createRequestMethods];
+  await page.reload();
+  await expect(page.getByRole("tab", { name: "Создать", exact: true })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByTestId("create-result-language-stale")).toBeVisible();
+  expect(createRequestMethods).toEqual(requestMethodsBeforeLocaleReload);
+  await page.getByRole("button", { name: "en", exact: true }).click();
+  await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
+
+  await page.unroute("**/api/prototype/point-to-object/create");
+  await page.route("**/api/prototype/point-to-object/create", async (route) => {
+    if (route.request().method() === "GET") return json(route, { mode: "ready", challenge: "B".repeat(43) });
+    await json(route, { mode: "unavailable", error: "deliberate guest update failure" }, 502);
+  });
+  await page.getByText("Concept parameters", { exact: true }).click();
+  await page.getByRole("slider", { name: "Blocks" }).fill("2");
+  await page.getByTestId("create-generate-action").click();
+  await expect(page.getByTestId("create-generation-error")).toBeVisible();
+  await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("tab", { name: "Create", exact: true })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
+  await expect(page.getByTestId("create-alternative-b")).toHaveAttribute("aria-selected", "true");
+
+  const preservedGuestSession = await page.evaluate(() => sessionStorage.getItem("geoai:point-to-object:create:v1"));
+  expect(preservedGuestSession).not.toBeNull();
+  await page.getByTestId("point-object-city-select").selectOption("singapore");
+  await expect(page.getByTestId("generated-concept-summary")).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => sessionStorage.getItem("geoai:point-to-object:create:v1"))).toBeNull();
+  await page.reload();
+  await expect(page.getByTestId("generated-concept-summary")).toHaveCount(0);
+  await page.evaluate((raw) => sessionStorage.setItem("geoai:point-to-object:create:v1", raw), preservedGuestSession!);
+  await page.reload();
+  await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
+  await signInDemo(page, "/prototype/point-to-object");
+  await expect(page.locator('[data-point-object-header] a[href="/profile"]')).toHaveAttribute("data-authenticated", "true");
+  await expect.poll(() => page.evaluate(() => sessionStorage.getItem("geoai:point-to-object:create:v1"))).toBeNull();
+  await expect(page.getByTestId("generated-concept-summary")).toHaveCount(0);
   expect(unexpectedExternal).toEqual([]);
 });
 
