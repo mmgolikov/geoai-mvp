@@ -899,6 +899,81 @@ test("actual MapLibre rendering hides only the internal target and retains outsi
   await expect.poll(async () => (await readSpatialReplacementFixture(page)).insideTarget).toBe(false);
   await page.screenshot({ path: testInfo.outputPath("spatial-replacement-outside-retained.png") });
 
+  await expect.poll(async () => page.evaluate(() => {
+    const map = (window as unknown as { __geoAiSpatialReplacementMap: import("maplibre-gl").Map }).__geoAiSpatialReplacementMap;
+    return map.loaded();
+  }), { timeout: 10_000 }).toBe(true);
+  await page.evaluate(() => {
+    type MutableMap = {
+      getStyle: () => { sources?: Record<string, unknown> };
+      getSource: (sourceId: string) => unknown;
+      setFilter: (...args: unknown[]) => unknown;
+      setLayoutProperty: (...args: unknown[]) => unknown;
+    };
+    type MutableSource = { setData?: (...args: unknown[]) => unknown };
+    type Probe = {
+      counts: { conceptLayoutWrites: number; filterWrites: number; dataWrites: number };
+      restore: () => void;
+    };
+    const map = (window as unknown as { __geoAiSpatialReplacementMap: MutableMap }).__geoAiSpatialReplacementMap;
+    const counts = { conceptLayoutWrites: 0, filterWrites: 0, dataWrites: 0 };
+    const restorers: Array<() => void> = [];
+    const originalSetLayoutProperty = map.setLayoutProperty;
+    map.setLayoutProperty = function (...args: unknown[]) {
+      if (args[0] === "geoai-concept-fill" || args[0] === "geoai-concept-volume") counts.conceptLayoutWrites += 1;
+      return originalSetLayoutProperty.apply(this, args);
+    };
+    restorers.push(() => { map.setLayoutProperty = originalSetLayoutProperty; });
+    const originalSetFilter = map.setFilter;
+    map.setFilter = function (...args: unknown[]) {
+      counts.filterWrites += 1;
+      return originalSetFilter.apply(this, args);
+    };
+    restorers.push(() => { map.setFilter = originalSetFilter; });
+    for (const sourceId of Object.keys(map.getStyle().sources ?? {})) {
+      const source = map.getSource(sourceId) as MutableSource | undefined;
+      if (!source?.setData) continue;
+      const originalSetData = source.setData;
+      source.setData = function (...args: unknown[]) {
+        counts.dataWrites += 1;
+        return originalSetData.apply(this, args);
+      };
+      restorers.push(() => { source.setData = originalSetData; });
+    }
+    (window as typeof window & { __geoAiNoopLifecycleProbe?: Probe }).__geoAiNoopLifecycleProbe = {
+      counts,
+      restore: () => restorers.reverse().forEach((restore) => restore())
+    };
+  });
+  await page.waitForTimeout(2_500);
+  const stableLifecycle = await page.evaluate(() => {
+    type Probe = { counts: { conceptLayoutWrites: number; filterWrites: number; dataWrites: number }; restore: () => void };
+    const fixture = window as typeof window & {
+      __geoAiSpatialReplacementMap?: import("maplibre-gl").Map;
+      __geoAiNoopLifecycleProbe?: Probe;
+    };
+    const map = fixture.__geoAiSpatialReplacementMap;
+    const probe = fixture.__geoAiNoopLifecycleProbe;
+    if (!map || !probe) throw new Error("No-op lifecycle probe is not installed.");
+    const result = {
+      ...probe.counts,
+      loaded: map.loaded(),
+      styleLoaded: map.isStyleLoaded(),
+      tilesLoaded: map.areTilesLoaded()
+    };
+    probe.restore();
+    delete fixture.__geoAiNoopLifecycleProbe;
+    return result;
+  });
+  expect(stableLifecycle).toEqual({
+    conceptLayoutWrites: 0,
+    filterWrites: 0,
+    dataWrites: 0,
+    loaded: true,
+    styleLoaded: true,
+    tilesLoaded: true
+  });
+
   await page.getByTestId("create-map-presentation-toggle").click();
   await focusSpatialReplacementFixture(page);
   await expect.poll(async () => {

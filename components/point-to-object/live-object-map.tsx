@@ -23,6 +23,7 @@ import {
   pointObjectNativeBuilding3dFilter,
   pointObjectReplacementMinimumReliableZoom,
   restorePointObjectMapFilter,
+  setPointObjectLayerVisibilityIfChanged,
   snapshotPointObjectMapFilter,
   validatePointObjectReplacementAoi,
   type PointObjectMapFilterSnapshot
@@ -1761,8 +1762,8 @@ export function LiveObjectMap({
             (status === "applied" || status === "partial") &&
             !visibleNativeConceptConflict(map, conceptMassingRef.current)
           );
-          if (map.getLayer(CONCEPT_FILL_LAYER_ID)) map.setLayoutProperty(CONCEPT_FILL_LAYER_ID, "visibility", conceptVisible && viewModeRef.current === "2d" ? "visible" : "none");
-          if (map.getLayer(CONCEPT_VOLUME_LAYER_ID)) map.setLayoutProperty(CONCEPT_VOLUME_LAYER_ID, "visibility", conceptVisible && viewModeRef.current === "3d" ? "visible" : "none");
+          setPointObjectLayerVisibilityIfChanged(map, CONCEPT_FILL_LAYER_ID, conceptVisible && viewModeRef.current === "2d" ? "visible" : "none");
+          setPointObjectLayerVisibilityIfChanged(map, CONCEPT_VOLUME_LAYER_ID, conceptVisible && viewModeRef.current === "3d" ? "visible" : "none");
         };
 
         const handleMoveEnd = (event: MapEventType["moveend"] & { geoaiNavigationRequestId?: string; geoaiNavigationCamera?: NavigationCamera }) => {

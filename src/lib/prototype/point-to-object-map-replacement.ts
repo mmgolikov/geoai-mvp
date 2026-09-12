@@ -1,5 +1,5 @@
 import { convertFilter } from "@maplibre/maplibre-gl-style-spec";
-import type { FilterSpecification } from "maplibre-gl";
+import type { FilterSpecification, Map as MapLibreMap } from "maplibre-gl";
 import type { Feature, MultiPolygon, Polygon, Position } from "geojson";
 
 export const pointObjectReplacementSnapshotVersion = 1 as const;
@@ -46,6 +46,20 @@ export type PointObjectKnownFootprintFilterPlan = {
   hiddenPredicateCount: number;
   reason: string | null;
 };
+
+/**
+ * Avoid reopening MapLibre's render/style cycle when a lifecycle callback is
+ * only reaffirming an already-applied layer visibility.
+ */
+export function setPointObjectLayerVisibilityIfChanged(
+  map: Pick<MapLibreMap, "getLayer" | "getLayoutProperty" | "setLayoutProperty">,
+  layerId: string,
+  visibility: "visible" | "none"
+): boolean {
+  if (!map.getLayer(layerId) || map.getLayoutProperty(layerId, "visibility") === visibility) return false;
+  map.setLayoutProperty(layerId, "visibility", visibility);
+  return true;
+}
 
 function cloneJsonValue<T>(value: T, path = "value"): T {
   if (value === null || typeof value === "string" || typeof value === "boolean") {

@@ -24,9 +24,25 @@ const {
   clonePointObjectMapFilter,
   pointObjectReplacementMinimumReliableZoom,
   restorePointObjectMapFilter,
+  setPointObjectLayerVisibilityIfChanged,
   snapshotPointObjectMapFilter,
   validatePointObjectReplacementAoi
 } = await import("../src/lib/prototype/point-to-object-map-replacement");
+
+let visibility = "none";
+let visibilityWrites = 0;
+const visibilityMap = {
+  getLayer: id => id === "concept" ? { id } : undefined,
+  getLayoutProperty: () => visibility,
+  setLayoutProperty: (_id, _property, next) => { visibility = next; visibilityWrites += 1; }
+};
+assert.equal(setPointObjectLayerVisibilityIfChanged(visibilityMap, "concept", "none"), false);
+assert.equal(visibilityWrites, 0, "An identical terminal visibility must not reopen MapLibre's render cycle");
+assert.equal(setPointObjectLayerVisibilityIfChanged(visibilityMap, "concept", "visible"), true);
+assert.equal(visibilityWrites, 1);
+assert.equal(setPointObjectLayerVisibilityIfChanged(visibilityMap, "concept", "visible"), false);
+assert.equal(visibilityWrites, 1, "Repeated ready publication stays idempotent");
+assert.equal(setPointObjectLayerVisibilityIfChanged(visibilityMap, "missing", "none"), false);
 
 const TILE_EXTENT = 8_192;
 
