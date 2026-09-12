@@ -859,6 +859,33 @@ test("Saved Analyse reopens RU from EN Projects and EN from RU Projects without 
   expect(unexpectedExternal).toEqual([]);
 });
 
+test("an optional Supabase subscription chunk failure falls back to the server-verified anonymous session", async ({ page }) => {
+  const pageErrors: string[] = [];
+  let sessionGets = 0;
+  let subscriptionChunkRequests = 0;
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  await page.route("**/api/auth/session", async (route) => {
+    sessionGets += 1;
+    await json(route, { isAuthenticated: false, user: null });
+  });
+  await page.route(/\/_next\/static\/chunks\/.*supabase.*browser.*\.js(?:\?.*)?$/, async (route) => {
+    subscriptionChunkRequests += 1;
+    if (subscriptionChunkRequests === 1) {
+      await route.abort("failed");
+      return;
+    }
+    await route.continue();
+  });
+
+  await page.goto("/login?next=%2Fworkspace");
+  await expect(page.getByRole("heading", { name: "Sign in to GeoAI" })).toBeVisible();
+  await expect.poll(() => subscriptionChunkRequests).toBeGreaterThanOrEqual(1);
+  await expect.poll(() => sessionGets).toBeGreaterThanOrEqual(2);
+  await expect(page).toHaveURL(/\/login\?/);
+  expect(await page.evaluate(() => localStorage.getItem("geoai-mock-demo-session-v1"))).toBeNull();
+  expect(pageErrors).toEqual([]);
+});
+
 test("Projects preserves bytes and permits explicit retry when integrity hashing is temporarily unavailable", async ({ page }) => {
   const { apiCalls, unexpectedExternal } = await installAnalysisRoutes(page);
   const pageErrors: string[] = [];
