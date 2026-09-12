@@ -242,6 +242,7 @@ test("MAP10 exact captured DIFC footprint hides all native tile fragments and re
       map.stop(); map.jumpTo({ center: [55.2829, 25.21125], zoom: z, pitch: 0, bearing: 0 });
     }, zoom);
     await expect.poll(() => page.evaluate(() => (window as unknown as { map10: import("maplibre-gl").Map }).map10.isStyleLoaded())).toBe(true);
+    await expect.poll(() => page.evaluate(() => (window as unknown as { map10: import("maplibre-gl").Map }).map10.isSourceLoaded("openmaptiles"))).toBe(true);
   };
   const visible = () => page.evaluate(() => {
     const map = (window as unknown as { map10: import("maplibre-gl").Map }).map10;

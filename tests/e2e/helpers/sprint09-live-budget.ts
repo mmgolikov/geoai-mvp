@@ -57,6 +57,8 @@ export type LiveSpendTelemetry = {
 export type LiveReceipt = {
   id: number;
   createdAt: string;
+  deploymentHost: string;
+  releaseCommit: string;
   route: LiveRoute;
   depth: LiveDepth;
   reserveUsd: number;
@@ -68,7 +70,7 @@ export type LiveReceipt = {
 };
 
 export type LiveSpendLedger = {
-  schemaVersion: 1;
+  schemaVersion: 2;
   date: typeof SPRINT09_LIVE_LEDGER_DATE;
   ceilingUsd: typeof SPRINT09_LIVE_CEILING_USD;
   deploymentHost: string;
@@ -357,15 +359,17 @@ export function chargeLiveSpendLedger(ledger: Pick<LiveSpendLedger, "receipts">)
 export function createLiveSpendLedger(authority: LiveDeploymentAuthority): LiveSpendLedger {
   if (!safeAuthority(authority)) throw new Error("Invalid immutable deployment authority.");
   return {
-    schemaVersion: 1, date: SPRINT09_LIVE_LEDGER_DATE, ceilingUsd: SPRINT09_LIVE_CEILING_USD,
+    schemaVersion: 2, date: SPRINT09_LIVE_LEDGER_DATE, ceilingUsd: SPRINT09_LIVE_CEILING_USD,
     ...authority, receipts: [], estimatedOrReservedUsd: 0
   };
 }
 
 function parseReceipt(value: unknown, id: number): LiveReceipt | null {
-  const keys = ["id", "createdAt", "route", "depth", "reserveUsd", "state", "status", "estimatedUsd", "telemetry", "resultHash"];
+  const keys = ["id", "createdAt", "deploymentHost", "releaseCommit", "route", "depth", "reserveUsd", "state", "status", "estimatedUsd", "telemetry", "resultHash"];
   if (!record(value) || !exactKeys(value, keys) || value.id !== id || typeof value.createdAt !== "string" ||
-      !validIso(value.createdAt) || !route(value.route) || !depth(value.depth) || value.reserveUsd !== RESERVE_USD[value.route] ||
+      !validIso(value.createdAt) || typeof value.deploymentHost !== "string" || typeof value.releaseCommit !== "string" ||
+      !safeAuthority({ deploymentHost: value.deploymentHost, releaseCommit: value.releaseCommit }) ||
+      !route(value.route) || !depth(value.depth) || value.reserveUsd !== RESERVE_USD[value.route] ||
       !["reserved", "settled", "unknown"].includes(String(value.state)) ||
       !(value.status === null || (integer(value.status, 100) && value.status <= 599)) ||
       !(value.estimatedUsd === null || finite(value.estimatedUsd)) ||
@@ -384,7 +388,7 @@ function parseReceipt(value: unknown, id: number): LiveReceipt | null {
 
 export function parseLiveSpendLedger(value: unknown, authority: LiveDeploymentAuthority): LiveSpendLedger | null {
   const keys = ["schemaVersion", "date", "ceilingUsd", "deploymentHost", "releaseCommit", "receipts", "estimatedOrReservedUsd"];
-  if (!safeAuthority(authority) || !record(value) || !exactKeys(value, keys) || value.schemaVersion !== 1 ||
+  if (!safeAuthority(authority) || !record(value) || !exactKeys(value, keys) || value.schemaVersion !== 2 ||
       value.date !== SPRINT09_LIVE_LEDGER_DATE || value.ceilingUsd !== SPRINT09_LIVE_CEILING_USD ||
       value.deploymentHost !== authority.deploymentHost || value.releaseCommit !== authority.releaseCommit ||
       !Array.isArray(value.receipts) || value.receipts.length > MAX_RECEIPTS || !finite(value.estimatedOrReservedUsd)) return null;
@@ -393,6 +397,20 @@ export function parseLiveSpendLedger(value: unknown, authority: LiveDeploymentAu
   const ledger = { ...value, receipts: receipts as LiveReceipt[] } as LiveSpendLedger;
   const charge = chargeLiveSpendLedger(ledger);
   return close(charge, ledger.estimatedOrReservedUsd) && charge <= SPRINT09_LIVE_CEILING_USD ? ledger : null;
+}
+
+export function rebindLiveSpendLedger(
+  value: unknown,
+  currentAuthority: LiveDeploymentAuthority,
+  nextAuthority: LiveDeploymentAuthority,
+  verifiedHealth: unknown
+): LiveSpendLedger {
+  const current = parseLiveSpendLedger(value, currentAuthority);
+  if (!current) throw new Error("The existing live ledger failed its strict current-authority or receipt contract.");
+  if (!validateHealthRelease(verifiedHealth, nextAuthority)) {
+    throw new Error("The next live deployment was not verified by exact immutable health metadata.");
+  }
+  return { ...current, ...nextAuthority };
 }
 
 export function reserveLiveSpend(
@@ -410,7 +428,9 @@ export function reserveLiveSpend(
     return { ok: false, reason: "The USD 2 live-test ceiling would be exceeded." };
   }
   const receipt: LiveReceipt = {
-    id: ledger.receipts.length + 1, createdAt, route: routeName, depth: depthName, reserveUsd,
+    id: ledger.receipts.length + 1, createdAt,
+    deploymentHost: ledger.deploymentHost, releaseCommit: ledger.releaseCommit,
+    route: routeName, depth: depthName, reserveUsd,
     state: "reserved", status: null, estimatedUsd: null, telemetry: null, resultHash: null
   };
   const next = { ...ledger, receipts: [...ledger.receipts, receipt] };

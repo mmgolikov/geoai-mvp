@@ -890,8 +890,9 @@ test("V5.1 keeps exact identity and the complete Find comparison flow coherent o
   await expect(page.getByTestId("find-comparison-grid").getByRole("article")).toHaveCount(2);
   await expect(page.getByTestId("find-comparison-grid")).toContainText("Dubai Marina");
   await expect(page.getByTestId("find-comparison-grid")).toContainText("Jumeirah Lakes Towers");
-  await expect(page.getByTestId("find-search-cta")).toHaveText("Open full comparison dashboard");
-  await page.getByTestId("find-search-cta").click();
+  const fullComparisonAction = page.getByTestId("find-search-cta");
+  await expect(fullComparisonAction).toHaveText("Open full comparison dashboard");
+  await fullComparisonAction.press("Enter");
   await expect(page.getByTestId("find-full-comparison-dashboard")).toBeVisible();
   await expect(page.getByTestId("find-comparison-map-context")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Common observed metrics" })).toBeVisible();
@@ -905,9 +906,9 @@ test("V5.1 keeps exact identity and the complete Find comparison flow coherent o
   await expect(page.getByText("Source and data boundaries", { exact: true })).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("find-full-comparison-dashboard")).toHaveCount(0);
-  await expect(page.getByTestId("find-search-cta")).toBeFocused();
+  await expect(fullComparisonAction).toBeFocused();
   await expect.poll(() => page.evaluate(() => document.body.style.overflow)).toBe("");
-  await page.getByTestId("find-search-cta").click();
+  await fullComparisonAction.press("Enter");
   await expect(page.getByTestId("find-full-comparison-dashboard")).toBeVisible();
   await expect.poll(() => page.evaluate(() => {
     const key = Object.keys(localStorage).find((item) => item.startsWith("geoai:point-to-object:projects:v1:"));
@@ -981,6 +982,7 @@ test("V5.1 keeps exact identity and the complete Find comparison flow coherent o
   await expect.poll(() => contextRequests.length).toBe(contextCallsBeforeFootprint + 1);
   expect(contextRequests.at(-1)).toMatchObject({ expectedSourceFeatureId: "way/2001", locale: "en" });
   await expect(firstFindMarker).toHaveCount(0);
+  await waitForFindMapIdle();
   await expect.poll(() => page.evaluate(() => {
     const map = (window as unknown as { findRestoreMap: import("maplibre-gl").Map }).findRestoreMap;
     return map.querySourceFeatures("geoai-find-footprints").some((feature) => feature.properties?.resultId === "way/2001" && feature.geometry.type === "Polygon");

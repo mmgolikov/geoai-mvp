@@ -13,6 +13,7 @@ import {
   parseLiveDeploymentAuthority,
   parseLiveProviderTelemetry,
   parseLiveSpendLedger,
+  rebindLiveSpendLedger,
   reserveLiveSpend,
   settleLiveSpend,
   validateHealthRelease,
@@ -72,15 +73,21 @@ function writeLedgerAtomic(target: string, ledger: LiveSpendLedger) {
   }
 }
 
-function installBudget(page: Page, authority: LiveDeploymentAuthority, ledgerPath: string) {
+function installBudget(page: Page, authority: LiveDeploymentAuthority, ledgerPath: string, verifiedHealth: unknown) {
   let ledger: LiveSpendLedger;
   if (existsSync(ledgerPath)) {
     let parsed: unknown;
     try { parsed = JSON.parse(readFileSync(ledgerPath, "utf8")); }
     catch { throw new Error("The live ledger is not valid JSON; no provider request was dispatched."); }
-    const validated = parseLiveSpendLedger(parsed, authority);
-    if (!validated) throw new Error("The live ledger failed its strict authority or receipt contract.");
-    ledger = validated;
+    const existing = typeof parsed === "object" && parsed !== null ? parsed as Record<string, unknown> : {};
+    const currentAuthority = {
+      deploymentHost: typeof existing.deploymentHost === "string" ? existing.deploymentHost : "",
+      releaseCommit: typeof existing.releaseCommit === "string" ? existing.releaseCommit : ""
+    };
+    ledger = rebindLiveSpendLedger(parsed, currentAuthority, authority, verifiedHealth);
+    // Persist the verified current deployment before any provider route is
+    // registered. Historical receipts and their original authorities remain.
+    writeLedgerAtomic(ledgerPath, ledger);
   } else {
     ledger = createLiveSpendLedger(authority);
     writeLedgerAtomic(ledgerPath, ledger);
@@ -148,12 +155,20 @@ function installBudget(page: Page, authority: LiveDeploymentAuthority, ledgerPat
   };
 }
 
-async function authorizePreview(page: Page) {
+async function authorizePreview(page: Page, authority: LiveDeploymentAuthority) {
   const access = process.env.GEOAI_TEST_SHARE_URL;
   if (access) {
     const parsed = new URL(access);
     if (parsed.protocol !== "https:" || !(parsed.hostname.endsWith(".vercel.app") || parsed.hostname === "vercel.com")) throw new Error("Unexpected preview authorization host.");
     try { await page.goto(access); } catch { throw new Error("Preview authorization failed; access URL intentionally omitted."); }
+  }
+  if (process.env.GEOAI_LIVE_INTERACTIVE_LOGIN === "user-login-in-test-browser") {
+    // A human may complete an ordinary Vercel login in this headed, isolated
+    // context. Never read, export or copy credentials/cookies; the context is
+    // destroyed when the test ends and recording remains disabled above.
+    await page.waitForURL((url) => url.protocol === "https:" && url.hostname === authority.deploymentHost, {
+      timeout: 300_000, waitUntil: "domcontentloaded"
+    });
   }
 }
 
@@ -166,6 +181,7 @@ async function verifyRelease(page: Page, baseURL: string, authority: LiveDeploym
   if (!validateHealthRelease(health, authority)) {
     throw new Error("Deployment health is not bound to the exact expected immutable host and commit.");
   }
+  return health;
 }
 
 async function enter(page: Page, baseURL: string) {
@@ -219,16 +235,16 @@ test("authorized live provider journey with persistent USD 2 ceiling", async ({ 
   );
   if (!authority) throw new Error("Live tests require an exact immutable deployment host and 40-character release commit; aliases are forbidden.");
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await authorizePreview(page);
-  await verifyRelease(page, baseURL, authority);
+  await authorizePreview(page, authority);
+  const verifiedHealth = await verifyRelease(page, baseURL, authority);
   const ledgerPath = privateLedgerPath();
   const runLock = acquireLiveRunLock(ledgerPath);
   let budget: ReturnType<typeof installBudget> | null = null;
   try {
-    budget = installBudget(page, authority, ledgerPath);
+    budget = installBudget(page, authority, ledgerPath, verifiedHealth);
     await budget.ready;
     await enter(page, baseURL);
-    if (flow === "analysis") {
+    if (flow === "analysis" || flow === "analysis-single") {
       await page.getByPlaceholder("Search address or place", { exact: true }).fill("Shangri-La Dubai");
       const result = page.getByRole("listbox").getByRole("option").filter({ hasText: /Shangri/i }).first();
       await expect(result).toBeVisible({ timeout: 45_000 });
@@ -246,33 +262,35 @@ test("authorized live provider journey with persistent USD 2 ceiling", async ({ 
       depthReviewShape(initial.content.depthReview, "standard");
       await budget.verify();
       await page.screenshot({ path: testInfo.outputPath("live-standard.png"), fullPage: true });
-      const reviews: Record<string, unknown> = { standard: initial.content.depthReview };
-      for (const depth of ["quick", "deep"] as const) {
-        const form = page.locator("form");
-        await form.getByRole("button", { name: depth === "quick" ? "Quick" : "Deep", exact: true }).click();
-        await form.locator("textarea").fill(question);
-        const pending = page.waitForResponse((item) => item.request().method() === "POST" && item.url().endsWith("/point-to-object/ai"), { timeout: 150_000 });
-        await form.getByRole("button", { name: "Run focused analysis", exact: true }).click();
-        const next = await pending; const payload = await next.json();
-        expect(next.status()).toBe(200); expect(payload.mode).toBe("openai");
-        expect(payload.content.depthReview.depth).toBe(depth);
-        depthReviewShape(payload.content.depthReview, depth);
-        reviews[depth] = payload.content.depthReview;
-        await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", depth);
-        await budget.verify();
-        await page.screenshot({ path: testInfo.outputPath(`live-${depth}.png`), fullPage: true });
+      if (flow === "analysis") {
+        const reviews: Record<string, unknown> = { standard: initial.content.depthReview };
+        for (const depth of ["quick", "deep"] as const) {
+          const form = page.locator("form");
+          await form.getByRole("button", { name: depth === "quick" ? "Quick" : "Deep", exact: true }).click();
+          await form.locator("textarea").fill(question);
+          const pending = page.waitForResponse((item) => item.request().method() === "POST" && item.url().endsWith("/point-to-object/ai"), { timeout: 150_000 });
+          await form.getByRole("button", { name: "Run focused analysis", exact: true }).click();
+          const next = await pending; const payload = await next.json();
+          expect(next.status()).toBe(200); expect(payload.mode).toBe("openai");
+          expect(payload.content.depthReview.depth).toBe(depth);
+          depthReviewShape(payload.content.depthReview, depth);
+          reviews[depth] = payload.content.depthReview;
+          await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", depth);
+          await budget.verify();
+          await page.screenshot({ path: testInfo.outputPath(`live-${depth}.png`), fullPage: true });
+        }
+        expect(new Set(Object.values(reviews).map((value) => JSON.stringify(value))).size).toBe(3);
+        const quickStructure = depthReviewShape(reviews.quick, "quick");
+        const standardStructure = depthReviewShape(reviews.standard, "standard");
+        const deepStructure = depthReviewShape(reviews.deep, "deep");
+        expect(quickStructure.checks).toBeLessThan(standardStructure.checks);
+        expect(standardStructure.checks).toBeLessThan(deepStructure.checks);
+        expect(quickStructure.uncertainties).toBeLessThan(standardStructure.uncertainties);
+        expect(standardStructure.uncertainties).toBeLessThan(deepStructure.uncertainties);
+        expect(standardStructure.alternatives).toBeLessThan(deepStructure.alternatives);
+        expect(standardStructure.triggers).toBeLessThan(deepStructure.triggers);
+        await testInfo.attach("depth-reviews", { body: JSON.stringify(reviews, null, 2), contentType: "application/json" });
       }
-      expect(new Set(Object.values(reviews).map((value) => JSON.stringify(value))).size).toBe(3);
-      const quickStructure = depthReviewShape(reviews.quick, "quick");
-      const standardStructure = depthReviewShape(reviews.standard, "standard");
-      const deepStructure = depthReviewShape(reviews.deep, "deep");
-      expect(quickStructure.checks).toBeLessThan(standardStructure.checks);
-      expect(standardStructure.checks).toBeLessThan(deepStructure.checks);
-      expect(quickStructure.uncertainties).toBeLessThan(standardStructure.uncertainties);
-      expect(standardStructure.uncertainties).toBeLessThan(deepStructure.uncertainties);
-      expect(standardStructure.alternatives).toBeLessThan(deepStructure.alternatives);
-      expect(standardStructure.triggers).toBeLessThan(deepStructure.triggers);
-      await testInfo.attach("depth-reviews", { body: JSON.stringify(reviews, null, 2), contentType: "application/json" });
       const paidBefore = budget.count();
       await page.reload();
       await expect(page.getByTestId("ai-success")).toBeVisible();

@@ -121,6 +121,10 @@ test("Sprint07 partitions complete native members and restores exterior building
   })).toBe(null);
   await expect.poll(() => pointCovered(page, [55.3212,25.2252])).toBe(true);
   await page.evaluate(() => (window as unknown as { sprint07map: import("maplibre-gl").Map }).sprint07map.jumpTo({ zoom: 16.3 }));
+  await expect.poll(() => page.evaluate(() => {
+    const map = (window as unknown as { sprint07map: import("maplibre-gl").Map }).sprint07map;
+    return map.isStyleLoaded() && map.isSourceLoaded("openmaptiles");
+  })).toBe(true);
   await expect.poll(() => pointCovered(page, [55.3212,25.2252])).toBe(false);
   await expect.poll(() => pointCovered(page, [55.3272,25.2252])).toBe(true);
   await page.getByTestId("create-map-presentation-toggle").click();

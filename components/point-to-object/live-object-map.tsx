@@ -1274,8 +1274,25 @@ export function LiveObjectMap({
     findResultsRef.current = findResults;
     activeFindResultIdRef.current = activeFindResultId;
     const map = mapRef.current;
-    if (!map || !map.isStyleLoaded()) return;
-    setFindFootprintLayers(map, findResults, activeFindResultId, interactionModeRef.current, viewModeRef.current);
+    if (!map) return;
+    let disposed = false;
+    const applyLatestFootprints = () => {
+      if (disposed || !map.isStyleLoaded()) return false;
+      setFindFootprintLayers(map, findResults, activeFindResultId, interactionModeRef.current, viewModeRef.current);
+      return true;
+    };
+    if (applyLatestFootprints()) return;
+    // Focusing a marker can start a tile load just before its exact footprint
+    // is hydrated. Apply this result signature once when that transient load
+    // settles; unconditional idle setData would keep the GeoJSON source busy.
+    const applyOnIdle = () => {
+      if (applyLatestFootprints()) map.off("idle", applyOnIdle);
+    };
+    map.on("idle", applyOnIdle);
+    return () => {
+      disposed = true;
+      map.off("idle", applyOnIdle);
+    };
   }, [activeFindResultId, markerDataSignature]);
 
   useEffect(() => {
@@ -1834,6 +1851,17 @@ export function LiveObjectMap({
           // source ready, then publish the terminal status deterministically.
           queueMicrotask(() => {
             retainedReadyQueued = false;
+            // applyPrepared runs in the renderer's sourcedata listener before
+            // this microtask. Its native setFilter intentionally reloads the
+            // vector tiles; reconciling in that transient window would clear
+            // the prepared renderer, restore the baseline filter and start an
+            // endless composed -> baseline -> composed reload cycle. The next
+            // native idle publishes the terminal status after that reparse.
+            const nativeSources = new Set(buildingLayerIds(map).flatMap((id) => {
+              const layer = map.getLayer(id);
+              return layer && "source" in layer && typeof layer.source === "string" ? [layer.source] : [];
+            }));
+            if ([...nativeSources].some((sourceId) => !map.isSourceLoaded(sourceId))) return;
             publishReadyBuildingReplacement();
           });
         };

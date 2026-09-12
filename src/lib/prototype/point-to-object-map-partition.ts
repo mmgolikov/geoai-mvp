@@ -414,6 +414,10 @@ function compareRoundedSequence(left: Position[], right: Position[]): number {
   return left.length - right.length;
 }
 
+function compareCodeUnit(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
 /** Booth-style least rotation; O(n) memory/time for one ring. */
 function leastRoundedRotation(positions: Position[]): Position[] {
   const length = positions.length;
@@ -457,7 +461,7 @@ function canonicalRoundedPolygon(polygon: Position[][]): Position[][] {
   const exterior = canonicalRoundedRing(polygon[0] ?? []);
   const holes = polygon.slice(1).map(canonicalRoundedRing)
     .map((ring) => ({ ring, key: JSON.stringify(ring) }))
-    .sort((left, right) => left.key.localeCompare(right.key))
+    .sort((left, right) => compareCodeUnit(left.key, right.key))
     .map(({ ring }) => ring);
   return [exterior, ...holes];
 }
@@ -465,7 +469,7 @@ function canonicalRoundedPolygon(polygon: Position[][]): Position[][] {
 function roundedGeometryKey(geometry: BuildingGeometry): string {
   const polygons = geometryPolygons(geometry).map(canonicalRoundedPolygon)
     .map((polygon) => ({ polygon, key: JSON.stringify(polygon) }))
-    .sort((left, right) => left.key.localeCompare(right.key))
+    .sort((left, right) => compareCodeUnit(left.key, right.key))
     .map(({ polygon }) => polygon);
   return JSON.stringify(polygons);
 }
@@ -478,7 +482,7 @@ function parentKey(feature: PointObjectTileBackedBuildingFeature, properties: Re
   const explicitIdentity = feature.id ?? properties.osm_id ?? properties.id ?? null;
   return explicitIdentity === null
     ? `anonymous:${roundedGeometryKey(feature.geometry)}`
-    : JSON.stringify([String(explicitIdentity), Object.entries(properties).sort(([left], [right]) => left.localeCompare(right))]);
+    : JSON.stringify([String(explicitIdentity), Object.entries(properties).sort(([left], [right]) => compareCodeUnit(left, right))]);
 }
 
 /** Suppress every tile fragment contained by one proven-complete parent only. */
@@ -635,6 +639,7 @@ export function planPointObjectBuildingReplacement(
     feature: PointObjectTileBackedBuildingFeature;
     complete: boolean;
     positions: number;
+    polygons: Position[][][];
   };
   const prepared = new Map<string, PreparedFeature>();
   let sourcePositions = 0;
@@ -648,7 +653,14 @@ export function planPointObjectBuildingReplacement(
     const positions = geometryPositionCount(feature.geometry);
     sourcePositions += positions;
     if (sourcePositions > pointObjectCompleteFootprintMaxSourcePositions) return invalid("source_position_limit", prepared.size, sourcePositions);
-    const polygons = geometryPolygons(feature.geometry);
+    const polygons = geometryPolygons(feature.geometry)
+      .map((polygon) => ({
+        polygon,
+        roundedKey: roundedPolygonKey(polygon),
+        exactKey: JSON.stringify(polygon)
+      }))
+      .sort((left, right) => compareCodeUnit(left.roundedKey, right.roundedKey) || compareCodeUnit(left.exactKey, right.exactKey))
+      .map(({ polygon }) => polygon);
     const memberVertices = polygons.map((polygon) => polygon.reduce(
       (sum, ring) => sum + Math.max(0, ring.length - 1),
       0
@@ -681,7 +693,7 @@ export function planPointObjectBuildingReplacement(
     if (prepared.size >= pointObjectCompleteFootprintMaxParents) {
       return invalid("source_parent_limit", prepared.size, sourcePositions);
     }
-    prepared.set(signature, { feature, complete: completeTileGeometry(feature), positions });
+    prepared.set(signature, { feature, complete: completeTileGeometry(feature), positions, polygons });
   }
 
   const predicates: FilterSpecification[] = [];
@@ -734,10 +746,9 @@ export function planPointObjectBuildingReplacement(
   const preparedEntries = [...prepared.entries()].sort(([left], [right]) =>
     left < right ? -1 : left > right ? 1 : 0
   );
-  for (const [, { feature, complete }] of preparedEntries) {
+  for (const [, { feature, complete, polygons }] of preparedEntries) {
     if (complete) completeParents += 1;
     else unknownFeatures += 1;
-    const polygons = geometryPolygons(feature.geometry);
     const anchors: Position[] = [];
     const retainedPolygons: Position[][][] = [];
     let unmeasurable = false;

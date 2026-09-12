@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 // @ts-expect-error Node's strip-types runner requires the explicit TypeScript extension.
-import { acquireLiveRunLock, createLiveSpendLedger, liveRunLockPath, markLiveSpendUnknown, parseLiveDeploymentAuthority, parseLiveProviderTelemetry, parseLiveSpendLedger, reserveLiveSpend, settleLiveSpend, validateHealthRelease, type LiveSpendLedger } from "../tests/e2e/helpers/sprint09-live-budget.ts";
+import { acquireLiveRunLock, createLiveSpendLedger, liveRunLockPath, markLiveSpendUnknown, parseLiveDeploymentAuthority, parseLiveProviderTelemetry, parseLiveSpendLedger, rebindLiveSpendLedger, reserveLiveSpend, settleLiveSpend, validateHealthRelease, type LiveSpendLedger } from "../tests/e2e/helpers/sprint09-live-budget.ts";
 
 const host = "geoai-immutable-7f9c.vercel.app";
 const commit = "a".repeat(40);
@@ -131,6 +132,35 @@ assert.equal(ledger.receipts[0]?.state, "settled");
 assert.equal(ledger.estimatedOrReservedUsd, 0.000529);
 assert.deepEqual(parseLiveSpendLedger(JSON.parse(JSON.stringify(ledger)), authority), ledger,
   "A settled strict ledger must survive a JSON round trip.");
+assert.equal(ledger.receipts[0]?.deploymentHost, authority.deploymentHost);
+assert.equal(ledger.receipts[0]?.releaseCommit, authority.releaseCommit);
+
+const productionHost = "geoai-production-91ac.vercel.app";
+const productionCommit = "d".repeat(40);
+const productionAuthority = parseLiveDeploymentAuthority(`https://${productionHost}`, productionHost, productionCommit);
+assert.ok(productionAuthority);
+const productionHealth = {
+  releaseCommit: productionCommit,
+  deploymentMetadata: { provider: "vercel", deploymentHost: productionHost }
+};
+const previewReceipts = JSON.stringify(ledger.receipts);
+const previewCharge = ledger.estimatedOrReservedUsd;
+const rebound = rebindLiveSpendLedger(ledger, authority, productionAuthority, productionHealth);
+assert.equal(rebound.deploymentHost, productionHost);
+assert.equal(rebound.releaseCommit, productionCommit);
+assert.equal(JSON.stringify(rebound.receipts), previewReceipts, "Rebind must preserve every historical receipt byte.");
+assert.equal(rebound.estimatedOrReservedUsd, previewCharge, "Rebind must not reset or discount prior spend.");
+assert.ok(parseLiveSpendLedger(rebound, productionAuthority));
+assert.equal(parseLiveSpendLedger(rebound, authority), null, "The rebound ledger must reject its former root authority.");
+assert.throws(() => rebindLiveSpendLedger(ledger, productionAuthority, productionAuthority, productionHealth), /current-authority/,
+  "A wrong claimed existing authority must fail closed.");
+assert.throws(() => rebindLiveSpendLedger(ledger, authority, productionAuthority, {
+  releaseCommit: "e".repeat(40), deploymentMetadata: { provider: "vercel", deploymentHost: productionHost }
+}), /not verified/, "A mismatched next-deployment health tuple must fail closed.");
+const forgedOldReceipt = JSON.parse(JSON.stringify(rebound)) as LiveSpendLedger;
+forgedOldReceipt.receipts[0]!.deploymentHost = "geoai-mvp.vercel.app";
+assert.equal(parseLiveSpendLedger(forgedOldReceipt, productionAuthority), null,
+  "A forged historical receipt authority must invalidate the whole ledger.");
 
 const negativeCost = JSON.parse(JSON.stringify(ledger)) as LiveSpendLedger;
 negativeCost.receipts[0]!.estimatedUsd = -1;
@@ -151,6 +181,10 @@ const dispatchOnlyWhenReserved = (candidate: LiveSpendLedger) => {
 const unresolved = markLiveSpendUnknown(first.ledger, first.receipt.id);
 assert.equal(dispatchOnlyWhenReserved(unresolved).ok, false);
 assert.equal(dispatched, 0, "Unknown spend must cause zero provider dispatches.");
+const reboundUnresolved = rebindLiveSpendLedger(unresolved, authority, productionAuthority, productionHealth);
+assert.equal(reboundUnresolved.estimatedOrReservedUsd, unresolved.estimatedOrReservedUsd);
+assert.equal(dispatchOnlyWhenReserved(reboundUnresolved).ok, false);
+assert.equal(dispatched, 0, "Rebinding must not unblock an unknown prior charge.");
 
 let nearCeiling = createLiveSpendLedger(authority);
 for (let index = 0; index < 8; index += 1) {
@@ -171,7 +205,7 @@ assert.ok(parseLiveSpendLedger(nearCeiling, authority));
 assert.equal(dispatchOnlyWhenReserved(nearCeiling).ok, false);
 assert.equal(dispatched, 0, "A reserve that could cross USD 2 must cause zero provider dispatches.");
 
-const lockRoot = mkdtempSync(join("/private/tmp", "geoai-sprint09-lock-"));
+const lockRoot = mkdtempSync(join(realpathSync(tmpdir()), "geoai-sprint09-lock-"));
 const artifactsDirectory = join(lockRoot, "artifacts");
 mkdirSync(artifactsDirectory, { mode: 0o700 });
 const ledgerPath = join(artifactsDirectory, "live-spend-ledger.json");

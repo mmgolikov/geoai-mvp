@@ -81,6 +81,23 @@ const multipartPlan = planPointObjectCompleteFootprints([tileFeature(11, multipa
 assert.equal(multipartPlan.hiddenParents, 1, "A multipart aggregate with a positive-overlap member is safely replaced");
 assert.deepEqual(multipartPlan.retained.features[0].geometry.coordinates, [rectangle(11, 1, 12, 2).coordinates], "The non-overlap sibling remains visible");
 
+const memberOrder = [
+  rectangle(1, 1, 2, 2).coordinates,
+  rectangle(11, 1, 12, 2).coordinates,
+  rectangle(3, 3, 4, 4).coordinates
+];
+const memberOrderForward = planPointObjectCompleteFootprints([
+  tileFeature(12, { type: "MultiPolygon", coordinates: memberOrder }, { properties: { name: "member-order" } })
+], aoi);
+const memberOrderReverse = planPointObjectCompleteFootprints([
+  tileFeature(12, { type: "MultiPolygon", coordinates: [...memberOrder].reverse() }, { properties: { name: "member-order" } })
+], aoi);
+assert.deepEqual(
+  { predicates: memberOrderReverse.predicates, retained: memberOrderReverse.retained },
+  { predicates: memberOrderForward.predicates, retained: memberOrderForward.retained },
+  "Reordered Polygon members cannot change a stable aggregate renderer signature"
+);
+
 const duplicate = tileFeature(20, rectangle(1, 1, 2, 2), { properties: { name: "dedup" } });
 const duplicatePlan = planPointObjectCompleteFootprints([
   duplicate,
