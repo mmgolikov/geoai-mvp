@@ -1,0 +1,23 @@
+flowchart LR
+  Source["Source registry"] --> Snapshot["Snapshot or source metadata"]
+  Snapshot --> Context["Source context package"]
+  UserData["User-provided data"] --> Context
+  DemoSeed["Demo seed data"] --> Context
+  Context --> Evidence["Evidence items"]
+  Evidence --> Scores["Scores and risk signals"]
+  Scores --> Result["Structured analysis result"]
+  Evidence --> Result
+  Result --> Dashboard["Dashboard sections"]
+  Dashboard --> Report["Report snapshot"]
+  Report --> Appendix["Source and confidence appendix"]
+
+  Source -. status .-> Status["source status"]
+  Source -. confidence .-> Confidence["confidence level"]
+  Status --> Evidence
+  Confidence --> Evidence
+  Confidence --> Appendix
+  Status --> Appendix
+
+%% Artifact ID: DATA-LINEAGE-001
+%% Type: Data lineage source
+%% Status: Draft source artifact

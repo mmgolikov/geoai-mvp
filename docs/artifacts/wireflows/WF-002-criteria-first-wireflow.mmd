@@ -1,0 +1,21 @@
+flowchart LR
+  Start["Open scenario panel"] --> Criteria["Set criteria and priorities"]
+  Criteria --> Search["Run candidate search"]
+  Search --> Shortlist["Ranked shortlist"]
+  Shortlist --> Map["Candidate map markers"]
+  Shortlist --> Select["Select candidates"]
+  Select --> Compare["Comparison dashboard"]
+  Compare --> Pick["Choose candidate"]
+  Pick --> Workspace["Candidate becomes active workspace context"]
+  Workspace --> Analysis["Run detailed analysis"]
+  Analysis --> Dashboard["Site dashboard"]
+  Compare --> ExportComparison["Export comparison snapshot"]
+  Dashboard --> ExportSite["Export site report snapshot"]
+
+  Search -. no results .-> Empty["No matching candidates state"]
+  Empty --> Criteria
+
+%% Artifact ID: WF-002
+%% Type: Wireflow source
+%% Status: Review source artifact
+%% Confluence: 04.10 Criteria First Wireflow

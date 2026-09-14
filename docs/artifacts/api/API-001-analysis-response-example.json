@@ -1,0 +1,63 @@
+{
+  "artifact_id": "API-001",
+  "status": "draft_source_artifact",
+  "purpose": "Example structured analysis response for dashboard, report and API alignment.",
+  "analysis_id": "analysis_demo_001",
+  "project_id": "project_demo_001",
+  "scenario_type": "development_site_intelligence",
+  "context_type": "point",
+  "context_label": "Selected Dubai site",
+  "status": "completed",
+  "source_mode": "mixed",
+  "confidence_level": "requires_validation",
+  "summary": {
+    "headline": "Potential development screening opportunity with validation required",
+    "summary": "The selected context shows positive accessibility and market context signals, with source and validation limitations.",
+    "rationale": "Scores combine demo/source-backed context, risk layers and available evidence metadata."
+  },
+  "scores": [
+    {
+      "score_type": "opportunity",
+      "value": 72,
+      "label": "Positive screening signal",
+      "explanation": "Accessibility and surrounding context are favorable in the demo/source package.",
+      "confidence_level": "medium"
+    },
+    {
+      "score_type": "risk",
+      "value": 38,
+      "label": "Validation required",
+      "explanation": "Planning, parcel, ownership and valuation conclusions are out of scope without official/client validation.",
+      "confidence_level": "requires_validation"
+    }
+  ],
+  "risks": [
+    {
+      "risk_type": "validation_gap",
+      "severity": "high",
+      "description": "Official validation is required before legal, cadastral, zoning, planning or valuation use.",
+      "evidence_ref": "evidence_001",
+      "next_action": "Request official or client-approved evidence."
+    }
+  ],
+  "evidence": [
+    {
+      "evidence_id": "evidence_001",
+      "title": "Source lineage caveat",
+      "source_name": "GeoAI source registry",
+      "source_mode": "source_backed",
+      "confidence_level": "requires_validation",
+      "content": "Source registry metadata supports screening context only.",
+      "link": null
+    }
+  ],
+  "recommendations": [
+    {
+      "action": "Run official/client validation before external decision",
+      "priority": "high",
+      "reason": "The current output is a screening hypothesis only.",
+      "validation_note": "Official validation required."
+    }
+  ],
+  "caveat": "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+}

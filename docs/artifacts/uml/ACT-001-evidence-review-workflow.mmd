@@ -1,0 +1,17 @@
+flowchart LR
+  Start["Evidence item created"] --> Classify["Classify source mode"]
+  Classify --> Check["Check confidence and validation need"]
+  Check --> Demo["Demo or fallback label"]
+  Check --> UserData["User-provided label"]
+  Check --> SourceBacked["Source-backed label"]
+  SourceBacked --> Review["Manual/client review"]
+  UserData --> Review
+  Demo --> Output["Use as caveated context only"]
+  Review --> Accepted["Accepted for pilot context"]
+  Review --> Rejected["Rejected or requires more evidence"]
+  Accepted --> Report["Include in dashboard/report evidence"]
+  Rejected --> Output
+
+%% Artifact ID: ACT-001
+%% Type: UML activity-style workflow source
+%% Status: Draft source artifact

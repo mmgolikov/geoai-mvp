@@ -1,0 +1,20 @@
+flowchart LR
+  Start["Open workspace"] --> Select["Select point, object or polygon"]
+  Select --> Context["Selected context card"]
+  Context --> Scenario["Choose scenario"]
+  Scenario --> Run["Run analysis"]
+  Run --> Validate["Validate project and geometry"]
+  Validate --> Loading["Loading state"]
+  Loading --> Dashboard["Analysis dashboard"]
+  Dashboard --> Refine["Custom query refinement"]
+  Refine --> Dashboard
+  Dashboard --> Export["Export current snapshot"]
+  Dashboard --> Return["Return to workspace with context retained"]
+
+  Validate -. invalid .-> Error["Recoverable validation error"]
+  Error --> Context
+
+%% Artifact ID: WF-001
+%% Type: Wireflow source
+%% Status: Review source artifact
+%% Confluence: 04.09 Map First Wireflow

@@ -1,0 +1,17 @@
+flowchart LR
+  R0["R0 Current demo baseline"] --> R1["R1 Source-backed MVP"]
+  R1 --> R2["R2 Pilot data foundation"]
+  R2 --> R3["R3 Design-approved product shell"]
+  R3 --> R4["R4 Pilot-ready workflow"]
+  R4 --> R5["R5 Enterprise expansion"]
+
+  R0 -. gate .-> G0["PR #46 merged"]
+  R1 -. gate .-> G1["Result Model and Source Confidence Rules implemented"]
+  R2 -. gate .-> G2["PR #47 reviewed and preview validated"]
+  R3 -. gate .-> G3["PR #42 founder approval"]
+  R4 -. gate .-> G4["Auth, RLS, storage and reports verified"]
+  R5 -. gate .-> G5["Tenant, API and audit model approved"]
+
+%% Artifact ID: ROAD-001
+%% Status: Review source artifact
+%% Confluence: 02.09 Product Roadmap

@@ -1,0 +1,39 @@
+flowchart TB
+  subgraph Frontend["Frontend components"]
+    WorkspaceShell["WorkspaceShell"]
+    AnalysisPanel["AnalysisPanel"]
+    ExpressDashboard["ExpressDashboard"]
+    ComparisonDashboard["ComparisonDashboard"]
+    ReportPreview["ReportPreview"]
+  end
+
+  subgraph API["API routes"]
+    AnalyzeRoute["/api/analyze"]
+    ProjectsRoute["/api/projects"]
+    ReportsRoute["/api/reports"]
+    HealthRoutes["health/status APIs"]
+  end
+
+  subgraph Domain["Domain modules"]
+    ResultModel["Result model"]
+    SourceLineage["Source lineage"]
+    Scoring["Scoring"]
+    Evidence["Evidence"]
+    ReportMapping["Report mapping"]
+  end
+
+  WorkspaceShell --> AnalysisPanel
+  AnalysisPanel --> AnalyzeRoute
+  AnalyzeRoute --> ResultModel
+  ResultModel --> ExpressDashboard
+  ResultModel --> ComparisonDashboard
+  ResultModel --> ReportPreview
+  ResultModel --> Scoring
+  ResultModel --> Evidence
+  Evidence --> SourceLineage
+  ReportsRoute --> ReportMapping
+  ReportMapping --> ReportPreview
+
+%% Artifact ID: COMP-001
+%% Type: UML component-style source
+%% Status: Draft source artifact
