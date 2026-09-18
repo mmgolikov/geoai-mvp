@@ -1,7 +1,7 @@
 # Sprint 10 Find State Handoff
 
-Status: Local Candidate · bounded Find-state correction · Not Released  
-Branch: `codex/sprint10-find-state-20260918`  
+Status: Local Candidate · bounded Find-state correction · Not Released
+Branch: `codex/sprint10-find-state-20260918`
 Baseline: `c9be8fa6350098072d69c91992e63b97ca0d44ed`
 
 ## Implemented contract
@@ -14,12 +14,33 @@ Baseline: `c9be8fa6350098072d69c91992e63b97ca0d44ed`
 - `Reset results` clears only the Find result, resolved geometry, active/hover state, shortlist/comparison and transient Find session. It does not delete Saved Projects or unrelated Analyse/Create data.
 - Two or more current shortlist results retain the existing comparison path. Opening individual analysis continues to persist the cohort through the existing Find session/saved-view contract.
 - Style reload and 2D/3D transitions rebuild footprint data from current active/hover/shortlist refs; only the current state is restored.
+- Every new Find request receives a monotonically increasing local cohort generation and detaches the prior saved-artifact binding before network or persistence work starts. Reset, project/identity changes and project-overview transitions also detach the binding.
+- A completed asynchronous save may bind only when its captured project identity and cohort generation are still current. Queued shortlist/comparison/analysis updates re-check the immutable binding immediately before writing, so a late save or an older queue entry cannot mutate a different cohort's saved artifact.
+- Candidate focus, shortlist, comparison and analysis controls use native `disabled` semantics whenever the visible result is stale. The stale cohort remains visible as evidence until Update or Reset, but it is not interactive.
 
 ## Verification contract
 
 - `scripts/point-to-object-find-state-check.ts` executes the exported presentation and verified-footprint state logic and covers result/shortlist/hover/active precedence, old-to-new-to-clear, Polygon, MultiPolygon, POI rejection and unverified-geometry rejection.
+- `tests/e2e/sprint10-find-state.spec.ts` delays the second cohort's digest/save, reuses the same source candidate identity under changed criteria/source receipt, exercises immediate shortlist plus Reset, releases the late save and proves the prior artifact's serialized bytes remain unchanged.
 - Existing Find, V5 interaction, MapLibre replacement and Create regression checks remain required.
 - TypeScript and production build remain required before integration.
+
+## Exact correction verification
+
+All commands ran in `/private/tmp/geoai-sprint10-find-state-20260918` on the uncommitted correction tree, with the bundled Node `v24.19.0` first on `PATH` where npm scripts require TypeScript stripping.
+
+| Command | Result |
+| --- | --- |
+| `npm run lint` | PASS · TypeScript emitted no diagnostics |
+| `node --experimental-strip-types scripts/point-to-object-find-state-check.ts` | PASS · Find state checks passed |
+| `node scripts/point-to-object-v5-interaction-check.mjs` | PASS · V5 interaction contract checks passed |
+| `npm run test:point-to-object-find` | PASS |
+| `npm run test:point-to-object-map-replacement` | PASS · replacement, Sprint 07 and Sprint 09 contracts |
+| `npm run test:point-to-object-create` | PASS · Create, preflight and route contracts |
+| `npm run test:data-honesty` | PASS · 442 files scanned, 0 findings |
+| `npm run build` | PASS · Next.js 15.5.25, 80/80 static pages |
+| `GEOAI_E2E_BASE_URL=http://127.0.0.1:3117 npx playwright test tests/e2e/sprint10-find-state.spec.ts --workers=1` | PASS · 1/1 in 3.6 s against the local production build |
+| `git diff --check` | PASS |
 
 ## Boundaries and residual evidence
 

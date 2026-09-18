@@ -410,7 +410,6 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
   const [findRetrySeconds, setFindRetrySeconds] = useState(0);
   const findCooldownRef = useRef(0);
   const [findResultIntent, setFindResultIntent] = useState<FindIntent | null>(null);
-  const [findSavedArtifactId, setFindSavedArtifactId] = useState<string | null>(null);
   const [createSavedArtifactId, setCreateSavedArtifactId] = useState<string | null>(null);
   const [findSessionReady, setFindSessionReady] = useState(false);
   const findRequestRef = useRef<AbortController | null>(null);
@@ -440,6 +439,8 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
   const findAnalysisTargetRef = useRef(findAnalysisTargetSourceFeatureId);
   const activeCreateAlternativeRef = useRef(activeCreateAlternativeId);
   const findViewSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const findCohortGenerationRef = useRef(0);
+  const findSavedBindingRef = useRef<{ generation: number; identityKey: PointObjectProjectIdentity; artifactId: string } | null>(null);
   const createViewSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const findResultRef = useRef(findResult);
   projectIdentityRef.current = projectIdentity;
@@ -510,7 +511,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     setFindComparisonDashboardOpen(false);
     setFindAnalysisTargetSourceFeatureId(null);
     setFindStatus("idle");
-    setFindSavedArtifactId(null);
+    detachFindSavedArtifact();
     setIsDrawing(false);
     setDraftCoordinates([]);
     setCreateAoi(null);
@@ -568,7 +569,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     restoreRemovedCreateRef.current = null;
     setCanRestoreRemovedCreate(false);
     projectRestoreAppliedRef.current = projectIdentity;
-    setFindSavedArtifactId(null);
+    detachFindSavedArtifact();
     setCreateSavedArtifactId(null);
     createSaveContextRef.current = null;
     createGenerationIdentityRef.current = undefined;
@@ -627,7 +628,8 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
       setLocationKey(artifact.marketKey);
       if (artifact.kind === "find") {
         const restored = artifact.payload.session;
-        setFindSavedArtifactId(artifact.artifactId);
+        const generation = detachFindSavedArtifact();
+        if (projectIdentity) findSavedBindingRef.current = { generation, identityKey: projectIdentity, artifactId: artifact.artifactId };
         restoredFindSessionRef.current = restored;
         setMode("find");
         setFindAudience(restored.audience);
@@ -1076,7 +1078,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     exitProjectOverview();
     pendingRestoredFindBoundsRef.current = null;
     setRestoredFindViewportBounds(null);
-    setFindSavedArtifactId(null);
+    detachFindSavedArtifact();
     clearPointObjectCreateSession();
     createGenerationIdentityRef.current = undefined;
     createSessionOwnerRef.current = undefined;
@@ -1128,6 +1130,13 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     setFindStatus("idle");
   }
 
+  function detachFindSavedArtifact(): number {
+    const generation = findCohortGenerationRef.current + 1;
+    findCohortGenerationRef.current = generation;
+    findSavedBindingRef.current = null;
+    return generation;
+  }
+
   function changeFindRole(role: ExploreRole) {
     const scenario = getDefaultExecutableFindScenario(findAudience, role);
     setFindRole(role);
@@ -1148,6 +1157,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
   }
 
   function resetFindResults() {
+    detachFindSavedArtifact();
     findRequestIdRef.current += 1;
     findRequestRef.current?.abort();
     findRequestRef.current = null;
@@ -1173,7 +1183,8 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     comparisonOpen: boolean,
     intent: FindIntent,
     identityKey: PointObjectProjectIdentity,
-    destination: PointObjectProjectDestination
+    destination: PointObjectProjectDestination,
+    cohortGeneration: number
   ) {
     const session: PointObjectFindSessionState & { result: PointObjectFindResult } = {
       version: 1,
@@ -1199,10 +1210,12 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
       label: `${locale === "ru" ? "Поиск" : "Find"} · ${result.candidates.length} ${locale === "ru" ? "объектов" : "places"}`,
       payload: { session }
     }, undefined, destination);
-    if (projectIdentityRef.current === identityKey && (saved.status === "saved" || saved.status === "replayed")) {
-      setFindSavedArtifactId(saved.artifact.artifactId);
+    if (projectIdentityRef.current === identityKey && findCohortGenerationRef.current === cohortGeneration &&
+        (saved.status === "saved" || saved.status === "replayed")) {
+      const binding = { generation: cohortGeneration, identityKey, artifactId: saved.artifact.artifactId };
+      findSavedBindingRef.current = binding;
       if (findShortlistRef.current.length || findComparisonOpenRef.current || findAnalysisTargetRef.current) {
-        queueFindViewUpdate(identityKey, saved.artifact.artifactId, {
+        queueFindViewUpdate(binding, {
           shortlist: findShortlistRef.current,
           comparisonOpen: findComparisonOpenRef.current,
           comparisonView: findComparisonViewRef.current,
@@ -1213,14 +1226,17 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
   }
 
   function queueFindViewUpdate(
-    identityKey: PointObjectProjectIdentity,
-    artifactId: string,
+    binding: { generation: number; identityKey: PointObjectProjectIdentity; artifactId: string },
     view: Pick<PointObjectFindSessionState, "shortlist" | "comparisonOpen" | "comparisonView" | "analysisTargetSourceFeatureId">
   ) {
     const immutableView = structuredClone(view);
     findViewSaveQueueRef.current = findViewSaveQueueRef.current
       .catch(() => undefined)
-      .then(async () => { await updatePointObjectFindViewState(identityKey, artifactId, immutableView); });
+      .then(async () => {
+        const current = findSavedBindingRef.current;
+        if (!current || current.generation !== binding.generation || current.identityKey !== binding.identityKey || current.artifactId !== binding.artifactId) return;
+        await updatePointObjectFindViewState(binding.identityKey, binding.artifactId, immutableView);
+      });
   }
 
   function queueCreateViewUpdate(identityKey: PointObjectProjectIdentity, artifactId: string, id: "A" | "B") {
@@ -1298,9 +1314,9 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
       ? findComparisonDashboardOpen ? "dashboard" : "mini"
       : "results"
   ) {
-    const identityKey = projectIdentityRef.current;
-    if (!identityKey || !findSavedArtifactId) return;
-    queueFindViewUpdate(identityKey, findSavedArtifactId, {
+    const binding = findSavedBindingRef.current;
+    if (!binding || projectIdentityRef.current !== binding.identityKey || findCohortGenerationRef.current !== binding.generation) return;
+    queueFindViewUpdate(binding, {
       shortlist,
       comparisonOpen,
       comparisonView: shortlist.length >= 2 ? comparisonView : "results",
@@ -1343,6 +1359,9 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
 
   async function findInView() {
     if (!isSessionResolved || !findSessionReady || !visibleBounds || findRequestRef.current || findStatus === "loading" || findCapability.status === "unsupported" || findCooldownRef.current > Date.now()) return;
+    const cohortGeneration = detachFindSavedArtifact();
+    await findViewSaveQueueRef.current.catch(() => undefined);
+    if (findCohortGenerationRef.current !== cohortGeneration) return;
     clearPointObjectProjectRestore();
     pendingRestoredFindBoundsRef.current = null;
     setRestoredFindViewportBounds(null);
@@ -1381,7 +1400,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
         setFindAnalysisTargetSourceFeatureId(null);
         setFindStatus("idle");
         if (initiatingIdentity && destination && projectIdentityRef.current === initiatingIdentity) {
-          await saveFindArtifact(payload, [], false, requestIntent, initiatingIdentity, destination);
+          await saveFindArtifact(payload, [], false, requestIntent, initiatingIdentity, destination, cohortGeneration);
         }
       } else if (response.status === 400) {
         setFindStatus("zoom");
@@ -1897,7 +1916,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
                 {findShortlist.length > 0 ? <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[#e6f5f1] px-3 py-2" data-testid="find-comparison-toolbar">
                   <span className="text-xs font-bold text-[#176548]">{locale === "ru" ? `Выбрано: ${findShortlist.length}` : `Selected: ${findShortlist.length}`}</span>
                   <div className="flex flex-wrap justify-end gap-1.5">
-                    {findComparisonOpen ? <button type="button" onClick={() => setFindComparison(false)} className="min-h-11 rounded-lg border border-[#8ebdb4] bg-white px-3 text-[11px] font-bold text-[#176548] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]">{locale === "ru" ? "К результатам" : "Back to results"}</button> : null}
+                    {findComparisonOpen ? <button type="button" disabled={findResultIsStale} onClick={() => setFindComparison(false)} className="min-h-11 rounded-lg border border-[#8ebdb4] bg-white px-3 text-[11px] font-bold text-[#176548] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] disabled:cursor-not-allowed disabled:opacity-40">{locale === "ru" ? "К результатам" : "Back to results"}</button> : null}
                     <button type="button" onClick={clearFindShortlist} className="min-h-11 rounded-lg px-3 text-[11px] font-bold text-[#176548] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]">{locale === "ru" ? "Очистить" : "Clear"}</button>
                   </div>
                 </div> : null}
@@ -1906,15 +1925,15 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
                     {findShortlist.map((candidate) => {
                       const subtype = readableFindSubtype(candidate.matchedTag.value, candidate.group, locale);
                       const observedAttribute = comparisonObservedAttribute(candidate, locale);
-                      return <article key={candidate.sourceFeatureId} className="flex min-w-0 flex-col rounded-xl border border-line bg-white p-3"><div className="flex items-start justify-between gap-1"><div className="min-w-0"><h3 className="break-words text-sm font-bold text-ink">{candidate.label}</h3><p className="mt-1 break-words text-[11px] text-muted">{findGroupLabels[candidate.group]}{subtype ? ` · ${subtype}` : ""}</p></div><button type="button" aria-label={`${locale === "ru" ? "Убрать из сравнения" : "Remove from comparison"}: ${candidate.label}`} disabled={findResultMarketMismatch} aria-disabled={findResultIsStale} onClick={() => toggleFindShortlist(candidate)} className="min-h-11 shrink-0 rounded-lg px-2 text-[11px] font-bold text-[#087f70] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] disabled:opacity-40">{locale === "ru" ? "Убрать" : "Remove"}</button></div><dl className="mt-3 grid grid-cols-[minmax(72px,auto)_minmax(0,1fr)] gap-x-2 gap-y-2 text-[10px]"><dt className="text-muted">{locale === "ru" ? "Тип" : "Type"}</dt><dd className="break-words font-semibold">{subtype ?? findGroupLabels[candidate.group]}</dd><dt className="text-muted">{locale === "ru" ? "Этажность" : "Levels"}</dt><dd className="font-semibold">{candidate.mappedBuildingLevels ?? (locale === "ru" ? "Не указана" : "Not mapped")}</dd>{observedAttribute ? <><dt className="text-muted">{observedAttribute.label}</dt><dd className="break-words font-semibold">{observedAttribute.value}</dd></> : null}</dl><button type="button" disabled={findResultMarketMismatch} aria-disabled={findResultIsStale} onClick={() => chooseFindCandidate(candidate)} className="mt-auto min-h-11 w-full rounded-lg border border-[#8ebdb4] bg-white px-3 text-xs font-bold text-[#176548] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] disabled:cursor-not-allowed disabled:opacity-40">{locale === "ru" ? "Открыть анализ" : "Open analysis"}</button></article>;
+                      return <article key={candidate.sourceFeatureId} className="flex min-w-0 flex-col rounded-xl border border-line bg-white p-3"><div className="flex items-start justify-between gap-1"><div className="min-w-0"><h3 className="break-words text-sm font-bold text-ink">{candidate.label}</h3><p className="mt-1 break-words text-[11px] text-muted">{findGroupLabels[candidate.group]}{subtype ? ` · ${subtype}` : ""}</p></div><button type="button" aria-label={`${locale === "ru" ? "Убрать из сравнения" : "Remove from comparison"}: ${candidate.label}`} disabled={findResultIsStale} onClick={() => toggleFindShortlist(candidate)} className="min-h-11 shrink-0 rounded-lg px-2 text-[11px] font-bold text-[#087f70] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] disabled:opacity-40">{locale === "ru" ? "Убрать" : "Remove"}</button></div><dl className="mt-3 grid grid-cols-[minmax(72px,auto)_minmax(0,1fr)] gap-x-2 gap-y-2 text-[10px]"><dt className="text-muted">{locale === "ru" ? "Тип" : "Type"}</dt><dd className="break-words font-semibold">{subtype ?? findGroupLabels[candidate.group]}</dd><dt className="text-muted">{locale === "ru" ? "Этажность" : "Levels"}</dt><dd className="font-semibold">{candidate.mappedBuildingLevels ?? (locale === "ru" ? "Не указана" : "Not mapped")}</dd>{observedAttribute ? <><dt className="text-muted">{observedAttribute.label}</dt><dd className="break-words font-semibold">{observedAttribute.value}</dd></> : null}</dl><button type="button" disabled={findResultIsStale} onClick={() => chooseFindCandidate(candidate)} className="mt-auto min-h-11 w-full rounded-lg border border-[#8ebdb4] bg-white px-3 text-xs font-bold text-[#176548] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] disabled:cursor-not-allowed disabled:opacity-40">{locale === "ru" ? "Открыть анализ" : "Open analysis"}</button></article>;
                     })}
                   </div>
                 </div> : <ul className="space-y-2">{findResult.candidates.map((candidate) => {
                   const selectedForComparison = findShortlist.some((item) => item.sourceFeatureId === candidate.sourceFeatureId);
                   const subtype = readableFindSubtype(candidate.matchedTag.value, candidate.group, locale);
                   return <li key={candidate.sourceFeatureId} onMouseEnter={() => setHoveredFindResultId(candidate.sourceFeatureId)} onMouseLeave={() => setHoveredFindResultId(null)} className={`rounded-xl border bg-white p-3 ${activeFindResultId === candidate.sourceFeatureId ? "border-[#087f8c] ring-2 ring-[#bfe4e2]" : selectedForComparison ? "border-[#8ebdb4]" : "border-line"}`}>
-                    <button id={`find-result-${candidate.sourceFeatureId}`} type="button" disabled={findResultMarketMismatch} aria-disabled={findResultIsStale} onFocus={() => setHoveredFindResultId(candidate.sourceFeatureId)} onBlur={() => setHoveredFindResultId(null)} onClick={() => focusFindResult(candidate.sourceFeatureId)} className="min-h-11 w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] disabled:cursor-not-allowed disabled:opacity-40"><span className="mr-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#e6f5f1] px-1 text-[10px] font-bold text-[#176548]">{findResult.candidates.indexOf(candidate) + 1}</span><span className="text-sm font-bold text-ink">{candidate.label}</span><span className="mt-1 block text-[11px] text-muted">{findGroupLabels[candidate.group]}{subtype ? ` · ${subtype}` : ""}{candidate.mappedBuildingLevels === null ? "" : ` · ${candidate.mappedBuildingLevels} ${locale === "ru" ? "эт." : "levels"}`}</span></button>
-                    <div className="mt-2 flex flex-wrap gap-2"><button type="button" disabled={findResultMarketMismatch} aria-disabled={findResultIsStale} onClick={() => chooseFindCandidate(candidate)} className="min-h-11 rounded-lg border border-[#8ebdb4] bg-white px-3 text-[11px] font-bold text-[#176548] disabled:opacity-40">{locale === "ru" ? "Открыть анализ" : "Open analysis"}</button><button type="button" aria-pressed={selectedForComparison} disabled={findResultMarketMismatch || (!selectedForComparison && findShortlist.length >= 3)} aria-disabled={findResultIsStale} onClick={() => toggleFindShortlist(candidate)} className={`min-h-11 rounded-lg px-3 text-[11px] font-bold transition disabled:opacity-40 ${selectedForComparison ? "bg-[#087f70] text-white" : "border border-[#8ebdb4] bg-white text-[#176548]"}`}>{selectedForComparison ? (locale === "ru" ? "Выбрано" : "Selected") : (locale === "ru" ? "В сравнение" : "Compare")}</button></div>
+                    <button id={`find-result-${candidate.sourceFeatureId}`} type="button" disabled={findResultIsStale} onFocus={() => setHoveredFindResultId(candidate.sourceFeatureId)} onBlur={() => setHoveredFindResultId(null)} onClick={() => focusFindResult(candidate.sourceFeatureId)} className="min-h-11 w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] disabled:cursor-not-allowed disabled:opacity-40"><span className="mr-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#e6f5f1] px-1 text-[10px] font-bold text-[#176548]">{findResult.candidates.indexOf(candidate) + 1}</span><span className="text-sm font-bold text-ink">{candidate.label}</span><span className="mt-1 block text-[11px] text-muted">{findGroupLabels[candidate.group]}{subtype ? ` · ${subtype}` : ""}{candidate.mappedBuildingLevels === null ? "" : ` · ${candidate.mappedBuildingLevels} ${locale === "ru" ? "эт." : "levels"}`}</span></button>
+                    <div className="mt-2 flex flex-wrap gap-2"><button type="button" disabled={findResultIsStale} onClick={() => chooseFindCandidate(candidate)} className="min-h-11 rounded-lg border border-[#8ebdb4] bg-white px-3 text-[11px] font-bold text-[#176548] disabled:opacity-40">{locale === "ru" ? "Открыть анализ" : "Open analysis"}</button><button type="button" aria-pressed={selectedForComparison} disabled={findResultIsStale || (!selectedForComparison && findShortlist.length >= 3)} onClick={() => toggleFindShortlist(candidate)} className={`min-h-11 rounded-lg px-3 text-[11px] font-bold transition disabled:opacity-40 ${selectedForComparison ? "bg-[#087f70] text-white" : "border border-[#8ebdb4] bg-white text-[#176548]"}`}>{selectedForComparison ? (locale === "ru" ? "Выбрано" : "Selected") : (locale === "ru" ? "В сравнение" : "Compare")}</button></div>
                   </li>;
                 })}</ul>}
               </div> : null}
