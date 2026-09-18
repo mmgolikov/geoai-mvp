@@ -1,26 +1,33 @@
-# Sprint 10 Auth-Persona Fixture Handoff
+# Sprint 10 Auth-Persona Integration Handoff
 
 Date: 2026-09-18
 
-Worktree: `/private/tmp/geoai-sprint10-analysis`
+Worktree: `/private/tmp/geoai-sprint10-personas-integrated`
 
-Branch: `codex/sprint10-analysis-20260918`
+Branch: `codex/sprint10-personas-integrated-20260918`
 
-Parent before this fixture correction: `39b601c6fc15b7b80e2c98760b1632c21cf204bd`
+Integrated base: `2ca25d2da7b56b1bf935a0388f925db2600136ac`
 
-## Scope and result
+Carried fixture commit: `262c915` (cherry-pick of old-branch commit `f938a93`)
 
-This bounded correction makes four existing browser contracts declare and exercise the auth environment they actually require. It changes tests, one test helper and one dedicated Playwright config only; no product, Auth runtime, API route, dependency or shared config is changed.
+## Scope and integrated result
 
-- `demo_public` is an authenticated synthetic demo persona. Create results are restored through its browser-local Projects artifact, and the test verifies that no anonymous Create session is written.
-- `supabase_auth` uses a synthetic localhost URL and a fake publishable-format value. The browser remains server-verified anonymous, guest Create state stays in session storage, and the explicit mock-demo transition is exercised through the product UI rather than by seeding local storage.
-- The protected anonymous server boundary is checked separately: `POST /api/projects` returns `403`, `ok:false` and no project. The middleware may intentionally sanitize the response, so the test does not require route-internal access fields that are not part of the observed boundary payload.
-- The optional Supabase browser-client chunk failure path is exercised only in `supabase_auth`; `demo_public` correctly makes no Supabase chunk or session request.
-- Find startup is blocked until account resolution only in `supabase_auth`; `demo_public` is resolved at startup and may search immediately.
+This bounded follow-on aligns the auth-persona browser tests with the integrated real SSR page guards. It changes only three existing E2E specs, one test helper, one dedicated Playwright config and this handoff. It does not change application code, Auth runtime, API routes, dependencies or shared Playwright configuration.
 
-No test is skipped. Persona-specific branches assert different, real product contracts rather than bypassing Auth guards.
+The `f938a93` protected-mode 4/4 result was obtained on the OLD BRANCH only. It is historical evidence, not integration acceptance. Its browser-demo transition and guest product-entry assumptions were superseded by the real guards on the integrated base.
 
-## Files in the correction commit
+The corrected contracts are:
+
+- `demo_public`: full browser product entry remains available. The suite verifies Create A/B persistence and reopen with no extra AI call, Russian draft Back/browser-Back/reload recovery, absence of optional Supabase SDK/session traffic, and Find readiness at startup.
+- `supabase_auth`: an anonymous browser cannot enter the protected product page. Navigation is verified against the running server and must redirect to `/login?next=...`; the tests do not intercept protected page markup, forge a session or bypass the guard.
+- A mocked anonymous `/api/auth/session` response is explicit: `isAuthenticated:false`, `sessionStatus:"session_missing"`, `user:null`.
+- Denied entry must leave the pre-existing local/session storage bytes unchanged and issue no protected workflow request.
+- The optional Supabase browser-client chunk failure is exercised at login only; login remains fail-closed and does not offer a browser-demo transition.
+- The server boundary is checked independently: anonymous `POST /api/projects` returns `403`, `ok:false` and no project.
+
+No test is skipped. The protected test environment is synthetic and localhost-only; it is not evidence of hosted Supabase Auth, membership or RLS behavior.
+
+## Files in the integrated correction
 
 - `tests/e2e/point-to-object-geocontext-v6.spec.ts`
 - `tests/e2e/point-to-object-v5-offline-flow.spec.ts`
@@ -31,25 +38,34 @@ No test is skipped. Persona-specific branches assert different, real product con
 
 ## Exact validation
 
-Runtime: Node.js `24.19.0`; Chrome channel, headless, one worker; localhost and deterministic local mocks only.
+Runtime: Node.js `24.19.0`; Playwright Chrome channel, headless, one worker; localhost and deterministic local mocks only.
 
-Type check:
+Type check / lint:
 
 ```sh
 PATH=/Users/mmgolikov/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH \
-  npx tsc --noEmit --pretty false
+  npm run lint
 ```
 
 Result: PASS.
 
-Default `demo_public` run:
+Exact integrated production build:
 
 ```sh
 PATH=/Users/mmgolikov/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH \
-  PORT=3112 npm run dev
+  npm run build
+```
+
+Result: PASS; Next.js `15.5.25`; 80/80 static pages generated.
+
+Production-build `demo_public` run:
+
+```sh
+PATH=/Users/mmgolikov/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH \
+  npx next start -H 127.0.0.1 -p 3114
 
 PATH=/Users/mmgolikov/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH \
-  GEOAI_E2E_BASE_URL=http://127.0.0.1:3112 \
+  GEOAI_E2E_BASE_URL=http://127.0.0.1:3114 \
   npx playwright test \
     tests/e2e/point-to-object-geocontext-v6.spec.ts \
     tests/e2e/point-to-object-v5-offline-flow.spec.ts \
@@ -57,27 +73,29 @@ PATH=/Users/mmgolikov/.cache/codex-runtimes/codex-primary-runtime/dependencies/n
     -g 'auth-persona'
 ```
 
-Result: 4/4 PASS in 15.3 seconds.
+Result: 4/4 PASS in 7.5 seconds.
 
-Synthetic `supabase_auth` run:
+Synthetic protected-mode run:
 
 ```sh
 PATH=/Users/mmgolikov/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH \
   npx playwright test --config playwright.auth-persona.config.ts
 ```
 
-Result: 4/4 PASS in 52.9 seconds. The dedicated config starts its own server with:
+Result: 4/4 PASS in 20.0 seconds. The dedicated config starts and automatically stops its own dev server on port `3115`, with `reuseExistingServer:false` and:
 
 - `NEXT_PUBLIC_AUTH_MODE=supabase_auth`
 - `NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321`
 - `NEXT_PUBLIC_GEOAI_ALLOW_LOCAL_SUPABASE=true`
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_synthetic_e2e_only_1234567890`
+- `GEOAI_ACCESS_ENFORCEMENT_MODE=hard`
+- `GEOAI_ALLOW_DEMO_PUBLIC=false`
 
-The value is an explicit synthetic test fixture, not a secret or real Supabase key. No service is expected at port `54321`; tests mock the authoritative session boundary and fail closed.
+The publishable-format value is an explicit synthetic fixture, not a secret or real key. No Supabase service is expected at port `54321`; the suite validates fail-closed anonymous behavior.
 
 ## Blockers and boundaries
 
-No blocker remains for this bounded persona-fixture correction. This is not proof of a real hosted Supabase login, real membership/RLS, or Production Auth. Those require separately authorized hosted personas and integration evidence.
+No blocker remains for this bounded integrated test correction. It does not prove a real hosted Supabase login, real membership/RLS enforcement or Production Auth; those require separately authorized hosted personas and evidence.
 
 No paid/provider call, dependency mutation, secret access, push, deployment, Production/main change or Supabase change occurred.
 

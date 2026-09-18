@@ -1,6 +1,10 @@
 import { createHash } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
-import { declaredAuthPersona } from "./helpers/auth-persona";
+import {
+  declaredAuthPersona,
+  expectProtectedEntryDeniedWithoutByteMutation,
+  sessionMissingFixture
+} from "./helpers/auth-persona";
 import { installLocalWebKitHttpCsp } from "./helpers/local-webkit-csp";
 
 const identity = "demo:demo-user-geoai";
@@ -402,36 +406,33 @@ test("Sprint07: a locally cancelled late context cannot overwrite the next selec
   await expect(page.getByText("Stale first result", { exact: true })).toHaveCount(0);
 });
 
-test("auth-persona: Find preserves an explicit search across declared account resolution", async ({ page }, testInfo) => {
+test("auth-persona: public demo Find is ready while protected entry redirects without mutating bytes", async ({ page }, testInfo) => {
   const persona = declaredAuthPersona(testInfo);
   await installOfflineHub(page, storeFixture(), { mockSession: false });
-  let releaseSession!: () => void;
-  const sessionGate = new Promise<void>((resolve) => { releaseSession = resolve; });
   let sessionGets = 0;
   let findRequests = 0;
   await page.route("**/api/auth/session", async (route) => {
     sessionGets += 1;
-    await sessionGate;
-    await route.fulfill({ contentType: "application/json", body: JSON.stringify({ isAuthenticated: false, user: null }) });
+    await route.fulfill({ contentType: "application/json", body: JSON.stringify(sessionMissingFixture) });
   });
   await page.route("**/api/prototype/point-to-object/find", async (route) => {
     findRequests += 1;
     await route.fulfill({ contentType: "application/json", body: JSON.stringify(findArtifact().payload.session.result) });
   });
+  if (persona === "supabase_auth") {
+    await expectProtectedEntryDeniedWithoutByteMutation(page, "/prototype/point-to-object", {
+      local: { [storageKey]: JSON.stringify(storeFixture()) },
+      session: { "geoai:point-to-object:find:v1": '{"version":1,"protected":"byte-sentinel"}' }
+    });
+    await expect.poll(() => sessionGets).toBeGreaterThanOrEqual(1);
+    expect(findRequests).toBe(0);
+    return;
+  }
   await page.goto("/prototype/point-to-object");
   await page.getByRole("tab", { name: "Find", exact: true }).click();
   const findCta = page.getByTestId("find-search-cta");
-  if (persona === "supabase_auth") {
-    await expect(findCta).toBeDisabled();
-    await expect(page.getByTestId("find-footer-status")).toHaveText("Preparing saved search settings…");
-    expect(findRequests).toBe(0);
-    await expect.poll(() => sessionGets).toBeGreaterThanOrEqual(1);
-    releaseSession();
-  } else {
-    await expect(findCta).toBeEnabled();
-    expect(sessionGets).toBe(0);
-  }
   await expect(findCta).toBeEnabled();
+  expect(sessionGets).toBe(0);
   await findCta.click();
   await expect(page.getByText("Showing 1", { exact: true })).toBeVisible();
   expect(findRequests).toBe(1);

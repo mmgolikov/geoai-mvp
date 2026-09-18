@@ -1,7 +1,12 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 import { conceptTemplate, generateConceptMassingAlternatives, validateRedevelopmentProgram } from "../../src/lib/prototype/point-to-object-create";
 import { POINT_OBJECT_CREATE_RESULT_CAVEAT } from "../../src/lib/prototype/point-to-object-create-result";
-import { declaredAuthPersona, expectDeclaredAuthPersona } from "./helpers/auth-persona";
+import {
+  declaredAuthPersona,
+  expectDeclaredAuthPersona,
+  expectProtectedEntryDeniedWithoutByteMutation,
+  sessionMissingFixture
+} from "./helpers/auth-persona";
 import { installLocalWebKitHttpCsp } from "./helpers/local-webkit-csp";
 
 test.beforeEach(async ({ page, browserName }, testInfo) => {
@@ -144,7 +149,7 @@ async function installOfflineRoutes(page: Page, options: { areaContextMode?: "su
     await route.abort("blockedbyclient");
   });
 
-  await page.route("**/api/auth/session", (route) => json(route, { isAuthenticated: false, user: null }));
+  await page.route("**/api/auth/session", (route) => json(route, sessionMissingFixture));
   await page.route("**/api/auth/logout", (route) => json(route, { ok: true }));
   await page.route("**/api/prototype/point-to-object/suggest", (route) => json(route, {
     protocol: "POINT_TO_OBJECT_001_AUTOCOMPLETE_V1",
@@ -1242,7 +1247,7 @@ test("empty saved Find restores its query viewport without a fabricated selectio
   expect(unexpectedExternal).toEqual([]);
 });
 
-test("auth-persona: Create restores its exact result and mode without another request", async ({ page }, testInfo) => {
+test("auth-persona: public demo reopens saved A/B Create without AI while protected entry preserves bytes", async ({ page }, testInfo) => {
   const persona = declaredAuthPersona(testInfo);
   createPostRequests.length = 0;
   areaContextPostRequests = 0;
@@ -1267,6 +1272,18 @@ test("auth-persona: Create restores its exact result and mode without another re
     });
   });
   await page.setViewportSize({ width: 1280, height: 900 });
+  if (persona === "supabase_auth") {
+    await expectProtectedEntryDeniedWithoutByteMutation(page, "/prototype/point-to-object?mode=create", {
+      local: {
+        "geoai:point-to-object:projects:v1:user:protected-e2e": '{"schemaVersion":1,"identityKey":"user:protected-e2e","activeProjectId":null,"projects":[]}'
+      },
+      session: { "geoai:point-to-object:create:v1": '{"schemaVersion":1,"protected":"byte-sentinel"}' }
+    });
+    expect(createRequestMethods).toEqual([]);
+    expect(areaContextPostRequests).toBe(0);
+    expect(unexpectedExternal).toEqual([]);
+    return;
+  }
   await page.goto("/prototype/point-to-object?mode=create");
   await expectDeclaredAuthPersona(page, persona);
   await page.getByLabel("Upload GeoJSON").setInputFiles({
@@ -1284,99 +1301,25 @@ test("auth-persona: Create restores its exact result and mode without another re
   await expect(page.getByTestId("create-dashboard-alternative-b")).toHaveAttribute("aria-selected", "true");
   const requestMethodsAfterGeneration = [...createRequestMethods];
   const areaContextCallsAfterGeneration = areaContextPostRequests;
-  if (persona === "demo_public") {
-    await expect.poll(() => page.evaluate(() => {
-      const key = Object.keys(localStorage).find((item) => item.startsWith("geoai:point-to-object:projects:v1:"));
-      const store = key ? JSON.parse(localStorage.getItem(key) ?? "null") : null;
-      return store?.projects?.flatMap((project: { artifacts?: Array<{ kind?: string; payload?: { activeAlternativeId?: string } }> }) =>
-        project.artifacts ?? []).some((artifact: { kind?: string; payload?: { activeAlternativeId?: string } }) =>
-        artifact.kind === "create" && artifact.payload?.activeAlternativeId === "B") ?? false;
-    })).toBe(true);
-    await expect.poll(() => page.evaluate(() => sessionStorage.getItem("geoai:point-to-object:create:v1"))).toBeNull();
-    await page.goto("/projects?view=spatial");
-    await page.getByRole("button", { name: "Show on map", exact: true }).first().click();
-    await expect(page).toHaveURL(/\/prototype\/point-to-object$/);
-    await expect(page.getByRole("tab", { name: "Create", exact: true })).toHaveAttribute("aria-selected", "true");
-    const restoredDashboard = page.getByTestId("create-full-result-dashboard");
-    await expect(restoredDashboard).toBeVisible();
-    await expect(restoredDashboard.getByTestId("create-dashboard-alternative-b")).toHaveAttribute("aria-selected", "true");
-    await restoredDashboard.getByRole("button", { name: "Show on map", exact: true }).click();
-    await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
-    expect(createRequestMethods).toEqual(requestMethodsAfterGeneration);
-    expect(areaContextPostRequests).toBe(areaContextCallsAfterGeneration);
-    expect(unexpectedExternal).toEqual([]);
-    return;
-  }
-  await page.goto("/prototype/point-to-object?mode=find");
-  await expect(page.getByRole("tab", { name: "Find", exact: true })).toHaveAttribute("aria-selected", "true");
-  expect(createRequestMethods).toEqual(requestMethodsAfterGeneration);
-  expect(areaContextPostRequests).toBe(areaContextCallsAfterGeneration);
-  await page.getByRole("tab", { name: "Create", exact: true }).click();
-  await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
-  await expect(page.getByTestId("create-alternative-b")).toHaveAttribute("aria-selected", "true");
-  await page.getByTestId("create-open-result-dashboard").click();
-  await expect(page.getByTestId("create-dashboard-alternative-b")).toHaveAttribute("aria-selected", "true");
-  await page.getByRole("button", { name: "Show on map", exact: true }).click();
-  await page.reload();
-  await expect(page.getByRole("tab", { name: "Find", exact: true })).toHaveAttribute("aria-selected", "true");
-  await page.getByRole("tab", { name: "Create", exact: true }).click();
-  await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
-  await page.evaluate(() => window.history.replaceState(null, "", "/prototype/point-to-object?mode=create"));
-  await page.reload();
-  await expect(page.getByRole("tab", { name: "Create", exact: true })).toHaveAttribute("aria-selected", "true");
-  await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
-  await expect(page.getByTestId("create-alternative-b")).toHaveAttribute("aria-selected", "true");
-  expect(createRequestMethods).toEqual(requestMethodsAfterGeneration);
-  expect(areaContextPostRequests).toBe(areaContextCallsAfterGeneration);
-  const restoredSession = await page.evaluate(() => JSON.parse(sessionStorage.getItem("geoai:point-to-object:create:v1") ?? "null"));
-  expect(restoredSession).toMatchObject({ schemaVersion: 1, marketKey: "dubai", locale: "en", generatedLocale: "en", activeAlternativeId: "B", dashboardOpen: false });
-
-  await page.getByRole("button", { name: "ru", exact: true }).click();
-  await expect(page.getByTestId("create-result-language-stale")).toBeVisible();
   await expect.poll(() => page.evaluate(() => {
-    const session = JSON.parse(sessionStorage.getItem("geoai:point-to-object:create:v1") ?? "null") as { locale?: string; generatedLocale?: string } | null;
-    return session ? `${session.locale}:${session.generatedLocale}` : null;
-  })).toBe("ru:en");
-  const requestMethodsBeforeLocaleReload = [...createRequestMethods];
-  await page.reload();
-  await expect(page.getByRole("tab", { name: "Создать", exact: true })).toHaveAttribute("aria-selected", "true");
-  await expect(page.getByTestId("create-result-language-stale")).toBeVisible();
-  expect(createRequestMethods).toEqual(requestMethodsBeforeLocaleReload);
-  await page.getByRole("button", { name: "en", exact: true }).click();
-  await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
-
-  await page.unroute("**/api/prototype/point-to-object/create");
-  await page.route("**/api/prototype/point-to-object/create", async (route) => {
-    if (route.request().method() === "GET") return json(route, { mode: "ready", challenge: "B".repeat(43) });
-    await json(route, { mode: "unavailable", error: "deliberate guest update failure" }, 502);
-  });
-  await page.getByText("Concept parameters", { exact: true }).click();
-  await page.getByRole("slider", { name: "Blocks" }).fill("2");
-  await page.getByTestId("create-generate-action").click();
-  await expect(page.getByTestId("create-generation-error")).toBeVisible();
-  await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
-  await page.reload();
+    const key = Object.keys(localStorage).find((item) => item.startsWith("geoai:point-to-object:projects:v1:"));
+    const store = key ? JSON.parse(localStorage.getItem(key) ?? "null") : null;
+    return store?.projects?.flatMap((project: { artifacts?: Array<{ kind?: string; payload?: { activeAlternativeId?: string } }> }) =>
+      project.artifacts ?? []).some((artifact: { kind?: string; payload?: { activeAlternativeId?: string } }) =>
+      artifact.kind === "create" && artifact.payload?.activeAlternativeId === "B") ?? false;
+  })).toBe(true);
+  await expect.poll(() => page.evaluate(() => sessionStorage.getItem("geoai:point-to-object:create:v1"))).toBeNull();
+  await page.goto("/projects?view=spatial");
+  await page.getByRole("button", { name: "Show on map", exact: true }).first().click();
+  await expect(page).toHaveURL(/\/prototype\/point-to-object$/);
   await expect(page.getByRole("tab", { name: "Create", exact: true })).toHaveAttribute("aria-selected", "true");
+  const restoredDashboard = page.getByTestId("create-full-result-dashboard");
+  await expect(restoredDashboard).toBeVisible();
+  await expect(restoredDashboard.getByTestId("create-dashboard-alternative-b")).toHaveAttribute("aria-selected", "true");
+  await restoredDashboard.getByRole("button", { name: "Show on map", exact: true }).click();
   await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
-  await expect(page.getByTestId("create-alternative-b")).toHaveAttribute("aria-selected", "true");
-
-  const preservedGuestSession = await page.evaluate(() => sessionStorage.getItem("geoai:point-to-object:create:v1"));
-  expect(preservedGuestSession).not.toBeNull();
-  await page.getByTestId("point-object-city-select").selectOption("singapore");
-  await expect(page.getByTestId("generated-concept-summary")).toHaveCount(0);
-  await expect.poll(() => page.evaluate(() => sessionStorage.getItem("geoai:point-to-object:create:v1"))).toBeNull();
-  await page.reload();
-  await expect(page.getByTestId("generated-concept-summary")).toHaveCount(0);
-  await page.evaluate((raw) => sessionStorage.setItem("geoai:point-to-object:create:v1", raw), preservedGuestSession!);
-  await page.reload();
-  await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
-  // Exercise the product's explicit mock-demo transition through its UI. It
-  // does not authorize the protected server mutation asserted separately in
-  // the Supabase-auth persona test.
-  await signInDemo(page, "/prototype/point-to-object");
-  await expect(page.locator('[data-point-object-header] a[href="/profile"]')).toHaveAttribute("data-authenticated", "true");
-  await expect.poll(() => page.evaluate(() => sessionStorage.getItem("geoai:point-to-object:create:v1"))).toBeNull();
-  await expect(page.getByTestId("generated-concept-summary")).toHaveCount(0);
+  expect(createRequestMethods).toEqual(requestMethodsAfterGeneration);
+  expect(areaContextPostRequests).toBe(areaContextCallsAfterGeneration);
   expect(unexpectedExternal).toEqual([]);
 });
 

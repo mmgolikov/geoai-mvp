@@ -1,7 +1,7 @@
 import { defineConfig } from "@playwright/test";
 import base from "./playwright.config";
 
-const port = 3112;
+const port = 3115;
 const baseURL = `http://127.0.0.1:${port}`;
 
 export default defineConfig({
@@ -25,6 +25,8 @@ export default defineConfig({
       "NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321",
       "NEXT_PUBLIC_GEOAI_ALLOW_LOCAL_SUPABASE=true",
       "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_synthetic_e2e_only_1234567890",
+      "GEOAI_ACCESS_ENFORCEMENT_MODE=hard",
+      "GEOAI_ALLOW_DEMO_PUBLIC=false",
       `PORT=${port}`,
       "npm run dev"
     ].join(" "),

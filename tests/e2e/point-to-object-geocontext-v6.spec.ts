@@ -1,5 +1,10 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
-import { declaredAuthPersona, expectDeclaredAuthPersona } from "./helpers/auth-persona";
+import {
+  declaredAuthPersona,
+  expectDeclaredAuthPersona,
+  expectProtectedEntryDeniedWithoutByteMutation,
+  sessionMissingFixture
+} from "./helpers/auth-persona";
 import { installLocalWebKitHttpCsp } from "./helpers/local-webkit-csp";
 
 test.beforeEach(async ({ page, browserName }, testInfo) => {
@@ -475,7 +480,7 @@ async function installAnalysisRoutes(page: Page) {
     unexpectedExternal.push(route.request().url());
     await route.abort("blockedbyclient");
   });
-  await page.route("**/api/auth/session", (route) => json(route, { isAuthenticated: false, user: null }));
+  await page.route("**/api/auth/session", (route) => json(route, sessionMissingFixture));
   await page.route("**/api/auth/logout", (route) => json(route, { ok: true }));
   await page.route("**/api/prototype/point-to-object/ai", async (route) => {
     if (route.request().method() === "GET") {
@@ -542,7 +547,7 @@ async function expectNoVisibleResolverBoilerplate(page: Page) {
   expect(visibleCopy).not.toMatch(/way\/91001|Q777|EVD-|SHA-256|sourceResponseHash|resolver/i);
 }
 
-test('auth-persona: visitor retains selection and unsent RU analysis draft after normal Back and reload', async ({ page }, testInfo) => {
+test('auth-persona: public demo recovers the RU draft while protected entry redirects without mutating bytes', async ({ page }, testInfo) => {
   const persona = declaredAuthPersona(testInfo);
   await page.setViewportSize({ width: 430, height: 932 });
   const { apiCalls } = await installAnalysisRoutes(page);
@@ -554,6 +559,14 @@ test('auth-persona: visitor retains selection and unsent RU analysis draft after
   } }));
   await page.route('**/api/prototype/point-to-object/context', route => route.fulfill({ json: { mode: 'resolved', subject: selection.resolvedObject } }));
   await page.context().addCookies([{ name: 'geoai_locale', value: 'ru', url: testInfo.project.use.baseURL! }]);
+  if (persona === "supabase_auth") {
+    await expectProtectedEntryDeniedWithoutByteMutation(page, "/prototype/point-to-object", {
+      local: { "geoai:point-to-object:browser-identity:v1": "user:protected-e2e" },
+      session: { "geoai:point-to-object:analysis-draft:v1": '{"locale":"ru","draft":"protected-byte-sentinel"}' }
+    });
+    expect(apiCalls).toEqual([]);
+    return;
+  }
   await page.goto('/prototype/point-to-object');
   await expectDeclaredAuthPersona(page, persona);
   await page.getByRole('combobox', { name: 'Поиск адреса или места', exact: true }).fill('Synthetic Harbour');
@@ -573,7 +586,7 @@ test('auth-persona: visitor retains selection and unsent RU analysis draft after
     identity: localStorage.getItem('geoai:point-to-object:browser-identity:v1')
   }));
   const before = await state();
-  expect(before.identity).toBe(persona === "demo_public" ? "demo:demo-user-geoai" : null);
+  expect(before.identity).toBe("demo:demo-user-geoai");
   expect(before.draft).toContain(draft);
   expect(before.selection).not.toBeNull();
   const count = () => apiCalls.filter(call => call.path.endsWith('/ai')).map(call => call.method);
@@ -602,7 +615,7 @@ test('auth-persona: visitor retains selection and unsent RU analysis draft after
   await expect(input).toHaveValue(draft);
   expect(count()).toEqual(['GET', 'POST']);
   const final = await state();
-  expect(final.identity).toBe(persona === "demo_public" ? "demo:demo-user-geoai" : null);
+  expect(final.identity).toBe("demo:demo-user-geoai");
   expect(final.draft).toBe(before.draft);
   await page.screenshot({ path: testInfo.outputPath('guest-analysis-restored-430-ru.png'), fullPage: true });
   console.log(JSON.stringify({ result: 'PASS', viewport: '430x932', locale: 'ru', authPersona: persona, aiRequests: count(), selectionRetainedAfterMap: true, draftRecoveredAfterBrowserBack: true, reloadAndDirectEntryRecovered: true }));
@@ -862,7 +875,7 @@ test("Saved Analyse reopens RU from EN Projects and EN from RU Projects without 
   expect(unexpectedExternal).toEqual([]);
 });
 
-test("auth-persona: optional Supabase subscription failure is isolated from public demo and falls back to verified anonymous", async ({ page }, testInfo) => {
+test("auth-persona: public demo loads no Supabase SDK while protected login fails closed after its optional chunk fails", async ({ page }, testInfo) => {
   const persona = declaredAuthPersona(testInfo);
   const pageErrors: string[] = [];
   let sessionGets = 0;
@@ -870,7 +883,7 @@ test("auth-persona: optional Supabase subscription failure is isolated from publ
   page.on("pageerror", (error) => pageErrors.push(error.message));
   await page.route("**/api/auth/session", async (route) => {
     sessionGets += 1;
-    await json(route, { isAuthenticated: false, user: null });
+    await json(route, sessionMissingFixture);
   });
   await page.route(/\/_next\/static\/chunks\/.*supabase.*browser.*\.js(?:\?.*)?$/, async (route) => {
     subscriptionChunkRequests += 1;
@@ -892,6 +905,7 @@ test("auth-persona: optional Supabase subscription failure is isolated from publ
 
   await page.goto("/login?next=%2Fworkspace");
   await expect(page.getByRole("heading", { name: "Sign in to GeoAI" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Open demo access" })).toHaveCount(0);
   await expect.poll(() => subscriptionChunkRequests).toBeGreaterThanOrEqual(1);
   await expect.poll(() => sessionGets).toBeGreaterThanOrEqual(2);
   await expect(page).toHaveURL(/\/login\?/);
