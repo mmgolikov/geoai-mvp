@@ -19,6 +19,19 @@ export type PointObjectAnalysisRoleScenarioContext = {
 
 export const POINT_OBJECT_ANALYSIS_ROLE_POLICY = "decision_lens_only_not_permission_or_evidence" as const;
 
+const SOURCE_FEATURE_ID_PATTERN = /^(?:node|way|relation)\/[1-9]\d{0,19}$/;
+
+export function pointObjectAnalysisTargetMatches(
+  selectedSourceFeatureId: unknown,
+  analysisTargetSourceFeatureId: unknown
+): boolean {
+  return typeof selectedSourceFeatureId === "string" &&
+    typeof analysisTargetSourceFeatureId === "string" &&
+    SOURCE_FEATURE_ID_PATTERN.test(selectedSourceFeatureId) &&
+    SOURCE_FEATURE_ID_PATTERN.test(analysisTargetSourceFeatureId) &&
+    selectedSourceFeatureId === analysisTargetSourceFeatureId;
+}
+
 export function parsePointObjectAnalysisRoleScenario(
   role: unknown,
   scenario: unknown

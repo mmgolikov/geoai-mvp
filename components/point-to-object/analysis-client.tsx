@@ -42,7 +42,10 @@ import {
   type PointObjectProjectIdentity
 } from "@/src/lib/prototype/point-object-projects";
 import { readPointObjectFindSession } from "@/src/lib/prototype/point-to-object-find-session";
-import { pointObjectAnalysisRoleScenarioOrUnspecified } from "@/src/lib/prototype/point-to-object-ai-provenance";
+import {
+  pointObjectAnalysisRoleScenarioOrUnspecified,
+  pointObjectAnalysisTargetMatches
+} from "@/src/lib/prototype/point-to-object-ai-provenance";
 import {
   createPointObjectAnalysisRequestIdentity,
   POINT_OBJECT_ANALYSIS_CLIENT_DEADLINE_MS,
@@ -231,7 +234,7 @@ export function PointToObjectAnalysis() {
   const roleScenarioContext = useCallback((activeSelection: LiveMapSelection) => {
     const findSession = readPointObjectFindSession();
     const selectedSourceFeatureId = activeSelection.resolvedObject?.sourceFeatureId ?? activeSelection.object.sourceFeatureId;
-    if (findSession?.analysisTargetSourceFeatureId === selectedSourceFeatureId) {
+    if (findSession && pointObjectAnalysisTargetMatches(selectedSourceFeatureId, findSession.analysisTargetSourceFeatureId)) {
       return pointObjectAnalysisRoleScenarioOrUnspecified(findSession.role, findSession.scenario);
     }
     return pointObjectAnalysisRoleScenarioOrUnspecified(
@@ -458,7 +461,7 @@ export function PointToObjectAnalysis() {
       } else {
         const findSession = readPointObjectFindSession();
         const selectedSourceFeatureId = restoredSelection.resolvedObject?.sourceFeatureId ?? restoredSelection.object.sourceFeatureId;
-        const intentSettings = findSession?.analysisTargetSourceFeatureId === selectedSourceFeatureId
+        const intentSettings = findSession && pointObjectAnalysisTargetMatches(selectedSourceFeatureId, findSession.analysisTargetSourceFeatureId)
           ? settingsForFindIntent(findSession.role, findSession.scenario)
           : DEFAULT_SETTINGS;
         const restoredSettings = restoredQuestion.trim()

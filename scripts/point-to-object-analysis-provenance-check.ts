@@ -50,6 +50,15 @@ for (const [role, scenario] of [
     `Invalid or untrusted role/scenario must fail closed: ${role}/${scenario}`);
 }
 
+assert.equal(provenance.pointObjectAnalysisTargetMatches(null, null), false,
+  "a free point and an unbound Find session must not become a provenance match");
+assert.equal(provenance.pointObjectAnalysisTargetMatches("way/91011", "way/91010"), false,
+  "different valid source identities must not share Find provenance");
+assert.equal(provenance.pointObjectAnalysisTargetMatches("way/91010", "way/91010"), true,
+  "the exact non-empty valid source identity must preserve the Find handoff");
+assert.equal(provenance.pointObjectAnalysisTargetMatches("", ""), false);
+assert.equal(provenance.pointObjectAnalysisTargetMatches("untrusted", "untrusted"), false);
+
 const identity = requestState.createPointObjectAnalysisRequestIdentity({
   objectKey: "way/91010",
   evidenceKey: "synthetic-evidence-v1",

@@ -18,7 +18,7 @@ type ProvenanceContext = {
   scenario: "b2b_redevelopment_selected_aoi" | "b2b_hotel_development";
 };
 
-function findSession(context: ProvenanceContext) {
+function findSession(context: ProvenanceContext, analysisTargetSourceFeatureId: string | null = "way/91010") {
   const candidate = {
     sourceFeatureId: "way/91010",
     sourceElementType: "way",
@@ -88,7 +88,7 @@ function findSession(context: ProvenanceContext) {
     },
     shortlist: [],
     comparisonOpen: false,
-    analysisTargetSourceFeatureId: "way/91010",
+    analysisTargetSourceFeatureId,
     updatedAt: "2026-09-18T12:00:00.000Z"
   };
 }
@@ -116,7 +116,7 @@ function responseFor(body: Record<string, unknown>, sequence: number) {
   };
 }
 
-async function prepare(page: Page, options: { holdPost?: boolean } = {}) {
+async function prepare(page: Page, options: { holdPost?: boolean; selection?: unknown; session?: ReturnType<typeof findSession> } = {}) {
   const initialContext: ProvenanceContext = { role: "developer", scenario: "b2b_redevelopment_selected_aoi" };
   const posts: Array<Record<string, unknown>> = [];
   let challengeGets = 0;
@@ -124,7 +124,7 @@ async function prepare(page: Page, options: { holdPost?: boolean } = {}) {
   await page.addInitScript(({ selection, session }) => {
     sessionStorage.setItem("geoai:point-to-object:selection:v3", JSON.stringify(selection));
     sessionStorage.setItem("geoai:point-to-object:find:v1", JSON.stringify(session));
-  }, { selection: sprint10Selection, session: findSession(initialContext) });
+  }, { selection: options.selection ?? sprint10Selection, session: options.session ?? findSession(initialContext) });
   await page.route("**/api/auth/session", (route) => json(route, {
     isAuthenticated: false,
     sessionStatus: "session_missing",
@@ -177,6 +177,56 @@ test("S1 provenance submits and restores the exact validated role/scenario recei
   await expect(page.getByTestId("analysis-request-state")).toHaveAttribute("data-completed-role", "developer");
   expect(api.posts).toHaveLength(1);
   expect(api.challengeGets()).toBe(1);
+});
+
+test("S1 provenance does not bind a saved null Find target to an unresolved free point", async ({ page }) => {
+  const freePointSelection = {
+    ...sprint10Selection,
+    object: {
+      ...sprint10Selection.object,
+      name: null,
+      featureClass: "selected_location",
+      sourceFeatureId: null,
+      geometry: { type: "Point", coordinates: [55.27, 25.2] }
+    },
+    resolvedObject: null
+  };
+  const api = await prepare(page, {
+    selection: freePointSelection,
+    session: findSession({ role: "consultant_broker", scenario: "b2b_hotel_development" }, null)
+  });
+
+  await page.goto("/prototype/point-to-object/analysis");
+  await expect(page.getByTestId("ai-success")).toBeVisible();
+  expect(api.posts).toHaveLength(1);
+  expect(api.posts[0]).toMatchObject({
+    role: "developer",
+    scenario: "unspecified",
+    goal: "development_screening",
+    horizon: "current"
+  });
+});
+
+test("S1 provenance ignores a valid Find target that differs from the selected object", async ({ page }) => {
+  const mismatchedSelection = {
+    ...sprint10Selection,
+    object: { ...sprint10Selection.object, sourceFeatureId: "way/91011" },
+    resolvedObject: { ...sprint10Selection.resolvedObject, sourceFeatureId: "way/91011" }
+  };
+  const api = await prepare(page, {
+    selection: mismatchedSelection,
+    session: findSession({ role: "consultant_broker", scenario: "b2b_hotel_development" })
+  });
+
+  await page.goto("/prototype/point-to-object/analysis");
+  await expect(page.getByTestId("ai-success")).toBeVisible();
+  expect(api.posts).toHaveLength(1);
+  expect(api.posts[0]).toMatchObject({
+    role: "developer",
+    scenario: "unspecified",
+    goal: "development_screening",
+    horizon: "current"
+  });
 });
 
 test("S1 provenance discards an in-flight result after the validated role/scenario context changes", async ({ page }) => {

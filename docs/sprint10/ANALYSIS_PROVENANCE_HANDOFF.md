@@ -18,6 +18,7 @@ The Analyse path now carries one validated role/scenario context from the browse
 - Pre-provenance requests and stored results remain readable as `role: "unspecified"`, `scenario: "unspecified"`. The client does not reconstruct historical provenance from the current profile or Find state.
 - Prompt V10 receives the validated identifiers and the fixed policy `decision_lens_only_not_permission_or_evidence`. Role/scenario cannot grant access, establish source authority or create facts.
 - The provider result receipt echoes the exact submitted role/scenario. The browser rejects a mismatched receipt.
+- Find provenance and intent settings apply only when the saved target and selected object have the same non-empty, valid source feature ID. A saved `null` target cannot bind to an unresolved free point; mismatches fall back to the current profile role with `scenario: "unspecified"`.
 - If the validated role/scenario changes while a request is in flight, the late result is discarded instead of replacing the result for the newer context.
 - Save/reopen reads the stored receipt and causes zero challenge, provider or evidence-acquisition calls.
 
@@ -34,16 +35,16 @@ Quick, Standard and Deep routing, auth, origin, bounded-body, one-time challenge
 - `src/lib/prototype/point-to-object-ai.ts`
 - `src/lib/prototype/point-to-object-analysis-request-state.ts`
 
-Application diff SHA-256: `293c0239cc5186e047cb250e02ff787f62928f015489af1b958b154a37c06da1`
+Application diff SHA-256: `e4f3198ff05b32ea534ce243cb2d78eace0ca5fa7985a771e581d1be8781d564`
 
 ## Dedicated tests and fixture compatibility
 
-- `scripts/point-to-object-analysis-provenance-check.ts` — registry pairs, untrusted strings, invalid pairs before evidence/provider, prompt input, exact receipt, legacy unspecified handling and actual route execution with an offline provider fixture.
-- `tests/e2e/sprint10-analysis-provenance.spec.ts` — exact submit/save/reopen with zero replay and late-response rejection after an in-flight context change.
+- `scripts/point-to-object-analysis-provenance-check.ts` — registry pairs, untrusted strings, invalid pairs before evidence/provider, exact/non-empty Find target matching, prompt input, exact receipt, legacy unspecified handling and actual route execution with an offline provider fixture.
+- `tests/e2e/sprint10-analysis-provenance.spec.ts` — exact submit/save/reopen with zero replay, `null/null` free-point isolation, mismatched-object isolation and late-response rejection after an in-flight context change.
 - `scripts/point-to-object-analysis-session-v6-check.ts` — narrowly updated data-URL loader fixture for the new provenance import and V10/V9/V8 prompt chain.
 - `scripts/point-to-object-analysis-state-sprint10-check.ts` — narrowly updated loader and valid registry fixture; receipt checks now include role/scenario.
 
-Test diff SHA-256: `e1de32cfade79939a2ef561767669879c0c6b628ce0d362e98b35dcf9cd901cd`
+Test diff SHA-256: `20f1a2da1c78629415f00f958bedbbafcd6a085f623d4866b6263783a51de589`
 
 No product fixture claims live observations. All provider behavior in this slice is mocked/offline.
 
@@ -101,7 +102,7 @@ PATH=/Users/mmgolikov/.cache/codex-runtimes/codex-primary-runtime/dependencies/n
   npx playwright test tests/e2e/sprint10-analysis-provenance.spec.ts
 ```
 
-Result: 2/2 PASS in 2.7 seconds. The owned server was stopped after the run.
+Result: 4/4 PASS in 3.8 seconds. The owned server was stopped after the run.
 
 ## Remaining gaps
 
