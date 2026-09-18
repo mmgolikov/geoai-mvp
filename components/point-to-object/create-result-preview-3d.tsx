@@ -240,7 +240,13 @@ export function CreateResultPreview3D({ locale, aoi, massing, fallback }: Props)
       <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-bold text-[#176548]">{ru ? "Вариант" : "Option"} {massing.variantId}</span>
     </figcaption>
     <div className="relative min-h-[300px] overflow-hidden rounded-2xl bg-[#edf4f2] sm:min-h-[390px]" aria-label={ru ? `3D-просмотр сохранённой геометрии, вариант ${massing.variantId}` : `3D preview of saved geometry, option ${massing.variantId}`} role="region">
-      <div ref={containerRef} data-testid="create-result-preview-3d-canvas" className="absolute inset-0" style={{ touchAction: "pan-y" }} />
+      {/* MapLibre adds `position: relative` at runtime; pin geometry across CSS import orders. */}
+      <div
+        ref={containerRef}
+        data-testid="create-result-preview-3d-canvas"
+        className="absolute inset-0"
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", touchAction: "pan-y" }}
+      />
       {renderedStatus === "initializing" ? <div className="absolute inset-0 grid place-items-center bg-[#edf4f2]/90 px-5 text-center text-sm font-semibold text-[#52606a]" role="status">{ru ? "Подготовка локальной 3D-сцены…" : "Preparing the local 3D scene…"}</div> : null}
       <div className="absolute bottom-3 left-3 flex flex-wrap gap-2 rounded-xl bg-white/95 p-2 shadow-soft" aria-label={ru ? "Управление камерой" : "Camera controls"}>
         <button type="button" disabled={renderedStatus !== "ready"} onClick={() => mapRef.current?.zoomIn({ duration: 180 })} className="min-h-11 min-w-11 rounded-lg border border-[#b8cbc6] bg-white px-3 text-sm font-bold text-[#176548] disabled:opacity-50" aria-label={ru ? "Приблизить" : "Zoom in"}>+</button>

@@ -115,6 +115,30 @@ async function expectNoHorizontalOverflow(page: Page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
 }
 
+async function expectRenderable3DCanvas(page: Page) {
+  const host = page.getByTestId("create-result-preview-3d-canvas");
+  await expect(host).toBeVisible();
+  await expect.poll(async () => host.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  })).toBe(true);
+  const hostBounds = await host.boundingBox();
+  expect(hostBounds).not.toBeNull();
+  expect(hostBounds!.width).toBeGreaterThan(0);
+  expect(hostBounds!.height).toBeGreaterThan(0);
+
+  const canvas = host.locator("canvas.maplibregl-canvas");
+  await expect(canvas).toBeVisible();
+  await expect.poll(async () => canvas.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  })).toBe(true);
+  const canvasBounds = await canvas.boundingBox();
+  expect(canvasBounds).not.toBeNull();
+  expect(canvasBounds!.width).toBeGreaterThan(0);
+  expect(canvasBounds!.height).toBeGreaterThan(0);
+}
+
 test("saved Create A/B uses the same exact KPI and geometry in local 2D/3D with zero preview-time source calls", async ({ page }, testInfo: TestInfo) => {
   const prepared = await prepareExactSavedResult(page, "en");
   const [alternativeA, alternativeB] = prepared.fixture.alternatives;
@@ -131,6 +155,7 @@ test("saved Create A/B uses the same exact KPI and geometry in local 2D/3D with 
   const preview3d = page.getByTestId("create-result-preview-3d");
   await expect(preview3d).toHaveAttribute("data-preview-status", "ready");
   await expect(preview3d).toHaveAttribute("data-preview-variant", "A");
+  await expectRenderable3DCanvas(page);
   await expect(preview3d).toHaveAttribute("data-preview-feature-count", String(alternativeA.massing.generatedFeatureCount));
   await expect(preview3d).toHaveAttribute("data-preview-max-height-m", String(Math.max(...alternativeA.massing.featureCollection.features.map((feature) => feature.properties.heightM))));
   const alternativeAGeometryKey = await preview3d.getAttribute("data-preview-geometry-key");
@@ -144,6 +169,7 @@ test("saved Create A/B uses the same exact KPI and geometry in local 2D/3D with 
   await expect(preview3d).toHaveAttribute("data-preview-feature-count", String(alternativeB.massing.generatedFeatureCount));
   await expect(preview3d).toHaveAttribute("data-preview-max-height-m", String(Math.max(...alternativeB.massing.featureCollection.features.map((feature) => feature.properties.heightM))));
   await expect(preview3d).not.toHaveAttribute("data-preview-geometry-key", alternativeAGeometryKey!);
+  await expectRenderable3DCanvas(page);
   await expect(page.getByTestId("create-result-kpis")).toHaveAttribute("data-active-variant", "B");
   await expect(page.getByTestId("create-result-kpis")).toHaveAttribute("data-estimated-floor-area-sqm", String(alternativeB.massing.estimatedFloorAreaSqM));
   await page.screenshot({ path: testInfo.outputPath("saved-create-dashboard-desktop-option-b-3d.png"), fullPage: true });
@@ -201,6 +227,7 @@ test("mobile 3D fails closed for an invalid saved option and recovers without a 
   const preview3d = page.getByTestId("create-result-preview-3d");
   await expect(preview3d).toHaveAttribute("data-preview-status", "ready");
   await expect(preview3d).toHaveAttribute("data-preview-variant", "A");
+  await expectRenderable3DCanvas(page);
   await page.screenshot({ path: testInfo.outputPath("saved-create-dashboard-mobile-option-a-3d-framed.png"), fullPage: true });
 
   await page.getByTestId("create-dashboard-alternative-b").click();
@@ -213,7 +240,7 @@ test("mobile 3D fails closed for an invalid saved option and recovers without a 
   await page.getByTestId("create-dashboard-alternative-a").click();
   await expect(preview3d).toHaveAttribute("data-preview-status", "ready");
   await expect(preview3d).toHaveAttribute("data-preview-variant", "A");
-  await expect(page.getByTestId("create-result-preview-3d-canvas")).toBeVisible();
+  await expectRenderable3DCanvas(page);
   await expectNoHorizontalOverflow(page);
   await page.screenshot({ path: testInfo.outputPath("saved-create-dashboard-mobile-option-a-3d-recovered.png"), fullPage: true });
   await expectNoNewSourceCalls(prepared);
