@@ -1,4 +1,5 @@
 import { expect, test, type APIResponse } from "@playwright/test";
+import { installLocalWebKitHttpCsp } from "./helpers/local-webkit-csp";
 
 async function expectIdentityDenial(response: APIResponse) {
   expect(response.status()).toBe(401);
@@ -13,7 +14,8 @@ async function expectIdentityDenial(response: APIResponse) {
 }
 
 test.describe("Sprint 1 permanent-user boundary", () => {
-  test.beforeEach(async ({ request }) => {
+  test.beforeEach(async ({ page, request }, testInfo) => {
+    await installLocalWebKitHttpCsp(page, testInfo.project.use.browserName, testInfo.project.use.baseURL);
     const response = await request.get("/api/auth/session");
     expect(response.ok()).toBe(true);
     expect(await response.json()).toMatchObject({

@@ -58,16 +58,16 @@ for (const width of [390, 1440]) {
       await expect(page.getByRole("button", { name: "Open demo access", exact: true })).toHaveCount(0);
 
       // Change local form state, without submitting, to prove hydration completed.
-      await page.getByLabel("Email or phone", { exact: true }).fill("entry-fixture@example.invalid");
-      await page.getByLabel("Password", { exact: true }).fill("fixture-only-no-submit");
+      await page.getByLabel(/^Email or phone/).fill("entry-fixture@example.invalid");
+      await page.getByLabel(/^Password/).fill("fixture-only-no-submit");
       await expect(page.locator("form button[type=submit]")).toHaveText("Sign in");
       await expect(page.locator("[data-nextjs-dialog]")).toHaveCount(0);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
       expect(pageErrors).toEqual([]);
       expect(mutationRequests).toEqual([]);
       // Clear fixture form values before persisting the visual artifact.
-      await page.getByLabel("Password", { exact: true }).clear();
-      await page.getByLabel("Email or phone", { exact: true }).clear();
+      await page.getByLabel(/^Password/).clear();
+      await page.getByLabel(/^Email or phone/).clear();
       await page.screenshot({ path: testInfo.outputPath("auth-entry.png"), fullPage: true });
     });
   }
