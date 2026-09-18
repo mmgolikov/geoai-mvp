@@ -449,6 +449,7 @@ test.describe("Sprint 10 existing-user password Auth acceptance harness", () => 
     } finally {
       await removeLocalSample(page);
       await context.clearCookies();
+      await page.close({ runBeforeUnload: false }).catch(() => undefined);
     }
   });
 

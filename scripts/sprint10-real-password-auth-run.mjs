@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
-import { isAbsolute } from "node:path";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const exactDevelopmentProjectRef = "pphdqkurxneyagvnnjdt";
@@ -131,37 +132,106 @@ function preflight() {
   return { expectedTestCount: scope === "primary" ? 1 : 2 };
 }
 
+function parseJsonReport(result, phase) {
+  try {
+    return JSON.parse(result.stdout || "");
+  } catch {
+    fail(`The ${phase} did not produce a valid machine-readable Playwright receipt.`);
+  }
+}
+
+function countReportTests(suites) {
+  return (Array.isArray(suites) ? suites : []).reduce((total, suite) =>
+    total + (Array.isArray(suite.specs) ? suite.specs.reduce((sum, spec) =>
+      sum + (Array.isArray(spec.tests) ? spec.tests.length : 0), 0) : 0) +
+      countReportTests(suite.suites), 0);
+}
+
 function run() {
   const { expectedTestCount } = preflight();
+  const repositoryRoot = fileURLToPath(new URL("..", import.meta.url));
   const playwrightCli = fileURLToPath(new URL("../node_modules/@playwright/test/cli.js", import.meta.url));
-  const result = spawnSync(process.execPath, [
+  const playwrightEntry = fileURLToPath(new URL("../node_modules/@playwright/test/index.js", import.meta.url));
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), "geoai-sprint10-real-auth-"));
+  const configPath = join(temporaryDirectory, "playwright.config.cjs");
+  const outputDir = join(temporaryDirectory, "output");
+  const projectName = "sprint10-real-password-auth";
+  const configSource = `
+const { defineConfig } = require(${JSON.stringify(playwrightEntry)});
+module.exports = defineConfig({
+  testDir: ${JSON.stringify(join(repositoryRoot, "tests/e2e"))},
+  timeout: 180000,
+  expect: { timeout: 20000 },
+  fullyParallel: false,
+  forbidOnly: true,
+  retries: 0,
+  workers: 1,
+  preserveOutput: "never",
+  outputDir: ${JSON.stringify(outputDir)},
+  reporter: [["json"]],
+  use: {
+    baseURL: process.env.GEOAI_E2E_BASE_URL,
+    channel: "chrome",
+    headless: true,
+    actionTimeout: 30000,
+    navigationTimeout: 60000,
+    trace: "off",
+    screenshot: "off",
+    video: "off",
+    serviceWorkers: "block"
+  },
+  projects: [{ name: ${JSON.stringify(projectName)} }]
+});
+`;
+  writeFileSync(configPath, configSource, { encoding: "utf8", mode: 0o600 });
+  const childEnvironment = { ...process.env, GEOAI_REAL_PASSWORD_AUTH_RUNNER_ACTIVE: "1" };
+  const commonArguments = [
     playwrightCli,
     "test",
     "tests/e2e/sprint10-real-password-auth.spec.ts",
+    `--config=${configPath}`,
+    `--project=${projectName}`,
     "--reporter=json",
     "--retries=0",
     "--workers=1"
-  ], {
-    cwd: fileURLToPath(new URL("..", import.meta.url)),
-    env: { ...process.env, GEOAI_REAL_PASSWORD_AUTH_RUNNER_ACTIVE: "1" },
-    encoding: "utf8",
-    maxBuffer: 16 * 1024 * 1024
-  });
-  let report;
+  ];
   try {
-    report = JSON.parse(result.stdout || "");
-  } catch {
-    fail("The live harness did not produce a valid machine-readable Playwright receipt.");
+    const discovery = spawnSync(process.execPath, [...commonArguments, "--list"], {
+      cwd: repositoryRoot,
+      env: childEnvironment,
+      encoding: "utf8",
+      maxBuffer: 16 * 1024 * 1024
+    });
+    const discoveryReport = parseJsonReport(discovery, "offline project/test discovery");
+    const discoveredProjects = Array.isArray(discoveryReport?.config?.projects)
+      ? discoveryReport.config.projects.map((project) => project?.name)
+      : [];
+    const discoveredTestCount = countReportTests(discoveryReport?.suites);
+    if (discovery.error || discovery.status !== 0 || discoveredProjects.length !== 1 ||
+        discoveredProjects[0] !== projectName || discoveredTestCount !== expectedTestCount ||
+        (Array.isArray(discoveryReport?.errors) && discoveryReport.errors.length > 0)) {
+      fail(`The bounded discovery receipt was not accepted (projects=${discoveredProjects.length}, tests=${discoveredTestCount}, expected=${expectedTestCount}).`);
+    }
+
+    const result = spawnSync(process.execPath, commonArguments, {
+      cwd: repositoryRoot,
+      env: childEnvironment,
+      encoding: "utf8",
+      maxBuffer: 16 * 1024 * 1024
+    });
+    const report = parseJsonReport(result, "live harness");
+    const stats = report?.stats;
+    const passed = Number(stats?.expected ?? -1);
+    const skipped = Number(stats?.skipped ?? -1);
+    const failed = Number(stats?.unexpected ?? -1);
+    const flaky = Number(stats?.flaky ?? -1);
+    if (result.error || result.status !== 0 || passed !== expectedTestCount || skipped !== 0 || failed !== 0 || flaky !== 0) {
+      fail(`The bounded live receipt was not accepted (expected=${expectedTestCount}, passed=${passed}, skipped=${skipped}, failed=${failed}, flaky=${flaky}).`);
+    }
+    console.log(`Sprint 10 real-password Auth acceptance passed (${passed}/${expectedTestCount}, skipped=0, failed=0, flaky=0).`);
+  } finally {
+    rmSync(temporaryDirectory, { recursive: true, force: true });
   }
-  const stats = report?.stats;
-  const passed = Number(stats?.expected ?? -1);
-  const skipped = Number(stats?.skipped ?? -1);
-  const failed = Number(stats?.unexpected ?? -1);
-  const flaky = Number(stats?.flaky ?? -1);
-  if (result.error || result.status !== 0 || passed !== expectedTestCount || skipped !== 0 || failed !== 0 || flaky !== 0) {
-    fail(`The bounded live receipt was not accepted (expected=${expectedTestCount}, passed=${passed}, skipped=${skipped}, failed=${failed}, flaky=${flaky}).`);
-  }
-  console.log(`Sprint 10 real-password Auth acceptance passed (${passed}/${expectedTestCount}, skipped=0, failed=0, flaky=0).`);
 }
 
 try {

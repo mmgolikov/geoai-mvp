@@ -19,8 +19,9 @@ The candidate was corrected after independent review of `917ce0c76d98c69df6b25b9
 - all HTTP(S) browser traffic now passes through one pre-dispatch route; an unexpected application mutation, non-allowlisted Supabase Auth operation or external origin is aborted before dispatch and is also counted for final evidence;
 - Supabase browser traffic is restricted to password/refresh token grants, user read, logout and the corresponding exact CORS preflight paths; signup, OTP, invitation, recovery, email/profile/password mutation and non-Auth paths are not allowlisted;
 - default Playwright discovery remains skipped, while an explicit live opt-in without the dedicated runner or with incomplete selected-scope configuration fails closed;
-- the dedicated runner requires the exact expected passed count, zero skipped, zero failed and zero flaky tests for `primary` or `primary_and_secondary` scope;
+- the dedicated runner owns and explicitly selects one temporary named Playwright project, performs offline `--list` discovery, reconciles the selected scope to exactly one or two discovered tests, then requires the same passed count with zero skipped, zero failed and zero flaky tests;
 - before any password entry, the spec validates a current root-owned exact-deployment receipt and anonymously requests the same `/api/health` URL without a bypass header and with redirect following disabled; only the exact Vercel SSO target `https://vercel.com/sso-api` is accepted.
+- the runner uses an ephemeral `preserveOutput: "never"` configuration and deletes its complete temporary directory on every outcome; credential-bearing pages/contexts are closed during test cleanup before Playwright failure-context collection. Trace, screenshot and video capture remain disabled.
 
 ## Runtime variables
 
@@ -115,7 +116,7 @@ No target, Supabase, Auth, email, provider or other external request was made. T
 - `npm run test:api-access-guards`;
 - `npm run test:data-honesty` (`445` files, zero findings).
 
-Offline negative controls also passed: default Playwright discovery registered one skipped test and dispatched no live work; the runner with no configuration failed at the explicit-opt-in preflight; the runner with only explicit scope failed on the first missing target field; a complete synthetic configuration with an expired local receipt failed before Playwright/network dispatch; and a direct explicit Playwright invocation failed before test execution because the bounded runner attestation was absent. These negative controls are safety evidence only, not hosted Auth acceptance.
+Offline negative controls also passed: default Playwright discovery registered one skipped test and dispatched no live work; the runner with no configuration failed at the explicit-opt-in preflight; the runner with only explicit scope failed on the first missing target field; a complete synthetic configuration with an expired local receipt failed before Playwright/network dispatch; and a direct explicit Playwright invocation failed before test execution because the bounded runner attestation was absent. An equivalent one-project ephemeral configuration listed exactly one primary-scope test and exactly two `primary_and_secondary` tests. An intentional pre-test failure under `preserveOutput: "never"` retained no per-test error-context directory; the actual runner additionally deletes the complete temporary directory, including Playwright's generic run marker, in `finally`. These negative controls are safety evidence only, not hosted Auth acceptance.
 
 ## Acceptance sequence
 
@@ -132,7 +133,7 @@ The primary test performs the following bounded sequence:
 9. Logs out, verifies the SSR session is anonymous, verifies the guarded API returns `401 authentication_required`, and verifies direct navigation to `/profile` redirects to sign-in.
 10. Preserves exact bytes in a synthetic browser-local project-store sentinel across login, reload and logout, and clears only that sentinel during teardown.
 
-The runner accepts the result only when the selected scope reports its exact expected count (`1` for primary, `2` for primary plus isolation), zero skipped tests, zero failures and zero flaky tests. It emits only aggregate counts and never prints credentials, the bypass value or persona identifiers.
+The runner first accepts only one explicitly named Playwright project and the selected scope's exact discovered test count (`1` for primary, `2` for primary plus isolation). It then accepts the live result only when the same count passes with zero skipped tests, zero failures and zero flaky tests. A later default-config expansion to multiple projects therefore cannot silently multiply the receipt. The ephemeral runner config sets `preserveOutput: "never"`, closes credential-bearing pages/contexts during cleanup and removes its entire temporary directory in `finally`; it emits only aggregate counts and never prints credentials, the bypass value, persona identifiers, DOM snapshots or raw Playwright output.
 
 If all secondary variables are supplied, a separate test opens two isolated browser contexts, verifies each exact identity, logs out the first and proves the second remains authenticated. This is browser-cookie isolation evidence only.
 

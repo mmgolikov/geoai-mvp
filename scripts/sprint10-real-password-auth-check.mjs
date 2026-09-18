@@ -108,8 +108,21 @@ assert.match(spec, /keeps two existing-user browser cookie sessions isolated/);
 assert.match(runner, /GEOAI_REAL_PASSWORD_AUTH_RUNNER_ACTIVE: "1"/);
 assert.match(runner, /"--reporter=json"/);
 assert.match(runner, /"--retries=0"/);
+assert.match(runner, /preserveOutput: "never"/,
+  "The bounded runner must not retain failure output or DOM error-context files.");
+assert.match(runner, /projects: \[\{ name:/);
+assert.match(runner, /`--project=\$\{projectName\}`/,
+  "The live command must select exactly the runner-owned Playwright project.");
+assert.match(runner, /"--list"/);
+assert.match(runner, /discoveredProjects\.length !== 1/);
+assert.match(runner, /discoveredTestCount !== expectedTestCount/,
+  "Offline discovery must reconcile the selected scope before network execution.");
+assert.match(runner, /rmSync\(temporaryDirectory, \{ recursive: true, force: true \}\)/,
+  "The ephemeral config and any test output must be deleted on every outcome.");
 assert.match(runner, /passed !== expectedTestCount \|\| skipped !== 0 \|\| failed !== 0 \|\| flaky !== 0/,
   "The explicit runner must reject missing, skipped, failed or flaky selected-scope evidence.");
+assert.match(spec, /page\.close\(\{ runBeforeUnload: false \}\)/,
+  "Credential-bearing pages must close before Playwright failure-context collection.");
 assert.doesNotMatch(packageJson, /sprint10-real-password-auth-(?:run|check)|sprint10-real-password-auth\.spec/,
   "Default package scripts must not invoke the live real-password harness.");
 assert.doesNotMatch(workflows, /sprint10-real-password-auth-(?:run|check)|sprint10-real-password-auth\.spec/,
