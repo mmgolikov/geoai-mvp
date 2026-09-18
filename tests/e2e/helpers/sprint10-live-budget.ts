@@ -20,7 +20,7 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "nod
 
 export const SPRINT10_CYCLE_ID = "GEOAI_FOUR_SPRINTS_2026_09_18" as const;
 export const SPRINT10_LIVE_CEILING_USD = 15 as const;
-export const SPRINT10_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V9_2026_09_12" as const;
+export const SPRINT10_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V10_2026_09_18" as const;
 export const SPRINT10_CREATE_PROMPT_VERSION = "POINT_OBJECT_CREATE_PROGRAM_V1_2026_09_04" as const;
 
 export type Sprint10Phase = "S1" | "S2" | "S3" | "S4";

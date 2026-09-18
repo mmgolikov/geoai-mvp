@@ -13,6 +13,8 @@ Every top-level paid request has one immutable identity:
 - exact immutable candidate deployment host and 40-character commit SHA;
 - route, depth, pinned prompt version and schema version.
 
+The current S1 candidate's Analyse prompt is V10 (`POINT_OBJECT_AI_PROMPT_V10_2026_09_18`); Create remains V1. The free budget test compares its prompt constant against the real application source, not only against its own synthetic receipts. This update precedes ledger initialization: no V9 paid receipts exist in this cycle and no balances were reset. Historical Sprint 9 helpers remain untouched.
+
 The receipt copies that identity and the root `ledgerId`. Settlement must present the identical tuple. A host/SHA/phase mismatch, duplicate settlement or response arriving after an `unknown` settlement is rejected without changing history.
 
 ## Reserve-before-dispatch sequence

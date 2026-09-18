@@ -23,6 +23,10 @@ const helperUrl = pathToFileURL(resolve("tests/e2e/helpers/sprint10-live-budget.
 const createdAt = "2026-09-18T10:00:00.000Z";
 const reserveAt = "2026-09-18T10:01:00.000Z";
 const settleAt = "2026-09-18T10:02:00.000Z";
+// Unlike self-consistent synthetic receipts, this catches drift from the real app prompt.
+const appPromptSource = readFileSync("src/lib/prototype/point-to-object-ai-core.ts", "utf8");
+const appPromptVersion = /export const POINT_OBJECT_AI_PROMPT_VERSION = "([^"]+)"/.exec(appPromptSource)?.[1];
+assert.equal(SPRINT10_ANALYSIS_PROMPT_VERSION, appPromptVersion, "global test ledger must match the candidate's actual prompt version");
 const ledgerId = "11111111-1111-4111-8111-111111111111";
 const commitA = "a".repeat(40);
 const commitB = "b".repeat(40);

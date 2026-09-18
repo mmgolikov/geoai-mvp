@@ -36,6 +36,8 @@ async function prepare(page: Page) {
       return;
     }
     await json(route, sprint10AnalysisResponse({
+      role: body.role as string,
+      scenario: body.scenario as string,
       depth: body.depth as "quick" | "standard" | "deep",
       goal: body.goal as "object_profile" | "development_screening" | "redevelopment" | "due_diligence" | "custom",
       perspective: body.perspective as "developer" | "investor" | "asset_owner",
@@ -156,7 +158,7 @@ test("S1 times out only after the route contract and supports an explicit retry"
   await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "deep");
 });
 
-test("S1 preserves the last result across cancel and reopen without a paid-route replay", async ({ page }) => {
+test("S1 preserves the last result across cancel and unrelated Find context without a paid-route replay", async ({ page }) => {
   const api = await prepare(page);
   await page.goto("/prototype/point-to-object/analysis");
   await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
@@ -191,8 +193,9 @@ test("S1 preserves the last result across cancel and reopen without a paid-route
   await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
   await expect(page.getByTestId("analysis-request-state")).toHaveAttribute("data-completed-role", "developer");
   await expect(page.getByTestId("analysis-request-state")).toHaveAttribute("data-completed-scenario", "unspecified");
-  await expect(page.getByTestId("analysis-request-state")).toHaveAttribute("data-draft-role", "real_estate_fund");
-  await expect(page.getByTestId("analysis-request-state")).toHaveAttribute("data-draft-scenario", "b2b_commercial_real_estate");
+  // A Find session without an explicit matching target is not this analysis' provenance.
+  await expect(page.getByTestId("analysis-request-state")).toHaveAttribute("data-draft-role", "developer");
+  await expect(page.getByTestId("analysis-request-state")).toHaveAttribute("data-draft-scenario", "unspecified");
   expect(api.posts).toHaveLength(2);
 });
 

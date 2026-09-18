@@ -55,6 +55,8 @@ export const sprint10Selection = {
 } as const;
 
 type AnalysisRequest = {
+  role?: string;
+  scenario?: string;
   depth: "quick" | "standard" | "deep";
   goal: "object_profile" | "development_screening" | "redevelopment" | "due_diligence" | "custom";
   perspective: "developer" | "investor" | "asset_owner";
@@ -148,7 +150,7 @@ export function sprint10AnalysisResponse(request: AnalysisRequest, sequence = 1)
       model: "fixture-only",
       reasoningEffort: request.depth === "deep" ? "high" : "medium",
       depth: request.depth,
-      promptVersion: "POINT_OBJECT_AI_PROMPT_V9_2026_09_12",
+      promptVersion: "POINT_OBJECT_AI_PROMPT_V10_2026_09_18",
       requestId: `resp_sprint10_${sequence}`,
       latencyMs: 1,
       attempts: 1,

@@ -453,6 +453,28 @@ function syntheticLegacyV5Response() {
   };
 }
 
+function syntheticCurrentResponse(request: Record<string, unknown>) {
+  const locale = request.locale === "ru" ? "ru" : "en";
+  const response = syntheticV6Response(locale);
+  const depthReview = syntheticV9StandardResponse().content.depthReview;
+  return {
+    ...response,
+    request: {
+      ...response.request,
+      role: request.role,
+      scenario: request.scenario,
+      depth: request.depth,
+      goal: request.goal,
+      perspective: request.perspective,
+      horizon: request.horizon,
+      question: request.question,
+      focused: Boolean(request.question)
+    },
+    content: { ...response.content, depthReview },
+    telemetry: { ...response.telemetry, promptVersion: "POINT_OBJECT_AI_PROMPT_V10_2026_09_18" }
+  };
+}
+
 function selectionFingerprint() {
   return [selection.locationKey, selection.longitude.toFixed(6), selection.latitude.toFixed(6), selection.clickedAt].join(":");
 }
@@ -488,8 +510,7 @@ async function installAnalysisRoutes(page: Page) {
       return;
     }
     const request = route.request().postDataJSON() as Record<string, unknown>;
-    const locale = request.locale === "ru" ? "ru" : "en";
-    await json(route, syntheticV6Response(locale));
+    await json(route, syntheticCurrentResponse(request));
   });
 
   return { apiCalls, unexpectedExternal };
@@ -621,11 +642,11 @@ test('auth-persona: public demo recovers the RU draft while protected entry redi
   console.log(JSON.stringify({ result: 'PASS', viewport: '430x932', locale: 'ru', authPersona: persona, aiRequests: count(), selectionRetainedAfterMap: true, draftRecoveredAfterBrowserBack: true, reloadAndDirectEntryRecovered: true }));
 });
 
-test("V9 Standard renders its structured criteria review and restores it without another AI request", async ({ page }) => {
+test("current Standard renders its structured criteria review and restores it without another AI request", async ({ page }) => {
   const { apiCalls, unexpectedExternal } = await installAnalysisRoutes(page);
   await page.route("**/api/prototype/point-to-object/ai", async (route) => {
     if (route.request().method() === "GET") return json(route, { mode: "ready", challenge: "A".repeat(43) });
-    await json(route, syntheticV9StandardResponse());
+    await json(route, syntheticCurrentResponse(route.request().postDataJSON()));
   });
   await seedSelection(page);
 
@@ -642,6 +663,23 @@ test("V9 Standard renders its structured criteria review and restores it without
   await page.reload();
   await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
   expect(apiCalls.filter((call) => call.path.endsWith("/ai") && call.method === "POST")).toHaveLength(1);
+  expect(unexpectedExternal).toEqual([]);
+});
+
+test("a stored role-less V9 receipt reopens unchanged without being relabelled from the current profile", async ({ page }) => {
+  const { apiCalls, unexpectedExternal } = await installAnalysisRoutes(page);
+  const historical = syntheticV9StandardResponse();
+  const stored = JSON.stringify({ selectionFingerprint: selectionFingerprint(), analysis: historical });
+  await page.addInitScript(({ selected, raw }) => {
+    sessionStorage.setItem("geoai:point-to-object:selection:v3", JSON.stringify(selected));
+    sessionStorage.setItem("geoai:point-to-object:analysis:v8", raw);
+  }, { selected: selection, raw: stored });
+  await signInDemo(page, "/prototype/point-to-object/analysis");
+  await expect(page.getByTestId("ai-success")).toBeVisible();
+  await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
+  await expect(page.getByTestId("analysis-request-state")).toHaveAttribute("data-completed-role", "unknown");
+  expect(await page.evaluate(() => sessionStorage.getItem("geoai:point-to-object:analysis:v8"))).toBe(stored);
+  expect(pointObjectCalls(apiCalls)).toEqual([]);
   expect(unexpectedExternal).toEqual([]);
 });
 
@@ -751,7 +789,7 @@ test("a rendered tile selection never promotes a nearest POI into the requested 
   await page.addInitScript((value) => sessionStorage.setItem("geoai:point-to-object:selection:v3", JSON.stringify(value)), tileSelection);
   await page.route("**/api/prototype/point-to-object/ai", async (route) => {
     if (route.request().method() === "GET") return json(route, { mode: "ready", challenge: "A".repeat(43) });
-    const response = syntheticV6Response("en");
+    const response = syntheticCurrentResponse(route.request().postDataJSON());
     response.subject = { ...response.subject, name: "Synthetic nearby fountain", sourceFeatureId: "node/91099", coordinateAssociation: "reverse_nearest_indexed_object_not_point_in_polygon", resultCentroidDistanceM: 63 };
     await json(route, response);
   });
