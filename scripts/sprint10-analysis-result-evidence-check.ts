@@ -251,7 +251,7 @@ try {
   rejects(() => buildSprint10AnalysisResultEvidence({ ...input(), submittedRequest: wrongQuestion }), /fixed synthetic public/);
 
   const unreferencedCoordinates = syntheticResponse();
-  unreferencedCoordinates.content.sourceFacts[0].statement = "Analysis point 25.200000, 55.270000 in EPSG:4326";
+  unreferencedCoordinates.content.sourceFacts[0].statement = "Точка анализа: 25.20000, 55.27000 в EPSG:4326";
   rejects(() => buildSprint10AnalysisResultEvidence(input(unreferencedCoordinates)), /coordinate-referenced content remained/);
 
   const oversized = syntheticResponse();

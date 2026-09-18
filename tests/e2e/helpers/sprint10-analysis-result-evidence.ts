@@ -30,7 +30,7 @@ const SOURCE_FEATURE_PATTERN = /^(?:node|way|relation)\/[1-9]\d{0,19}$/;
 const HASH_PATTERN = /^[a-f0-9]{64}$/;
 const EVIDENCE_REF_PATTERN = /^EVD-[A-Z0-9._:-]{1,120}$/;
 const SAFE_CODE_PATTERN = /^[a-z][a-z0-9_]{1,79}$/;
-const PRODUCTION_COORDINATE_CLAIM_PATTERN = /\bAnalysis point\s+-?\d{1,3}[.]\d{6},\s*-?\d{1,3}[.]\d{6}\s+in EPSG:4326\b/i;
+const EPSG4326_COORDINATE_PAIR_PATTERN = /-?\d{1,3}[.]\d{5,8},\s*-?\d{1,3}[.]\d{5,8}[^"\\]{0,32}EPSG:4326\b/i;
 const FORBIDDEN_STRING_PATTERNS = [
   /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i,
   /\bBearer\s+[A-Za-z0-9._~-]+/i,
@@ -374,7 +374,7 @@ function redactCoordinateReferencedItems(content: JsonRecord): {
   const redacted = visit(content);
   if (!record(redacted)) fail("validated content could not be safely filtered.");
   const serialized = JSON.stringify(redacted);
-  if (serialized.includes("EVD-COORDINATES") || PRODUCTION_COORDINATE_CLAIM_PATTERN.test(serialized)) {
+  if (serialized.includes("EVD-COORDINATES") || EPSG4326_COORDINATE_PAIR_PATTERN.test(serialized)) {
     fail("coordinate-referenced content remained after filtering.");
   }
   return { content: redacted, excludedCoordinateReferencedItemCount };
