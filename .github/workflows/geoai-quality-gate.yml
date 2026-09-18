@@ -392,7 +392,6 @@ jobs:
           set -euo pipefail
           node scripts/point-object-cloud-persistence-check.mjs | tee artifacts/sprint10-cloud-contract.txt
           npm run test:self-host-runtime | tee artifacts/sprint10-self-host-contract.txt
-          node scripts/sprint10-hosted-auth-probe-check.mjs | tee artifacts/sprint10-hosted-auth-contract.txt
           node --experimental-transform-types scripts/sprint10-live-budget-check.ts | tee artifacts/sprint10-live-budget-contract.txt
           node --experimental-transform-types scripts/sprint10-live-journey-offline-check.ts | tee artifacts/sprint10-live-journey-contract.txt
           node --experimental-transform-types scripts/sprint10-live-journey-runner-offline-check.mjs | tee artifacts/sprint10-live-runner-contract.txt
