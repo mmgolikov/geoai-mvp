@@ -96,6 +96,22 @@ const replayed = await projects.importPointObjectCloudArtifact(targetIdentity, c
 assert.equal(replayed.status, "replayed");
 assert.equal(localStorage.getItem(targetKey), importedBytes, "An exact cloud replay must not rewrite local bytes.");
 
+const wrongProjectReplay = await projects.importPointObjectCloudArtifact(targetIdentity, {
+  ...cloudProject,
+  projectId: "project-different-cloud-origin"
+}, cloudArtifact);
+assert.equal(wrongProjectReplay.status, "conflict");
+assert.equal(localStorage.getItem(targetKey), importedBytes,
+  "The same artifact receipt under a different cloud project must not replay or rewrite local bytes.");
+
+const wrongCreatedAtReplay = await projects.importPointObjectCloudArtifact(targetIdentity, {
+  ...cloudProject,
+  createdAt: "2026-09-18T09:59:59.000Z"
+}, cloudArtifact);
+assert.equal(wrongCreatedAtReplay.status, "conflict");
+assert.equal(localStorage.getItem(targetKey), importedBytes,
+  "The same artifact receipt with a different project origin timestamp must not replay or rewrite local bytes.");
+
 const conflictingInput = findInput("Different immutable cloud result", 55.28);
 const conflict = {
   ...cloudArtifact,
@@ -152,4 +168,4 @@ try {
   Object.defineProperty(crypto.subtle, "digest", { configurable: true, value: originalDigest });
 }
 
-console.log("Point-to-object cloud additive import checks passed (replay, conflict, damage, capacity, identity race). ");
+console.log("Point-to-object cloud additive import checks passed (origin-bound replay, conflict, damage, capacity, identity race).");

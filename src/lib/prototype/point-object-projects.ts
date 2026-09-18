@@ -268,10 +268,11 @@ export function importPointObjectCloudArtifact(
         if (matches.length > 0) {
           const exact = matches.length === 1 && matches[0].artifact.artifactId === parsedArtifact.artifactId &&
             matches[0].artifact.idempotencyKey === parsedArtifact.idempotencyKey && matches[0].artifact.payloadHash === parsedArtifact.payloadHash &&
-            matches[0].artifact.viewRevision === parsedArtifact.viewRevision;
+            matches[0].artifact.viewRevision === parsedArtifact.viewRevision && matches[0].project.projectId === projectId &&
+            matches[0].project.createdAt === projectCreatedAt;
           return exact
             ? { status: "replayed", project: matches[0].project, artifact: matches[0].artifact }
-            : { status: "conflict", code: "idempotency_conflict", message: "Cloud sync conflict: the local receipt has different immutable bytes or revision." };
+            : { status: "conflict", code: "idempotency_conflict", message: "Cloud sync conflict: the local receipt has different immutable bytes, revision or project origin." };
         }
         const existingProject = snapshot.store.projects.find((project) => project.projectId === projectId);
         if (existingProject && existingProject.createdAt !== projectCreatedAt) {
