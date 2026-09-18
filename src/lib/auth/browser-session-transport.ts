@@ -93,9 +93,12 @@ export async function readBrowserServerSession(
     if (!response.ok) return { status: "unavailable" };
     const payload = await response.json() as {
       isAuthenticated?: unknown;
+      sessionStatus?: unknown;
       user?: GeoAIAuthSession["user"];
     };
-    if (payload.isAuthenticated === false) return { status: "anonymous" };
+    if (payload.isAuthenticated === false && payload.sessionStatus === "session_missing") {
+      return { status: "anonymous" };
+    }
     if (payload.isAuthenticated === true && payload.user) {
       return { status: "authenticated", user: payload.user };
     }

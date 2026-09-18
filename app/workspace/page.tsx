@@ -3,7 +3,10 @@ import { AuthenticatedRouteGate } from "@/components/auth/authenticated-route-ga
 import { TopNavigation } from "@/components/top-navigation";
 import { WorkspaceShell } from "@/components/workspace-shell";
 import { requirePilotPageIdentity } from "@/src/lib/auth/require-pilot-page-identity";
-import { createSpatialSourceRequest } from "@/src/lib/spatial-b2/source-mode";
+import {
+  createSpatialSourceRequest,
+  spatialProductSourceModes
+} from "@/src/lib/spatial-b2/source-mode";
 
 export const metadata: Metadata = {
   title: "GeoAI Workspace",
@@ -12,18 +15,24 @@ export const metadata: Metadata = {
 
 type WorkspacePageProps = {
   searchParams?: Promise<{
-    spatialMode?: string;
+    segment?: string | string[];
+    spatialMode?: string | string[];
   }>;
 };
 
 export default async function WorkspacePage({ searchParams }: WorkspacePageProps) {
   const params = await searchParams;
-  const nextPath = typeof params?.spatialMode === "string"
-    ? `/workspace?spatialMode=${encodeURIComponent(params.spatialMode)}`
-    : "/workspace";
+  const segment = params?.segment === "b2b" || params?.segment === "b2c" ? params.segment : null;
+  const spatialMode = typeof params?.spatialMode === "string" && spatialProductSourceModes.includes(params.spatialMode as (typeof spatialProductSourceModes)[number])
+    ? params.spatialMode
+    : null;
+  const continuation = new URLSearchParams();
+  if (segment) continuation.set("segment", segment);
+  if (spatialMode) continuation.set("spatialMode", spatialMode);
+  const nextPath = continuation.size > 0 ? `/workspace?${continuation.toString()}` : "/workspace";
   await requirePilotPageIdentity(nextPath);
   const spatialSourceRequest = createSpatialSourceRequest({
-    requestedSourceMode: params?.spatialMode,
+    requestedSourceMode: spatialMode,
     vercelEnvironment: process.env.VERCEL_ENV,
     nodeEnvironment: process.env.NODE_ENV
   });

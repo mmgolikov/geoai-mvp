@@ -2,15 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
-import { getSafeAuthRedirectPath } from "@/src/lib/auth/redirect-path";
 import { mockDemoEmail, mockDemoPassword } from "@/src/lib/auth/mock-demo-session";
 
 type AuthMethod = "email" | "phone";
-
-function getDestination() {
-  if (typeof window === "undefined") return "/workspace";
-  return getSafeAuthRedirectPath(new URL(window.location.href).searchParams.get("next"), "/workspace");
-}
 
 function JourneyItem({ number, tone, label, text }: { number: string; tone: "brand" | "personal"; label: string; text: string }) {
   return (
@@ -24,8 +18,9 @@ function JourneyItem({ number, tone, label, text }: { number: string; tone: "bra
   );
 }
 
-export function LoginPanel() {
+export function LoginPanel({ destination }: { destination: string }) {
   const {
+    authStatus,
     isAuthenticated,
     signIn,
     signInWithPassword,
@@ -47,11 +42,13 @@ export function LoginPanel() {
     // Navigate once; two document replacements can cancel each other in Safari.
     if (navigationStartedRef.current) return;
     navigationStartedRef.current = true;
-    if (replace) window.location.replace(getDestination());
-    else window.location.assign(getDestination());
-  }, []);
+    if (replace) window.location.replace(destination);
+    else window.location.assign(destination);
+  }, [destination]);
   const normalizedIdentifier = identifier.trim().toLowerCase();
-  const demoSelected = method === "email" && normalizedIdentifier === mockDemoEmail;
+  const demoCredentialsEntered = method === "email" && normalizedIdentifier === mockDemoEmail;
+  const demoAccessAvailable = authStatus.effectiveMode === "demo_public";
+  const demoSelected = demoAccessAvailable && demoCredentialsEntered;
   const passwordSelected = method === "email" && password.length > 0;
 
   useEffect(() => {
@@ -84,7 +81,7 @@ export function LoginPanel() {
         setPhoneCodeSent(result.ok);
         return;
       }
-      if (demoSelected) {
+      if (demoCredentialsEntered) {
         const result = await signInDemo(identifier, password);
         setMessage(result.message);
         if (result.ok) navigateAfterAuthentication();
@@ -144,7 +141,7 @@ export function LoginPanel() {
             <JourneyItem number="03" tone="personal" label="Remember" text="Profile saves role and region" />
           </div>
           <div className="mt-5 flex min-h-[52px] items-center gap-3 rounded-[14px] bg-[#e8fafa] px-4 text-[13px] font-semibold text-ink">
-            <span className="text-lg text-accent">✓</span> After authorization: {getDestination()}
+            <span className="text-lg text-accent">✓</span> After authorization: {destination}
           </div>
           <p className="mt-6 text-xs leading-5 text-muted">
             Account preferences sync through the configured account service; the profile photo remains on this device until protected storage is enabled.
@@ -156,8 +153,10 @@ export function LoginPanel() {
           <h1 className="mt-4 text-3xl font-semibold tracking-[-0.025em] text-ink sm:text-[40px]">Sign in to GeoAI</h1>
           <h2 className="mt-2 text-xl font-semibold text-ink sm:text-2xl">Continue to GeoAI</h2>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">
-            {intent === "demo"
-              ? "Sign in or use the ready browser-local demo. Workspace opens automatically after authorization."
+            {intent === "demo" && !demoAccessAvailable
+              ? "This protected environment requires an existing account. Browser-local demo access is available only in explicit public-demo mode."
+              : intent === "demo"
+                ? "Use the ready browser-local demo. Workspace opens automatically."
               : intent === "request"
                 ? "Sign in with an existing email or phone account. New account onboarding requires a separate approved invitation."
                 : "Sign in with an existing email or phone account. A saved session opens Workspace automatically."}
@@ -258,22 +257,24 @@ export function LoginPanel() {
                 Public email and phone access is sign-in only. New account onboarding requires a separate approved invitation.
               </div>
 
-              <div className="mt-4 grid gap-4 rounded-2xl bg-[#f5f2ff] p-4 sm:grid-cols-[1fr_auto] sm:items-center">
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-personal">Guided access</p>
-                  <p className="mt-1 text-xs leading-5 text-muted">Use the ready browser-local sample account. It never authorizes protected server resources.</p>
+              {demoAccessAvailable ? (
+                <div className="mt-4 grid gap-4 rounded-2xl bg-[#f5f2ff] p-4 sm:grid-cols-[1fr_auto] sm:items-center">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-personal">Guided access</p>
+                    <p className="mt-1 text-xs leading-5 text-muted">Use the ready browser-local sample account. It never authorizes protected server resources.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={fillDemoCredentials}
+                    className="inline-flex h-12 items-center justify-center rounded-control border border-personal bg-white px-5 text-sm font-semibold text-personal transition hover:bg-white/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-personal"
+                  >
+                    Open demo access
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={fillDemoCredentials}
-                  className="inline-flex h-12 items-center justify-center rounded-control border border-personal bg-white px-5 text-sm font-semibold text-personal transition hover:bg-white/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-personal"
-                >
-                  Open demo access
-                </button>
-              </div>
+              ) : null}
 
               <p className="mt-4 text-[10px] leading-4 text-muted">By continuing, you accept the Terms and Privacy Policy.</p>
-              <p className="mt-2 text-[10px] leading-4 text-muted">Phone sign-in is limited to existing accounts and becomes operational only after an approved SMS provider is connected. Email and browser-local demo access do not depend on it.</p>
+              <p className="mt-2 text-[10px] leading-4 text-muted">Phone sign-in is limited to existing accounts and becomes operational only after an approved SMS provider is connected.</p>
             </>
           )}
         </div>

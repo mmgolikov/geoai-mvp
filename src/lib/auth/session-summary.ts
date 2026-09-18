@@ -3,6 +3,7 @@ import { createDemoProjectMembership, demoOrganization, demoProjectRole, demoUse
 import { createRequestAuthContext } from "@/src/lib/auth/request-context";
 import { getEnforcementConfig } from "@/src/lib/platform/enforcement-config";
 import { readGeoAIUserProfile } from "@/src/lib/auth/profile-preferences";
+import { getPublicSessionStatus } from "@/src/lib/auth/session-status";
 
 export async function getSafeAuthSessionSummary(request: Request) {
   const authStatus = getAuthModeStatus();
@@ -59,12 +60,13 @@ export async function getSafeAuthSessionSummary(request: Request) {
 
   const context = await createRequestAuthContext(request);
   if (!context.verified || !context.user || !context.profile) {
+    const sessionStatus = getPublicSessionStatus(context.status, request.headers.get("cookie"));
     return {
       ...base,
       isDemo: false,
       isAuthenticated: false,
       supabaseAuthenticated: false,
-      sessionStatus: context.status,
+      sessionStatus,
       requestId: context.requestId,
       user: null,
       supabaseUser: null,

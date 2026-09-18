@@ -41,13 +41,14 @@ for (const contract of [
 expect(files.panel.includes('(["b2b", "b2c"]') && files.panel.includes("getExploreRolesByAudience"), "Profile does not expose validated B2B/B2C role defaults");
 expect(files.panel.includes("maxProfileAvatarBytes") && files.localStore.includes("image\\/(?:jpeg|png|webp)"), "Avatar browser-local type/size boundary is missing");
 expect(files.localStore.includes("geoai-user-profile-v1") && files.localStore.includes("includePersonalFields"), "Profile browser storage is not user-scoped or does not separate real-user personal fields");
+expect(files.localStore.includes("clearLocalUserProfile") && files.provider.includes("clearLocalUserProfile(demoUser.id)"), "Confirmed/local demo sign-out does not clear the demo profile PII record");
 expect(files.provider.includes("saveProfile") && files.provider.includes("requestEmailChange") && files.provider.includes("changePassword"), "Profile account actions are not exposed by AuthProvider");
 expect(files.provider.includes("signInWithPassword") && files.login.includes("passwordSelected"), "A changed real-user password cannot be used by the login UI");
 expect(files.login.includes("normalizedIdentifier === mockDemoEmail") && !files.login.includes("mockDemoEmail || password.length"), "Any password must not be treated as mock-demo authority");
 expect(files.badge.includes('isAuthenticated ? "/profile" : "/login"'), "Authenticated account control does not open the profile");
 expect(files.prototypeHeader.includes('isAuthenticated ? "/profile" : "/login?next=/profile"'), "Current product account control does not open the profile and preserve the return path");
 expect(files.badgeVisual.includes('data-authenticated={isAuthenticated ? "true" : "false"}') && files.prototypeHeader.includes("profileLabel"), "Current product profile icon does not expose a visible authenticated state");
-expect(files.login.includes("window.location.replace(getDestination())"), "Saved authorization does not continue directly to Workspace");
+expect(files.login.includes("window.location.replace(destination)"), "Saved authorization does not continue to the server-validated destination");
 expect(!files.panel.includes("Demo profile changes stay in this browser."), "Large demo caveat still occupies the top of the personal account");
 expect(files.workspace.includes("user?.profile.defaultAudience") && files.workspace.includes("user?.profile.defaultRole"), "Workspace does not consume profile defaults");
 expect(files.workspace.includes("hasExplicitWorkspaceContext"), "Workspace profile defaults can overwrite explicit URL context");

@@ -20,7 +20,8 @@ test.describe("Sprint 1 permanent-user boundary", () => {
       requestedAuthMode: "supabase_auth",
       authMode: "supabase_auth",
       isAuthenticated: false,
-      isDemo: false
+      isDemo: false,
+      sessionStatus: "session_missing"
     });
   });
 
@@ -31,8 +32,7 @@ test.describe("Sprint 1 permanent-user boundary", () => {
       ["/workspace", "/workspace"],
       ["/projects", "/projects"],
       ["/profile", "/profile"],
-      ["/admin", "/admin"],
-      ["/onboarding", "/onboarding"]
+      ["/admin", "/admin"]
     ] as const) {
       const response = await request.get(path, { maxRedirects: 0 });
       expect(response.status(), path).toBe(307);
@@ -40,6 +40,32 @@ test.describe("Sprint 1 permanent-user boundary", () => {
       expect(location.pathname, path).toBe("/login");
       expect(location.searchParams.get("next"), path).toBe(expectedNext);
     }
+  });
+
+  test("stages an invitation publicly without granting protected access", async ({ page, context }) => {
+    const invitation = "A".repeat(43);
+    await page.goto(`/onboarding#invitation=${invitation}`);
+    await expect(page.getByRole("heading", { name: "Join your GeoAI project" })).toBeVisible();
+    await expect(page).toHaveURL((url) => url.pathname === "/onboarding" && url.hash === "");
+    await expect.poll(async () => {
+      const cookie = (await context.cookies()).find((candidate) => candidate.name === "geoai-onboarding-invitation");
+      return cookie?.value ?? null;
+    }).toBe(invitation);
+    await expect(page.getByRole("link", { name: "Sign in", exact: true })).toHaveAttribute("href", "/login?next=/onboarding");
+
+    const acceptance = await page.evaluate(async () => {
+      const response = await fetch("/api/onboarding/invitation", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        body: "{}"
+      });
+      return { status: response.status, body: await response.json() };
+    });
+    expect(acceptance).toMatchObject({
+      status: 401,
+      body: { ok: false, status: "authentication_required" }
+    });
   });
 
   test("denies every owned live route before body parsing, rate use or challenge issuance", async ({ request }) => {

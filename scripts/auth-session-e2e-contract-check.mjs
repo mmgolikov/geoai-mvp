@@ -6,6 +6,7 @@ const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 const packageJson = JSON.parse(read("package.json"));
 const config = read("playwright.config.ts");
 const spec = read("tests/e2e/auth-session-flow.spec.ts");
+const pilotAuthBoundarySpec = read("tests/e2e/pilot-auth-boundary.spec.ts");
 const realEmailSpec = read("tests/e2e/real-email-auth-flow.spec.ts");
 const responsiveSpec = read("tests/e2e/auth-responsive-flow.spec.ts");
 const publicRequestSpec = read("tests/e2e/public-request-flow.spec.ts");
@@ -44,8 +45,8 @@ if (packageJson.scripts?.["test:e2e:auth-session"] !== "playwright test tests/e2
 if (packageJson.scripts?.["test:e2e:auth-real-persona"] !== "playwright test tests/e2e/real-email-auth-flow.spec.ts") {
   failures.push("The explicit trusted-terminal real email Auth persona command is missing");
 }
-if (!loginPanel.includes("Open demo access") || loginPanel.includes("Use demo credentials")) {
-  failures.push("The login panel and browser tests must share the current demo-access label");
+if (!loginPanel.includes("Open demo access") || !loginPanel.includes("demoAccessAvailable") || loginPanel.includes("Use demo credentials")) {
+  failures.push("The login panel must expose demo access only behind the explicit public-demo mode boundary");
 }
 if (browserSpecs.includes("Use demo credentials")) {
   failures.push("A browser spec still targets the retired demo-access label");
@@ -67,16 +68,17 @@ for (const [text, message] of [
   ['outputDir: "artifacts/playwright-auth-session"', "Playwright evidence must stay inside the uploaded artifact directory"]
 ]) requireText(config, text, message);
 
-for (const route of ["/workspace?segment=b2b", "/projects", "/explore", "/profile"]) {
-  requireText(spec, route, `Browser flow must cover ${route}`);
+requireText(spec, "/workspace?segment=b2b", "Browser flow must preserve the bounded Workspace continuation");
+for (const route of ["/projects", "/profile", "/admin"]) {
+  requireText(pilotAuthBoundarySpec, route, `Permanent-user boundary flow must cover ${route}`);
 }
+requireText(pilotAuthBoundarySpec, "/onboarding#invitation=", "Invitation handoff flow must cover public fragment staging");
 for (const marker of [
   "Open demo access",
-  "Open demo profile",
   "geoai-mock-demo-session-v1",
   "page.reload()",
-  "Sign out",
-  "expectLoginRedirect(page, \"/workspace\")"
+  "Browser-local demo access is unavailable while protected sign-in is required.",
+  "expectLoginRedirect(page, \"/workspace?segment=b2b\")"
 ]) requireText(spec, marker, `Browser flow is missing ${marker}`);
 
 for (const marker of [
@@ -342,4 +344,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log("Auth/session E2E contract passed: bounded guest redirects, browser-only demo restoration, authenticated route navigation, logout re-gating, desktop/tablet/390px layout checks, non-overlapping request top/generated evidence, serious/critical Axe scans, strict mobile and canonical commercial visual evidence, Lighthouse budgets, keyboard-only browser-local project save/open and analysis/comparison-to-print journeys are wired into normal CI without live credentials; a separately approved rehearsal-only real email/password persona can be run read-only from a trusted terminal.");
+console.log("Auth/session E2E contract passed: protected-mode guest redirects, browser-demo rejection, public invitation staging, responsive/accessibility/Lighthouse evidence wiring and the separately gated real-persona path are present. Shared demo-journey fixture alignment is verified by the runtime aggregate, not this static check.");

@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 // @ts-expect-error Node's strip-types runner requires the physical .ts suffix; production imports remain extensionless.
 import { createSingleFlight, readBrowserServerSession, requestConfirmedBrowserSignOut, resolveBrowserSignOutDisposition } from "../src/lib/auth/browser-session-transport.ts";
+// @ts-expect-error Node's strip-types runner requires the physical .ts suffix; production imports remain extensionless.
+import { getPublicSessionStatus, hasSupabaseAuthCookie } from "../src/lib/auth/session-status.ts";
 
 const exampleUser = {
   id: "synthetic-user",
@@ -16,6 +18,15 @@ const exampleUser = {
     avatarUrl: null
   }
 };
+
+assert.equal(hasSupabaseAuthCookie(null), false);
+assert.equal(hasSupabaseAuthCookie("unrelated=value"), false);
+assert.equal(hasSupabaseAuthCookie("sb-local-auth-token=fixture"), true);
+assert.equal(hasSupabaseAuthCookie("sb-local-auth-token.0=fixture; sb-local-auth-token.1=fixture"), true);
+assert.equal(getPublicSessionStatus("claims_unverified", null), "session_missing");
+assert.equal(getPublicSessionStatus("claims_unverified", "sb-local-auth-token=invalid"), "claims_unverified");
+assert.equal(getPublicSessionStatus("dependency_unavailable", null), "dependency_unavailable");
+assert.equal(getPublicSessionStatus("profile_missing", null), "profile_missing");
 
 const confirmed = await requestConfirmedBrowserSignOut(async () => new Response(JSON.stringify({
   ok: true,
@@ -51,9 +62,23 @@ assert.equal(authenticated.status === "authenticated" ? authenticated.user.id : 
 
 const anonymous = await readBrowserServerSession(async () => new Response(JSON.stringify({
   isAuthenticated: false,
+  sessionStatus: "session_missing",
   user: null
 }), { status: 200, headers: { "Content-Type": "application/json" } }));
 assert.deepEqual(anonymous, { status: "anonymous" });
+
+for (const sessionStatus of ["dependency_unavailable", "profile_missing", "profile_inactive", "claims_unverified"]) {
+  const unresolvedIdentity = await readBrowserServerSession(async () => new Response(JSON.stringify({
+    isAuthenticated: false,
+    sessionStatus,
+    user: null
+  }), { status: 200, headers: { "Content-Type": "application/json" } }));
+  assert.deepEqual(
+    unresolvedIdentity,
+    { status: "unavailable" },
+    `${sessionStatus} must not be promoted to a confirmed anonymous session`
+  );
+}
 
 const unavailable = await readBrowserServerSession(async () => new Response("unavailable", { status: 503 }));
 assert.deepEqual(unavailable, { status: "unavailable" });
@@ -87,6 +112,7 @@ const signOutSource = provider.slice(signOutStart, signOutEnd);
 assert.ok(signOutSource.includes("requestConfirmedBrowserSignOut()"));
 assert.ok(signOutSource.indexOf("requestConfirmedBrowserSignOut()") < signOutSource.lastIndexOf("clearBrowserDemoStorage()"));
 assert.ok(signOutSource.includes('disposition.status === "still_authenticated"'));
+assert.ok(signOutSource.includes("clearLocalUserProfile(demoUser.id)"));
 assert.ok(!signOutSource.includes("finally {\n        setSession(createAnonymousSession())"));
 
 const profile = await readFile(new URL("../components/auth/profile-panel.tsx", import.meta.url), "utf8");

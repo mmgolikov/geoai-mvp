@@ -9,54 +9,47 @@ async function expectLoginRedirect(page: Page, expectedNext: string) {
   await expect(page.getByRole("heading", { name: "Sign in to GeoAI" })).toBeVisible();
 }
 
-async function expectAuthenticatedProfileControl(page: Page) {
-  const profileLink = page.getByRole("link", { name: "Open demo profile" });
-  await expect(profileLink).toBeVisible();
-  await expect(profileLink).toHaveAttribute("data-authenticated", "true");
-}
-
 test.describe("authenticated product route session", () => {
-  test("redirects a guest, restores the demo session, and gates again after logout", async ({ page }) => {
+  test("preserves a bounded continuation and rejects browser-only demo authority", async ({ page }) => {
+    const pageErrors: string[] = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
+    for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
+      await page.setViewportSize(viewport);
+      await page.goto("/prototype/point-to-object?mode=find");
+      await expectLoginRedirect(page, "/prototype/point-to-object?mode=find");
+      expect(pageErrors, `Login hydration errors at ${viewport.width}px`).toEqual([]);
+    }
+
     await page.goto("/workspace?segment=b2b");
     await expectLoginRedirect(page, "/workspace?segment=b2b");
 
-    await page.getByRole("button", { name: "Open demo access" }).click();
-    await expect(page.getByLabel("Email or phone")).toHaveValue("demo@geoai.space");
-    await expect(page.getByLabel("Password")).toHaveValue("111111");
-    await page.getByRole("button", { name: "Open demo", exact: true }).click();
-
-    await expect(page).toHaveURL((url) =>
-      url.pathname === "/workspace" && url.searchParams.get("segment") === "b2b"
-    );
-    await expectAuthenticatedProfileControl(page);
-    await expect.poll(() => page.evaluate((key) => window.localStorage.getItem(key), mockSessionKey)).toBe("active");
-
+    await expect(page.getByRole("button", { name: "Open demo access" })).toHaveCount(0);
+    const demoProfileKey = "geoai-user-profile-v1:demo-user-geoai";
+    await page.evaluate(({ marker, profile }) => {
+      window.localStorage.setItem(marker, "active");
+      window.localStorage.setItem(profile, JSON.stringify({ fullName: "Private demo residue" }));
+    }, { marker: mockSessionKey, profile: demoProfileKey });
     await page.reload();
-    await expect(page).toHaveURL((url) =>
-      url.pathname === "/workspace" && url.searchParams.get("segment") === "b2b"
-    );
-    await expectAuthenticatedProfileControl(page);
-
-    await page.goto("/projects");
-    await expect(page).toHaveURL((url) => url.pathname === "/projects");
-    await expectAuthenticatedProfileControl(page);
-
-    await page.goto("/explore");
-    await expect(page).toHaveURL((url) => url.pathname === "/workspace");
-    await expectAuthenticatedProfileControl(page);
-
-    await page.goto("/profile");
-    await expect(page.getByRole("heading", { name: "Your profile" })).toBeVisible();
-    await page.getByRole("button", { name: "Sign out" }).click();
-    await expectLoginRedirect(page, "/profile");
+    await expectLoginRedirect(page, "/workspace?segment=b2b");
     await expect.poll(() => page.evaluate((key) => window.localStorage.getItem(key), mockSessionKey)).toBeNull();
+    await expect.poll(() => page.evaluate((key) => window.localStorage.getItem(key), demoProfileKey)).toBeNull();
 
-    await page.goto("/workspace");
-    await expectLoginRedirect(page, "/workspace");
+    await page.getByLabel("Email or phone").fill("demo@geoai.space");
+    await page.getByLabel("Password").fill("111111");
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await expect(page.getByText("Browser-local demo access is unavailable while protected sign-in is required.", { exact: true })).toBeVisible();
+    await expectLoginRedirect(page, "/workspace?segment=b2b");
+    await expect.poll(() => page.evaluate((key) => window.localStorage.getItem(key), mockSessionKey)).toBeNull();
+    expect(pageErrors).toEqual([]);
   });
 });
 
 test.describe("public Auth signup containment", () => {
+  // The local Supabase fixture is deliberately absent from the production CSP.
+  // Bypass CSP only in this intercepted browser context; page.route fulfils the
+  // request locally, while the assertions still prove shouldCreateUser=false.
+  test.use({ bypassCSP: true });
+
   test("sends existing-user-only email and phone OTP requests", async ({ page }) => {
     const otpRequests: Array<Record<string, unknown>> = [];
     const signupRequests: string[] = [];
@@ -64,7 +57,7 @@ test.describe("public Auth signup containment", () => {
     page.on("request", (request) => {
       if (new URL(request.url()).pathname === "/auth/v1/signup") signupRequests.push(request.url());
     });
-    await page.route(/^https:\/\/bkmfcjzalcvdsdvyxpgi[.]supabase[.]co\/auth\/v1\/otp(?:[?].*)?$/, async (route) => {
+    await page.route("**/auth/v1/otp*", async (route) => {
       otpRequests.push(route.request().postDataJSON() as Record<string, unknown>);
       await route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
     });

@@ -32,6 +32,13 @@ assert(!isUnsafeApiMutation("POST", "/workspace"), "Non-API page requests must r
 assert(decision().allowed, "Matching Origin and same-origin Fetch Metadata must pass");
 assert(decision({ secFetchSite: null }).allowed, "A non-browser client with an exact Origin may omit Fetch Metadata");
 assert(decision({
+  requestUrl: "http://localhost:3111/api/aois",
+  origin: "http://127.0.0.1:3111",
+  host: "127.0.0.1:3111",
+  forwardedHost: null,
+  forwardedProto: null
+}).allowed, "Exact localhost and 127.0.0.1 aliases on one port must support local browser verification");
+assert(decision({
   requestUrl: "https://geoai.example:443/api/aois",
   origin: "https://geoai.example:443",
   host: "geoai.example:443",
@@ -54,5 +61,12 @@ assert(decision({ forwardedHost: "other.example" }).reason === "invalid_request_
 assert(decision({ forwardedHost: "geoai.example, attacker.example" }).reason === "invalid_request_authority", "Ambiguous forwarded host must fail closed");
 assert(decision({ forwardedProto: "http" }).reason === "invalid_request_authority", "Conflicting forwarded protocol must fail closed");
 assert(decision({ forwardedProto: "javascript" }).reason === "invalid_request_authority", "Invalid forwarded protocol must fail closed");
+assert(decision({
+  requestUrl: "http://localhost:3111/api/aois",
+  origin: "http://127.0.0.1:3112",
+  host: "127.0.0.1:3112",
+  forwardedHost: null,
+  forwardedProto: null
+}).reason === "invalid_request_authority", "Loopback aliases on different ports must fail closed");
 
 console.log("Auth mutation-origin contract passed: unsafe Supabase-cookie API requests require an exact same-origin authority and reject cross-site Fetch Metadata.");

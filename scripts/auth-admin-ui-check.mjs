@@ -4,10 +4,11 @@ async function source(path) {
   return fs.promises.readFile(new URL(`../${path}`, import.meta.url), "utf8");
 }
 
-const [adminRoute, onboardingRoute, onboardingStageRoute, invitationCookie, tokenHelper, elevated, adminUi, onboardingUi, callback, redirectPath, landingRoute, landing, navigation, accessBadge, accessBadgeVisual, login, provider, routeGate, workspacePage, projectsPage, explorePage, profilePage] = await Promise.all([
+const [adminRoute, onboardingRoute, onboardingStageRoute, onboardingPage, invitationCookie, tokenHelper, elevated, adminUi, onboardingUi, callback, redirectPath, landingRoute, landing, navigation, accessBadge, accessBadgeVisual, loginPage, login, provider, routeGate, workspacePage, projectsPage, explorePage, profilePage] = await Promise.all([
   source("app/api/admin/route.ts"),
   source("app/api/onboarding/invitation/route.ts"),
   source("app/api/onboarding/invitation/stage/route.ts"),
+  source("app/onboarding/page.tsx"),
   source("src/lib/auth/invitation-cookie.server.ts"),
   source("src/lib/auth/invitation-token.server.ts"),
   source("src/lib/auth/elevated-request-context.ts"),
@@ -20,6 +21,7 @@ const [adminRoute, onboardingRoute, onboardingStageRoute, invitationCookie, toke
   source("components/top-navigation.tsx"),
   source("components/auth/access-status-badge.tsx"),
   source("components/auth/access-status-badge-visual.tsx"),
+  source("app/login/page.tsx"),
   source("components/auth/login-panel.tsx"),
   source("components/auth/auth-provider.tsx"),
   source("components/auth/authenticated-route-gate.tsx"),
@@ -57,6 +59,8 @@ assert(adminRoute.includes("target_token_hash: hashInvitationToken(rawToken)") &
 assert(adminRoute.includes("/onboarding#invitation=") && onboardingUi.includes("window.location.hash"), "Raw invitation token must use a browser fragment, not a server query string");
 assert(onboardingUi.includes("window.history.replaceState") && !onboardingUi.includes("console."), "Onboarding UI must clear the fragment and never log the token");
 assert(onboardingUi.includes("/api/onboarding/invitation/stage") && onboardingStageRoute.includes("response.cookies.set") && invitationCookie.includes("httpOnly: true") && invitationCookie.includes('sameSite: "lax"'), "Invitation token must survive the email round trip only through a short-lived HttpOnly same-site cookie");
+assert(onboardingPage.includes("OnboardingPanel") && !onboardingPage.includes("requirePilotPageIdentity"), "Signed-out invitation handoff must reach the public staging panel before authentication");
+assert(onboardingRoute.includes("createRequestAuthContext") && onboardingUi.includes('href="/login?next=/onboarding"'), "Public invitation staging must not bypass permanent-user acceptance authorization");
 assert(onboardingRoute.includes("onboardingInvitationCookieName") && onboardingRoute.includes("maxAge: 0") || onboardingRoute.includes("onboardingInvitationCookieOptions(request.url, 0)"), "Successful invitation processing must clear the staged token cookie");
 assert(callback.includes("exchangeCodeForSession") && redirectPath.includes("approvedAuthDestinations"), "PKCE callback must use a bounded same-origin redirect allowlist");
 assert(!callback.includes(".mfa") && !adminUi.includes("MFA") && !onboardingUi.includes("MFA"), "Current user flows must not expose or require MFA");
@@ -65,7 +69,8 @@ assert(landingRoute.includes('import { GeoAILandingPage } from "@/components/lan
 assert(landing.includes('const mapHref = "/prototype/point-to-object";') && landing.includes("href={mapHref}"), "Landing must enter the accepted public Point-to-Object product route");
 assert(landing.includes('const projectsHref = "/projects";') && landing.includes("href={projectsHref}"), "Landing must expose the canonical Project Hub route");
 assert(landing.includes('href="/profile"'), "Landing profile links must continue through the separately gated Profile route");
-assert(login.includes("Sign in to GeoAI") && login.includes("sign-in only") && login.includes("separate approved invitation") && !login.includes("Sign in or create account") && login.includes("window.location.replace(getDestination())") && login.includes("Authorization saved. Opening Workspace"), "Existing-user-only login must not advertise public signup and must immediately continue a saved session to Workspace");
+assert(login.includes("Sign in to GeoAI") && login.includes("sign-in only") && login.includes("separate approved invitation") && !login.includes("Sign in or create account") && login.includes("window.location.replace(destination)") && login.includes("Authorization saved. Opening Workspace"), "Existing-user-only login must not advertise public signup and must immediately continue a saved session to the server-validated destination");
+assert(loginPage.includes("getSafeAuthRedirectPath") && loginPage.includes("<LoginPanel destination={destination}"), "Login continuation must be parsed on the server so the first client render hydrates deterministically");
 assert(navigation.includes("AccessStatusBadge") && accessBadgeVisual.includes('data-authenticated={isAuthenticated ? "true" : "false"}') && accessBadge.includes('isAuthenticated ? "/profile" : "/login"'), "Product navigation must expose a highlighted profile icon that opens the personal account");
 assert(provider.includes("isSessionResolved") && provider.includes("finally") && provider.includes("setIsSessionResolved(true)"), "AuthProvider must resolve the browser session before protected product UI renders");
 assert(routeGate.includes('authStatus.effectiveMode === "demo_public"') && routeGate.includes("return children"), "Public demo mode must preserve direct product access");

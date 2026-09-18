@@ -56,6 +56,25 @@ function normalizedHost(value: string, protocol: "http:" | "https:") {
   }
 }
 
+function equivalentRequestHost(
+  left: string,
+  right: string,
+  protocol: "http:" | "https:"
+) {
+  if (left === right) return true;
+
+  try {
+    const leftUrl = new URL(`${protocol}//${left}`);
+    const rightUrl = new URL(`${protocol}//${right}`);
+    const loopbackNames = new Set(["localhost", "127.0.0.1", "[::1]"]);
+    return leftUrl.port === rightUrl.port &&
+      loopbackNames.has(leftUrl.hostname.toLowerCase()) &&
+      loopbackNames.has(rightUrl.hostname.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
 function normalizedOrigin(value: string) {
   if (value.trim().toLowerCase() === "null") return null;
   try {
@@ -107,7 +126,15 @@ function expectedRequestOrigin(input: ApiMutationOriginInput) {
   // NextRequest.url, Host and Vercel's forwarded authority should describe one
   // public request. Reject contradictory authority instead of accepting any one
   // attacker-controlled fallback.
-  if (host !== requestHost || forwardedHost !== host || forwardedProtocol !== requestProtocol) return null;
+  // Next.js dev canonicalizes NextRequest.url to `localhost` even when the
+  // browser connected to 127.0.0.1. Treat only those exact loopback aliases
+  // (with the same normalized port/protocol) as one local authority. All
+  // non-loopback disagreements still fail closed.
+  if (
+    !equivalentRequestHost(host, requestHost, requestProtocol) ||
+    forwardedHost !== host ||
+    forwardedProtocol !== requestProtocol
+  ) return null;
 
   return `${forwardedProtocol}//${forwardedHost}`;
 }

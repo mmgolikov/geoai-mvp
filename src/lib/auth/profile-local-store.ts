@@ -71,6 +71,16 @@ export function writeLocalUserProfile(userId: string, profile: GeoAIUserProfileU
   }
 }
 
+export function clearLocalUserProfile(userId: string) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(storageKey(userId));
+  } catch {
+    // Storage can be unavailable in privacy-restricted browsers. The caller
+    // still clears the in-memory session and server cookie independently.
+  }
+}
+
 export function mergeLocalProfileIntoUser(user: GeoAIUser): GeoAIUser {
   const localProfile = readLocalUserProfile(user.id);
   if (!localProfile) return user;

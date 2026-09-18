@@ -16,6 +16,7 @@ import {
   normalizeProfileUpdate
 } from "@/src/lib/auth/profile-preferences";
 import {
+  clearLocalUserProfile,
   isSafeAvatarDataUrl,
   mergeLocalProfileIntoUser,
   writeLocalUserProfile
@@ -119,13 +120,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function refreshSession() {
     try {
-      if (isMockDemoSessionActive()) {
-        setSession(createDemoSession());
-        return;
-      }
       if (authStatus.effectiveMode === "demo_public") {
         setSession(createDemoSession());
         return;
+      }
+      if (isMockDemoSessionActive()) {
+        // A browser marker is never identity. Remove obsolete guided-demo state
+        // before reading the request-scoped server session.
+        clearMockDemoSession();
+        clearLocalUserProfile(demoUser.id);
       }
       if (authStatus.effectiveMode !== "supabase_auth") {
         setSession(createAnonymousSession());
@@ -149,7 +152,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    if (authStatus.effectiveMode !== "demo_public" && !isMockDemoSessionActive()) {
+    if (authStatus.effectiveMode !== "demo_public") {
+      clearMockDemoSession();
+      clearLocalUserProfile(demoUser.id);
       clearBrowserDemoStorage({ reason: "startup" });
     }
     void refreshSession();
@@ -235,18 +240,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!matchesMockDemoCredentials(email, password)) {
       return { ok: false, message: "The demo email or password is incorrect." };
     }
-    if (authStatus.effectiveMode === "supabase_auth") {
-      try {
-        await fetch("/api/auth/logout", {
-          method: "POST",
-          credentials: "same-origin",
-          headers: { Accept: "application/json", "Content-Type": "application/json" },
-          body: "{}"
-        });
-      } catch {
-        // A mock demo session never receives protected server authorization,
-        // so an unavailable Supabase logout cannot elevate it.
-      }
+    if (authStatus.effectiveMode !== "demo_public") {
+      clearMockDemoSession();
+      clearLocalUserProfile(demoUser.id);
+      return {
+        ok: false,
+        message: "Browser-local demo access is unavailable while protected sign-in is required."
+      };
     }
     activateMockDemoSession();
     setSession(createDemoSession());
@@ -295,7 +295,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       options: { channel: "sms", shouldCreateUser: false }
     });
     if (error) {
-      return { ok: false, message: "Phone sign-in is unavailable for this existing account or the SMS provider is not configured. Use email or the browser-local demo." };
+      return { ok: false, message: "Phone sign-in is unavailable for this existing account or the SMS provider is not configured. Use email instead." };
     }
     return { ok: true, message: "Enter the six-digit code sent to your phone." };
   }
@@ -402,6 +402,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return signOutSingleFlightRef.current!.run(async () => {
       if (authStatus.effectiveMode !== "supabase_auth") {
         clearMockDemoSession();
+        clearLocalUserProfile(demoUser.id);
         clearBrowserDemoStorage();
         setSession(authStatus.effectiveMode === "demo_public" ? createDemoSession() : createAnonymousSession());
         return { ok: true, message: "Browser session cleared." };
@@ -413,6 +414,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (disposition.status === "signed_out") {
         clearMockDemoSession();
+        clearLocalUserProfile(demoUser.id);
         clearBrowserDemoStorage();
         setSession(createAnonymousSession());
         return { ok: true, message: "Signed out." };
