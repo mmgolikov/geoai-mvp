@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { evaluateApiMutationOrigin } from "@/src/lib/auth/api-mutation-origin";
 import { getEffectiveAuthMode } from "@/src/lib/auth/auth-mode";
+import { getConfiguredPublicOrigin } from "@/src/lib/platform/public-request-origin";
 import { updateSupabaseSession } from "@/src/lib/supabase/update-session";
 
 function isAuthCookieMutationPath(pathname: string) {
@@ -25,11 +26,19 @@ const pilotIdentityFirstApiPaths = new Set([
   "/api/prototype/point-to-object/suggest"
 ]);
 
+const dependencyProbePaths = new Set([
+  "/api/health",
+  "/api/runtime/readiness"
+]);
+
 function requiresRouteLevelIdentityBeforeOrigin(pathname: string) {
   return pilotIdentityFirstApiPaths.has(pathname);
 }
 
 export function middleware(request: NextRequest) {
+  if (request.method === "GET" && dependencyProbePaths.has(request.nextUrl.pathname)) {
+    return NextResponse.next({ request });
+  }
   const authMode = getEffectiveAuthMode();
   if (authMode !== "supabase_auth" && !isAuthCookieMutationPath(request.nextUrl.pathname)) {
     return NextResponse.next({ request });
@@ -44,7 +53,8 @@ export function middleware(request: NextRequest) {
       secFetchSite: request.headers.get("sec-fetch-site"),
       host: request.headers.get("host"),
       forwardedHost: request.headers.get("x-forwarded-host"),
-      forwardedProto: request.headers.get("x-forwarded-proto")
+      forwardedProto: request.headers.get("x-forwarded-proto"),
+      canonicalPublicOrigin: getConfiguredPublicOrigin()
     });
     if (!originDecision.allowed) {
       return NextResponse.json({

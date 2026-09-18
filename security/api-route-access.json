@@ -35,6 +35,7 @@
     "/api/external-data/sources": { "GET": { "access": "public_demo" } },
     "/api/external-data/status": { "GET": { "access": "public_demo" } },
     "/api/health": { "GET": { "access": "public_demo" } },
+    "/api/runtime/readiness": { "GET": { "access": "public_demo" } },
     "/api/known-limitations": { "GET": { "access": "public_demo" } },
     "/api/market-metrics": { "GET": { "access": "public_demo" } },
     "/api/open-geodata": { "GET": { "access": "public_demo" } },

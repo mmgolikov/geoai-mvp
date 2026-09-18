@@ -106,6 +106,7 @@
     "test:report-package-public-contract": "node scripts/report-package-public-contract-check.mjs",
     "test:runtime-status-contract": "node scripts/runtime-status-contract-source-check.mjs",
     "test:runtime-source-pack": "node scripts/runtime-source-pack-contract-check.mjs",
+    "test:self-host-runtime": "node --experimental-strip-types scripts/self-host-runtime-contract-check.mjs",
     "test:vercel-output-tracing": "node scripts/vercel-output-tracing-check.mjs",
     "start": "next start",
     "lint": "tsc --noEmit --pretty false",

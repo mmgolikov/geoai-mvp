@@ -5,7 +5,7 @@ export type RuntimeStatusRow = {
 };
 
 export type RuntimeExecutiveStatus = {
-  environment: "local_development" | "vercel_preview" | "vercel_production_demo";
+  environment: "local_development" | "vercel_preview" | "vercel_production_demo" | "self_hosted_candidate";
   accessMode:
     | "demo_public"
     | "supabase_authenticated_preview"
@@ -24,6 +24,7 @@ export type RuntimeExecutiveStatus = {
 
 export type RuntimeExecutiveStatusInput = {
   vercelEnvironment?: string | null;
+  runtimeTarget?: string | null;
   authMode: string;
   repositoryMode: string;
   accessEnforcementMode: "soft" | "hard";
@@ -70,6 +71,12 @@ function deriveEnvironment(value?: string | null): RuntimeExecutiveStatus["envir
   return "local_development";
 }
 
+function deriveRuntimeEnvironment(input: RuntimeExecutiveStatusInput): RuntimeExecutiveStatus["environment"] {
+  const runtimeTarget = input.runtimeTarget ?? process.env.GEOAI_RUNTIME_TARGET;
+  if (!input.vercelEnvironment && runtimeTarget === "self_hosted_candidate") return "self_hosted_candidate";
+  return deriveEnvironment(input.vercelEnvironment);
+}
+
 function deriveAccessMode(input: RuntimeExecutiveStatusInput): RuntimeExecutiveStatus["accessMode"] {
   if (input.accessEnforcementMode === "hard" || input.hardAccessEnabled) {
     if (!input.hardAccessVerified) return "hard_access_unverified";
@@ -98,7 +105,7 @@ function deriveStorageRuntime(input: RuntimeExecutiveStatusInput): RuntimeExecut
 }
 
 export function buildRuntimeExecutiveStatus(input: RuntimeExecutiveStatusInput): RuntimeExecutiveStatus {
-  const environment = deriveEnvironment(input.vercelEnvironment);
+  const environment = deriveRuntimeEnvironment(input);
   const accessMode = deriveAccessMode(input);
   const supabaseRuntime = deriveSupabaseRuntime(input);
   const storageRuntime = deriveStorageRuntime(input);

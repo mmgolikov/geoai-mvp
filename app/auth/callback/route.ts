@@ -2,11 +2,12 @@ import { NextResponse } from "next/server";
 import { getSafeAuthRedirectPath } from "@/src/lib/auth/redirect-path";
 import { applyPrivateNoStore } from "@/src/lib/http/private-no-store";
 import { createRequestScopedSupabaseClient } from "@/src/lib/supabase/ssr-server";
+import { getPublicRequestOrigin } from "@/src/lib/platform/public-request-origin";
 
 export const runtime = "nodejs";
 
 function redirect(requestUrl: URL, path: string) {
-  return applyPrivateNoStore(NextResponse.redirect(new URL(path, requestUrl.origin)));
+  return applyPrivateNoStore(NextResponse.redirect(new URL(path, getPublicRequestOrigin(requestUrl.href))));
 }
 
 export async function GET(request: Request) {

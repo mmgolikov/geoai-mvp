@@ -52,6 +52,7 @@ const pointToObjectPrototypeExcludedFiles = [
 ];
 
 const nextConfig: NextConfig = {
+  ...(process.env.GEOAI_BUILD_TARGET === "self_hosted_candidate" ? { output: "standalone" as const } : {}),
   poweredByHeader: false,
   reactStrictMode: true,
   // Public source/readiness routes import only a bounded reviewed manifest plus

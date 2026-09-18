@@ -1,5 +1,6 @@
 import { getEffectiveAuthMode } from "@/src/lib/auth/auth-mode";
 import { evaluateApiMutationOrigin } from "@/src/lib/auth/api-mutation-origin";
+import { getConfiguredPublicOrigin } from "@/src/lib/platform/public-request-origin";
 import type { RequestAuthContext, RequestAuthStatus } from "@/src/lib/auth/request-context";
 
 type PilotIdentityAllowed = {
@@ -87,7 +88,8 @@ export function requirePilotMutationOrigin(request: Request) {
     secFetchSite: request.headers.get("sec-fetch-site"),
     host: request.headers.get("host"),
     forwardedHost: request.headers.get("x-forwarded-host"),
-    forwardedProto: request.headers.get("x-forwarded-proto")
+    forwardedProto: request.headers.get("x-forwarded-proto"),
+    canonicalPublicOrigin: getConfiguredPublicOrigin()
   });
   return decision.allowed
     ? null

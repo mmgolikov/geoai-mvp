@@ -17,6 +17,7 @@ export function GET() {
   const canRunDemoWorkflow = demoAccess.allowed;
   const executiveStatus = buildRuntimeExecutiveStatus({
     vercelEnvironment: process.env.VERCEL_ENV,
+    runtimeTarget: process.env.GEOAI_RUNTIME_TARGET,
     authMode: auth.effectiveMode,
     repositoryMode: "browser_local",
     accessEnforcementMode: config.accessEnforcementMode,

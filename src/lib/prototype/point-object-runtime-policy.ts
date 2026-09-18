@@ -1,4 +1,4 @@
-export type PointObjectRuntimeEnvironment = "preview" | "production" | "unsupported";
+export type PointObjectRuntimeEnvironment = "preview" | "production" | "self_hosted_candidate" | "unsupported";
 
 export type PointObjectRuntimePolicyEnvironment = Readonly<Record<string, string | undefined>>;
 
@@ -8,6 +8,8 @@ export type PointObjectRuntimeGate = {
     | "enabled"
     | "unsupported_environment"
     | "preview_flag_disabled"
+    | "self_hosted_surface_flag_disabled"
+    | "self_hosted_ai_flag_disabled"
     | "production_surface_flag_disabled"
     | "production_ai_flag_disabled"
     | "openai_key_missing";
@@ -17,7 +19,7 @@ export type PointObjectRuntimePolicy = {
   environment: PointObjectRuntimeEnvironment;
   surface: PointObjectRuntimeGate;
   ai: PointObjectRuntimeGate & {
-    scope: "general_governed_upstream" | "isolated_point_object_preview" | "isolated_point_object_production" | "disabled";
+    scope: "general_governed_upstream" | "isolated_point_object_preview" | "isolated_point_object_production" | "isolated_point_object_self_hosted_candidate" | "disabled";
   };
 };
 
@@ -82,6 +84,34 @@ export function resolvePointObjectRuntimePolicy(
       surface,
       ai: options.openAiKeyConfigured
         ? { enabled: true, reason: "enabled", scope: "isolated_point_object_production" }
+        : { enabled: false, reason: "openai_key_missing", scope: "disabled" }
+    };
+  }
+
+  if (!vercelEnvironment && environment.GEOAI_RUNTIME_TARGET?.trim() === "self_hosted_candidate") {
+    const surfaceEnabled = isExplicitlyEnabled(environment.GEOAI_ALLOW_POINT_OBJECT_SELF_HOSTED_SURFACE);
+    const surface: PointObjectRuntimeGate = surfaceEnabled
+      ? { enabled: true, reason: "enabled" }
+      : { enabled: false, reason: "self_hosted_surface_flag_disabled" };
+    if (!surfaceEnabled) {
+      return {
+        environment: "self_hosted_candidate",
+        surface,
+        ai: { enabled: false, reason: "self_hosted_surface_flag_disabled", scope: "disabled" }
+      };
+    }
+    if (!isExplicitlyEnabled(environment.GEOAI_ALLOW_POINT_OBJECT_SELF_HOSTED_AI)) {
+      return {
+        environment: "self_hosted_candidate",
+        surface,
+        ai: { enabled: false, reason: "self_hosted_ai_flag_disabled", scope: "disabled" }
+      };
+    }
+    return {
+      environment: "self_hosted_candidate",
+      surface,
+      ai: options.openAiKeyConfigured
+        ? { enabled: true, reason: "enabled", scope: "isolated_point_object_self_hosted_candidate" }
         : { enabled: false, reason: "openai_key_missing", scope: "disabled" }
     };
   }

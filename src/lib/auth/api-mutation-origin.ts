@@ -9,6 +9,7 @@ export type ApiMutationOriginInput = {
   host: string | null;
   forwardedHost: string | null;
   forwardedProto: string | null;
+  canonicalPublicOrigin?: string | null;
 };
 
 export type ApiMutationOriginDecision =
@@ -111,6 +112,31 @@ function expectedRequestOrigin(input: ApiMutationOriginInput) {
   const forwardedHostHeader = singleHeaderValue(input.forwardedHost);
   const forwardedProtoHeader = singleHeaderValue(input.forwardedProto);
   if (!hostHeader.ok || !forwardedHostHeader.ok || !forwardedProtoHeader.ok) return null;
+
+  if (input.canonicalPublicOrigin) {
+    const canonicalOrigin = normalizedOrigin(input.canonicalPublicOrigin);
+    if (!canonicalOrigin) return null;
+    const canonicalUrl = new URL(canonicalOrigin);
+    const canonicalProtocol = normalizedProtocol(canonicalUrl.protocol);
+    if (!canonicalProtocol) return null;
+    const canonicalHost = normalizedHost(canonicalUrl.host, canonicalProtocol);
+    const host = hostHeader.value ? normalizedHost(hostHeader.value, canonicalProtocol) : null;
+    const forwardedHost = forwardedHostHeader.value
+      ? normalizedHost(forwardedHostHeader.value, canonicalProtocol)
+      : null;
+    const forwardedProtocol = forwardedProtoHeader.value
+      ? normalizedProtocol(forwardedProtoHeader.value)
+      : null;
+    if (
+      !canonicalHost ||
+      host !== canonicalHost ||
+      forwardedHost !== canonicalHost ||
+      forwardedProtocol !== canonicalProtocol
+    ) {
+      return null;
+    }
+    return canonicalOrigin;
+  }
 
   const forwardedProtocol = forwardedProtoHeader.value
     ? normalizedProtocol(forwardedProtoHeader.value)
