@@ -13,7 +13,7 @@ Root checkout: `/private/tmp/geoai-four-sprints-20260918`, branch `codex/sprint1
 - `09bffd2` adds the previously missing AI GET/POST identity guard, mutation-origin ordering, manifest/inventory and negative tests.
 - `5d39b0c` records the analysis handoff, including its unclosed quality/provenance gates.
 
-Integration is not acceptance: Auth review corrections are still pending. No push, Preview, main or Production modification occurred.
+Integration is not acceptance. The initial Auth findings below are historical; their correction and remaining activation gates are recorded in the September 18 follow-on section. No push, Preview, main or Production modification occurred.
 
 ## Independent Auth review
 
@@ -63,3 +63,36 @@ The separate **geoai-auth-rehearsal `bkmfcjzalcvdsdvyxpgi`** still timed out; ad
 Cycle authorization is USD 15 TOTAL. Paid calls: 0; measured spend: USD 0; unknown charges: 0. Canonical ledger has not been initialized. Local fixture tests do not spend the API budget.
 
 Next: review dev corrections; merge test-persona corrections from GenAI; rebuild exact combined commit; verify protected anonymous route denial in a correctly built auth environment, demo compatibility and Chrome/WebKit EN/RU desktop/mobile. No activation or external-readiness claim before the remaining gates.
+
+## September 18 follow-on, through 18:42 Moscow
+
+### Corrected Auth and invitation re-entry
+
+- `2ca25d2` integrates worker correction `de243c6`: permanent-session precedence, explicit no-session vs unknown, demo profile cleanup, public invitation staging, allowlisted continuation and hydration correction.
+- `72ac2d0` restores an already-staged invitation after login/navigation/reload using a server-derived presence boolean. The token stays HttpOnly and acceptance remains server-identity/RPC controlled. Independent reviewer: LOCAL PASS, no new P0/P1/P2; no positive hosted persona claim.
+- `e219409` integrates the local database packet; no application source changed afterwards through `a2e75e7` except test infrastructure/docs.
+- Optimized synthetic-auth HTTPS suite: **20/20 PASS, 12.1 seconds**, Chrome10 + WebKit10, retries0, one worker, fail-on-flaky. Application source `e219409`, harness committed `0e5395c`; artifacts `artifacts/sprint10-auth-https-final`. Covers 390/1440px hydration, exact allowlisted continuation, rejected external continuation, actual anonymous server/API denial, invitation staging/re-entry/no token in HTML/no-store/guest acceptance401.
+- Root inspected mobile and desktop login screenshots. EN login copy and existing phone UI remain; no claim of full localized Auth or configured SMS.
+- Earlier failures were retained: accessible-label authoring mismatch; HTTP-only WebKit 307/upgrade-insecure-requests transport limitation; initial HTTPS inherited Chrome-channel config. Final HTTPS uses native redirects and unchanged product CSP. The self-signed one-day certificate was confined to one test context, never installed in the OS trust store, and removed when the owned server stopped.
+
+### Integrated demo/persona regression
+
+- `6175425` + `c9be8fa` integrate worker test-persona correction against the new SSR guards. The old-branch protected 4/4 is explicitly not acceptance.
+- Independent test review rejected the omission of Create failed-update/market-reset assertions. Root `a2e75e7` restores forced502 → last-good B and saved project bytes retained → reload/explicit project reopen without another Create API call → Singapore clears active concept/session without deleting saved project. Reviewer subsequently GO for this bounded test correction.
+- Fresh optimized **demo_public build on `c9be8fa`: PASS80 routes**. The first attempt failed fetching public Google Fonts in the restricted network; authorized retry succeeded. No source/dependency change concealed that failure.
+- **Chrome50/50 PASS, 1.9 minutes**, application and tests `c9be8fa`, artifacts `artifacts/sprint10-integrated-demo-c9be8fa-chrome-authorized`. First restricted launch produced three browser-launch failures; those remain separate infrastructure failures, with no application execution.
+- Root-restored Create case **Chrome1/1 PASS, 4.2 seconds**, tests committed `a2e75e7`, application `c9be8fa`; artifacts `artifacts/sprint10-create-retained-regression-chrome`.
+- **WebKit50/50 PASS, 2.3 minutes**, tests `a2e75e7`, optimized application `c9be8fa`; artifacts `artifacts/sprint10-integrated-demo-retained-webkit`. Includes restored Create failure/reset, analysis lifecycle/depth, EN/RU controls, saved-result reopen, comparison, identity matching, source timeout/recovery, responsive map and landing.
+- Root inspected current WebKit RU mobile analysis controls and desktop Create-B screenshot: action remains visible, no clipping/overflow in those views. Report text is synthetic English and map tiles are deliberately offline; not live-data visual acceptance or complete RU translation.
+- **Protected anonymous persona suite4/4 PASS, 21.8 seconds**, root test/application `a2e75e7`, dedicated synthetic localhost dev server. Real server redirects/denials, no guest project entry, owned bytes unchanged, optional SDK failure fails closed; artifacts `artifacts/sprint10-integrated-protected-personas`. Not successful login, membership, hosted RLS or tenant-isolation proof.
+- Fresh lint/types and exact16-RPC operator contract PASS. Root-owned optimized/demo servers were stopped; protected test server stops with its config. `.next` is now a synthetic-auth dev build and must be rebuilt before optimized/demo tests.
+
+### Fresh database correction supersedes the empty-target assumption
+
+At 18:36–18:39 Moscow the reconnected development target is ACTIVE_HEALTHY and contains its historical schema: public20 (19 RLS GeoAI plus managed spatial_ref_sys), DLD7, migrations12. All12 stored migration statement byte counts/hashes match the unchanged September4 manifest. The earlier COMING_UP/empty readback is superseded, not deleted from history. No hosted writes were performed by this cycle.
+
+The empty-target replay packet is INAPPLICABLE. Existing data must be preserved. Current catalog grants and 21 advisor findings require a scoped containment/upgrade plan; actual external exposure and exploitability were not tested. Full detail: [restored readback](SUPABASE_RESTORED_READBACK_20260918.md). Hosted activation is still unapproved and unaccepted.
+
+### Current ownership / next slice
+
+Two bounded70-minute worker assignments from clean `c9be8fa` are running: GenAI in `/private/tmp/geoai-sprint10-analysis-provenance-20260918` owns role/scenario request-to-provider/result provenance; Dev in `/private/tmp/geoai-sprint10-find-state-20260918` owns Find reset/active/shortlist/geometry state. Their new work is not included in the PASS results above. Root owns integration/shared tests/database/docs. No paid provider request yet; budget USD15 unchanged, measured cycle spendUSD0, unknown charges0.

@@ -1,6 +1,8 @@
 # GeoAI Sprint 10 — empty development database replay packet
 
-Status: local review packet; not an approval, hosted execution receipt or activation authority
+Status: INAPPLICABLE TO CURRENT DEVELOPMENT TARGET; retained conditional empty-target packet, not execution authority
+
+**18 September, 18:36 Moscow update:** the same development project now returns 20 public tables, DLD schemas and 12 historical migrations after earlier COMING_UP/empty reads. The empty-target precondition fails. Do not execute this replay against `pphdqkurxneyagvnnjdt`; no reset or deletion is permitted. See [restored-target evidence](SUPABASE_RESTORED_READBACK_20260918.md). The helper must continue to reject this state rather than adapting its empty-target assertions to pass.
 
 Target: restored non-Production development project `pphdqkurxneyagvnnjdt`
 

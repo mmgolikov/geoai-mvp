@@ -12,6 +12,22 @@ Navigation: [Confluence Hub](https://geoaimvp.atlassian.net/wiki/spaces/PH/overv
 
 This page separates the current released public-demo implementation from explicitly named isolated candidates and their still-blocked protected boundaries. Candidate code or Preview evidence must not be interpreted as merged `main`, Production activation or target-architecture approval.
 
+## September 18 verification and isolated Sprint 10 candidate
+
+The September 5 release tuple and database descriptions below are historical snapshots, not fresh state. Read-only verification on September 18 found `main` at `21b91c43c2fc8dd61b08962e562601b29dd89c76` and Production deployment `dpl_AYePGoJLbHmcie2H7sX1biJbbavo` (`https://geoai-id0xnwco2-geoaidev.vercel.app`). Metadata is not a fresh functional acceptance receipt.
+
+The isolated candidate at `c9be8fa` changes these boundaries without activating them in Production:
+
+- `supabase_auth` requires a server-confirmed permanent identity for protected pages and APIs; browser-only demo markers cannot grant access or mask a surviving permanent session. Explicit `demo_public` remains a distinct demonstration mode, not a protected login method.
+- Only explicit `session_missing` confirms anonymous state. Dependency/profile failures and uncertain logout preserve the last confirmed state and permit retry.
+- Public onboarding only stages an invitation fragment into an HttpOnly cookie; acceptance rechecks server identity and the authoritative RPC. Re-entry sends only a presence boolean to the browser, never the invitation token.
+- The point-to-object AI route has identity-first GET/POST checks. Identity alone still does not prove membership, action entitlement or per-user cost quota; paid/external activation remains held.
+- Auth entry and anonymous boundaries passed 20 optimized-build local HTTPS tests across Chrome and WebKit on the `e219409` application source. These do not prove a hosted positive login, RLS, invitation acceptance, or physical iPhone behavior.
+- The reconnected development database `pphdqkurxneyagvnnjdt` returned an empty snapshot at 17:44–17:46 Moscow while metadata said COMING_UP. **That snapshot is superseded:** at 18:36–18:39 Moscow it is ACTIVE_HEALTHY, with 20 public tables (19 GeoAI plus PostGIS `spatial_ref_sys`), seven DLD tables and the historical 12 migrations. All twelve statement byte counts/hashes match the September 4 manifest. This is not an empty database; preserve existing state and use a separately verified upgrade path. The separate rehearsal target last reported hibernation.
+- The canonical migration tree contains 21 files and targets 16 API RPCs; currently hosted `api` and `geoai_private` are still absent. The [clean-target packet](sprint10/DATABASE_CLEAN_TARGET_PACKET.md) is **inapplicable to the now-populated development target**. See the [restored-target readback](sprint10/SUPABASE_RESTORED_READBACK_20260918.md). No hosted replay, repair, provider configuration, user bootstrap, grants, secrets, environment or Production change has been performed or authorized by this candidate.
+
+Current candidate evidence and limits: [S1 integration review](sprint10/S1_INTEGRATION_REVIEW_20260918.md), [Auth corrections](sprint10/AUTH_CORRECTIONS_HANDOFF.md), [clean-target database packet](sprint10/DATABASE_CLEAN_TARGET_PACKET.md). The following older sections remain historical implementation context where they conflict with this dated readback.
+
 ## Runtime topology
 
 ### September 10 isolated Preview correction
