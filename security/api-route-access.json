@@ -53,6 +53,7 @@
     "/api/prototype/point-to-object/context": { "POST": { "access": "identity_bounded_runtime", "action": "prototype.context.resolve", "scope": "bounded_live_point" } },
     "/api/prototype/point-to-object/create": { "GET": { "access": "identity_bounded_runtime", "action": "prototype.create.challenge" }, "POST": { "access": "identity_bounded_runtime", "action": "prototype.create.generate", "scope": "bounded_concept_aoi" } },
     "/api/prototype/point-to-object/find": { "POST": { "access": "identity_bounded_runtime", "action": "prototype.find.open_map", "scope": "bounded_visible_area" } },
+    "/api/prototype/point-to-object/project-artifacts": { "GET": { "access": "project", "action": "analysis.read", "scope": "caller_owned_preview" }, "PUT": { "access": "project", "action": "analysis.run", "scope": "caller_owned_preview", "preAuthMutation": true } },
     "/api/prototype/point-to-object/resolve": { "POST": { "access": "public_demo", "action": "prototype.resolve", "scope": "frozen_case" } },
     "/api/prototype/point-to-object/search": { "POST": { "access": "identity_bounded_runtime", "action": "prototype.search.place", "scope": "bounded_market" } },
     "/api/prototype/point-to-object/suggest": { "POST": { "access": "identity_bounded_runtime", "action": "prototype.search.suggest", "scope": "bounded_market" } },
