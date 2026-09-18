@@ -138,6 +138,7 @@
     "typescript": "^5.9.3"
   },
   "overrides": {
+    "brace-expansion": "2.1.4",
     "postcss": "$postcss",
     "sharp": "0.35.4"
   },
