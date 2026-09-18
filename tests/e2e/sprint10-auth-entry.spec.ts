@@ -14,7 +14,8 @@ test.beforeEach(async ({ page, request }, testInfo) => {
     sessionStatus: "session_missing"
   });
   await installLocalWebKitHttpCsp(page, testInfo.project.use.browserName, testInfo.project.use.baseURL);
-  await page.route(/^https:\/\//, (route) => route.abort());
+  const origin = new URL(testInfo.project.use.baseURL!).origin;
+  await page.route((url) => ["http:", "https:"].includes(url.protocol) && url.origin !== origin, (route) => route.abort());
 });
 
 const entries = [

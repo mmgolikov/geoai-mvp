@@ -119,7 +119,7 @@ The SQL suite proves structural, RLS, Admin and lifecycle contracts, but the two
 - direct `public` access is denied;
 - point-object create/list succeeds only for the approved role and owner, and cross-tenant/other-owner access is denied.
 
-Only after those checks may the separately authorized owner action pin PostgREST to `api` and reload its schema/config.
+The owner action pins PostgREST to `api` before the HTTP checks; successful HTTP checks are the gate for subsequent application activation, not a prerequisite for performing that same pin a second time.
 
 ## Owner bootstrap is separate
 
