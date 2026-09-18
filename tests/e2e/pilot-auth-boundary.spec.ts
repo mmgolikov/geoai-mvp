@@ -44,6 +44,7 @@ test.describe("Sprint 1 permanent-user boundary", () => {
 
   test("denies every owned live route before body parsing, rate use or challenge issuance", async ({ request }) => {
     const postRoutes = [
+      "/api/prototype/point-to-object/ai",
       "/api/prototype/point-to-object/search",
       "/api/prototype/point-to-object/suggest",
       "/api/prototype/point-to-object/find",
@@ -66,6 +67,10 @@ test.describe("Sprint 1 permanent-user boundary", () => {
       });
       await expectIdentityDenial(oversized);
     }
+
+    const aiChallenge = await request.get("/api/prototype/point-to-object/ai");
+    await expectIdentityDenial(aiChallenge);
+    expect(aiChallenge.headers()["set-cookie"] ?? "").not.toContain("geoai_p2o_ai_challenge");
 
     const createChallenge = await request.get("/api/prototype/point-to-object/create");
     await expectIdentityDenial(createChallenge);

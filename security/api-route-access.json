@@ -46,7 +46,7 @@
     "/api/pilot-workflow": { "GET": { "access": "project", "action": "workflow.read", "scope": "collection" }, "POST": { "access": "project", "action": "workflow.write", "scope": "new", "preAuthMutation": true }, "PATCH": { "access": "project", "action": "workflow.write", "scope": "delegated" } },
     "/api/platform/activation-status": { "GET": { "access": "public_demo" } },
     "/api/projects": { "GET": { "access": "project", "action": "project.read", "scope": "collection" }, "POST": { "access": "project", "action": "project.create", "scope": "new", "preAuthMutation": true } },
-    "/api/prototype/point-to-object/ai": { "GET": { "access": "public_bounded_runtime", "action": "prototype.ai.challenge" }, "POST": { "access": "public_bounded_runtime", "action": "prototype.ai.run", "scope": "bounded_live_point", "preAuthMutation": true } },
+    "/api/prototype/point-to-object/ai": { "GET": { "access": "identity_bounded_runtime", "action": "prototype.ai.challenge" }, "POST": { "access": "identity_bounded_runtime", "action": "prototype.ai.run", "scope": "bounded_live_point" } },
     "/api/prototype/point-to-object/analysis-runs": { "GET": { "access": "project", "action": "analysis.read", "scope": "caller_owned_preview" }, "POST": { "access": "project", "action": "analysis.run", "scope": "caller_owned_preview" } },
     "/api/prototype/point-to-object/area-context": { "POST": { "access": "identity_bounded_runtime", "action": "prototype.area_context.open_map", "scope": "bounded_polygon" } },
     "/api/prototype/point-to-object/cases": { "GET": { "access": "public_demo" } },

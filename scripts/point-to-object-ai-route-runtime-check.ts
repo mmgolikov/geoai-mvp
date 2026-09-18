@@ -24,6 +24,8 @@ const fixtureGlobal = globalThis as typeof globalThis & {
   __geoaiAiRuntimeStatus?: () => { enabled: boolean };
   __geoaiAiEvidenceCalls?: number;
   __geoaiAiProviderCalls?: number;
+  __geoaiAiIdentityDenial?: 401 | 403 | 503 | null;
+  __geoaiAiOriginDenied?: boolean;
 };
 
 fixtureGlobal.__geoaiAiRuntimeStatus = () => ({
@@ -45,6 +47,16 @@ const source = readFileSync(new URL("app/api/prototype/point-to-object/ai/route.
   `)
   .replace('import { getPointObjectUpstreamStatus } from "@/src/lib/ai/openai-upstream-gate";',
     'const getPointObjectUpstreamStatus = () => globalThis.__geoaiAiRuntimeStatus();')
+  .replace('import { requirePilotIdentity, requirePilotMutationOrigin } from "@/src/lib/auth/require-pilot-identity";', `
+    const requirePilotIdentity = async () => {
+      const status = globalThis.__geoaiAiIdentityDenial;
+      return status ? { allowed: false, response: new Response(JSON.stringify({ code: "fixture_identity_denied" }), {
+        status, headers: { "Cache-Control": "private, no-store", Vary: "Authorization, Cookie" }
+      }) } : { allowed: true };
+    };
+    const requirePilotMutationOrigin = () => globalThis.__geoaiAiOriginDenied
+      ? new Response(JSON.stringify({ code: "fixture_origin_denied" }), { status: 403 }) : null;
+  `)
   .replace(/import \{\s*generatePointObjectAiAnalysis,\s*PointObjectAiServiceError\s*\} from "@\/src\/lib\/prototype\/point-to-object-ai";/,
     `class PointObjectAiServiceError extends Error { constructor(code, httpStatus, message) { super(message); this.code = code; this.httpStatus = httpStatus; } }
      const generatePointObjectAiAnalysis = async () => { globalThis.__geoaiAiProviderCalls += 1; return { mode: "openai_analysis", analysis: { summary: "Offline grounded result" } }; };`)
@@ -117,6 +129,31 @@ configure("production", { surface: "true", ai: "true" });
 assert.equal((await route.GET(new Request(url))).status, 403, "Production AI must deny without the server key.");
 
 configure("preview", { preview: "true", key: true });
+// The actual handler must return the identity decision even when runtime is
+// enabled and the body is invalid/oversized. Authentication internals have
+// separate kernel/browser checks; these fixtures verify route ordering only.
+for (const status of [401, 403, 503] as const) {
+  fixtureGlobal.__geoaiAiIdentityDenial = status;
+  const deniedChallenge = await route.GET(new Request(url));
+  assert.equal(deniedChallenge.status, status);
+  assert.equal(deniedChallenge.headers.get("Set-Cookie"), null, "Denied identity cannot acquire a challenge.");
+  for (const body of ["{", JSON.stringify({ value: "x".repeat(900_000) })]) {
+    const deniedRun = await route.POST(new Request(url, { method: "POST", body }));
+    assert.equal(deniedRun.status, status, "Identity must precede body parsing and runtime execution.");
+    assert.equal((await deniedRun.json()).code, "fixture_identity_denied");
+  }
+  assert.equal(fixtureGlobal.__geoaiAiEvidenceCalls, 0);
+  assert.equal(fixtureGlobal.__geoaiAiProviderCalls, 0);
+}
+fixtureGlobal.__geoaiAiIdentityDenial = null;
+fixtureGlobal.__geoaiAiOriginDenied = true;
+const rejectedMutation = await route.POST(new Request(url, { method: "POST", body: "{" }));
+assert.equal(rejectedMutation.status, 403);
+assert.equal((await rejectedMutation.json()).code, "fixture_origin_denied");
+assert.equal(fixtureGlobal.__geoaiAiEvidenceCalls, 0);
+assert.equal(fixtureGlobal.__geoaiAiProviderCalls, 0);
+fixtureGlobal.__geoaiAiOriginDenied = false;
+
 const previewReady = await route.GET(new Request(url));
 assert.equal(previewReady.status, 200, "Existing explicitly enabled Preview behavior must remain available.");
 assert.match(previewReady.headers.get("Cache-Control") ?? "", /no-store/);
@@ -136,4 +173,4 @@ assert.equal(successBody.subject.sourceFeatureId, "way/123");
 assert.equal(fixtureGlobal.__geoaiAiEvidenceCalls, 1);
 assert.equal(fixtureGlobal.__geoaiAiProviderCalls, 1);
 
-console.log("AI actual-route offline checks passed: Production flag/key denial matrix, Preview compatibility, origin/challenge protection and one bounded generated result.");
+console.log("AI actual-route offline checks passed: identity/origin before body and upstream, zero denied challenge/provider calls, Production flag/key denial matrix, Preview compatibility and one bounded generated result.");

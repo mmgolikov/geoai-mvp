@@ -15,6 +15,7 @@ function isAuthCookieMutationPath(pathname: string) {
 // the ordering at route level so anonymous calls receive the identity denial;
 // all other API mutations retain the middleware-level origin boundary.
 const pilotIdentityFirstApiPaths = new Set([
+  "/api/prototype/point-to-object/ai",
   "/api/prototype/point-to-object/analysis-runs",
   "/api/prototype/point-to-object/area-context",
   "/api/prototype/point-to-object/context",

@@ -3,6 +3,7 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 
 import { getPointObjectUpstreamStatus } from "@/src/lib/ai/openai-upstream-gate";
+import { requirePilotIdentity, requirePilotMutationOrigin } from "@/src/lib/auth/require-pilot-identity";
 import { readBoundedJson } from "@/src/lib/http/bounded-json";
 import {
   generatePointObjectAiAnalysis,
@@ -211,6 +212,8 @@ function validBody(value: unknown): value is {
 }
 
 export async function GET(request: Request) {
+  const identity = await requirePilotIdentity(request);
+  if (!identity.allowed) return identity.response;
   if (!runtimeAllowed()) {
     return NextResponse.json({ mode: "unavailable", code: "AI_RUNTIME_DISABLED", error: "AI analysis is not available in this environment." }, {
       status: 403,
@@ -234,6 +237,10 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const routeDeadline = Date.now() + ROUTE_SAFE_BUDGET_MS;
+  const identity = await requirePilotIdentity(request);
+  if (!identity.allowed) return identity.response;
+  const mutationOrigin = requirePilotMutationOrigin(request);
+  if (mutationOrigin) return mutationOrigin;
   if (!runtimeAllowed()) {
     return NextResponse.json({ mode: "unavailable", code: "AI_RUNTIME_DISABLED", error: "AI analysis is not available in this environment." }, {
       status: 403,
