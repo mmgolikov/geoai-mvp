@@ -16,6 +16,8 @@ export type PointObjectCreatePreviewModel = {
   featureCount: number;
   maxHeightM: number;
   minBaseM: number;
+  horizontalSpanM: number;
+  cameraZoomOutLevels: number;
   geometryKey: string;
 };
 
@@ -67,6 +69,16 @@ export function buildPointObjectCreatePreviewModel(
   const north = Math.max(...latitudes);
   if (![west, east, south, north].every(Number.isFinite) || west === east || south === north) return null;
 
+  const referenceLatitudeRad = ((south + north) / 2) * Math.PI / 180;
+  const widthM = Math.abs(east - west) * 111_320 * Math.max(Math.cos(referenceLatitudeRad), 0.01);
+  const depthM = Math.abs(north - south) * 110_540;
+  const horizontalSpanM = Math.max(Math.hypot(widthM, depthM), 1);
+  const maxHeightM = Math.max(...features.map((feature) => feature.properties.heightM));
+  const heightToSpanRatio = maxHeightM / horizontalSpanM;
+  const cameraZoomOutLevels = Number(Math.min(1.8, Math.max(0.35,
+    Math.log2(1 + heightToSpanRatio * 0.8) + 0.05
+  )).toFixed(3));
+
   const massingFeatureCollection: FeatureCollection<Polygon, ConceptMassingProperties> = {
     type: "FeatureCollection",
     features: features.map((feature) => ({
@@ -90,8 +102,10 @@ export function buildPointObjectCreatePreviewModel(
     bounds: [[west, south], [east, north]],
     center: [(west + east) / 2, (south + north) / 2],
     featureCount: features.length,
-    maxHeightM: Math.max(...features.map((feature) => feature.properties.heightM)),
+    maxHeightM,
     minBaseM: Math.min(...features.map((feature) => feature.properties.baseM)),
+    horizontalSpanM,
+    cameraZoomOutLevels,
     geometryKey: geometryKey(massing)
   };
 }

@@ -54,8 +54,17 @@ for (const alternative of alternatives) {
   assert.equal(model.featureCount, alternative.massing.generatedFeatureCount);
   assert.equal(model.maxHeightM, Math.max(...alternative.massing.featureCollection.features.map((feature: any) => feature.properties.heightM)));
   assert.equal(model.minBaseM, Math.min(...alternative.massing.featureCollection.features.map((feature: any) => feature.properties.baseM)));
+  assert.ok(model.horizontalSpanM > 0);
+  assert.ok(model.cameraZoomOutLevels >= 0.35 && model.cameraZoomOutLevels <= 1.8, "Saved height and scene span must produce a bounded camera margin.");
   assert.equal(JSON.stringify({ aoi, massing: alternative.massing }), snapshot, "Preview derivation must not mutate the saved artifact.");
 }
+
+const tallerMassing = structuredClone(alternatives[0].massing);
+for (const feature of tallerMassing.featureCollection.features) feature.properties.heightM *= 2;
+const originalCamera = preview.buildPointObjectCreatePreviewModel(aoi, alternatives[0].massing);
+const tallerCamera = preview.buildPointObjectCreatePreviewModel(aoi, tallerMassing);
+assert.ok(originalCamera && tallerCamera && tallerCamera.cameraZoomOutLevels > originalCamera.cameraZoomOutLevels,
+  "A taller saved scene must receive more camera headroom.");
 
 const invalidHeight = structuredClone(alternatives[0].massing);
 invalidHeight.featureCollection.features[0].properties.heightM = Number.NaN;
@@ -71,6 +80,9 @@ assert.doesNotMatch(previewSource, /https?:\/\//, "The preview must not declare 
 assert.match(previewSource, /"fill-extrusion-height": \["get", "heightM"\]/);
 assert.match(previewSource, /"fill-extrusion-base": \["get", "baseM"\]/);
 assert.match(previewSource, /cooperativeGestures: true/, "Touch interaction must preserve page scrolling.");
-assert.match(previewSource, /mapRef\.current\?\.remove\(\)/, "Unmount/error cleanup must release the MapLibre context and listeners.");
+assert.match(previewSource, /camera\.zoom - current\.cameraZoomOutLevels/, "Camera framing must account for the saved vertical envelope.");
+assert.match(previewSource, /const cleanupRuntime = \(\) =>/, "Runtime and unmount cleanup must share one path.");
+assert.match(previewSource, /resizeObserver\?\.disconnect\(\)/, "Cleanup must release the resize observer.");
+assert.match(previewSource, /if \(!model \|\| status === "unsupported" \|\| status === "error"\)/, "Invalid current geometry must fail closed instead of retaining a stale scene.");
 
-console.log("sprint10-create-preview-check: PASS (exact A/B saved geometry, actual heights, immutability, local MapLibre and fallback contract)");
+console.log("sprint10-create-preview-check: PASS (exact A/B geometry, height-aware framing, immutability, centralized cleanup and fail-closed fallback)");

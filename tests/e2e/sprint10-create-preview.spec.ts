@@ -18,7 +18,7 @@ async function json(route: Route, body: unknown, status = 200) {
   await route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
 }
 
-function exactCreateFixture(locale: ConceptLocale) {
+function exactCreateFixture(locale: ConceptLocale, options: { invalidAlternativeB?: boolean } = {}) {
   const vertices: Array<[number, number]> = [
     [55.2700, 25.2050],
     [55.2720, 25.2050],
@@ -36,8 +36,12 @@ function exactCreateFixture(locale: ConceptLocale) {
   };
   const programValidation = validateRedevelopmentProgram(conceptTemplate("commercial_hub", locale));
   if (!programValidation.ok) throw new Error(programValidation.errors.join("; "));
-  const alternatives = generateConceptMassingAlternatives(aoi.coordinates, programValidation.value, "sprint10-saved-preview-fixture", locale);
+  const alternatives = structuredClone(generateConceptMassingAlternatives(aoi.coordinates, programValidation.value, "sprint10-saved-preview-fixture", locale));
   if (alternatives.length !== 2) throw new Error("The saved Create fixture requires exact A/B alternatives.");
+  if (options.invalidAlternativeB) {
+    const invalidFeature = alternatives[1].massing.featureCollection.features[0];
+    invalidFeature.properties.baseM = invalidFeature.properties.heightM;
+  }
   const generated = {
     mode: "openai_concept" as const,
     generatedAt: "2026-09-18T16:30:00.000Z",
@@ -51,8 +55,8 @@ function exactCreateFixture(locale: ConceptLocale) {
   return { aoi, generated, alternatives };
 }
 
-async function prepareExactSavedResult(page: Page, locale: ConceptLocale, options: { disableWebGl?: boolean } = {}) {
-  const fixture = exactCreateFixture(locale);
+async function prepareExactSavedResult(page: Page, locale: ConceptLocale, options: { disableWebGl?: boolean; invalidAlternativeB?: boolean } = {}) {
+  const fixture = exactCreateFixture(locale, options);
   const createMethods: string[] = [];
   let contextCalls = 0;
   if (options.disableWebGl) {
@@ -186,5 +190,31 @@ test("Russian mobile saved result falls back to its original 2D plan when WebGL 
   await expect(page.getByTestId("create-preview-building")).toHaveCount(prepared.fixture.alternatives[0].massing.generatedFeatureCount);
   await expectNoHorizontalOverflow(page);
   await page.screenshot({ path: testInfo.outputPath("saved-create-dashboard-mobile-ru-webgl-fallback.png"), fullPage: true });
+  await expectNoNewSourceCalls(prepared);
+});
+
+test("mobile 3D fails closed for an invalid saved option and recovers without a stale scene", async ({ page }, testInfo: TestInfo) => {
+  const prepared = await prepareExactSavedResult(page, "en", { invalidAlternativeB: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByTestId("create-preview-mode-3d").click();
+
+  const preview3d = page.getByTestId("create-result-preview-3d");
+  await expect(preview3d).toHaveAttribute("data-preview-status", "ready");
+  await expect(preview3d).toHaveAttribute("data-preview-variant", "A");
+  await page.screenshot({ path: testInfo.outputPath("saved-create-dashboard-mobile-option-a-3d-framed.png"), fullPage: true });
+
+  await page.getByTestId("create-dashboard-alternative-b").click();
+  await expect(page.getByTestId("create-result-preview-3d-fallback")).toHaveAttribute("data-preview-status", "invalid");
+  await expect(page.getByTestId("create-result-preview-3d-canvas")).toHaveCount(0);
+  await expect(page.getByTestId("create-result-preview")).toBeVisible();
+  await expect(page.getByTestId("create-result-kpis")).toHaveAttribute("data-active-variant", "B");
+  await page.screenshot({ path: testInfo.outputPath("saved-create-dashboard-mobile-option-b-invalid-fallback.png"), fullPage: true });
+
+  await page.getByTestId("create-dashboard-alternative-a").click();
+  await expect(preview3d).toHaveAttribute("data-preview-status", "ready");
+  await expect(preview3d).toHaveAttribute("data-preview-variant", "A");
+  await expect(page.getByTestId("create-result-preview-3d-canvas")).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+  await page.screenshot({ path: testInfo.outputPath("saved-create-dashboard-mobile-option-a-3d-recovered.png"), fullPage: true });
   await expectNoNewSourceCalls(prepared);
 });
