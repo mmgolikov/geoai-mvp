@@ -1,11 +1,20 @@
 "use client";
 
-import { useMemo } from "react";
+import dynamic from "next/dynamic";
+import { useMemo, useState } from "react";
 
 import { PointObjectIcon } from "@/components/point-to-object/point-object-icons";
 import { useModalShell } from "@/components/point-to-object/use-modal-shell";
 import type { PointObjectCreateAoi } from "@/src/lib/prototype/point-to-object-create";
 import type { PointObjectGeneratedConcept } from "@/src/lib/prototype/point-to-object-create-result";
+
+const CreateResultPreview3D = dynamic(
+  () => import("@/components/point-to-object/create-result-preview-3d").then((module) => module.CreateResultPreview3D),
+  {
+    ssr: false,
+    loading: () => <div className="grid min-h-[300px] place-items-center rounded-[24px] border border-[#bdd8d1] bg-[#eaf5f1] p-5 text-center text-sm font-semibold text-[#52606a]" role="status">Loading local 3D preview… / Подготовка локального 3D-просмотра…</div>
+  }
+);
 
 type Props = {
   locale: "en" | "ru";
@@ -59,7 +68,7 @@ function ConceptPlanPreview({ aoi, generated, activeAlternativeId, locale }: Pic
         })}
       </svg>
       <div className="mt-3 flex flex-wrap gap-3 text-[11px] text-[#536963]"><span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-[#087f8c]" />{locale === "ru" ? "Основные корпуса" : "Primary blocks"}</span><span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-[#6ab8a9]" />{locale === "ru" ? "Подиумы / вспомогательные объёмы" : "Podiums / supporting volumes"}</span></div>
-      <p className="mt-3 text-[11px] leading-5 text-[#62716d]">{locale === "ru" ? "Пропорциональная локальная 2D-проекция сохранённой GeoJSON-геометрии. Интерактивный 2D/3D-просмотр доступен на карте." : "Aspect-preserving local 2D projection of the saved GeoJSON geometry. Interactive 2D/3D viewing is available on the map."}</p>
+      <p className="mt-3 text-[11px] leading-5 text-[#62716d]">{locale === "ru" ? "Пропорциональная локальная 2D-проекция сохранённой GeoJSON-геометрии. Переключатель выше открывает локальный 3D-вид без новой генерации." : "Aspect-preserving local 2D projection of the saved GeoJSON geometry. The control above opens a local 3D view without generating again."}</p>
     </figure>
   );
 }
@@ -67,6 +76,7 @@ function ConceptPlanPreview({ aoi, generated, activeAlternativeId, locale }: Pic
 export function CreateResultDashboard({ locale, aoi, generated, generatedLocale, activeAlternativeId, onAlternativeChange, onBackToEditor, onShowMap }: Props) {
   const dialogRef = useModalShell(onBackToEditor);
   const ru = locale === "ru";
+  const [previewMode, setPreviewMode] = useState<"2d" | "3d">("2d");
   const alternatives = generated.alternatives?.length ? generated.alternatives : [{ id: generated.massing.variantId, label: `Option ${generated.massing.variantId}`, massing: generated.massing }];
   const active = alternatives.find((alternative) => alternative.id === activeAlternativeId) ?? alternatives[0];
   const massing = active.massing;
@@ -97,9 +107,19 @@ export function CreateResultDashboard({ locale, aoi, generated, generatedLocale,
           {alternatives.length > 1 ? <div className="mt-5 inline-grid min-w-[260px] grid-cols-2 gap-1 rounded-xl bg-[#e7efec] p-1" role="tablist" aria-label={ru ? "Варианты концепции" : "Concept options"}>{alternatives.map((alternative) => <button key={alternative.id} type="button" role="tab" aria-selected={alternative.id === activeAlternativeId} onClick={() => onAlternativeChange(alternative.id)} data-testid={`create-dashboard-alternative-${alternative.id.toLowerCase()}`} className={`min-h-11 rounded-lg px-4 text-sm font-bold focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] ${alternative.id === activeAlternativeId ? "bg-[#087f8c] text-white shadow-sm" : "text-[#52606a] hover:bg-white"}`}>{generatedLocale === locale ? alternative.label : `${ru ? "Вариант" : "Option"} ${alternative.id}`}</button>)}</div> : null}
         </section>
 
-        <div className="grid gap-5 xl:grid-cols-[minmax(360px,.8fr)_minmax(0,1.2fr)]">
-          <ConceptPlanPreview aoi={aoi} generated={generated} activeAlternativeId={activeAlternativeId} locale={locale} />
-          <section className="rounded-[24px] border border-line bg-white p-5 shadow-soft sm:p-7" aria-labelledby="create-result-kpis-title">
+        <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(360px,.8fr)_minmax(0,1.2fr)]">
+          <div className="min-w-0 space-y-3" data-testid="create-result-preview-shell" data-preview-mode={previewMode} data-active-variant={active.id}>
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#cfe0dc] bg-white p-3 shadow-soft">
+              <p className="text-xs font-bold uppercase tracking-[0.08em] text-[#52606a]">{ru ? "Просмотр геометрии" : "Geometry view"}</p>
+              <div className="inline-grid grid-cols-2 gap-1 rounded-xl bg-[#e7efec] p-1" role="group" aria-label={ru ? "Режим просмотра" : "Preview mode"}>
+                {(["2d", "3d"] as const).map((mode) => <button key={mode} type="button" onClick={() => setPreviewMode(mode)} aria-pressed={previewMode === mode} data-testid={`create-preview-mode-${mode}`} className={`min-h-11 min-w-16 rounded-lg px-3 text-sm font-bold focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] ${previewMode === mode ? "bg-[#087f8c] text-white shadow-sm" : "text-[#52606a] hover:bg-white"}`}>{mode.toUpperCase()}</button>)}
+              </div>
+            </div>
+            {previewMode === "2d"
+              ? <ConceptPlanPreview aoi={aoi} generated={generated} activeAlternativeId={active.id} locale={locale} />
+              : <CreateResultPreview3D locale={locale} aoi={aoi} massing={massing} fallback={<ConceptPlanPreview aoi={aoi} generated={generated} activeAlternativeId={active.id} locale={locale} />} />}
+          </div>
+          <section className="min-w-0 rounded-[24px] border border-line bg-white p-5 shadow-soft sm:p-7" aria-labelledby="create-result-kpis-title" data-testid="create-result-kpis" data-active-variant={active.id} data-estimated-floor-area-sqm={massing.estimatedFloorAreaSqM}>
             <h2 id="create-result-kpis-title" className="text-xl font-bold">{ru ? "Геометрические показатели" : "Geometric KPIs"}</h2>
             <p className="mt-2 text-xs leading-5 text-muted">{ru ? "Рассчитаны из сохранённой геометрии варианта; это не финансовые и не нормативные показатели." : "Calculated from the saved option geometry; these are not financial or regulatory metrics."}</p>
             <dl className="mt-4 grid gap-3 sm:grid-cols-2">{kpis.map((kpi) => <div key={kpi.label} className="rounded-2xl border border-[#dce6e3] bg-[#fbfcfc] p-4"><dt className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#667085]">{kpi.label}</dt><dd className="mt-2 break-words text-2xl font-bold tabular-nums text-[#087f8c]">{kpi.value}</dd></div>)}</dl>
