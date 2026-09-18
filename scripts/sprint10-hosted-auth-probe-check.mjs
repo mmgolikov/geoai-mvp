@@ -12,9 +12,12 @@ import {
   captureCreatedUserId,
   createBoundedFetch,
   readGitState,
+  recoverAmbiguousSyntheticCreate,
   recoverExactSyntheticUser,
+  retirePersona,
   runExistingPreviewHarness,
   runBestEffortStages,
+  unknownCreateFailure,
   validateRuntimeConfig
 } from "./sprint10-hosted-auth-probe.mjs";
 
@@ -150,6 +153,61 @@ const recoveredId = await recoverExactSyntheticUser({ fetcher: adminFetch, supab
 assert.equal(recoveredId, userId);
 assert.equal(dispatched.length, 2);
 assert(dispatched.every(({ init }) => init.redirect === "error"));
+
+let delayedRecoveryReads = 0;
+const delayedRecoveryWaits = [];
+const delayedRecovery = await recoverAmbiguousSyntheticCreate({
+  lookup: async () => {
+    delayedRecoveryReads += 1;
+    return delayedRecoveryReads === 1 ? null : userId;
+  },
+  wait: async (milliseconds) => delayedRecoveryWaits.push(milliseconds)
+});
+assert.deepEqual(delayedRecovery, { userId, attempts: 2, lookupErrors: [] });
+assert.equal(delayedRecoveryReads, 2, "a lost response may be recovered only by the bounded exact reads");
+assert.deepEqual(delayedRecoveryWaits, [750], "the second exact read must be delayed by the fixed interval");
+
+let persistentEmptyReads = 0;
+const persistentEmpty = await recoverAmbiguousSyntheticCreate({
+  lookup: async () => {
+    persistentEmptyReads += 1;
+    return null;
+  },
+  wait: async () => undefined
+});
+assert.deepEqual(persistentEmpty, { userId: null, attempts: 2, lookupErrors: [] });
+assert.equal(persistentEmptyReads, 2, "persistent absence after an ambiguous create remains unknown, not proven absent");
+
+const ambiguousSyntheticIdentity = "geoai-auth-probe-0123456789abcdef01-a@example.invalid";
+assert.deepEqual(unknownCreateFailure({ email: ambiguousSyntheticIdentity }), {
+  userId: "unknown",
+  syntheticIdentity: ambiguousSyntheticIdentity,
+  stage: "unknown_create_outcome",
+  error: "bounded_exact_recovery_exhausted/unknown"
+});
+const unresolvedPersona = {
+  email: ambiguousSyntheticIdentity,
+  password: "offline-only",
+  userId: null,
+  sessions: [],
+  createAttempted: true,
+  createOutcomeUnknown: true,
+  createAbsenceProven: false
+};
+assert.deepEqual(await retirePersona(null, null, null, null, unresolvedPersona), [
+  unknownCreateFailure({ email: ambiguousSyntheticIdentity })
+], "an exhausted ambiguous create must surface FAIL_ACTION_REQUIRED recovery identity");
+const unattemptedPersona = {
+  email: "geoai-auth-probe-0123456789abcdef01-b@example.invalid",
+  password: "offline-only",
+  userId: null,
+  sessions: [],
+  createAttempted: false,
+  createOutcomeUnknown: false,
+  createAbsenceProven: false
+};
+assert.deepEqual(await retirePersona(null, null, null, null, unattemptedPersona), [],
+  "a persona never dispatched after an earlier failure must not produce a false cleanup alert");
 
 const { createClient } = await import("@supabase/supabase-js");
 const sdkOperations = [];
@@ -324,6 +382,8 @@ for (const requiredName of [
 
 assert.match(operator, /const exactProjectRef = "pphdqkurxneyagvnnjdt"/);
 assert.match(operator, /admin[.]auth[.]admin[.]createUser/);
+assert.equal((operator.match(/admin[.]auth[.]admin[.]createUser/g) ?? []).length, 1,
+  "ambiguous create recovery must never retry account creation");
 assert.match(operator, /email_confirm: true/);
 assert.match(operator, /auth[.]signInWithPassword/);
 assert.match(operator, /auth[.]getClaims/);
@@ -390,6 +450,9 @@ console.log(JSON.stringify({
     serverLogoutStatusFixtures: 7,
     futureBanFixtures: 3,
     partialCreateIdRetention: 1,
+    delayedAmbiguousCreateRecovery: delayedRecoveryReads,
+    persistentEmptyAmbiguousRecovery: persistentEmptyReads,
+    syntheticRecoveryIdentityRetained: 1,
     retirementStageFaults: retirementStages.length
   }
 }));

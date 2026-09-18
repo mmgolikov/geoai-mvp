@@ -12,6 +12,7 @@ const exactRunOptIn = "create-two-synthetic-password-personas";
 const exactPreviewSeamOptIn = "run-existing-real-password-preview-harness";
 const permanentBanDuration = "876000h";
 const requestTimeoutMs = 20_000;
+const ambiguousCreateRecoveryDelaysMs = [0, 750];
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -161,6 +162,11 @@ function safeError(error) {
   const code = typeof error.code === "string" && /^[A-Za-z0-9_-]{1,80}$/.test(error.code) ? error.code : "unknown";
   const status = Number.isInteger(error.status) ? String(error.status) : "unknown";
   return `${code}/${status}`;
+}
+
+function isDefinitivePreDispatchFailure(error) {
+  return error instanceof ProbeFailure &&
+    (error.code === "network_dispatch_missing" || error.code?.startsWith("network_policy_"));
 }
 
 function assertNoError(error, stage) {
@@ -333,6 +339,8 @@ function newSyntheticPersona(lane, runId) {
     userId: null,
     profileId: null,
     sessions: [],
+    createAttempted: false,
+    createOutcomeUnknown: false,
     createAbsenceProven: false,
     cleanup: {
       serverGlobalRevokeConfirmed: false,
@@ -384,9 +392,42 @@ export async function recoverExactSyntheticUser({ fetcher, supabaseUrl, adminSec
   return user.id;
 }
 
+export async function recoverAmbiguousSyntheticCreate({
+  lookup,
+  wait = (milliseconds) => new Promise((resolvePromise) => setTimeout(resolvePromise, milliseconds)),
+  delaysMs = ambiguousCreateRecoveryDelaysMs
+}) {
+  if (typeof lookup !== "function" || typeof wait !== "function" ||
+      !Array.isArray(delaysMs) || delaysMs.length !== 2 || delaysMs[0] !== 0 || delaysMs[1] !== 750) {
+    fail("Ambiguous-create recovery requires the exact bounded two-read schedule.", "recovery_schedule_invalid");
+  }
+  const lookupErrors = [];
+  for (let index = 0; index < delaysMs.length; index += 1) {
+    if (delaysMs[index] > 0) await wait(delaysMs[index]);
+    try {
+      const userId = await lookup();
+      if (userId) return { userId, attempts: index + 1, lookupErrors };
+    } catch (error) {
+      lookupErrors.push(safeError(error));
+    }
+  }
+  return { userId: null, attempts: delaysMs.length, lookupErrors };
+}
+
+export function unknownCreateFailure(persona) {
+  return {
+    userId: "unknown",
+    syntheticIdentity: persona.email,
+    stage: "unknown_create_outcome",
+    error: "bounded_exact_recovery_exhausted/unknown"
+  };
+}
+
 async function createPersona(admin, config, adminFetch, persona) {
   let result;
   let requestFailure = null;
+  persona.createAttempted = true;
+  persona.createOutcomeUnknown = true;
   try {
     result = await admin.auth.admin.createUser({
       email: persona.email,
@@ -398,21 +439,33 @@ async function createPersona(admin, config, adminFetch, persona) {
     requestFailure = error;
   }
 
-  if (result?.data?.user?.id) captureCreatedUserId(persona, result.data);
+  if (result?.data?.user?.id) {
+    captureCreatedUserId(persona, result.data);
+    persona.createOutcomeUnknown = false;
+  }
   if (requestFailure || result?.error || !persona.userId) {
-    const recoveredUserId = await recoverExactSyntheticUser({
-      fetcher: adminFetch,
-      supabaseUrl: config.supabaseUrl,
-      adminSecretKey: config.adminSecretKey,
-      email: persona.email
+    if (requestFailure && isDefinitivePreDispatchFailure(requestFailure)) {
+      persona.createOutcomeUnknown = false;
+      persona.createAbsenceProven = true;
+      throw requestFailure;
+    }
+    const recovery = await recoverAmbiguousSyntheticCreate({
+      lookup: () => recoverExactSyntheticUser({
+        fetcher: adminFetch,
+        supabaseUrl: config.supabaseUrl,
+        adminSecretKey: config.adminSecretKey,
+        email: persona.email
+      })
     });
-    if (recoveredUserId) persona.userId = recoveredUserId;
-    else persona.createAbsenceProven = true;
+    if (recovery.userId) {
+      persona.userId = recovery.userId;
+      persona.createOutcomeUnknown = false;
+    }
     fail(
-      recoveredUserId
+      recovery.userId
         ? `Create response for persona ${persona.lane} was ambiguous; the exact account was recovered for mandatory retirement.`
-        : `Create response for persona ${persona.lane} failed and exact-account absence was proven.`,
-      recoveredUserId ? "ambiguous_create_recovered" : "create_failed_absence_proven",
+        : `Create response for persona ${persona.lane} remained ambiguous after bounded exact recovery.`,
+      recovery.userId ? "ambiguous_create_recovered" : "ambiguous_create_unresolved",
       requestFailure?.status ?? result?.error?.status
     );
   }
@@ -652,36 +705,11 @@ function clearPersonaCredentials(persona) {
   persona.sessions = [];
 }
 
-async function retirePersona(createClient, admin, adminFetch, config, persona) {
+export async function retirePersona(createClient, admin, adminFetch, config, persona) {
   const failures = [];
-  if (!persona.userId && !persona.createAbsenceProven) {
-    try {
-      const recoveredUserId = await recoverExactSyntheticUser({
-        fetcher: adminFetch,
-        supabaseUrl: config.supabaseUrl,
-        adminSecretKey: config.adminSecretKey,
-        email: persona.email
-      });
-      if (recoveredUserId) persona.userId = recoveredUserId;
-      else persona.createAbsenceProven = true;
-    } catch (error) {
-      failures.push({
-        userId: "unknown",
-        syntheticIdentity: persona.email,
-        stage: "recover_ambiguous_create",
-        error: safeError(error)
-      });
-    }
-  }
-
   if (!persona.userId) {
-    if (!persona.createAbsenceProven && failures.length === 0) {
-      failures.push({
-        userId: "unknown",
-        syntheticIdentity: persona.email,
-        stage: "unknown_create_outcome",
-        error: "user_id_unavailable/unknown"
-      });
+    if (persona.createAttempted && !persona.createAbsenceProven) {
+      failures.push(unknownCreateFailure(persona));
     }
     clearPersonaCredentials(persona);
     return failures;
