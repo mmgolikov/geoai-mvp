@@ -1,6 +1,6 @@
 # Sprint 10 Invitation Concurrency Handoff
 
-Status: PARTIAL PASS — deterministic serialization and conflict semantics proven; combined commit/waiter terminal-state run blocked by append-only cleanup contract
+Status: PASS — deterministic serialization and committed terminal outcomes proven locally; hosted and Production evidence remain out of scope
 
 ## Authority and target
 
@@ -10,7 +10,8 @@ Status: PARTIAL PASS — deterministic serialization and conflict semantics prov
 - Container: `geoai-sprint10-restore`
 - Container network: `none`
 - Published ports: `0`
-- Sole database: `geoai_invitation_concurrency`
+- Rollback-only database: `geoai_invitation_concurrency`
+- Committed-evidence database: `geoai_invitation_commit_probe`
 - PostgreSQL: `17.6`
 - Transport: local Unix socket `/var/run/postgresql`
 - Database role: `supabase_admin`
@@ -23,7 +24,7 @@ File: `scripts/sprint10-invitation-concurrency-check.mjs`
 
 SHA-256: `c7b372948684ff76ccb6ff2441d53837ceab300073047c1ccd6c5e1dd94dc52e`
 
-The harness:
+The rollback-only harness:
 
 1. Fails closed unless the exact database/user/version target is present and no prior harness session is active.
 2. Uses only fixed `9500…` synthetic identities and scope rows.
@@ -36,6 +37,8 @@ The harness:
 9. Proves zero mutable fixture residue, zero new append-only audit rows and no trigger disable/alter operation in the final harness.
 
 The manual SQL fixture file was not required and was intentionally not added to the ordinary pgTAP suite.
+
+The committed terminal-state harness is `scripts/sprint10-invitation-committed-concurrency-check.mjs` (SHA-256 `3fe0478da647c6871b54b05b03fac9a01e483b2a048bdf67e5c989b8b56c90dd`). It is a one-shot local evidence probe: it fails unless the fixed `9600…` scope is absent, performs no cleanup/reset/drop, and intentionally retains only the approved synthetic fixtures and append-only audit evidence in `geoai_invitation_commit_probe`. It must not be rerun against that database.
 
 ## Two-session serialization receipt
 
@@ -68,17 +71,46 @@ Separate rollback-only business-transaction checks proved the terminal conflict 
 
 All first mutations and audit writes were rolled back after each assertion.
 
-## Evidence limitation / blocker
+## Committed two-session terminal-state receipt
 
-A single combined test that commits session A, lets blocked session B observe that committed terminal state, and then restores the database cannot satisfy all current constraints simultaneously:
+Direct user authority approved a separate local database that intentionally retains the synthetic evidence. The one-shot run passed from `2026-09-18T19:55:28.202Z` to `2026-09-18T19:55:29.848Z`.
 
-- every successful business mutation writes an append-only `admin_audit_events` row;
-- its organization/project/profile foreign keys use `ON DELETE SET NULL`;
-- the append-only trigger also rejects those FK-driven updates;
-- therefore ordinary cleanup cannot delete the synthetic parent scope after a committed business mutation;
-- trigger bypass, trigger alteration, database reset/drop or retained fixture/audit rows are outside the final harness contract.
+| Scenario | Session A committed | Session B terminal SQLSTATE | A PID | B PID | Direct blocker | Waiting locks | Winner audit | Loser audit |
+| --- | --- | --- | ---: | ---: | --- | ---: | ---: | ---: |
+| accept vs revoke | accept | `40001` | 19302 | 19303 | true | 1 | 1 | 0 |
+| revoke vs accept | revoke | `23514` | 19343 | 19342 | true | 1 | 1 | 0 |
+| accept vs accept | first accept | `23514` | 19378 | 19377 | true | 1 | 1 | 0 |
+| issuer membership change vs accept | issuer membership disabled | `42501` | 19414 | 19412 | true | 1 | 1 | 0 |
 
-Accordingly, `COMMITTED_TWO_SESSION_TERMINAL_OUTCOME` is **BLOCKED**. Serialization and terminal conflict semantics are each proven, but in separate rollback-only evidence lanes. Do not relabel this as a full committed end-to-end concurrency receipt.
+Every losing command ran inside an exception subtransaction. After session A committed, session B observed the committed terminal state, caught only the expected SQLSTATE, and committed an empty outer transaction. Per-scenario read-back proved the exact invitation/membership state, one winner audit event, zero loser audit events and no partial loser membership.
+
+Final retained evidence in `geoai_invitation_commit_probe`:
+
+- 6 synthetic Auth users and 6 provisioned profiles;
+- 1 organization, 1 project and 4 invitations;
+- invitation states: 2 accepted, 1 revoked and 1 pending;
+- 2 recipient organization memberships and 2 recipient project memberships, matching only the two accepted invitations;
+- the issuer project membership disabled in the fourth scenario;
+- 4 winner audit rows and 0 loser audit rows;
+- deadlock counter `0 → 0`;
+- trigger definitions unchanged and 0 disabled non-internal triggers;
+- Docker network `none`, 0 published ports and local Unix-socket transport only.
+
+Winner request IDs:
+
+- accept vs revoke: `e990f78d-a24b-4375-bc08-2c4bebfc986c`;
+- revoke vs accept: `fb75ca47-040a-4d9e-b3bf-a28f2593b101`;
+- accept vs accept: `a84246f8-b246-4fbd-b617-281c65c078c1`;
+- issuer change vs accept: `f4c1aa46-3ed8-4085-ae8b-1c25107f3a50`.
+
+Loser request IDs, each with zero audit rows:
+
+- `4e51dafb-1be7-4d8f-84eb-0af79acd7a84`;
+- `fba0be0c-2649-4e85-bf2f-d07cb3e994a0`;
+- `970ebfc3-0f3b-4d8a-aec3-ed0b52168ea7`;
+- `a88bd5cb-94cb-4d93-b4e1-e2200b3480e9`.
+
+The retained rows are synthetic local evidence, not application data, hosted Supabase evidence or a cleanup precedent. The probe contains no `session_replication_role`, trigger alteration, delete, truncate, reset or database-drop operation.
 
 ## Development recovery disclosure
 
@@ -89,14 +121,14 @@ This recovery is a test-development limitation and must not be copied into produ
 ## Decision
 
 - Organization → project → invitation serialization: PASS.
-- Both accept/revoke acquisition orderings: PASS for deterministic wait/rollback execution.
-- Accept/accept serialization: PASS.
-- Issuer-membership-change/accept serialization: PASS.
+- Both accept/revoke acquisition orderings: PASS for rollback isolation and committed terminal outcomes.
+- Accept/accept serialization and committed terminal outcome: PASS.
+- Issuer-membership-change/accept serialization and committed terminal outcome: PASS.
 - Expected conflict SQLSTATE matrix: PASS.
-- No partial writes / no deadlocks / bounded timeouts: PASS.
+- Winner durability / loser atomicity / no deadlocks / bounded timeouts: PASS.
 - Scope cleanup with active triggers: PASS for final rollback-only harness.
-- Combined committed two-session terminal outcome with full cleanup: BLOCKED by the append-only audit/FK contract.
+- Combined committed two-session terminal outcome: PASS in the separately approved local retained-evidence database.
+- Automatic cleanup/reset/drop of committed evidence: intentionally not performed.
 - Hosted Supabase, network APIs, provider Auth/email and Production: not touched.
 
-Safest next step: Main must decide whether a disposable cloned-database replacement/restore is an acceptable evidence boundary for a future commit-based two-session test. Do not weaken append-only audit enforcement merely to make the test self-cleaning.
-
+GO for local invitation-concurrency evidence closure. NO-GO for upgrading this receipt to hosted Supabase, pilot or Production evidence. The safest next step is independent review of the two scripts and retained read-back; do not weaken append-only audit enforcement or use the retained fixture database as an application environment.
