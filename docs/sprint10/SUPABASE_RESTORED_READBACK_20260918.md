@@ -52,4 +52,10 @@ The actual local synthetic-upgrade script already handles noncontiguous history 
 
 `20260716000000`, `20260716085854`, `20260716113000`, `20260716164451`, `20260716172000`, `20260716175210`, `20260716213214`, `20260904065018`.
 
-The static aggregate checker still describes only seven pending versions even though the canonical checker counts eight. Next local implementation: non-writing preflight, exact version/order matching, and a stop between dry-run and separately approved apply; repair fingerprint/backup/readback remain independent gates. No blanket `--include-all` execution is authorized. Hosted apply must not be inferred from a successful local checker.
+The static aggregate checker previously described only seven pending versions even though the canonical checker counts eight. The local correction now derives all eight from the manifest. The new non-writing preflight validates supplied target-bound 12/13-entry readback and exact eight-version dry-run attestations; every outcome remains hostedApplyReady=false. It does not independently authenticate the receipt or execute the CLI. See [populated upgrade preflight](DATABASE_POPULATED_UPGRADE_PREFLIGHT.md). No blanket `--include-all` execution is authorized.
+
+## Full pre-ledger fingerprint, 18:53:42 Moscow
+
+A further read-only query completed the partial fingerprint above. Owner, RLS/force-RLS, null comment, ordered columns/defaults, primary key and the sole permissive SELECT policy all match the historical manifest. The known public health seed was tested only with a boolean predicate (`id=1` and the expected static service name): true. Both anon and authenticated have exactly REFERENCES, SELECT, TRIGGER and TRUNCATE on this table; no INSERT, UPDATE or DELETE. These historical grants match the pre-containment fingerprint, not the intended future restricted surface.
+
+Immediately following this fingerprint, all 12 historical ledger entries still matched version/name, one statement per row, byte count and MD5. No data or Auth-user rows were returned. A matching fingerprint makes a narrowly scoped ledger-repair proposal possible; it does not authorize repair, certify a backup or prove current Data API exposure.

@@ -1,15 +1,10 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 
 const canonicalBaseline = "supabase/migration-ledger-baseline.json";
+const manifest = JSON.parse(readFileSync(canonicalBaseline, "utf8"));
+const pendingMigrations = manifest.pendingMigrations.map(({ version, name }) => `supabase/migrations/${version}_${name}.sql`);
 const foundationPath = "supabase/migrations/20260705102844_geoai_pilot_persistence_foundation.sql";
-const containmentPath = "supabase/migrations/20260716000000_geoai_pre_auth_security_containment_v1.sql";
-const identityPath = "supabase/migrations/20260716085854_geoai_identity_authorization_foundation_v1.sql";
-const sourceCustodyPath = "supabase/migrations/20260716113000_geoai_source_custody_foundation_v1.sql";
-const activationPath = "supabase/migrations/20260716164451_geoai_auth_admin_project_activation_rebuild_v1.sql";
-const foreignKeyIndexPath = "supabase/migrations/20260716172000_geoai_foreign_key_index_hardening_v1.sql";
-const lifecycleRemediationPath = "supabase/migrations/20260716175210_geoai_auth_admin_lifecycle_remediation_v1.sql";
-const authSimplificationPath = "supabase/migrations/20260716213214_simplify_auth_remove_mfa_requirement.sql";
 const rehearsalReceiptPath = "docs/SUPABASE_AUTH_REHEARSAL_RECEIPT_2026_07_16.json";
 
 function runNodeCheck(script) {
@@ -28,7 +23,7 @@ const activation = runNodeCheck("scripts/auth-admin-project-activation-rebuild-c
 const foreignKeyIndexes = runNodeCheck("scripts/foreign-key-index-hardening-check.mjs");
 const lifecycleRemediation = runNodeCheck("scripts/auth-admin-lifecycle-remediation-check.mjs");
 const dataApiOperator = runNodeCheck("scripts/data-api-operator-check.mjs");
-const files = [canonicalBaseline, foundationPath, containmentPath, identityPath, sourceCustodyPath, activationPath, foreignKeyIndexPath, lifecycleRemediationPath, authSimplificationPath];
+const files = [canonicalBaseline, foundationPath, ...pendingMigrations];
 const missingFiles = files.filter((file) => !existsSync(file));
 const staticChecksPassed = [chain, security, identity, sourceCustody, activation, foreignKeyIndexes, lifecycleRemediation, dataApiOperator].every((result) => result.status === 0);
 const rehearsalReceiptPresent = existsSync(rehearsalReceiptPath);
@@ -41,9 +36,10 @@ const output = {
   ok: missingFiles.length === 0 && staticChecksPassed && !privilegedApplicationEnvDetected,
   canonicalBaseline,
   foundationPath,
-  pendingMigrations: [containmentPath, identityPath, sourceCustodyPath, activationPath, foreignKeyIndexPath, lifecycleRemediationPath, authSimplificationPath],
-  pendingTarget: "development has seven pending candidates; the first six are applied and evidenced only on the isolated Free rehearsal, while the MFA-removal product decision remains unapplied everywhere",
+  pendingMigrations,
+  pendingTarget: "Historical manifest declares eight pending candidates, including seven holes inside the applied range. Fresh target-bound readback is required; this static check does not query hosted state.",
   rehearsalEvidence: {
+    status: "historical_receipt_only_not_current_candidate_or_runtime_acceptance",
     projectRef: "bkmfcjzalcvdsdvyxpgi",
     receipt: rehearsalReceiptPath,
     receiptPresent: rehearsalReceiptPresent,
@@ -70,18 +66,19 @@ const output = {
     ...(!staticChecksPassed ? ["One or more migration static checks failed."] : []),
     ...(privilegedApplicationEnvDetected ? ["Privileged Supabase/database credentials are present in this application runtime."] : []),
     "Development still lacks the pre-ledger geoai_healthcheck ledger reconciliation; the isolated rehearsal is reconciled.",
-    "A development-derived upgrade replay and zero-drift decision have not been certified; full clean replay is certified only on the isolated rehearsal.",
+    "Fresh exact-candidate populated-target upgrade replay, backup/restore and zero-drift evidence are required; historical CI and rehearsal receipts are not current hosted acceptance.",
     "Real application HTTP email/phone/browser personas have not been certified; hosted rehearsal SQL personas pass 183/183 before the pending MFA-removal override.",
     "Development source-custody and source-read personas have not been certified; rehearsal SQL coverage does not connect a source.",
     "The development Data API schema boundary is not confirmed; the isolated rehearsal is pinned to api-only and has positive/negative HTTP evidence."
   ],
   nextActions: [
     "Use the isolated rehearsal receipt as evidence only for that exact project; do not infer development or Production readiness.",
-    "Before any development push, verify the development geoai_healthcheck fingerprint and reconcile version 20260705100000.",
+    "Before any development push, verify the full development geoai_healthcheck fingerprint and obtain separate exact-target approval for ledger reconciliation of 20260705100000.",
     "Run a development-derived upgrade replay with drift/advisor comparison under an exact-ref owner-approved plan.",
     "Apply the MFA-removal override only with exact rehearsal approval, then prove real HTTP email/phone/browser Admin personas before development activation.",
     "For development, expose only the approved api schema (or disable Data API) and repeat direct-public denial evidence.",
-    "Use npm run supabase:migrate:apply only after exact development target approval, backup and rollback evidence."
+    "Do not use scripts/apply-supabase-migration.mjs for the restored populated target: it lacks exact include-all planning and a stop between dry-run and apply.",
+    "Use the offline database-upgrade-preflight.mjs contract checker; even a valid supplied dry-run receipt never authorizes or executes hosted apply."
   ],
   caveat: "Public REST table probes cannot distinguish a missing table from correct RLS denial and therefore are not migration certification."
 };
