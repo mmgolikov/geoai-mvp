@@ -1,11 +1,11 @@
 {
   "schemaVersion": "1.1",
-  "lastVerified": "2026-09-04",
+  "lastVerified": "2026-09-18",
   "authority": "docs/DOCUMENTATION_INDEX.md",
   "counts": {
-    "markdownDocuments": 183,
+    "markdownDocuments": 206,
     "activeAuthorities": 12,
-    "nonActiveDocuments": 171
+    "nonActiveDocuments": 194
   },
   "documents": {
     "AGENTS.md": {
@@ -1099,6 +1099,144 @@
       "currentAuthority": true,
       "successor": null,
       "rule": "Must carry Status, Last verified, Owner, Authority and Successor fields and be updated with affected behavior."
+    },
+    "docs/sprint10/ANALYSIS_HANDOFF.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/sprint10/ANALYSIS_PROVENANCE_HANDOFF.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/sprint10/AUTH_CORRECTIONS_HANDOFF.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/sprint10/AUTH_PERSONA_FIXTURE_HANDOFF.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/sprint10/BASELINE_QA_20260918.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/sprint10/CHANGE_REQUEST.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/sprint10/CI_BROWSER_PERSONAS_20260918.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/sprint10/CONTRACT_REFRESH_HANDOFF.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/sprint10/CREATE_PREVIEW_HANDOFF.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/sprint10/DATABASE_CLEAN_TARGET_PACKET.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/sprint10/DATABASE_POPULATED_UPGRADE_PREFLIGHT.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/sprint10/DATABASE_RECOVERY_20260918.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/sprint10/FIND_STATE_HANDOFF.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/sprint10/INVITATION_AUTHORITY_CORRECTIVE_REVIEW.md": {
+      "lifecycle": "historical_or_scoped_delivery_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CODEX_BACKLOG_2026_07_16.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/sprint10/INVITATION_AUTHORITY_REVIEW.md": {
+      "lifecycle": "historical_or_scoped_delivery_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CODEX_BACKLOG_2026_07_16.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/sprint10/S1_INTEGRATION_REVIEW_20260918.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/sprint10/STATIC_CONTRACT_REVIEW.md": {
+      "lifecycle": "historical_or_scoped_delivery_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CODEX_BACKLOG_2026_07_16.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/sprint10/SUPABASE_RESTORED_READBACK_20260918.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/sprint10/budget-contract.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/sprint10/product/MVP_SCOPE_AND_VALUE.md": {
+      "lifecycle": "historical_release_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/sprint10/product/REMAINING_THREE_SPRINTS_VALUE_BACKLOG.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/sprint10/product/ROADMAP_BACKCAST.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/sprint10/product/ROLE_SCENARIO_VALUE_MATRIX.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
     },
     "supabase/legacy_migrations/README.md": {
       "lifecycle": "historical_or_scoped_reference",

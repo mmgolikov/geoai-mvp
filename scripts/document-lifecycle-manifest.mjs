@@ -85,7 +85,7 @@ const documents = Object.fromEntries(paths.map((path) => {
   }];
 }));
 
-const generatedLastVerified = "2026-09-04";
+const generatedLastVerified = "2026-09-18";
 
 const manifest = {
   schemaVersion: "1.1",
