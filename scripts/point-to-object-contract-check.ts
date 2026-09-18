@@ -1235,6 +1235,7 @@ function assertStaticBoundaries(): void {
     "app/api/prototype/point-to-object/context/route.ts",
     "app/api/prototype/point-to-object/create/route.ts",
     "app/api/prototype/point-to-object/find/route.ts",
+    "app/api/prototype/point-to-object/project-artifacts/route.ts",
     "app/api/prototype/point-to-object/resolve/route.ts",
     "app/api/prototype/point-to-object/search/route.ts",
     "app/api/prototype/point-to-object/suggest/route.ts",
