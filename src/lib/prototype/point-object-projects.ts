@@ -88,6 +88,16 @@ export type PointObjectProjectStoreReadResult =
   | { status: "missing" | "ready"; store: PointObjectProjectStore; rawPreserved: true }
   | { status: "damaged" | "inaccessible"; store: null; message: string; rawPreserved: true };
 
+export type PointObjectCloudImportProject = {
+  projectId: string;
+  name: string;
+  createdAt: string;
+};
+
+export type PointObjectCloudImportResult =
+  | { status: "imported" | "replayed"; project: SavedPointObjectProject; artifact: SavedPointObjectArtifact }
+  | { status: "conflict" | "capacity" | "failed"; code: PointObjectProjectFailureCode; message: string };
+
 type PendingOperation = {
   identityKey: PointObjectProjectIdentity;
   idempotencyKey: string;
@@ -220,6 +230,96 @@ function enqueueIdentityOperation<T>(identityKey: PointObjectProjectIdentity, op
   const clear = () => { if (operationChains.get(identityKey) === current) operationChains.delete(identityKey); };
   void current.then(clear, clear);
   return current;
+}
+
+/**
+ * Adds one integrity-verified cloud artifact to its original browser-local
+ * project. Existing bytes are never replaced: identical receipts replay,
+ * while ID/hash/revision or project-origin differences fail as conflicts.
+ */
+export function importPointObjectCloudArtifact(
+  identityKey: PointObjectProjectIdentity,
+  cloudProject: PointObjectCloudImportProject,
+  cloudArtifact: SavedPointObjectArtifact
+): Promise<PointObjectCloudImportResult> {
+  return enqueueIdentityOperation(identityKey, async () => {
+    try {
+      assertCurrentIdentity(identityKey);
+      const projectId = typeof cloudProject.projectId === "string" ? cloudProject.projectId.trim() : "";
+      const projectName = typeof cloudProject.name === "string" ? cloudProject.name.normalize("NFKC").trim().replace(/\s+/g, " ") : "";
+      const projectCreatedAt = typeof cloudProject.createdAt === "string" ? cloudProject.createdAt : "";
+      const parsedArtifact = parseSavedPointObjectArtifact(JSON.parse(JSON.stringify(cloudArtifact)));
+      if (!projectId || projectId.length > 160 || !projectName || projectName.length > 120 ||
+          !Number.isFinite(Date.parse(projectCreatedAt)) || !parsedArtifact || !await verifySavedPointObjectArtifact(parsedArtifact)) {
+        return { status: "failed", code: "payload_invalid", message: "The cloud artifact failed strict local import validation." };
+      }
+      for (let attempt = 0; attempt < MAX_STABLE_STORE_ATTEMPTS; attempt += 1) {
+        const snapshot = await readStableVerifiedStore(identityKey);
+        if (snapshot.status === "changed") continue;
+        if (snapshot.status === "failed") {
+          return {
+            status: "failed",
+            code: snapshot.read.status === "damaged" ? "store_damaged" : "storage_inaccessible",
+            message: snapshot.read.message
+          };
+        }
+        const matches = snapshot.store.projects.flatMap((project) => project.artifacts.map((artifact) => ({ project, artifact })))
+          .filter(({ artifact }) => artifact.artifactId === parsedArtifact.artifactId || artifact.idempotencyKey === parsedArtifact.idempotencyKey);
+        if (matches.length > 0) {
+          const exact = matches.length === 1 && matches[0].artifact.artifactId === parsedArtifact.artifactId &&
+            matches[0].artifact.idempotencyKey === parsedArtifact.idempotencyKey && matches[0].artifact.payloadHash === parsedArtifact.payloadHash &&
+            matches[0].artifact.viewRevision === parsedArtifact.viewRevision;
+          return exact
+            ? { status: "replayed", project: matches[0].project, artifact: matches[0].artifact }
+            : { status: "conflict", code: "idempotency_conflict", message: "Cloud sync conflict: the local receipt has different immutable bytes or revision." };
+        }
+        const existingProject = snapshot.store.projects.find((project) => project.projectId === projectId);
+        if (existingProject && existingProject.createdAt !== projectCreatedAt) {
+          return { status: "conflict", code: "idempotency_conflict", message: "Cloud sync conflict: the local project ID has a different origin receipt." };
+        }
+        if (!existingProject && snapshot.store.projects.length >= MAX_PROJECTS) {
+          return { status: "capacity", code: "project_limit", message: "The local project limit prevents this cloud import; existing bytes were preserved." };
+        }
+        if (existingProject && existingProject.artifacts.length >= MAX_ARTIFACTS_PER_PROJECT) {
+          return { status: "capacity", code: "project_capacity", message: "The local result limit prevents this cloud import; existing bytes were preserved." };
+        }
+        const updatedAt = parsedArtifact.updatedAt > (existingProject?.updatedAt ?? projectCreatedAt)
+          ? parsedArtifact.updatedAt
+          : existingProject?.updatedAt ?? projectCreatedAt;
+        const importedProject: SavedPointObjectProject = existingProject
+          ? { ...existingProject, updatedAt, artifacts: [parsedArtifact, ...existingProject.artifacts] }
+          : {
+              schemaVersion: 1,
+              projectId,
+              name: projectName,
+              storageMode: "browser_local_on_this_device",
+              createdAt: projectCreatedAt,
+              updatedAt,
+              artifacts: [parsedArtifact]
+            };
+        const nextStore: PointObjectProjectStore = {
+          ...snapshot.store,
+          activeProjectId: snapshot.store.activeProjectId ?? importedProject.projectId,
+          projects: existingProject
+            ? snapshot.store.projects.map((project) => project.projectId === projectId ? importedProject : project)
+            : [importedProject, ...snapshot.store.projects]
+        };
+        assertCurrentIdentity(identityKey);
+        if (readRawStore(identityKey) !== snapshot.raw) continue;
+        writeStore(nextStore);
+        emitState(identityKey, { status: "saved", message: parsedArtifact.locale === "ru" ? "Облачная копия добавлена на это устройство." : "Cloud copy added to this device." });
+        return { status: "imported", project: importedProject, artifact: parsedArtifact };
+      }
+      return { status: "failed", code: "storage_write_failed", message: "Local projects changed during cloud import; existing bytes were preserved." };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "The cloud artifact could not be imported.";
+      return {
+        status: "failed",
+        code: /identity changed/i.test(message) ? "identity_changed" : "storage_write_failed",
+        message
+      };
+    }
+  });
 }
 
 function canonicalJson(value: unknown): string {
