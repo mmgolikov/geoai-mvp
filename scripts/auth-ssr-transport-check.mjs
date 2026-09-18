@@ -11,7 +11,7 @@ async function source(path) {
   return readFile(new URL(`../${path}`, import.meta.url), "utf8");
 }
 
-const [browser, server, updater, middleware, mutationOrigin, context, identityEvidenceSource, summary, kernel, callback, logout, provider, login, mockDemo, elevated] = await Promise.all([
+const [browser, server, updater, middleware, mutationOrigin, context, identityEvidenceSource, summary, kernel, callback, logout, provider, browserSessionTransport, login, mockDemo, elevated] = await Promise.all([
   source("src/lib/supabase/browser.ts"),
   source("src/lib/supabase/ssr-server.ts"),
   source("src/lib/supabase/update-session.ts"),
@@ -24,11 +24,12 @@ const [browser, server, updater, middleware, mutationOrigin, context, identityEv
   source("app/auth/callback/route.ts"),
   source("app/api/auth/logout/route.ts"),
   source("components/auth/auth-provider.tsx"),
+  source("src/lib/auth/browser-session-transport.ts"),
   source("components/auth/login-panel.tsx"),
   source("src/lib/auth/mock-demo-session.ts"),
   source("src/lib/auth/elevated-request-context.ts")
 ]);
-const combined = [browser, server, updater, middleware, mutationOrigin, context, identityEvidenceSource, summary, callback, logout, provider, login, mockDemo, elevated].join("\n");
+const combined = [browser, server, updater, middleware, mutationOrigin, context, identityEvidenceSource, summary, callback, logout, provider, browserSessionTransport, login, mockDemo, elevated].join("\n");
 const failures = [];
 
 function assert(condition, message) {
@@ -143,7 +144,15 @@ const existingUserOnlyOtpGuards = provider.match(/shouldCreateUser:\s*false/g) ?
 if (existingUserOnlyOtpGuards.length !== 2 || /shouldCreateUser:\s*true/.test(provider) || /[.]auth[.]signUp\s*\(/.test(provider)) {
   failures.push("Public email and phone OTP paths must be existing-user-only and must not expose an automatic signup path");
 }
-if (!provider.includes("signInWithPassword") || !provider.includes("signInWithPhone") || !provider.includes("verifyPhoneCode") || !provider.includes('fetch("/api/auth/session"') || !provider.includes('fetch("/api/auth/logout"')) {
+if (
+  !provider.includes("signInWithPassword") ||
+  !provider.includes("signInWithPhone") ||
+  !provider.includes("verifyPhoneCode") ||
+  !provider.includes("readBrowserServerSession") ||
+  !provider.includes("requestConfirmedBrowserSignOut") ||
+  !browserSessionTransport.includes('"/api/auth/session"') ||
+  !browserSessionTransport.includes('"/api/auth/logout"')
+) {
   failures.push("Browser auth provider does not preserve existing-user email/password/phone sign-in and session/logout routes");
 }
 if (!login.includes("mockDemoEmail") || !login.includes("mockDemoPassword") || !login.includes("signInWithPhone") || !login.includes("verifyPhoneCode")) {

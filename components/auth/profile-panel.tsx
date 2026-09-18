@@ -28,6 +28,8 @@ const PROFILE_COPY = {
     intro: "Manage your personal details and the working defaults GeoAI uses when a product workspace opens.",
     openPrototype: "Open map",
     signOut: "Sign out",
+    signingOut: "Signing out…",
+    signOutFailed: "Sign-out could not be confirmed. Your current session remains active. Check the connection and retry.",
     personalDetails: "Personal details",
     personalDetailsBody: "Add the name and photo shown across GeoAI.",
     choosePhoto: "Choose photo",
@@ -84,6 +86,8 @@ const PROFILE_COPY = {
     intro: "Управляйте личными данными и рабочими настройками, с которыми GeoAI открывает продукт.",
     openPrototype: "Открыть карту",
     signOut: "Выйти",
+    signingOut: "Выходим…",
+    signOutFailed: "Выход не подтверждён. Текущая сессия остаётся активной. Проверьте соединение и повторите попытку.",
     personalDetails: "Личные данные",
     personalDetailsBody: "Добавьте имя и фотографию, которые будут показаны в GeoAI.",
     choosePhoto: "Выбрать фото",
@@ -208,7 +212,8 @@ export function ProfilePanel() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [profileNotice, setProfileNotice] = useState<Notice | null>(null);
   const [accountNotice, setAccountNotice] = useState<Notice | null>(null);
-  const [pendingAction, setPendingAction] = useState<"profile" | "email" | "password" | null>(null);
+  const [signOutNotice, setSignOutNotice] = useState<Notice | null>(null);
+  const [pendingAction, setPendingAction] = useState<"profile" | "email" | "password" | "logout" | null>(null);
   const availableRoles = getExploreRolesByAudience(defaultAudience);
 
   useEffect(() => {
@@ -240,6 +245,7 @@ export function ProfilePanel() {
     setConfirmPassword("");
     setProfileNotice(null);
     setAccountNotice(null);
+    setSignOutNotice(null);
   }, [user]);
 
   function changeAudience(audience: ExploreAudience) {
@@ -321,6 +327,20 @@ export function ProfilePanel() {
     }
   }
 
+  async function handleSignOut() {
+    if (pendingAction !== null) return;
+    setPendingAction("logout");
+    setSignOutNotice(null);
+    try {
+      const result = await signOut();
+      if (!result.ok) {
+        setSignOutNotice({ kind: "error", text: copy.signOutFailed });
+      }
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
   if (!isAuthenticated || !user) {
     return (
       <section className="mx-auto grid min-h-[calc(100vh-64px)] max-w-3xl place-items-center px-4 py-10">
@@ -351,11 +371,13 @@ export function ProfilePanel() {
             <Link href="/prototype/point-to-object" className="inline-flex h-12 items-center justify-center rounded-control bg-[#087f8c] px-5 text-sm font-semibold text-white transition hover:bg-[#006c78] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] focus-visible:ring-offset-2">
               {copy.openPrototype}
             </Link>
-            <button type="button" onClick={() => void signOut()} className="inline-flex h-12 items-center justify-center rounded-control border border-line bg-white px-5 text-sm font-semibold text-ink transition hover:border-[#087f8c] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]">
-              {copy.signOut}
+            <button type="button" onClick={() => void handleSignOut()} disabled={pendingAction !== null} className="inline-flex h-12 items-center justify-center rounded-control border border-line bg-white px-5 text-sm font-semibold text-ink transition hover:border-[#087f8c] disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]">
+              {pendingAction === "logout" ? copy.signingOut : copy.signOut}
             </button>
           </div>
         </div>
+
+        {signOutNotice ? <p role="alert" className={`mt-5 rounded-[14px] border px-4 py-3 text-sm leading-6 ${messageClassName(signOutNotice.kind)}`}>{signOutNotice.text}</p> : null}
 
         <div className="mt-7 grid gap-5 lg:grid-cols-[1.35fr_0.85fr]">
           <form onSubmit={handleProfileSave} className="overflow-hidden rounded-[26px] border border-line bg-white p-5 shadow-soft sm:p-7 lg:p-9">

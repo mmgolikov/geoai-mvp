@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { getAuthModeStatus } from "@/src/lib/auth/auth-mode";
 import { createDemoProjectMembership, demoOrganization, demoProjectRole, demoUser } from "@/src/lib/auth/demo-session";
 import type { AuthModeStatus } from "@/src/lib/auth/auth-mode";
@@ -26,6 +26,12 @@ import {
   isMockDemoSessionActive,
   matchesMockDemoCredentials
 } from "@/src/lib/auth/mock-demo-session";
+import {
+  createSingleFlight,
+  readBrowserServerSession,
+  requestConfirmedBrowserSignOut,
+  resolveBrowserSignOutDisposition
+} from "@/src/lib/auth/browser-session-transport";
 
 async function loadSupabaseBrowserClient() {
   const { getSupabaseBrowserClient } = await import("@/src/lib/supabase/browser");
@@ -50,7 +56,7 @@ type AuthContextValue = GeoAIAuthSession & {
   requestEmailChange: (email: string) => Promise<{ ok: boolean; message: string }>;
   changePassword: (password: string) => Promise<{ ok: boolean; message: string }>;
   register: (email: string) => Promise<{ ok: boolean; message: string }>;
-  signOut: () => Promise<void>;
+  signOut: () => Promise<{ ok: boolean; message: string }>;
   refreshSession: () => Promise<void>;
 };
 
@@ -88,6 +94,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     authStatus.effectiveMode === "demo_public" ? createDemoSession() : createAnonymousSession()
   );
   const [isSessionResolved, setIsSessionResolved] = useState(authStatus.effectiveMode === "demo_public");
+  const signOutSingleFlightRef = useRef<ReturnType<typeof createSingleFlight<{ ok: boolean; message: string }>> | null>(null);
+  if (!signOutSingleFlightRef.current) {
+    signOutSingleFlightRef.current = createSingleFlight<{ ok: boolean; message: string }>();
+  }
+
+  async function applyAuthenticatedServerSession(user: NonNullable<GeoAIAuthSession["user"]>) {
+    let browserUser = user;
+    try {
+      browserUser = await loadBrowserUserProfile(user);
+    } catch {
+      // The server identity is authoritative even if optional browser profile
+      // enrichment is unavailable.
+    }
+    setSession({
+      user: mergeLocalProfileIntoUser(browserUser),
+      organization: null,
+      projectRole: null,
+      membership: null,
+      isAuthenticated: true,
+      isDemo: false
+    });
+  }
 
   async function refreshSession() {
     try {
@@ -103,35 +131,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(createAnonymousSession());
         return;
       }
-      const response = await fetch("/api/auth/session", {
-        method: "GET",
-        credentials: "same-origin",
-        cache: "no-store",
-        headers: { Accept: "application/json" }
-      });
-      if (!response.ok) {
+      const summary = await readBrowserServerSession();
+      if (summary.status === "anonymous") {
         setSession(createAnonymousSession());
         return;
       }
-      const summary = await response.json() as {
-        isAuthenticated?: unknown;
-        user?: GeoAIAuthSession["user"];
-      };
-      if (summary.isAuthenticated !== true || !summary.user) {
-        setSession(createAnonymousSession());
-        return;
+      if (summary.status === "authenticated") {
+        await applyAuthenticatedServerSession(summary.user);
       }
-      const browserUser = await loadBrowserUserProfile(summary.user);
-      setSession({
-        user: mergeLocalProfileIntoUser(browserUser),
-        organization: null,
-        projectRole: null,
-        membership: null,
-        isAuthenticated: true,
-        isDemo: false
-      });
     } catch {
-      setSession(createAnonymousSession());
+      // A transport or dependency failure is not proof that the server session
+      // ended. Preserve the last confirmed client state until a readable server
+      // response reconciles it.
     } finally {
       setIsSessionResolved(true);
     }
@@ -387,26 +398,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return signIn(email);
   }
 
-  async function signOut() {
-    clearMockDemoSession();
-    clearBrowserDemoStorage();
-    if (authStatus.effectiveMode === "supabase_auth") {
-      try {
-        await fetch("/api/auth/logout", {
-          method: "POST",
-          credentials: "same-origin",
-          headers: {
-            Accept: "application/json",
-            "Content-Type": "application/json"
-          },
-          body: "{}"
-        });
-      } finally {
-        setSession(createAnonymousSession());
+  function signOut() {
+    return signOutSingleFlightRef.current!.run(async () => {
+      if (authStatus.effectiveMode !== "supabase_auth") {
+        clearMockDemoSession();
+        clearBrowserDemoStorage();
+        setSession(authStatus.effectiveMode === "demo_public" ? createDemoSession() : createAnonymousSession());
+        return { ok: true, message: "Browser session cleared." };
       }
-      return;
-    }
-    setSession(authStatus.effectiveMode === "demo_public" ? createDemoSession() : createAnonymousSession());
+
+      const request = await requestConfirmedBrowserSignOut();
+      const sessionRead = request.ok ? null : await readBrowserServerSession();
+      const disposition = resolveBrowserSignOutDisposition(request, sessionRead);
+
+      if (disposition.status === "signed_out") {
+        clearMockDemoSession();
+        clearBrowserDemoStorage();
+        setSession(createAnonymousSession());
+        return { ok: true, message: "Signed out." };
+      }
+      if (disposition.status === "still_authenticated") {
+        await applyAuthenticatedServerSession(disposition.user);
+        return {
+          ok: false,
+          message: "Sign-out was not confirmed. Your server session is still active; retry."
+        };
+      }
+      return {
+        ok: false,
+        message: "Sign-out could not be confirmed. Your current session was kept; check the connection and retry."
+      };
+    });
   }
 
   const value: AuthContextValue = {

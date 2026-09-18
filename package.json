@@ -50,6 +50,7 @@
     "test:user-profile": "node scripts/user-profile-check.mjs",
     "test:supabase-exact-target": "node scripts/supabase-exact-target-check.mjs",
     "test:auth-mutation-origin": "node --experimental-strip-types scripts/auth-mutation-origin-check.mjs",
+    "test:auth-signout-state": "node --experimental-strip-types scripts/auth-signout-state-check.ts",
     "test:request-scoped-project-read": "node scripts/request-scoped-project-read-check.mjs",
     "test:api-access-guards": "node scripts/api-access-guard-check.mjs",
     "test:server-credential-boundary": "node scripts/server-credential-boundary-check.mjs",
