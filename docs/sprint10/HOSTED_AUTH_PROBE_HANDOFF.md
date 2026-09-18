@@ -37,6 +37,28 @@ The existing runner still requires:
 
 The existing runner independently binds the Preview URL, deployment receipt, Vercel protection, exact head and development project. Its output is suppressed by the parent operator so a failing child cannot spill secret-bearing diagnostics. The child receives an explicit environment allowlist; the Admin secret and unrelated root environment values are not propagated.
 
+## Optional combined Auth + paid live-journey seam
+
+The default remains Auth-only. Root may enable the reviewed live journey only before the same fresh personas enter the probe's unconditional retirement `finally`:
+
+- `GEOAI_HOSTED_AUTH_PROBE_LIVE_JOURNEY_SEAM=run-reviewed-sprint10-live-journey-before-retirement`
+- `GEOAI_HOSTED_AUTH_PROBE_LIVE_JOURNEY_SCOPE=journey|dubai-analyse|dubai-find|singapore-create`
+- `GEOAI_HOSTED_AUTH_PROBE_LIVE_LEDGER_ROOT=<absolute existing private 0700 directory>`
+- `GEOAI_HOSTED_AUTH_PROBE_LIVE_LEDGER_PATH=<absolute existing private 0600 ledger direct child>`
+- `GEOAI_HOSTED_AUTH_PROBE_LIVE_EXPECTED_LEDGER_ID=5aa405b3-bbda-48aa-aeea-ca3357be4042`
+- `GEOAI_HOSTED_AUTH_PROBE_LIVE_RUN_APPROVAL=paid-live-journey:<ledger-id>:<preview-host>:<exact-head>:<scope>`
+- `GEOAI_HOSTED_AUTH_PROBE_ACTIVE_PERSONA_RECEIPT_PATH=<new absolute file in a root-provided private 0700 directory>`
+
+This option requires the existing Preview Auth seam to be enabled first. Runtime validation imports the live runner's exported `validateLedger()` and performs one read-only validation of the already existing exact USD 15 ledger before account creation. It does not initialize, repair, reserve or settle the ledger. The live runner revalidates the ledger and owns its lease, reservations and telemetry settlement immediately before browser execution.
+
+After the existing two-persona Auth checks pass, the probe writes an atomic private `0600` checkpoint before either reviewed browser child runs. It contains only schema/state, run ID, exact project/head and the two synthetic user UUIDs: no email, password, key, token, cookie or profile data. Persona A must still be an active current-run identity with two in-memory sessions and untouched retirement flags. Persona B is never sent to the live child. The child may run once only.
+
+The live child receives an explicit environment containing platform runtime basics, the exact Preview/receipt/ledger tuple, protection bypass and persona A email/password/user ID. It never receives the Admin secret, publishable key, persona B, access/refresh tokens, `NODE_OPTIONS`, the probe opt-ins or unrelated parent variables. The child timeout is 810 seconds with `SIGTERM`; stdout/stderr are not forwarded. PASS, INCONCLUSIVE and cleanup-failure receipts are parsed against exact keys, Preview tuple, selected route matrix and the USD 15 ceiling. Timeout, signal, malformed output and generic child failure become sanitized failure stages.
+
+Every child result returns through the existing persona-retirement `finally`. The checkpoint is then atomically changed to `retired` or `retirement_failed`. Root must remove it only after accepting complete retirement; otherwise it is the minimum exact-ID containment receipt for operator action. No account is deleted, unbanned or reused.
+
+Auth-only execution still emits `geoai.sprint10.hosted-auth-probe-receipt.v2`. Combined execution emits the separate strict schema `geoai.sprint10.hosted-auth-live-journey-receipt.v1` with only exact project/head/host/scope/ledger identity, Auth check counts, sanitized live result, retirement counts or cleanup failures, and `secretMaterialEmitted:false`. Combined exit codes are 0 PASS, 2 INCONCLUSIVE, and 1 FAIL/FAIL_ACTION_REQUIRED.
+
 ## Terminal retirement contract
 
 The `finally` path runs for every known or exactly recovered created user, including partial setup failures. A valid returned UUID is stored before later response-shape checks. If a create response is missing, lost or ambiguous, the operator performs a bounded two-read Admin recovery sequence using only the exact unique synthetic email with `filter`, `page=1` and `per_page=2`: one immediate read and one fixed delayed read after 750 ms. It never retries account creation. A non-matching or broad result fails closed. Two empty reads do not prove absence after an ambiguous dispatch; the final `FAIL_ACTION_REQUIRED` receipt retains the exact synthetic identity for bounded manual recovery. The retirement stages are independent best-effort operations: a thrown revoke, refresh, password or RPC operation does not prevent the Admin ban and final read-back.
@@ -82,10 +104,14 @@ Run without keys or network:
 ```sh
 node --check scripts/sprint10-hosted-auth-probe.mjs
 node --check scripts/sprint10-hosted-auth-probe-check.mjs
+node --check scripts/sprint10-hosted-auth-live-check.mjs
 node scripts/sprint10-hosted-auth-probe-check.mjs
+node scripts/sprint10-hosted-auth-live-check.mjs
 ```
 
-The offline contract exercises one accepted runtime tuple and negative fixtures for wrong project, origin, opt-in, Git head, key class, CLI arguments, Node version and incomplete Preview seam. Its injected-fetch and fault matrix behaviorally verifies exact request dispatch, redirect rejection, response-lost recovery after an initially empty read, persistently empty ambiguous outcomes, retention of the exact synthetic recovery identity, no blind create retry, transient/429/5xx/unknown denial rejection, exact anonymous denial, successful-empty stale-JWT evidence, raw logout status handling, future-ban read-back, immediate partial-create ID retention, secret-free Git child environments and continuation through every retirement-stage throw. It also statically rejects email/OTP/invite/reset/delete/direct-SQL/file-write/default-CI wiring.
+The offline contract exercises one accepted runtime tuple and negative fixtures for wrong project, origin, opt-in, Git head, key class, CLI arguments, Node version and incomplete Preview seam. Its injected-fetch and fault matrix behaviorally verifies exact request dispatch, redirect rejection, response-lost recovery after an initially empty read, persistently empty ambiguous outcomes, retention of the exact synthetic recovery identity, no blind create retry, transient/429/5xx/unknown denial rejection, exact anonymous denial, successful-empty stale-JWT evidence, raw logout status handling, future-ban read-back, immediate partial-create ID retention, secret-free Git child environments and continuation through every retirement-stage throw. It also statically rejects email/OTP/invite/reset/delete/direct-SQL/default-CI wiring and permits file writes only inside the approved atomic checkpoint function.
+
+The dedicated combined-seam matrix additionally verifies Auth-only mode never reads the live ledger; exact live opt-in/approval/scope/Preview/ledger gates; persona freshness and one-child enforcement; absence of Admin/persona-B/token/`NODE_OPTIONS` data in the child environment; strict PASS, INCONCLUSIVE and cleanup-failure receipts; timeout and malformed-output failure; atomic `active` -> `retired` and `active` -> `retirement_failed` checkpoint transitions; checkpoint and cleanup-receipt secret exclusion; and source ordering that writes the recovery checkpoint before both browser children and keeps the live child inside unconditional retirement.
 
 Corrective-tree verification on Node.js `24.19.0`: operator/check syntax PASS; behavioral offline matrix PASS; TypeScript PASS; production build PASS with 80/80 routes; request-scoped project, source connector, AOI, canonical migration chain, identity authorization, Auth/Admin lifecycle, Data API operator, existing real-password harness and secret-hygiene contracts PASS. Production dependency audit reports zero vulnerabilities. The full development-dependency audit reports 21 current transitive findings (1 low, 18 moderate, 2 high) in the development toolchain, including Lighthouse transitive packages, while `package.json` and `package-lock.json` remain unchanged; this bounded three-file package does not apply the suggested out-of-range/force upgrade. That supply-chain result must remain an explicit separate review item and is not a hosted-Auth code failure.
 
@@ -95,6 +121,8 @@ Corrective-tree verification on Node.js `24.19.0`: operator/check syntax PASS; b
 - A confirmed server-global logout revokes refresh sessions; already issued access JWTs remain cryptographically valid until expiry. The operator therefore also requires the banned account's stale JWT to receive a successful, exact empty `api.current_profile` result.
 - Account retirement uses a long-duration Admin ban rather than deletion. The synthetic Auth users and profiles intentionally remain as audit evidence.
 - The probe proves identity/profile isolation only. It creates no organization/project memberships and proves no tenant role, Admin role, Storage, source custody or product repository authorization.
+- The combined journey proves only the current identity-guarded source/Analyse/Find/Create flow and browser-local save/reopen. It does not claim cloud persistence. `analysis-runs` and cloud project-artifact APIs require separate organization/project membership evidence.
+- The checkpoint protects outer-process recovery only after both fresh personas are authenticated and their exact IDs are known. A process kill during earlier account creation remains governed by the existing ambiguous-create recovery and root operator containment procedure.
 - Transactional email, OTP, email ownership, external providers and customer data are excluded.
 
 Mandatory product caveat: “Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.”

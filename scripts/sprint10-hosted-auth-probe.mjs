@@ -3,13 +3,37 @@
 import assert from "node:assert/strict";
 import { randomBytes, randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { dirname, resolve } from "node:path";
+import {
+  closeSync,
+  constants,
+  existsSync,
+  fchmodSync,
+  fstatSync,
+  fsyncSync,
+  lstatSync,
+  openSync,
+  realpathSync,
+  renameSync,
+  statSync,
+  unlinkSync,
+  writeFileSync
+} from "node:fs";
+import { basename, dirname, isAbsolute, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { validateLedger } from "./sprint10-live-journey-run.mjs";
 
 const exactProjectRef = "pphdqkurxneyagvnnjdt";
 const exactSupabaseOrigin = `https://${exactProjectRef}.supabase.co`;
 const exactRunOptIn = "create-two-synthetic-password-personas";
 const exactPreviewSeamOptIn = "run-existing-real-password-preview-harness";
+const exactLiveJourneySeamOptIn = "run-reviewed-sprint10-live-journey-before-retirement";
+const exactLedgerId = "5aa405b3-bbda-48aa-aeea-ca3357be4042";
+const acceptedLiveScopes = new Set(["journey", "dubai-analyse", "dubai-find", "singapore-create"]);
+const forbiddenProductionHosts = new Set([
+  "geoai-mvp.vercel.app",
+  "geoai-id0xnwco2-geoaidev.vercel.app",
+  "geoai-a71p4fxnr-geoaidev.vercel.app"
+]);
 const permanentBanDuration = "876000h";
 const requestTimeoutMs = 20_000;
 const ambiguousCreateRecoveryDelaysMs = [0, 750];
@@ -32,6 +56,15 @@ const previewSeamEnvironmentNames = [
   "GEOAI_REAL_PASSWORD_AUTH_PREVIEW_BYPASS_SECRET",
   "GEOAI_REAL_PASSWORD_AUTH_DEPLOYMENT_RECEIPT_PATH",
   "GEOAI_REAL_PASSWORD_AUTH_RUN_APPROVAL"
+];
+
+const liveJourneySeamEnvironmentNames = [
+  "GEOAI_HOSTED_AUTH_PROBE_LIVE_JOURNEY_SCOPE",
+  "GEOAI_HOSTED_AUTH_PROBE_LIVE_LEDGER_ROOT",
+  "GEOAI_HOSTED_AUTH_PROBE_LIVE_LEDGER_PATH",
+  "GEOAI_HOSTED_AUTH_PROBE_LIVE_EXPECTED_LEDGER_ID",
+  "GEOAI_HOSTED_AUTH_PROBE_LIVE_RUN_APPROVAL",
+  "GEOAI_HOSTED_AUTH_PROBE_ACTIVE_PERSONA_RECEIPT_PATH"
 ];
 
 class ProbeFailure extends Error {
@@ -65,7 +98,88 @@ function canonicalOrigin(value) {
   }
 }
 
-export function validateRuntimeConfig(env, argv, gitHead, nodeMajor = Number(process.versions.node.split(".")[0])) {
+function privateRegularFile(path, label) {
+  const details = lstatSync(path);
+  if (!details.isFile() || details.isSymbolicLink() || details.nlink !== 1 ||
+      (details.mode & 0o077) !== 0 || realpathSync(path) !== path) {
+    fail(`${label} must be a private regular non-link file.`, "checkpoint_path_invalid");
+  }
+}
+
+export function validateActiveCheckpointPath(pathValue, mustExist = false) {
+  if (typeof pathValue !== "string" || !isAbsolute(pathValue) || resolve(pathValue) !== pathValue) {
+    fail("The active-persona checkpoint path must be one exact absolute path.", "checkpoint_path_invalid");
+  }
+  const path = resolve(pathValue);
+  const parent = dirname(path);
+  const parentDetails = lstatSync(parent);
+  if (!parentDetails.isDirectory() || parentDetails.isSymbolicLink() || realpathSync(parent) !== parent ||
+      (statSync(parent).mode & 0o077) !== 0 || basename(path).length < 1) {
+    fail("The active-persona checkpoint parent must be one existing private 0700 real directory.", "checkpoint_path_invalid");
+  }
+  if (mustExist) {
+    if (!existsSync(path)) fail("The active-persona checkpoint is missing.", "checkpoint_missing");
+    privateRegularFile(path, "The active-persona checkpoint");
+  } else if (existsSync(path)) {
+    fail("The active-persona checkpoint path already exists; a prior run may be unresolved.", "checkpoint_exists");
+  }
+  return path;
+}
+
+export function writeActivePersonaCheckpoint(pathValue, input, { replace = false } = {}) {
+  const path = validateActiveCheckpointPath(pathValue, replace);
+  if (!input || !["active", "retired", "retirement_failed"].includes(input.state) ||
+      !/^[0-9a-f]{18}$/.test(input.runId) || !/^[0-9a-f]{40}$/.test(input.gitHead) ||
+      input.projectRef !== exactProjectRef || !Array.isArray(input.personas) || input.personas.length !== 2 ||
+      input.personas[0]?.lane !== "A" || input.personas[1]?.lane !== "B" ||
+      input.personas.some((persona) => !uuidPattern.test(persona?.userId ?? "") ||
+        Object.keys(persona).sort().join(",") !== "lane,userId")) {
+    fail("The active-persona checkpoint payload is not accepted.", "checkpoint_payload_invalid");
+  }
+  const payload = {
+    schemaVersion: "geoai.sprint10.active-persona-checkpoint.v1",
+    state: input.state,
+    runId: input.runId,
+    projectRef: exactProjectRef,
+    gitHead: input.gitHead,
+    personas: input.personas.map(({ lane, userId }) => ({ lane, userId }))
+  };
+  const temporaryPath = resolve(dirname(path), `.${basename(path)}.${randomUUID()}.tmp`);
+  let descriptor;
+  try {
+    descriptor = openSync(
+      temporaryPath,
+      constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW,
+      0o600
+    );
+    fchmodSync(descriptor, 0o600);
+    writeFileSync(descriptor, `${JSON.stringify(payload)}\n`, "utf8");
+    fsyncSync(descriptor);
+    const details = fstatSync(descriptor);
+    if (!details.isFile() || details.nlink !== 1 || (details.mode & 0o077) !== 0) {
+      fail("The active-persona checkpoint temporary file is not private.", "checkpoint_write_failed");
+    }
+    closeSync(descriptor);
+    descriptor = undefined;
+    renameSync(temporaryPath, path);
+    privateRegularFile(path, "The written active-persona checkpoint");
+    const directory = openSync(dirname(path), constants.O_RDONLY);
+    try { fsyncSync(directory); } finally { closeSync(directory); }
+    return payload;
+  } catch (error) {
+    if (typeof descriptor === "number") closeSync(descriptor);
+    if (existsSync(temporaryPath)) unlinkSync(temporaryPath);
+    throw error;
+  }
+}
+
+export function validateRuntimeConfig(
+  env,
+  argv,
+  gitHead,
+  nodeMajor = Number(process.versions.node.split(".")[0]),
+  { ledgerValidator = validateLedger } = {}
+) {
   if (!Array.isArray(argv) || argv.length !== 2) {
     fail("The hosted Auth probe accepts no command-line arguments; all sensitive inputs must remain runtime-only.");
   }
@@ -110,13 +224,59 @@ export function validateRuntimeConfig(env, argv, gitHead, nodeMajor = Number(pro
       fail("The optional Preview seam requires the root-owned protection bypass value.");
     }
   }
+
+  const liveJourneySeam = env.GEOAI_HOSTED_AUTH_PROBE_LIVE_JOURNEY_SEAM ?? "disabled";
+  if (!["disabled", exactLiveJourneySeamOptIn].includes(liveJourneySeam)) {
+    fail("The optional live-journey seam setting is not accepted.");
+  }
+  let liveJourney = null;
+  if (liveJourneySeam === exactLiveJourneySeamOptIn) {
+    if (previewSeam !== exactPreviewSeamOptIn) {
+      fail("The live-journey seam requires the existing reviewed Preview Auth seam first.");
+    }
+    for (const name of liveJourneySeamEnvironmentNames) required(env, name);
+    const scope = required(env, "GEOAI_HOSTED_AUTH_PROBE_LIVE_JOURNEY_SCOPE");
+    if (!acceptedLiveScopes.has(scope)) fail("The optional live-journey scope is not accepted.");
+    const previewUrl = canonicalOrigin(required(env, "GEOAI_REAL_PASSWORD_AUTH_PREVIEW_URL"));
+    const preview = previewUrl ? new URL(previewUrl) : null;
+    if (!preview || preview.protocol !== "https:" || !preview.hostname.endsWith(".vercel.app") ||
+        forbiddenProductionHosts.has(preview.hostname)) {
+      fail("The live-journey seam requires one exact non-Production HTTPS Vercel Preview.");
+    }
+    const ledgerId = required(env, "GEOAI_HOSTED_AUTH_PROBE_LIVE_EXPECTED_LEDGER_ID");
+    if (ledgerId !== exactLedgerId) fail("The optional live-journey ledger identity is not accepted.");
+    const ledgerRoot = required(env, "GEOAI_HOSTED_AUTH_PROBE_LIVE_LEDGER_ROOT");
+    const ledgerPath = required(env, "GEOAI_HOSTED_AUTH_PROBE_LIVE_LEDGER_PATH");
+    const ledger = ledgerValidator(ledgerRoot, ledgerPath);
+    if (ledger?.ledgerId !== exactLedgerId) fail("The early read-only ledger receipt is not accepted.");
+    const liveApproval = required(env, "GEOAI_HOSTED_AUTH_PROBE_LIVE_RUN_APPROVAL");
+    if (liveApproval !== `paid-live-journey:${exactLedgerId}:${preview.hostname}:${expectedCommitSha}:${scope}`) {
+      fail("The live-journey approval is not bound to the exact ledger, host, Git head and scope.");
+    }
+    const checkpointPath = validateActiveCheckpointPath(
+      required(env, "GEOAI_HOSTED_AUTH_PROBE_ACTIVE_PERSONA_RECEIPT_PATH"),
+      false
+    );
+    liveJourney = {
+      scope,
+      previewUrl,
+      previewHost: preview.hostname,
+      ledgerRoot,
+      ledgerPath,
+      ledgerId,
+      liveApproval,
+      checkpointPath
+    };
+  }
   return {
     projectRef,
     supabaseUrl,
     publishableKey,
     adminSecretKey,
     expectedCommitSha,
-    previewSeam
+    previewSeam,
+    liveJourneySeam,
+    liveJourney
   };
 }
 
@@ -334,6 +494,7 @@ function clientOptions(fetcher, headers = undefined) {
 function newSyntheticPersona(lane, runId) {
   return {
     lane,
+    runId,
     email: `geoai-auth-probe-${runId}-${lane.toLowerCase()}@example.invalid`,
     password: `Gx!${randomBytes(30).toString("base64url")}`,
     userId: null,
@@ -620,6 +781,184 @@ export function runExistingPreviewHarness(config, personas, { env = process.env,
   return "passed_existing_reviewed_runner";
 }
 
+function exactKeys(value, keys) {
+  return value && typeof value === "object" && !Array.isArray(value) &&
+    Object.keys(value).sort().join("\u0000") === [...keys].sort().join("\u0000");
+}
+
+export function assertActiveCurrentPersona(personas, runId, invocationState) {
+  const primary = personas?.[0];
+  const secondary = personas?.[1];
+  const cleanupInactive = (persona) => persona?.cleanup &&
+    persona.cleanup.serverGlobalRevokeConfirmed === false && persona.cleanup.refreshTokensRejected === 0 &&
+    persona.cleanup.banned === false && persona.cleanup.passwordRejected === false &&
+    persona.cleanup.currentProfileEmpty === false && persona.cleanup.finalBanReadback === false;
+  if (!primary || !secondary || primary.lane !== "A" || secondary.lane !== "B" ||
+      primary.runId !== runId || secondary.runId !== runId || !/^[0-9a-f]{18}$/.test(runId) ||
+      !uuidPattern.test(primary.userId ?? "") || !uuidPattern.test(primary.profileId ?? "") ||
+      !uuidPattern.test(secondary.userId ?? "") || !uuidPattern.test(secondary.profileId ?? "") ||
+      primary.userId === secondary.userId || primary.profileId === secondary.profileId ||
+      typeof primary.email !== "string" || typeof primary.password !== "string" || primary.password.length < 8 ||
+      primary.createOutcomeUnknown !== false || !Array.isArray(primary.sessions) || primary.sessions.length !== 2 ||
+      primary.sessions.some((session) => !session?.accessToken || !session?.refreshToken) ||
+      !cleanupInactive(primary) || !cleanupInactive(secondary) || !invocationState || invocationState.invoked !== false) {
+    fail("The live journey requires one fresh active current-run persona A and an unused seam.", "active_persona_invalid");
+  }
+}
+
+export function buildLiveJourneyChildEnvironment(config, personas, env = process.env) {
+  if (!config?.liveJourney) fail("The optional live-journey seam is not configured.", "live_seam_disabled");
+  const childEnvironment = {};
+  for (const name of [
+    "PATH", "HOME", "TMPDIR", "TMP", "TEMP", "LANG", "LC_ALL", "TZ",
+    "PLAYWRIGHT_BROWSERS_PATH", "SystemRoot", "WINDIR", "ComSpec", "PATHEXT"
+  ]) {
+    if (typeof env[name] === "string") childEnvironment[name] = env[name];
+  }
+  Object.assign(childEnvironment, {
+    GEOAI_E2E_BASE_URL: env.GEOAI_E2E_BASE_URL,
+    GEOAI_SPRINT10_LIVE_EXPLICIT_RUN: "root-paid-live-journey-2026-09-18",
+    GEOAI_SPRINT10_LIVE_SCOPE: config.liveJourney.scope,
+    GEOAI_SPRINT10_LIVE_PREVIEW_URL: config.liveJourney.previewUrl,
+    GEOAI_SPRINT10_LIVE_EXPECTED_COMMIT_SHA: config.expectedCommitSha,
+    GEOAI_SPRINT10_LIVE_SUPABASE_PROJECT_REF: exactProjectRef,
+    GEOAI_SPRINT10_LIVE_PREVIEW_BYPASS_SECRET: env.GEOAI_REAL_PASSWORD_AUTH_PREVIEW_BYPASS_SECRET,
+    GEOAI_SPRINT10_LIVE_EMAIL: personas[0].email,
+    GEOAI_SPRINT10_LIVE_PASSWORD: personas[0].password,
+    GEOAI_SPRINT10_LIVE_USER_ID: personas[0].userId,
+    GEOAI_SPRINT10_LIVE_EXPECTED_LEDGER_ID: config.liveJourney.ledgerId,
+    GEOAI_SPRINT10_LIVE_LEDGER_ROOT: config.liveJourney.ledgerRoot,
+    GEOAI_SPRINT10_LIVE_LEDGER_PATH: config.liveJourney.ledgerPath,
+    GEOAI_SPRINT10_LIVE_DEPLOYMENT_RECEIPT_PATH: env.GEOAI_REAL_PASSWORD_AUTH_DEPLOYMENT_RECEIPT_PATH,
+    GEOAI_SPRINT10_LIVE_RUN_APPROVAL: config.liveJourney.liveApproval
+  });
+  return childEnvironment;
+}
+
+function parseLiveReceipts(value, scope) {
+  if (!Array.isArray(value) || value.length > 2) fail("The live child receipt list is not accepted.", "live_receipt_invalid");
+  const seen = new Set();
+  const receipts = value.map((receipt) => {
+    if (!exactKeys(receipt, ["id", "route", "depth", "state", "estimatedUsd"]) ||
+        !Number.isSafeInteger(receipt.id) || receipt.id < 1 || seen.has(receipt.id) ||
+        !["ai", "create"].includes(receipt.route) || !["quick", "standard", "deep"].includes(receipt.depth) ||
+        !["settled", "reserved", "unknown"].includes(receipt.state) ||
+        typeof receipt.estimatedUsd !== "number" || !Number.isFinite(receipt.estimatedUsd) ||
+        receipt.estimatedUsd < 0 || receipt.estimatedUsd > 15) {
+      fail("A live child spend receipt is malformed.", "live_receipt_invalid");
+    }
+    seen.add(receipt.id);
+    return {
+      id: receipt.id,
+      route: receipt.route,
+      depth: receipt.depth,
+      state: receipt.state,
+      estimatedUsd: receipt.estimatedUsd
+    };
+  });
+  const expectedRoutes = {
+    journey: ["ai", "create"],
+    "dubai-analyse": ["ai"],
+    "dubai-find": [],
+    "singapore-create": ["create"]
+  }[scope];
+  if (!expectedRoutes || receipts.map((receipt) => receipt.route).sort().join(",") !== [...expectedRoutes].sort().join(",") ||
+      receipts.reduce((sum, receipt) => sum + receipt.estimatedUsd, 0) > 15) {
+    fail("The live child spend receipt does not match the selected bounded scope.", "live_receipt_invalid");
+  }
+  return receipts;
+}
+
+export function parseLiveJourneyChildReceipt(result, expected) {
+  let value;
+  try { value = JSON.parse(result?.stdout ?? ""); }
+  catch { fail("The live child did not return one accepted JSON receipt.", "live_receipt_invalid"); }
+  if (!value || value.scope !== expected.scope || value.previewHost !== expected.previewHost ||
+      value.commit !== expected.commit) {
+    fail("The live child receipt is not bound to the exact Preview tuple.", "live_receipt_invalid");
+  }
+  const receipts = parseLiveReceipts(value.receipts, expected.scope);
+  const base = {
+    scope: value.scope,
+    previewHost: value.previewHost,
+    commit: value.commit,
+    receipts
+  };
+  if (value.status === "PASS") {
+    if (result.status !== 0 || !exactKeys(value, ["status", "scope", "previewHost", "commit", "browserLocalPersistenceOnly", "receipts"]) ||
+        value.browserLocalPersistenceOnly !== true || receipts.some((receipt) => receipt.state !== "settled")) {
+      fail("The live PASS receipt is not accepted.", "live_receipt_invalid");
+    }
+    return { status: "PASS", ...base, browserLocalPersistenceOnly: true };
+  }
+  if (value.status === "INCONCLUSIVE") {
+    if (result.status !== 2 || !exactKeys(value, ["status", "scope", "previewHost", "commit", "reason", "receipts"]) ||
+        typeof value.reason !== "string" || !/^[A-Za-z0-9 .,:;()/_-]{1,500}$/.test(value.reason)) {
+      fail("The live INCONCLUSIVE receipt is not accepted.", "live_receipt_invalid");
+    }
+    return { status: "INCONCLUSIVE", ...base, reason: value.reason };
+  }
+  if (value.status === "FAIL_CLEANUP") {
+    if (result.status === 0 || !exactKeys(value, ["status", "scope", "previewHost", "commit", "stage", "receipts"]) ||
+        typeof value.stage !== "string" || !/^[A-Za-z0-9_-]{1,80}$/.test(value.stage)) {
+      fail("The live cleanup-failure receipt is not accepted.", "live_receipt_invalid");
+    }
+    return { status: "FAIL_CLEANUP", ...base, stage: value.stage };
+  }
+  fail("The live child returned an unsupported status.", "live_receipt_invalid");
+}
+
+export function sanitizedCleanupFailures(failures) {
+  return failures.map((failure) => ({
+    userId: uuidPattern.test(failure?.userId ?? "") ? failure.userId : "unknown",
+    stage: typeof failure?.stage === "string" && /^[A-Za-z0-9_-]{1,80}$/.test(failure.stage)
+      ? failure.stage
+      : "unknown",
+    error: typeof failure?.error === "string" && /^[A-Za-z0-9_/-]{1,120}$/.test(failure.error)
+      ? failure.error
+      : "unknown/unknown"
+  }));
+}
+
+export function runReviewedLiveJourney(
+  config,
+  personas,
+  runId,
+  { env = process.env, spawn = spawnSync, invocationState = { invoked: false } } = {}
+) {
+  if (!config.liveJourney) return { status: "NOT_REQUESTED" };
+  assertActiveCurrentPersona(personas, runId, invocationState);
+  invocationState.invoked = true;
+  const childEnvironment = buildLiveJourneyChildEnvironment(config, personas, env);
+  const result = spawn(process.execPath, [resolve(repositoryRoot, "scripts/sprint10-live-journey-run.mjs")], {
+    cwd: repositoryRoot,
+    env: childEnvironment,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    timeout: 810_000,
+    killSignal: "SIGTERM",
+    maxBuffer: 256 * 1024
+  });
+  if (result.error?.code === "ETIMEDOUT" || result.signal === "SIGTERM") {
+    return { status: "FAIL", stage: "live_child_timeout" };
+  }
+  if (result.error || result.signal) return { status: "FAIL", stage: "live_child_unconfirmed" };
+  try {
+    return parseLiveJourneyChildReceipt(result, {
+      scope: config.liveJourney.scope,
+      previewHost: config.liveJourney.previewHost,
+      commit: config.expectedCommitSha
+    });
+  } catch {
+    return {
+      status: "FAIL",
+      stage: result.status === 0 || [1, 2].includes(result.status)
+        ? "live_child_invalid_receipt"
+        : "live_child_failed"
+    };
+  }
+}
+
 export async function runBestEffortStages(stages, failureIdentity) {
   const failures = [];
   for (const [stage, operation] of stages) {
@@ -740,6 +1079,9 @@ async function runHostedProbe() {
   const cleanupFailures = [];
   let executionError = null;
   let previewHarness = "not_requested";
+  let liveJourney = { status: "NOT_REQUESTED" };
+  let checkpointWritten = false;
+  const liveInvocationState = { invoked: false };
 
   try {
     for (const persona of personas) await createPersona(admin, config, adminFetch, persona);
@@ -748,22 +1090,118 @@ async function runHostedProbe() {
     assert.notEqual(personas[0].profileId, personas[1].profileId, "A/B profiles must remain isolated");
     assert.equal(personas[0].userId === personas[1].userId, false);
     await verifyAnonymousDenial(createClient, config);
+    if (config.liveJourney) {
+      writeActivePersonaCheckpoint(config.liveJourney.checkpointPath, {
+        state: "active",
+        runId,
+        projectRef: exactProjectRef,
+        gitHead: config.expectedCommitSha,
+        personas: personas.map(({ lane, userId }) => ({ lane, userId }))
+      });
+      checkpointWritten = true;
+    }
     previewHarness = runExistingPreviewHarness(config, personas);
+    if (config.liveJourney) {
+      liveJourney = runReviewedLiveJourney(config, personas, runId, { invocationState: liveInvocationState });
+    }
   } catch (error) {
     executionError = error instanceof Error ? error : new Error("The hosted Auth probe failed closed.");
   } finally {
     for (const persona of personas) {
       cleanupFailures.push(...await retirePersona(createClient, admin, adminFetch, config, persona));
     }
+    if (config.liveJourney && checkpointWritten) {
+      try {
+        writeActivePersonaCheckpoint(config.liveJourney.checkpointPath, {
+          state: cleanupFailures.length === 0 ? "retired" : "retirement_failed",
+          runId,
+          projectRef: exactProjectRef,
+          gitHead: config.expectedCommitSha,
+          personas: personas.map(({ lane, userId }) => ({ lane, userId }))
+        }, { replace: true });
+      } catch (error) {
+        cleanupFailures.push({
+          userId: personas[0]?.userId ?? "unknown",
+          stage: "checkpoint_retirement_state",
+          error: safeError(error)
+        });
+      }
+    }
   }
 
   if (cleanupFailures.length > 0) {
+    if (config.liveJourney) {
+      console.log(JSON.stringify({
+        schemaVersion: "geoai.sprint10.hosted-auth-live-journey-receipt.v1",
+        status: "FAIL_ACTION_REQUIRED",
+        projectRef: exactProjectRef,
+        gitHead: config.expectedCommitSha,
+        previewHost: config.liveJourney.previewHost,
+        scope: config.liveJourney.scope,
+        ledgerId: config.liveJourney.ledgerId,
+        checks: {
+          adminCreateUserWithoutEmailDelivery: personas.filter((persona) => persona.userId).length,
+          previewHarness
+        },
+        liveJourney: liveJourney.status === "NOT_REQUESTED"
+          ? { status: "FAIL", stage: "pre_live_failure" }
+          : liveJourney,
+        cleanupFailures: sanitizedCleanupFailures(cleanupFailures),
+        secretMaterialEmitted: false
+      }));
+      process.exitCode = 1;
+      return;
+    }
     console.error(JSON.stringify({
       status: "FAIL_ACTION_REQUIRED",
       projectRef: exactProjectRef,
       cleanupFailures
     }));
     fail("Terminal credential retirement was not proven for every potentially created synthetic user.", "retirement_unproven");
+  }
+  if (config.liveJourney) {
+    const checks = {
+      adminCreateUserWithoutEmailDelivery: 2,
+      primaryPasswordLogin: 2,
+      independentSecondarySessionLogin: 2,
+      getClaims: 2,
+      getUser: 2,
+      currentProfile: 2,
+      isolatedProfiles: true,
+      anonymousCurrentProfileDenied: true,
+      previewHarness
+    };
+    const retirement = {
+      rawServerGlobalRevokeConfirmed: 2,
+      independentRefreshTokensRejected: 4,
+      permanentAdminBan: 2,
+      passwordLoginRejectedWithUserBannedCode: 2,
+      staleJwtCurrentProfileSuccessfulEmptyResult: 2,
+      finalFutureBanReadback: 2,
+      hardDeletedUsers: 0,
+      profileRowsPreservedByDesignNotBroadReadBack: 2
+    };
+    const sanitizedLiveJourney = executionError && liveJourney.status === "NOT_REQUESTED"
+      ? { status: "FAIL", stage: "pre_live_failure" }
+      : liveJourney;
+    const status = executionError || sanitizedLiveJourney.status === "FAIL" || sanitizedLiveJourney.status === "FAIL_CLEANUP"
+      ? "FAIL"
+      : sanitizedLiveJourney.status;
+    console.log(JSON.stringify({
+      schemaVersion: "geoai.sprint10.hosted-auth-live-journey-receipt.v1",
+      status,
+      projectRef: exactProjectRef,
+      gitHead: config.expectedCommitSha,
+      previewHost: config.liveJourney.previewHost,
+      scope: config.liveJourney.scope,
+      ledgerId: config.liveJourney.ledgerId,
+      checks,
+      liveJourney: sanitizedLiveJourney,
+      retirement,
+      secretMaterialEmitted: false
+    }));
+    process.exitCode = status === "PASS" ? 0 : status === "INCONCLUSIVE" ? 2 : 1;
+    return;
   }
   if (executionError) throw executionError;
 

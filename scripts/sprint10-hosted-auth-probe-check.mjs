@@ -417,11 +417,19 @@ for (const prohibited of [
   /session_replication_role/i,
   /from\(["'](?:public|private|source|storage)/i,
   /fetch\(["'][^"']*(?:ai|source|product)/i,
-  /writeFile|appendFile|createWriteStream/,
+  /appendFile|createWriteStream/,
   /console[.](?:log|error)\([^\n]*(?:password|accessToken|refreshToken|publishableKey|adminSecretKey)/
 ]) {
   assert.doesNotMatch(operator, prohibited);
 }
+const checkpointWriter = operator.slice(
+  operator.indexOf("export function writeActivePersonaCheckpoint"),
+  operator.indexOf("export function validateRuntimeConfig")
+);
+assert.match(checkpointWriter, /O_CREAT \| constants[.]O_EXCL \| constants[.]O_WRONLY \| constants[.]O_NOFOLLOW/);
+assert.match(checkpointWriter, /fchmodSync\(descriptor, 0o600\)/);
+assert.doesNotMatch(operator.replace(checkpointWriter, ""), /writeFileSync\(/,
+  "Only the approved private active-persona checkpoint may write a file.");
 
 assert.doesNotMatch(packageJson, /sprint10-hosted-auth-probe/,
   "The live operator must not be included in default package scripts.");
