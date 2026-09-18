@@ -9,6 +9,8 @@ import {
   readFileSync,
   realpathSync,
   rmSync,
+  symlinkSync,
+  unlinkSync,
   writeFileSync
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -279,6 +281,16 @@ const invalidReceipt = runReviewedLiveJourney(config, personas, runId, {
 });
 assert.deepEqual(invalidReceipt, { status: "FAIL", stage: "live_child_invalid_receipt" });
 
+const danglingCheckpointPath = join(privateRoot, "dangling-active-personas.json");
+symlinkSync(join(privateRoot, "missing-checkpoint-target"), danglingCheckpointPath);
+assert.throws(() => writeActivePersonaCheckpoint(danglingCheckpointPath, {
+  state: "provisioning", runId, projectRef: "pphdqkurxneyagvnnjdt", gitHead: head,
+  personas: [{ lane: "A", state: "not_attempted", userId: null }, { lane: "B", state: "not_attempted", userId: null }]
+}), /already exists/,
+"a dangling checkpoint link is an existing unsafe directory entry and must never be replaced");
+assert.equal(lstatSync(danglingCheckpointPath).isSymbolicLink(), true);
+unlinkSync(danglingCheckpointPath);
+
 const activeCheckpoint = writeActivePersonaCheckpoint(checkpointPath, {
   state: "active", runId, projectRef: "pphdqkurxneyagvnnjdt", gitHead: head,
   personas: [{ lane: "A", state: "active", userId: userA }, { lane: "B", state: "active", userId: userB }]
@@ -333,15 +345,18 @@ const retirementStages = [
 ];
 const lifecycleFaults = [
   "checkpoint_initialized",
-  "A_create_dispatched",
+  "A_create_intent_checkpoint_write",
+  "A_create_intent_recorded",
+  "A_create_call_ambiguous",
   "A_uuid_known",
-  "B_create_dispatched",
+  "B_create_intent_recorded",
   "B_uuid_known",
   "A_authenticated",
   "B_authenticated",
   "checkpoint_active",
   "preview_child_complete",
   "live_child_complete",
+  "terminal_checkpoint_write",
   "A_retirement_unexpected_throw",
   ...retirementStages.flatMap((stage) => [`A_retirement_${stage}`, `B_retirement_${stage}`])
 ];
@@ -358,9 +373,23 @@ async function runLifecycleFixture(faultAt = null, liveStatus = "PASS") {
   const receipts = [];
   const exits = [];
   let faultSnapshot = null;
+  let checkpointWrites = 0;
+  let terminalCheckpointWriteFailed = false;
   const ids = { A: userA, B: userB };
   const profiles = { A: profileA, B: profileB };
   const operations = {
+    writeCheckpoint(checkpointFile, input, options) {
+      checkpointWrites += 1;
+      const failCreateIntentWrite = faultAt === "A_create_intent_checkpoint_write" && checkpointWrites === 2;
+      const failTerminalWrite = faultAt === "terminal_checkpoint_write" && input.state === "retired" &&
+        !terminalCheckpointWriteFailed;
+      if (failCreateIntentWrite || failTerminalWrite) {
+        terminalCheckpointWriteFailed ||= failTerminalWrite;
+        faultSnapshot = JSON.parse(readFileSync(checkpointFile, "utf8"));
+        throw new Error(`offline_fault_${faultAt}`);
+      }
+      return writeActivePersonaCheckpoint(checkpointFile, input, options);
+    },
     onEvent(event) {
       if (event === faultAt && !event.includes("_retirement_")) {
         faultSnapshot = JSON.parse(readFileSync(path, "utf8"));
@@ -370,6 +399,10 @@ async function runLifecycleFixture(faultAt = null, liveStatus = "PASS") {
     async createPersona(_admin, _config, _fetch, persona, { onUuidKnown }) {
       counters.creates += 1;
       createByLane[persona.lane] += 1;
+      if (faultAt === `${persona.lane}_create_call_ambiguous`) {
+        faultSnapshot = JSON.parse(readFileSync(path, "utf8"));
+        throw new Error(`offline_fault_${faultAt}`);
+      }
       persona.createAttempted = true;
       persona.createOutcomeUnknown = false;
       persona.userId = ids[persona.lane];
@@ -455,9 +488,11 @@ async function runLifecycleFixture(faultAt = null, liveStatus = "PASS") {
     assert.equal(faultSnapshot.runId, runId);
     assert.deepEqual(faultSnapshot.personas.map((persona) => persona.lane), ["A", "B"]);
     assert(!JSON.stringify(faultSnapshot).includes("@example.invalid"));
-    assert.equal(receipts[0].status, faultAt.includes("_retirement_") || faultAt.endsWith("_create_dispatched")
+    assert.equal(receipts[0].status, faultAt.includes("_retirement_") ||
+      faultAt.includes("_create_intent_") || faultAt.endsWith("_create_call_ambiguous") ||
+      faultAt === "terminal_checkpoint_write"
       ? "FAIL_ACTION_REQUIRED" : "FAIL");
-    assert.equal(receipts[0].observed.createDispatched,
+    assert.equal(receipts[0].observed.createAttemptsMarked,
       receipts[0].personas.filter((persona) => persona.createAttempted).length);
   }
   return { counters, createByLane, receipt: receipts[0], exit: exits[0], faultSnapshot, finalCheckpoint };
@@ -482,17 +517,39 @@ for (const faultAt of lifecycleFaults) {
     "failure receipts must not contain aggregate retirement claims");
   if (faultAt.includes("_retirement_")) assert.equal(outcome.finalCheckpoint.state, "retirement_failed");
   if (faultAt === "checkpoint_initialized") {
-    assert.equal(outcome.receipt.observed.createDispatched, 0);
+    assert.equal(outcome.receipt.observed.createAttemptsMarked, 0);
     assert.equal(outcome.receipt.observed.uuidsKnown, 0);
   }
-  if (faultAt === "A_create_dispatched") {
+  if (faultAt === "A_create_intent_checkpoint_write") {
+    assert.equal(outcome.counters.creates, 0, "a failed durable intent write must occur before the create call");
+    assert.equal(outcome.receipt.observed.createAttemptsMarked, 1);
+    assert.deepEqual(outcome.faultSnapshot.personas[0], { lane: "A", state: "not_attempted", userId: null });
+  }
+  if (faultAt === "A_create_intent_recorded") {
+    assert.equal(outcome.counters.creates, 0, "recording create intent does not prove network dispatch");
+    assert.equal(outcome.receipt.observed.createAttemptsMarked, 1);
     assert.deepEqual(outcome.faultSnapshot.personas[0], { lane: "A", state: "create_dispatched", userId: null });
+  }
+  if (faultAt === "A_create_call_ambiguous") {
+    assert.deepEqual(outcome.createByLane, { A: 1, B: 0 },
+      "an ambiguous create call must not be replayed and must stop the second lane");
+    assert.equal(outcome.receipt.status, "FAIL_ACTION_REQUIRED");
+    assert.equal(outcome.receipt.observed.createAttemptsMarked, 1);
+    assert.deepEqual(outcome.faultSnapshot.personas[0], { lane: "A", state: "create_dispatched", userId: null });
+    assert.equal(outcome.faultSnapshot.runId, runId);
   }
   if (faultAt === "A_uuid_known") {
     assert.deepEqual(outcome.faultSnapshot.personas[0], { lane: "A", state: "uuid_known", userId: userA });
   }
   if (faultAt === "B_uuid_known") {
     assert.deepEqual(outcome.faultSnapshot.personas[1], { lane: "B", state: "uuid_known", userId: userB });
+  }
+  if (faultAt === "terminal_checkpoint_write") {
+    assert.deepEqual(outcome.receipt.personas.map((persona) => persona.lifecycleState), ["retired", "retired"],
+      "receipt lifecycle state is explicitly in-memory terminal evidence, not a durable checkpoint claim");
+    assert.equal(outcome.finalCheckpoint.state, "active");
+    assert.deepEqual(outcome.finalCheckpoint.personas.map((persona) => persona.state), ["retired", "active"],
+      "the retained checkpoint must expose the last successfully durable state");
   }
 }
 

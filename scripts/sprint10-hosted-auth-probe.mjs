@@ -109,6 +109,15 @@ function privateRegularFile(path, label) {
   }
 }
 
+function directoryEntry(path, label) {
+  try {
+    return lstatSync(path);
+  } catch (error) {
+    if (error?.code === "ENOENT") return null;
+    fail(`${label} could not be verified safely.`, "checkpoint_path_invalid");
+  }
+}
+
 export function validateActiveCheckpointPath(pathValue, mustExist = false) {
   if (typeof pathValue !== "string" || !isAbsolute(pathValue) || resolve(pathValue) !== pathValue) {
     fail("The active-persona checkpoint path must be one exact absolute path.", "checkpoint_path_invalid");
@@ -120,10 +129,11 @@ export function validateActiveCheckpointPath(pathValue, mustExist = false) {
       (statSync(parent).mode & 0o077) !== 0 || basename(path).length < 1) {
     fail("The active-persona checkpoint parent must be one existing private 0700 real directory.", "checkpoint_path_invalid");
   }
+  const entry = directoryEntry(path, "The active-persona checkpoint path");
   if (mustExist) {
-    if (!existsSync(path)) fail("The active-persona checkpoint is missing.", "checkpoint_missing");
+    if (entry === null) fail("The active-persona checkpoint is missing.", "checkpoint_missing");
     privateRegularFile(path, "The active-persona checkpoint");
-  } else if (existsSync(path)) {
+  } else if (entry !== null) {
     fail("The active-persona checkpoint path already exists; a prior run may be unresolved.", "checkpoint_exists");
   }
   return path;
@@ -1121,7 +1131,7 @@ function lifecycleCheckpointInput(config, runId, personas, state) {
 
 function observedLifecycle(personas, { anonymousDenial, isolatedProfiles, previewHarness }) {
   return {
-    createDispatched: personas.filter((persona) => persona.createAttempted).length,
+    createAttemptsMarked: personas.filter((persona) => persona.createAttempted).length,
     uuidsKnown: personas.filter((persona) => uuidPattern.test(persona.userId ?? "")).length,
     anonymousCurrentProfileDenied: anonymousDenial,
     isolatedProfiles,
@@ -1141,7 +1151,7 @@ function terminalPersonaEvidence(persona) {
   return {
     lane: persona.lane,
     userId: uuidPattern.test(persona.userId ?? "") ? persona.userId : null,
-    checkpointState: persona.provisioningState,
+    lifecycleState: persona.provisioningState,
     createAttempted: persona.createAttempted,
     createAbsenceProven: persona.createAbsenceProven,
     serverGlobalRevokeConfirmed: persona.cleanup.serverGlobalRevokeConfirmed,
@@ -1227,7 +1237,7 @@ export async function runHostedProbe(options = {}) {
         persona.provisioningState = "create_dispatched";
         operations.writeCheckpoint(config.liveJourney.checkpointPath,
           lifecycleCheckpointInput(config, runId, personas, "provisioning"), { replace: true });
-        operations.onEvent(`${persona.lane}_create_dispatched`, { personas, config });
+        operations.onEvent(`${persona.lane}_create_intent_recorded`, { personas, config });
       }
       await operations.createPersona(admin, config, adminFetch, persona, {
         onUuidKnown(knownPersona) {

@@ -123,6 +123,16 @@ try {
   assert.throws(() => validateLiveLedgerPostRun(root, ledgerPath), /active or stale ledger lease/);
   unlinkSync(runnerLeasePath);
 
+  symlinkSync(join(root, "missing-cycle-lease-target"), cycleLease);
+  assert.throws(() => validateLiveLedgerPreflight(root, ledgerPath, "journey"), /unsafe ledger lease link/,
+    "a dangling canonical ledger lease link must not be treated as absent");
+  unlinkSync(cycleLease);
+  symlinkSync(join(root, "missing-runner-lease-target"), runnerLeasePath);
+  assert.throws(() => validateLiveLedgerPreflight(root, ledgerPath, "journey"), /unsafe ledger lease link/,
+    "a dangling runner lease link must not be treated as absent");
+  assert.throws(() => validateLiveLedgerPostRun(root, ledgerPath), /unsafe ledger lease link/);
+  unlinkSync(runnerLeasePath);
+
   validateLiveLedgerPreflight(root, ledgerPath, "journey");
   const first = acquireRunLease(root, ledgerPath, "a".repeat(40), "journey");
   assert.throws(() => acquireRunLease(root, ledgerPath, "a".repeat(40), "journey"), /already owns this exact ledger/,
@@ -144,7 +154,7 @@ try {
       strictCanonicalLedger: 6,
       unresolvedStops: 2,
       scopeHeadroomBoundaries: 8,
-      staleLeaseStops: 3,
+      staleLeaseStops: 6,
       raceAfterPreflight: 1,
       postRunNoFreshHeadroom: 2,
       pathModeSymlink: 2,

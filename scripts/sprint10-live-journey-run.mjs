@@ -5,7 +5,6 @@ import {
   fchmodSync,
   fstatSync,
   fsyncSync,
-  existsSync,
   lstatSync,
   mkdtempSync,
   openSync,
@@ -83,7 +82,17 @@ function liveRunLeasePath(ledgerPath) {
 function rejectExistingLease(ledgerPath, { allowActiveRunnerLease = false } = {}) {
   const paths = [sprint10LedgerLockPath(ledgerPath)];
   if (!allowActiveRunnerLease) paths.push(liveRunLeasePath(ledgerPath));
-  if (paths.some((path) => existsSync(path))) {
+  for (const path of paths) {
+    let details;
+    try {
+      details = lstatSync(path);
+    } catch (error) {
+      if (error?.code === "ENOENT") continue;
+      fail("A ledger lease path could not be verified absent; read-only live-journey validation is blocked.");
+    }
+    if (details.isSymbolicLink()) {
+      fail("An unsafe ledger lease link blocks read-only live-journey validation.");
+    }
     fail("An active or stale ledger lease blocks read-only live-journey validation.");
   }
 }
