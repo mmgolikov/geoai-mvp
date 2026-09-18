@@ -4,7 +4,7 @@
     "app/api/**/route.ts",
     "security/api-route-access.json"
   ],
-  "routeCount": 77,
+  "routeCount": 78,
   "fieldContract": [
     "route",
     "classification",
@@ -2507,6 +2507,36 @@
             503
           ],
           "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        }
+      }
+    },
+    "/api/runtime/readiness": {
+      "route": "/api/runtime/readiness",
+      "sourcePath": "app/api/runtime/readiness/route.ts",
+      "classification": "public_sanitized",
+      "methods": {
+        "GET": {
+          "access": "public_demo",
+          "cachePolicy": {
+            "required": "public_sanitized_explicit_or_runtime_verified",
+            "declaredDirectives": [
+              "no-store, max-age=0"
+            ],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            405,
+            413
+          ],
+          "diagnosticExposure": "compact_sanitized_public_contract"
         }
       }
     },

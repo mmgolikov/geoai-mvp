@@ -3,9 +3,9 @@
   "lastVerified": "2026-09-18",
   "authority": "docs/DOCUMENTATION_INDEX.md",
   "counts": {
-    "markdownDocuments": 216,
+    "markdownDocuments": 219,
     "activeAuthorities": 12,
-    "nonActiveDocuments": 204
+    "nonActiveDocuments": 207
   },
   "documents": {
     "AGENTS.md": {
@@ -1148,6 +1148,12 @@
       "successor": "docs/DOCUMENTATION_INDEX.md",
       "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
     },
+    "docs/sprint10/CLOUD_ARTIFACT_LOCAL_RECEIPT_20260919.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
     "docs/sprint10/CONTRACT_REFRESH_HANDOFF.md": {
       "lifecycle": "historical_or_scoped_reference",
       "currentAuthority": false,
@@ -1238,6 +1244,12 @@
       "successor": "docs/DOCUMENTATION_INDEX.md",
       "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
     },
+    "docs/sprint10/PORTABLE_RUNTIME_HANDOFF.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
     "docs/sprint10/REAL_PASSWORD_AUTH_CORRECTIVE_REVIEW.md": {
       "lifecycle": "historical_or_scoped_delivery_evidence",
       "currentAuthority": false,
@@ -1293,6 +1305,12 @@
       "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
     },
     "docs/sprint10/product/ROLE_SCENARIO_VALUE_MATRIX.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "ops/self-host/README.md": {
       "lifecycle": "historical_or_scoped_reference",
       "currentAuthority": false,
       "successor": "docs/DOCUMENTATION_INDEX.md",
