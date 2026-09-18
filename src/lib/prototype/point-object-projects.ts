@@ -42,6 +42,7 @@ const MAX_ARTIFACTS_PER_PROJECT = 30;
 // overview must not reject a valid 20-project store after writing its intent.
 const MAX_OVERVIEW_BYTES = MAX_PROJECTS * MAX_ARTIFACTS_PER_PROJECT * (160 * 6 + 3) + 4_096;
 const MAX_PENDING_OPERATIONS_PER_IDENTITY = 20;
+const MAX_STABLE_STORE_ATTEMPTS = 3;
 
 export type PointObjectProjectSaveResult =
   | { status: "saved" | "replayed"; project: SavedPointObjectProject; artifact: SavedPointObjectArtifact }
@@ -94,10 +95,16 @@ type PendingOperation = {
   destination: PointObjectProjectDestination;
   createdAt: string;
   lastFailure: PointObjectProjectFailureCode | null;
+  activateDestinationIfActiveProjectId?: string | null;
 };
 
 const pendingOperations = new Map<PointObjectProjectIdentity, Map<string, PendingOperation>>();
 const operationChains = new Map<PointObjectProjectIdentity, Promise<unknown>>();
+
+type StableProjectStoreRead =
+  | { status: "stable"; store: PointObjectProjectStore; raw: string | null }
+  | { status: "failed"; read: Extract<PointObjectProjectStoreReadResult, { store: null }> }
+  | { status: "changed" };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -191,6 +198,30 @@ function writeStore(store: PointObjectProjectStore): void {
   window.localStorage.setItem(projectStorageKey(store.identityKey), raw);
 }
 
+function readRawStore(identityKey: PointObjectProjectIdentity): string | null {
+  return window.localStorage.getItem(projectStorageKey(identityKey));
+}
+
+async function readStableVerifiedStore(identityKey: PointObjectProjectIdentity): Promise<StableProjectStoreRead> {
+  assertCurrentIdentity(identityKey);
+  const before = readRawStore(identityKey);
+  const read = await readVerifiedPointObjectProjects(identityKey);
+  assertCurrentIdentity(identityKey);
+  const after = readRawStore(identityKey);
+  if (before !== after) return { status: "changed" };
+  if (!read.store) return { status: "failed", read };
+  return { status: "stable", store: read.store, raw: after };
+}
+
+function enqueueIdentityOperation<T>(identityKey: PointObjectProjectIdentity, operation: () => Promise<T>): Promise<T> {
+  const previous = operationChains.get(identityKey) ?? Promise.resolve();
+  const current = previous.catch(() => undefined).then(operation);
+  operationChains.set(identityKey, current);
+  const clear = () => { if (operationChains.get(identityKey) === current) operationChains.delete(identityKey); };
+  void current.then(clear, clear);
+  return current;
+}
+
 function canonicalJson(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
   if (isRecord(value)) return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(",")}}`;
@@ -222,23 +253,31 @@ function assertCurrentIdentity(identityKey: PointObjectProjectIdentity): void {
 }
 
 export async function createPointObjectProject(identityKey: PointObjectProjectIdentity, locale: PointObjectLocale, name?: string): Promise<SavedPointObjectProject> {
-  assertCurrentIdentity(identityKey);
-  const read = await readVerifiedPointObjectProjects(identityKey);
-  if (!read.store) throw new Error(read.message);
-  const store = read.store;
-  if (store.projects.length >= MAX_PROJECTS) throw new Error(locale === "ru" ? "Достигнут лимит локальных проектов." : "The local project limit has been reached.");
-  const now = new Date().toISOString();
-  const project: SavedPointObjectProject = {
-    schemaVersion: 1,
-    projectId: randomId("project"),
-    name: name?.trim().slice(0, 120) || (locale === "ru" ? `Новый проект ${store.projects.length + 1}` : `New project ${store.projects.length + 1}`),
-    storageMode: "browser_local_on_this_device",
-    createdAt: now,
-    updatedAt: now,
-    artifacts: []
-  };
-  assertCurrentIdentity(identityKey);
-  writeStore({ ...store, activeProjectId: project.projectId, projects: [project, ...store.projects] });
+  let project: SavedPointObjectProject | null = null;
+  for (let attempt = 0; attempt < MAX_STABLE_STORE_ATTEMPTS; attempt += 1) {
+    const snapshot = await readStableVerifiedStore(identityKey);
+    if (snapshot.status === "failed") throw new Error(snapshot.read.message);
+    if (snapshot.status === "changed") continue;
+    if (snapshot.store.projects.length >= MAX_PROJECTS) throw new Error(locale === "ru" ? "Достигнут лимит локальных проектов." : "The local project limit has been reached.");
+    const now = new Date().toISOString();
+    project = {
+      schemaVersion: 1,
+      projectId: randomId("project"),
+      name: name?.trim().slice(0, 120) || (locale === "ru" ? `Новый проект ${snapshot.store.projects.length + 1}` : `New project ${snapshot.store.projects.length + 1}`),
+      storageMode: "browser_local_on_this_device",
+      createdAt: now,
+      updatedAt: now,
+      artifacts: []
+    };
+    assertCurrentIdentity(identityKey);
+    if (readRawStore(identityKey) !== snapshot.raw) {
+      project = null;
+      continue;
+    }
+    writeStore({ ...snapshot.store, activeProjectId: project.projectId, projects: [project, ...snapshot.store.projects] });
+    break;
+  }
+  if (!project) throw new Error(locale === "ru" ? "Локальные проекты изменились во время проверки. Повторите." : "Local projects changed during verification. Retry.");
   // Starting a distinct local workspace is deliberate. A previous exact-result
   // restore or all-project overview receipt must not repopulate this new
   // project after reload.
@@ -295,15 +334,18 @@ export function renamePointObjectProject(
 }
 
 export async function selectPointObjectProject(identityKey: PointObjectProjectIdentity, projectId: string): Promise<boolean> {
-  assertCurrentIdentity(identityKey);
-  const read = await readVerifiedPointObjectProjects(identityKey);
-  if (!read.store) throw new Error(read.message);
-  const store = read.store;
-  if (!store.projects.some((project) => project.projectId === projectId)) return false;
-  assertCurrentIdentity(identityKey);
-  writeStore({ ...store, activeProjectId: projectId });
-  emitState(identityKey, { status: "idle", message: "" });
-  return true;
+  for (let attempt = 0; attempt < MAX_STABLE_STORE_ATTEMPTS; attempt += 1) {
+    const snapshot = await readStableVerifiedStore(identityKey);
+    if (snapshot.status === "failed") throw new Error(snapshot.read.message);
+    if (snapshot.status === "changed") continue;
+    if (!snapshot.store.projects.some((project) => project.projectId === projectId)) return false;
+    assertCurrentIdentity(identityKey);
+    if (readRawStore(identityKey) !== snapshot.raw) continue;
+    writeStore({ ...snapshot.store, activeProjectId: projectId });
+    emitState(identityKey, { status: "idle", message: "" });
+    return true;
+  }
+  throw new Error("Local projects changed during verification. Retry.");
 }
 
 export function capturePointObjectProjectDestination(
@@ -328,78 +370,94 @@ async function commitPendingOperation(pending: PendingOperation): Promise<PointO
   try {
     assertCurrentIdentity(identityKey);
     const payloadHash = await hashPointObjectOperation(input);
-    const read = await readVerifiedPointObjectProjects(identityKey);
-    if (!read.store) {
-      pending.lastFailure = read.status === "damaged" ? "store_damaged" : "storage_inaccessible";
-      emitState(identityKey, { status: read.status === "damaged" ? "damaged" : "failed", code: pending.lastFailure, idempotencyKey, message: read.message });
-      return { status: "failed", code: pending.lastFailure, message: read.message, idempotencyKey };
-    }
-    const store = read.store;
-    const prior = store.projects.flatMap((project) => project.artifacts.map((artifact) => ({ project, artifact })))
-      .find(({ artifact }) => artifact.idempotencyKey === idempotencyKey);
-    if (prior) {
-      if (prior.artifact.payloadHash !== payloadHash) {
+    for (let attempt = 0; attempt < MAX_STABLE_STORE_ATTEMPTS; attempt += 1) {
+      const snapshot = await readStableVerifiedStore(identityKey);
+      if (snapshot.status === "changed") continue;
+      if (snapshot.status === "failed") {
+        pending.lastFailure = snapshot.read.status === "damaged" ? "store_damaged" : "storage_inaccessible";
+        emitState(identityKey, { status: snapshot.read.status === "damaged" ? "damaged" : "failed", code: pending.lastFailure, idempotencyKey, message: snapshot.read.message });
+        return { status: "failed", code: pending.lastFailure, message: snapshot.read.message, idempotencyKey };
+      }
+      const store = snapshot.store;
+      const prior = store.projects.flatMap((project) => project.artifacts.map((artifact) => ({ project, artifact })))
+        .find(({ artifact }) => artifact.idempotencyKey === idempotencyKey);
+      if (prior) {
+        if (prior.artifact.payloadHash !== payloadHash) {
+          pendingQueue(identityKey).delete(idempotencyKey);
+          emitState(identityKey, { status: "conflict", code: "idempotency_conflict", idempotencyKey, message: "Save conflict: this operation key already belongs to a different completed result." });
+          return { status: "conflict", code: "idempotency_conflict", message: "Idempotency conflict.", idempotencyKey };
+        }
         pendingQueue(identityKey).delete(idempotencyKey);
-        emitState(identityKey, { status: "conflict", code: "idempotency_conflict", idempotencyKey, message: "Save conflict: this operation key already belongs to a different completed result." });
-        return { status: "conflict", code: "idempotency_conflict", message: "Idempotency conflict.", idempotencyKey };
+        emitState(identityKey, { status: "saved", message: input.locale === "ru" ? "Уже сохранено на этом устройстве." : "Already saved on this device." });
+        return { status: "replayed", project: prior.project, artifact: prior.artifact };
       }
-      pendingQueue(identityKey).delete(idempotencyKey);
-      emitState(identityKey, { status: "saved", message: input.locale === "ru" ? "Уже сохранено на этом устройстве." : "Already saved on this device." });
-      return { status: "replayed", project: prior.project, artifact: prior.artifact };
-    }
-    let project = store.projects.find((candidate) => candidate.projectId === destination.projectId) ?? null;
-    let projects = [...store.projects];
-    if (!project) {
-      if (projects.length >= MAX_PROJECTS) {
-        pending.lastFailure = "project_limit";
-        const message = input.locale === "ru" ? "Достигнут лимит локальных проектов. Результат сохранён в очереди повторной записи." : "The local project limit has been reached. The result remains queued for recovery.";
-        emitState(identityKey, { status: "capacity", code: "project_limit", idempotencyKey, message });
-        return { status: "capacity", code: "project_limit", message, idempotencyKey };
+      let project = store.projects.find((candidate) => candidate.projectId === destination.projectId) ?? null;
+      let projects = [...store.projects];
+      const createsDestination = project === null;
+      if (!project) {
+        if (projects.length >= MAX_PROJECTS) {
+          pending.lastFailure = "project_limit";
+          const message = input.locale === "ru" ? "Достигнут лимит локальных проектов. Результат сохранён в очереди повторной записи." : "The local project limit has been reached. The result remains queued for recovery.";
+          emitState(identityKey, { status: "capacity", code: "project_limit", idempotencyKey, message });
+          return { status: "capacity", code: "project_limit", message, idempotencyKey };
+        }
+        project = {
+          schemaVersion: 1,
+          projectId: destination.projectId,
+          name: destination.projectName,
+          storageMode: "browser_local_on_this_device",
+          createdAt: destination.projectCreatedAt,
+          updatedAt: destination.projectCreatedAt,
+          artifacts: []
+        };
+        projects = [project, ...projects];
       }
-      project = {
+      if (project.artifacts.length >= MAX_ARTIFACTS_PER_PROJECT) {
+        pending.lastFailure = "project_capacity";
+        const message = input.locale === "ru" ? "В проекте уже 30 результатов. Создайте новый проект, чтобы сохранить этот результат без удаления существующих." : "This project already has 30 results. Create a new project to save this result without deleting existing work.";
+        emitState(identityKey, { status: "capacity", code: "project_capacity", idempotencyKey, message });
+        return { status: "capacity", code: "project_capacity", message, idempotencyKey };
+      }
+      const completedAt = new Date().toISOString();
+      const artifact: SavedPointObjectArtifact = {
         schemaVersion: 1,
-        projectId: destination.projectId,
-        name: destination.projectName,
-        storageMode: "browser_local_on_this_device",
-        createdAt: destination.projectCreatedAt,
-        updatedAt: destination.projectCreatedAt,
-        artifacts: []
+        artifactId: randomId("artifact"),
+        idempotencyKey,
+        payloadHash,
+        completedAt,
+        updatedAt: completedAt,
+        viewRevision: 0,
+        ...input,
+        label: input.label.trim().slice(0, 240)
       };
-      projects = [project, ...projects];
+      const updatedProject: SavedPointObjectProject = {
+        ...project,
+        updatedAt: artifact.completedAt,
+        artifacts: [artifact, ...project.artifacts]
+      };
+      projects = projects.map((candidate) => candidate.projectId === updatedProject.projectId ? updatedProject : candidate);
+      if (!projects.some((candidate) => candidate.projectId === updatedProject.projectId)) projects.unshift(updatedProject);
+      assertCurrentIdentity(identityKey);
+      if (readRawStore(identityKey) !== snapshot.raw) continue;
+      // The destination is captured when the operation begins, but a later
+      // explicit project selection belongs to the user and must remain active.
+      const activateExplicitDestination = createsDestination && pending.activateDestinationIfActiveProjectId !== undefined &&
+        pending.activateDestinationIfActiveProjectId === store.activeProjectId;
+      const activeProjectId = activateExplicitDestination
+        ? updatedProject.projectId
+        : store.activeProjectId ?? (createsDestination ? updatedProject.projectId : null);
+      writeStore({ schemaVersion: 1, identityKey, activeProjectId, projects });
+      pendingQueue(identityKey).delete(idempotencyKey);
+      const remaining = [...pendingQueue(identityKey).values()].find((item) => item.lastFailure !== null);
+      emitState(identityKey, remaining
+        ? { status: remaining.lastFailure === "project_capacity" || remaining.lastFailure === "project_limit" ? "capacity" : "failed", code: remaining.lastFailure ?? undefined, idempotencyKey: remaining.idempotencyKey, message: input.locale === "ru" ? "Новый результат сохранён; более ранняя запись всё ещё ожидает восстановления." : "The new result was saved; an earlier result still needs recovery." }
+        : { status: "saved", message: input.locale === "ru" ? "Сохранено на этом устройстве." : "Saved on this device." });
+      return { status: "saved", project: updatedProject, artifact };
     }
-    if (project.artifacts.length >= MAX_ARTIFACTS_PER_PROJECT) {
-      pending.lastFailure = "project_capacity";
-      const message = input.locale === "ru" ? "В проекте уже 30 результатов. Создайте новый проект, чтобы сохранить этот результат без удаления существующих." : "This project already has 30 results. Create a new project to save this result without deleting existing work.";
-      emitState(identityKey, { status: "capacity", code: "project_capacity", idempotencyKey, message });
-      return { status: "capacity", code: "project_capacity", message, idempotencyKey };
-    }
-    const completedAt = new Date().toISOString();
-    const artifact: SavedPointObjectArtifact = {
-      schemaVersion: 1,
-      artifactId: randomId("artifact"),
-      idempotencyKey,
-      payloadHash,
-      completedAt,
-      updatedAt: completedAt,
-      viewRevision: 0,
-      ...input,
-      label: input.label.trim().slice(0, 240)
-    };
-    const updatedProject: SavedPointObjectProject = {
-      ...project,
-      updatedAt: artifact.completedAt,
-      artifacts: [artifact, ...project.artifacts]
-    };
-    projects = projects.map((candidate) => candidate.projectId === updatedProject.projectId ? updatedProject : candidate);
-    if (!projects.some((candidate) => candidate.projectId === updatedProject.projectId)) projects.unshift(updatedProject);
-    assertCurrentIdentity(identityKey);
-    writeStore({ schemaVersion: 1, identityKey, activeProjectId: updatedProject.projectId, projects });
-    pendingQueue(identityKey).delete(idempotencyKey);
-    const remaining = [...pendingQueue(identityKey).values()].find((item) => item.lastFailure !== null);
-    emitState(identityKey, remaining
-      ? { status: remaining.lastFailure === "project_capacity" || remaining.lastFailure === "project_limit" ? "capacity" : "failed", code: remaining.lastFailure ?? undefined, idempotencyKey: remaining.idempotencyKey, message: input.locale === "ru" ? "Новый результат сохранён; более ранняя запись всё ещё ожидает восстановления." : "The new result was saved; an earlier result still needs recovery." }
-      : { status: "saved", message: input.locale === "ru" ? "Сохранено на этом устройстве." : "Saved on this device." });
-    return { status: "saved", project: updatedProject, artifact };
+    const message = input.locale === "ru" ? "Локальные проекты изменились во время сохранения. Результат остаётся в очереди повторной записи." : "Local projects changed during save. The result remains queued for recovery.";
+    pending.lastFailure = "storage_write_failed";
+    emitState(identityKey, { status: "failed", code: pending.lastFailure, idempotencyKey, message });
+    return { status: "failed", code: pending.lastFailure, message, idempotencyKey };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Browser-local save failed.";
     const code: PointObjectProjectFailureCode = /identity changed/i.test(message) ? "identity_changed" : "storage_write_failed";
@@ -410,13 +468,7 @@ async function commitPendingOperation(pending: PendingOperation): Promise<PointO
 }
 
 function enqueueOperation(pending: PendingOperation): Promise<PointObjectProjectSaveResult> {
-  const previous = operationChains.get(pending.identityKey) ?? Promise.resolve();
-  const current = previous.catch(() => undefined).then(() => commitPendingOperation(pending));
-  operationChains.set(pending.identityKey, current);
-  void current.finally(() => {
-    if (operationChains.get(pending.identityKey) === current) operationChains.delete(pending.identityKey);
-  });
-  return current;
+  return enqueueIdentityOperation(pending.identityKey, () => commitPendingOperation(pending));
 }
 
 export async function savePointObjectOperation(
@@ -490,6 +542,7 @@ export async function continuePendingPointObjectOperationInNewProject(identityKe
     projectName: defaultProjectName(pending.input, read.store.projects.length + 1),
     projectCreatedAt: now
   };
+  pending.activateDestinationIfActiveProjectId = read.store.activeProjectId;
   pending.lastFailure = null;
   return enqueueOperation(pending);
 }
@@ -498,42 +551,50 @@ export async function verifySavedPointObjectArtifact(artifact: SavedPointObjectA
   return artifact.payloadHash === await hashPointObjectOperation(artifact);
 }
 
-async function updateArtifactViewState(
+function updateArtifactViewState(
   identityKey: PointObjectProjectIdentity,
   artifactId: string,
   update: (artifact: SavedPointObjectArtifact) => PointObjectProjectOperationInput | null
 ): Promise<PointObjectProjectSaveResult> {
-  try {
-    assertCurrentIdentity(identityKey);
-    const read = await readVerifiedPointObjectProjects(identityKey);
-    if (!read.store) return { status: "failed", code: read.status === "damaged" ? "store_damaged" : "storage_inaccessible", message: read.message, idempotencyKey: artifactId };
-    const project = read.store.projects.find((candidate) => candidate.artifacts.some((artifact) => artifact.artifactId === artifactId));
-    const prior = project?.artifacts.find((artifact) => artifact.artifactId === artifactId);
-    if (!project || !prior) return { status: "failed", code: "payload_invalid", message: "The saved result is no longer available.", idempotencyKey: artifactId };
-    const input = update(prior);
-    if (!input) return { status: "failed", code: "payload_invalid", message: "The saved view update failed strict validation.", idempotencyKey: prior.idempotencyKey };
-    const nextHash = await hashPointObjectOperation(input);
-    const updatedAt = new Date().toISOString();
-    const updatedArtifact: SavedPointObjectArtifact = { ...prior, ...input, payloadHash: nextHash, updatedAt, viewRevision: prior.viewRevision + 1 };
-    const updatedProject: SavedPointObjectProject = {
-      ...project,
-      updatedAt,
-      artifacts: project.artifacts.map((artifact) => artifact.artifactId === artifactId ? updatedArtifact : artifact)
-    };
-    const nextStore: PointObjectProjectStore = {
-      ...read.store,
-      projects: read.store.projects.map((candidate) => candidate.projectId === project.projectId ? updatedProject : candidate)
-    };
-    assertCurrentIdentity(identityKey);
-    writeStore(nextStore);
-    emitState(identityKey, { status: "saved", message: input.locale === "ru" ? "Состояние проекта обновлено на этом устройстве." : "Project view updated on this device." });
-    return { status: "saved", project: updatedProject, artifact: updatedArtifact };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "The project view update could not be saved.";
-    const code: PointObjectProjectFailureCode = /identity changed/i.test(message) ? "identity_changed" : "storage_write_failed";
-    emitState(identityKey, { status: "failed", code, idempotencyKey: artifactId, message });
-    return { status: "failed", code, message, idempotencyKey: artifactId };
-  }
+  return enqueueIdentityOperation(identityKey, async () => {
+    try {
+      for (let attempt = 0; attempt < MAX_STABLE_STORE_ATTEMPTS; attempt += 1) {
+        const snapshot = await readStableVerifiedStore(identityKey);
+        if (snapshot.status === "changed") continue;
+        if (snapshot.status === "failed") return { status: "failed", code: snapshot.read.status === "damaged" ? "store_damaged" : "storage_inaccessible", message: snapshot.read.message, idempotencyKey: artifactId };
+        const project = snapshot.store.projects.find((candidate) => candidate.artifacts.some((artifact) => artifact.artifactId === artifactId));
+        const prior = project?.artifacts.find((artifact) => artifact.artifactId === artifactId);
+        if (!project || !prior) return { status: "failed", code: "payload_invalid", message: "The saved result is no longer available.", idempotencyKey: artifactId };
+        const input = update(prior);
+        if (!input) return { status: "failed", code: "payload_invalid", message: "The saved view update failed strict validation.", idempotencyKey: prior.idempotencyKey };
+        const nextHash = await hashPointObjectOperation(input);
+        assertCurrentIdentity(identityKey);
+        if (readRawStore(identityKey) !== snapshot.raw) continue;
+        const updatedAt = new Date().toISOString();
+        const updatedArtifact: SavedPointObjectArtifact = { ...prior, ...input, payloadHash: nextHash, updatedAt, viewRevision: prior.viewRevision + 1 };
+        const updatedProject: SavedPointObjectProject = {
+          ...project,
+          updatedAt,
+          artifacts: project.artifacts.map((artifact) => artifact.artifactId === artifactId ? updatedArtifact : artifact)
+        };
+        const nextStore: PointObjectProjectStore = {
+          ...snapshot.store,
+          projects: snapshot.store.projects.map((candidate) => candidate.projectId === project.projectId ? updatedProject : candidate)
+        };
+        writeStore(nextStore);
+        emitState(identityKey, { status: "saved", message: input.locale === "ru" ? "Состояние проекта обновлено на этом устройстве." : "Project view updated on this device." });
+        return { status: "saved", project: updatedProject, artifact: updatedArtifact };
+      }
+      const message = "Local projects changed during the view update. Retry.";
+      emitState(identityKey, { status: "failed", code: "storage_write_failed", idempotencyKey: artifactId, message });
+      return { status: "failed", code: "storage_write_failed", message, idempotencyKey: artifactId };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "The project view update could not be saved.";
+      const code: PointObjectProjectFailureCode = /identity changed/i.test(message) ? "identity_changed" : "storage_write_failed";
+      emitState(identityKey, { status: "failed", code, idempotencyKey: artifactId, message });
+      return { status: "failed", code, message, idempotencyKey: artifactId };
+    }
+  });
 }
 
 export function updatePointObjectFindViewState(

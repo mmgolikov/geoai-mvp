@@ -98,6 +98,8 @@ assert.match(findDrawer, /"Clear"/);
 assert.match(findDrawer, /"Remove from comparison"/);
 assert.match(findDrawer, /"Not mapped"/);
 assert.match(findDrawer, /disabled=\{findResultIsStale\}/, "Every stale candidate action, including cross-market results, must be natively disabled");
+assert.match(client, /projectId: saved\.project\.projectId/, "A saved Find binding must retain its initiating project identity");
+assert.match(client, /currentStore\?\.activeProjectId !== binding\.projectId/, "A Find view must not attach to a project after the user selected another active project");
 assert.match(findPrimaryLabel, /findResultIsStale[\s\S]*"Update search"/,
   "Stale criteria must expose Update search in the shared footer");
 assert.match(client, /findResult\.criteria\.bounds/);

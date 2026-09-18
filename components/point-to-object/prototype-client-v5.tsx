@@ -42,6 +42,7 @@ import {
   clearPointObjectProjectOverview,
   consumePointObjectProjectOverview,
   consumePointObjectProjectRestore,
+  inspectPointObjectProjects,
   pointObjectProjectIdentity,
   queuePointObjectProjectRestore,
   readVerifiedPointObjectProjects,
@@ -440,7 +441,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
   const activeCreateAlternativeRef = useRef(activeCreateAlternativeId);
   const findViewSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const findCohortGenerationRef = useRef(0);
-  const findSavedBindingRef = useRef<{ generation: number; identityKey: PointObjectProjectIdentity; artifactId: string } | null>(null);
+  const findSavedBindingRef = useRef<{ generation: number; identityKey: PointObjectProjectIdentity; projectId: string; artifactId: string } | null>(null);
   const createViewSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const findResultRef = useRef(findResult);
   projectIdentityRef.current = projectIdentity;
@@ -629,7 +630,11 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
       if (artifact.kind === "find") {
         const restored = artifact.payload.session;
         const generation = detachFindSavedArtifact();
-        if (projectIdentity) findSavedBindingRef.current = { generation, identityKey: projectIdentity, artifactId: artifact.artifactId };
+        const restoredStore = projectIdentity ? inspectPointObjectProjects(projectIdentity).store : null;
+        const restoredProject = restoredStore?.projects.find((candidate) => candidate.artifacts.some((item) => item.artifactId === artifact.artifactId));
+        if (projectIdentity && restoredProject && restoredStore?.activeProjectId === restoredProject.projectId) {
+          findSavedBindingRef.current = { generation, identityKey: projectIdentity, projectId: restoredProject.projectId, artifactId: artifact.artifactId };
+        }
         restoredFindSessionRef.current = restored;
         setMode("find");
         setFindAudience(restored.audience);
@@ -1212,7 +1217,9 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     }, undefined, destination);
     if (projectIdentityRef.current === identityKey && findCohortGenerationRef.current === cohortGeneration &&
         (saved.status === "saved" || saved.status === "replayed")) {
-      const binding = { generation: cohortGeneration, identityKey, artifactId: saved.artifact.artifactId };
+      const binding = { generation: cohortGeneration, identityKey, projectId: saved.project.projectId, artifactId: saved.artifact.artifactId };
+      const currentStore = inspectPointObjectProjects(identityKey).store;
+      if (binding.projectId !== destination.projectId || currentStore?.activeProjectId !== binding.projectId) return;
       findSavedBindingRef.current = binding;
       if (findShortlistRef.current.length || findComparisonOpenRef.current || findAnalysisTargetRef.current) {
         queueFindViewUpdate(binding, {
@@ -1226,7 +1233,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
   }
 
   function queueFindViewUpdate(
-    binding: { generation: number; identityKey: PointObjectProjectIdentity; artifactId: string },
+    binding: { generation: number; identityKey: PointObjectProjectIdentity; projectId: string; artifactId: string },
     view: Pick<PointObjectFindSessionState, "shortlist" | "comparisonOpen" | "comparisonView" | "analysisTargetSourceFeatureId">
   ) {
     const immutableView = structuredClone(view);
@@ -1234,7 +1241,8 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
       .catch(() => undefined)
       .then(async () => {
         const current = findSavedBindingRef.current;
-        if (!current || current.generation !== binding.generation || current.identityKey !== binding.identityKey || current.artifactId !== binding.artifactId) return;
+        if (!current || current.generation !== binding.generation || current.identityKey !== binding.identityKey ||
+            current.projectId !== binding.projectId || current.artifactId !== binding.artifactId) return;
         await updatePointObjectFindViewState(binding.identityKey, binding.artifactId, immutableView);
       });
   }
@@ -1316,6 +1324,8 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
   ) {
     const binding = findSavedBindingRef.current;
     if (!binding || projectIdentityRef.current !== binding.identityKey || findCohortGenerationRef.current !== binding.generation) return;
+    const currentStore = inspectPointObjectProjects(binding.identityKey).store;
+    if (currentStore?.activeProjectId !== binding.projectId) return;
     queueFindViewUpdate(binding, {
       shortlist,
       comparisonOpen,

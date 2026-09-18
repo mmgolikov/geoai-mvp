@@ -222,6 +222,97 @@ try {
   reconcilePointObjectBrowserIdentity(demoIdentity);
 }
 
+function holdNextProjectDigest() {
+  let release: (() => void) | null = null;
+  let started: (() => void) | null = null;
+  let delayNext = true;
+  const ready = new Promise<void>((resolve) => { started = resolve; });
+  const blocked = new Promise<void>((resolve) => { release = resolve; });
+  Object.defineProperty(crypto.subtle, "digest", { configurable: true, value: async (...args: Parameters<typeof originalDigest>) => {
+    if (delayNext) {
+      delayNext = false;
+      started!();
+      await blocked;
+    }
+    return originalDigest(...args);
+  } });
+  return {
+    ready,
+    release() {
+      Object.defineProperty(crypto.subtle, "digest", { configurable: true, value: originalDigest });
+      release!();
+    }
+  };
+}
+
+const saveRaceIdentity = pointObjectProjectIdentity({ id: "save-race-user", isDemoUser: true } as never);
+if (!saveRaceIdentity) throw new Error("Expected save race identity.");
+reconcilePointObjectBrowserIdentity(saveRaceIdentity);
+const saveRaceProjectA = await createPointObjectProject(saveRaceIdentity, "en", "Save race A");
+await savePointObjectOperation(saveRaceIdentity, findInput(101), "save-race-seed");
+const saveRaceProjectB = await createPointObjectProject(saveRaceIdentity, "en", "Save race B");
+await selectPointObjectProject(saveRaceIdentity, saveRaceProjectA.projectId);
+const saveRaceProjectBBefore = JSON.stringify(readPointObjectProjects(saveRaceIdentity).projects.find((item) => item.projectId === saveRaceProjectB.projectId));
+const saveGate = holdNextProjectDigest();
+const racingSave = savePointObjectOperation(saveRaceIdentity, findInput(102), "save-race-operation");
+await saveGate.ready;
+await selectPointObjectProject(saveRaceIdentity, saveRaceProjectB.projectId);
+saveGate.release();
+const savedAfterSwitch = await racingSave;
+assert.equal(savedAfterSwitch.status, "saved", "the initiating project save must complete after a same-page project switch");
+const saveRaceStore = readPointObjectProjects(saveRaceIdentity);
+assert.equal(saveRaceStore.activeProjectId, saveRaceProjectB.projectId, "a late save must not undo the user's active-project selection");
+assert.equal(JSON.stringify(saveRaceStore.projects.find((item) => item.projectId === saveRaceProjectB.projectId)), saveRaceProjectBBefore,
+  "a late save to project A must preserve project B bytes");
+assert.equal(saveRaceStore.projects.find((item) => item.projectId === saveRaceProjectA.projectId)?.artifacts.some((item) => item.idempotencyKey === "save-race-operation"), true,
+  "the completed result must remain bound to its initiating project A");
+
+const viewRaceIdentity = pointObjectProjectIdentity({ id: "view-race-user", isDemoUser: true } as never);
+if (!viewRaceIdentity) throw new Error("Expected view race identity.");
+reconcilePointObjectBrowserIdentity(viewRaceIdentity);
+const viewRaceProjectA = await createPointObjectProject(viewRaceIdentity, "en", "View race A");
+const viewRaceSeed = await savePointObjectOperation(viewRaceIdentity, findInput(103), "view-race-seed");
+if (viewRaceSeed.status !== "saved") throw new Error("Expected saved view race seed.");
+const viewGate = holdNextProjectDigest();
+const racingViewUpdate = updatePointObjectFindViewState(viewRaceIdentity, viewRaceSeed.artifact.artifactId, {
+  shortlist: viewRaceSeed.artifact.kind === "find" ? viewRaceSeed.artifact.payload.session.result.candidates.slice(0, 1) : [],
+  comparisonOpen: false,
+  comparisonView: "results",
+  analysisTargetSourceFeatureId: null
+});
+await viewGate.ready;
+const viewRaceProjectB = await createPointObjectProject(viewRaceIdentity, "en", "View race B");
+const viewRaceProjectBBefore = JSON.stringify(readPointObjectProjects(viewRaceIdentity).projects.find((item) => item.projectId === viewRaceProjectB.projectId));
+viewGate.release();
+const viewAfterCreate = await racingViewUpdate;
+assert.equal(viewAfterCreate.status, "saved", "the view update must reconcile against the newly created project store");
+const viewRaceStore = readPointObjectProjects(viewRaceIdentity);
+assert.equal(viewRaceStore.activeProjectId, viewRaceProjectB.projectId, "the project created during a view update must remain active");
+assert.equal(JSON.stringify(viewRaceStore.projects.find((item) => item.projectId === viewRaceProjectB.projectId)), viewRaceProjectBBefore,
+  "the view update to project A must preserve project B bytes");
+assert.equal(viewRaceStore.projects.find((item) => item.projectId === viewRaceProjectA.projectId)?.artifacts.length, 1,
+  "the reconciled view update must preserve all unrelated artifacts");
+assert.equal(viewRaceStore.projects.find((item) => item.projectId === viewRaceProjectA.projectId)?.artifacts[0]?.viewRevision, 1,
+  "the initiating artifact must receive exactly one view revision");
+
+await selectPointObjectProject(viewRaceIdentity, viewRaceProjectA.projectId);
+const identityRaceBytes = JSON.stringify(readPointObjectProjects(viewRaceIdentity));
+const identityGate = holdNextProjectDigest();
+const identityRaceUpdate = updatePointObjectFindViewState(viewRaceIdentity, viewRaceSeed.artifact.artifactId, {
+  shortlist: [],
+  comparisonOpen: false,
+  comparisonView: "results",
+  analysisTargetSourceFeatureId: null
+});
+await identityGate.ready;
+localStorage.setItem(projects.POINT_OBJECT_BROWSER_IDENTITY_KEY, userIdentity);
+identityGate.release();
+const identityRaceResult = await identityRaceUpdate;
+assert.equal(identityRaceResult.status, "failed");
+assert.equal("code" in identityRaceResult ? identityRaceResult.code : null, "identity_changed", "an identity change during hashing must fail closed");
+assert.equal(JSON.stringify(readPointObjectProjects(viewRaceIdentity)), identityRaceBytes, "identity failure must preserve the complete original store bytes");
+reconcilePointObjectBrowserIdentity(demoIdentity);
+
 const replay = await savePointObjectOperation(demoIdentity, findInput(1), "operation-stable-1");
 assert.equal(replay.status, "replayed", "identical retry must replay without a duplicate");
 assert.equal(readPointObjectProjects(demoIdentity).projects.find((item) => item.projectId === firstProject.projectId)?.artifacts.length, 1);
