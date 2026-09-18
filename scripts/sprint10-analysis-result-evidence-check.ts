@@ -63,6 +63,22 @@ function syntheticResponse() {
   response.evidencePackHash = evidencePackHash;
   response.evidencePackId = `p2o_live_evidence_${evidencePackHash.slice(0, 24)}`;
   response.subject.sourceFeatureId = sourceFeatureId;
+  response.content.locationContext.push({
+    statement: "Analysis point 25.200000, 55.270000 in EPSG:4326",
+    evidenceRefs: ["EVD-COORDINATES"]
+  });
+  response.content.signals[0] = {
+    title: "Address context",
+    observation: "Analysis point 25.200000, 55.270000 in EPSG:4326",
+    implication: "Use only as a location hint.",
+    evidenceClass: "observed",
+    evidenceRefs: ["EVD-COORDINATES"],
+    confidence: "medium"
+  };
+  response.content.decisionBrief.reasons[0] = {
+    statement: "The screening point is coordinate-derived.",
+    evidenceRefs: ["EVD-COORDINATES"]
+  };
   response.telemetry = {
     provider: "openai",
     schemaVersion: 6,
@@ -115,12 +131,18 @@ try {
   const built = buildSprint10AnalysisResultEvidence(input());
   assert.equal(built.schemaVersion, SPRINT10_ANALYSIS_EVIDENCE_SCHEMA);
   assert.equal(built.rawSourcePackCaptured, false);
+  assert.equal(built.coordinateReferencedItemsCaptured, false);
+  assert.equal(built.excludedCoordinateReferencedItemCount, 3);
   assert.equal(built.sourceFeatureId, sourceFeatureId);
   assert.equal(built.evidencePackId, `p2o_live_evidence_${evidencePackHash.slice(0, 24)}`);
   assert.deepEqual(Object.keys(built.submitted).sort(), ["depth", "goal", "horizon", "locale", "perspective", "role", "scenario"]);
   assert.equal(built.submitted.goal, "redevelopment");
   assert.equal(built.content.caveat,
     "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.");
+  assert.equal((built.content.signals as unknown[]).length, 2,
+    "validated arrays may fall below the provider schema minimum only because coordinate items were explicitly omitted");
+  assert.equal(((built.content.decisionBrief as Record<string, unknown>).reasons as unknown[]).length, 1,
+    "coordinate-referenced claims must be omitted even when they were needed for the original provider minimum");
   const written = writeSprint10AnalysisResultEvidence(outputPath, input());
   assert.deepEqual(written, built);
   const details = lstatSync(outputPath);
@@ -130,9 +152,13 @@ try {
   const serialized = readFileSync(outputPath, "utf8");
   const reread = JSON.parse(serialized) as Record<string, unknown>;
   assert.deepEqual(Object.keys(reread).sort(), [
-    "analysisSchemaVersion", "captureKind", "content", "evidencePackHash", "evidencePackId", "rawSourcePackCaptured",
-    "schemaVersion", "sourceFeatureId", "submitted", "telemetry"
+    "analysisSchemaVersion", "captureKind", "content", "coordinateReferencedItemsCaptured", "evidencePackHash",
+    "evidencePackId", "excludedCoordinateReferencedItemCount", "rawSourcePackCaptured", "schemaVersion", "sourceFeatureId",
+    "submitted", "telemetry"
   ].sort());
+  assert(!serialized.includes("Analysis point 25.200000, 55.270000 in EPSG:4326"),
+    "the production-form coordinate claim must not be retained");
+  assert(!serialized.includes("EVD-COORDINATES"), "the coordinate evidence reference must not be retained");
   assert(!serialized.includes("resp_synthetic_public_analysis_1"), "provider request IDs must not be retained");
   for (const forbidden of ["challenge", "longitude", "latitude", "expectedSourceFeatureId", "email", "password",
     "authorization", "cookie", "localStorage", "userId", "projectId", "headers", "rawResponse", "rawSourcePack"] ) {
@@ -141,6 +167,13 @@ try {
   assert.equal((reread.telemetry as Record<string, unknown>).model, "gpt-5.6-sol");
   assert.equal((reread.telemetry as Record<string, unknown>).estimatedCostUsd, 0.001328);
   assert.equal(((reread.telemetry as Record<string, unknown>).attemptTrace as Array<Record<string, unknown>>)[0]?.requestId, undefined);
+
+  const coordinateFocusedAnswer = syntheticResponse();
+  coordinateFocusedAnswer.content.answerToQuestion.evidenceRefs = ["EVD-COORDINATES"];
+  const answerFiltered = buildSprint10AnalysisResultEvidence(input(coordinateFocusedAnswer));
+  assert.equal(answerFiltered.excludedCoordinateReferencedItemCount, 4);
+  assert(!Object.hasOwn(answerFiltered.content, "answerToQuestion"),
+    "a fixed structured object with coordinate evidence must be omitted rather than partially rewritten");
 
   const sparse = syntheticResponse();
   sparse.content.depthReview.analyticChecks = sparse.content.depthReview.analyticChecks.slice(0, 1);
@@ -152,11 +185,24 @@ try {
     "honest sparse structured content must be captured for later quality FAIL assessment, not fabricated or discarded");
 
   const liveSpec = readFileSync(join(process.cwd(), "tests/e2e/sprint10-live-journey.spec.ts"), "utf8");
+  const analyseStart = liveSpec.indexOf("async function runDubaiAnalyse");
+  const analyseEnd = liveSpec.indexOf("class InconclusiveLiveCoverageError", analyseStart);
+  const analyseBody = liveSpec.slice(analyseStart, analyseEnd);
+  const terminalReceipt = analyseBody.indexOf("await budget.waitForTerminalReceipts()");
   const acceptedIdentity = liveSpec.indexOf("The Dubai Analyse response did not preserve current V10 depth");
+  const acceptedIdentityInAnalyse = analyseBody.indexOf("The Dubai Analyse response did not preserve current V10 depth");
+  const captureGate = analyseBody.indexOf("if (configuration.analysisEvidencePath)", acceptedIdentityInAnalyse);
+  const submittedParse = analyseBody.indexOf("response.request().postDataJSON()", captureGate);
   const capture = liveSpec.indexOf("writeSprint10AnalysisResultEvidence(configuration.analysisEvidencePath");
+  const captureInAnalyse = analyseBody.indexOf("writeSprint10AnalysisResultEvidence(configuration.analysisEvidencePath", submittedParse);
   const localSuccess = liveSpec.indexOf('await expect(page.getByTestId("ai-success"))', capture);
-  assert(acceptedIdentity > 0 && capture > acceptedIdentity && localSuccess > capture,
-    "capture must remain after accepted response identity and before browser-local result verification");
+  assert(analyseStart > 0 && analyseEnd > analyseStart && terminalReceipt > 0 && acceptedIdentityInAnalyse > terminalReceipt &&
+    captureGate > acceptedIdentityInAnalyse && submittedParse > captureGate && captureInAnalyse > submittedParse &&
+    acceptedIdentity > 0 && capture > acceptedIdentity && localSuccess > capture,
+  "request parsing and capture must remain opt-in only, after terminal receipt/accepted identity and before local verification");
+  assert(!analyseBody.slice(0, captureGate).includes("response.request().postDataJSON()") &&
+    !analyseBody.slice(0, captureGate).includes("writeSprint10AnalysisResultEvidence("),
+  "capture-off must reach the opt-in gate without added request parsing or evidence writes");
   assert.equal(liveSpec.match(/writeSprint10AnalysisResultEvidence\(configuration[.]analysisEvidencePath/g)?.length, 1,
     "the bounded journey must contain exactly one evidence write site");
   for (const name of ["GEOAI_SPRINT10_ANALYSIS_EVIDENCE_CAPTURE", "GEOAI_SPRINT10_ANALYSIS_EVIDENCE_PATH"]) {
@@ -204,6 +250,10 @@ try {
   const wrongQuestion = { ...submittedRequest, question: "Private user prompt" };
   rejects(() => buildSprint10AnalysisResultEvidence({ ...input(), submittedRequest: wrongQuestion }), /fixed synthetic public/);
 
+  const unreferencedCoordinates = syntheticResponse();
+  unreferencedCoordinates.content.sourceFacts[0].statement = "Analysis point 25.200000, 55.270000 in EPSG:4326";
+  rejects(() => buildSprint10AnalysisResultEvidence(input(unreferencedCoordinates)), /coordinate-referenced content remained/);
+
   const oversized = syntheticResponse();
   const textKeys = new Set(["title", "observation", "implication", "statement", "headline", "summary", "hypothesis",
     "rationale", "potentialValue", "decisionImpact", "action", "source"]);
@@ -226,6 +276,8 @@ try {
       privateExclusiveWriteAndRoundTrip: 1,
       honestSparseCapture: 1,
       liveIntegrationOrdering: 1,
+      captureOffAddedParsesOrWrites: 0,
+      coordinateClaimExclusion: 1,
       privacyFieldExclusions: 15,
       telemetryRequestIdExcluded: 1,
       negativeCases,

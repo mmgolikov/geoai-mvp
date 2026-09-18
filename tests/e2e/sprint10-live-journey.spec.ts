@@ -615,7 +615,6 @@ async function runDubaiAnalyse(page: Page, configuration: LiveConfiguration, pol
   const responsePromise = page.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/point-to-object/ai"), { timeout: 180_000 });
   await page.getByRole("button", { name: "Analyze", exact: true }).click();
   const response = await responsePromise;
-  const submittedRequest: unknown = response.request().postDataJSON();
   const payload: unknown = await response.json();
   await budget.waitForTerminalReceipts();
   guard(response.status() === 200 && record(payload) && payload.mode === "openai" && payload.schemaVersion === 6 &&
@@ -625,6 +624,7 @@ async function runDubaiAnalyse(page: Page, configuration: LiveConfiguration, pol
     record(payload.content) && payload.content.caveat === CAVEAT && record(payload.content.depthReview) && payload.content.depthReview.depth === "standard",
   "The Dubai Analyse response did not preserve current V10 depth, role/scenario provenance and source identity.");
   if (configuration.analysisEvidencePath) {
+    const submittedRequest: unknown = response.request().postDataJSON();
     writeSprint10AnalysisResultEvidence(configuration.analysisEvidencePath, {
       response: payload,
       submittedRequest,

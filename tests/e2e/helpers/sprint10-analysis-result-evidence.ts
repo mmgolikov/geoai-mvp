@@ -30,6 +30,7 @@ const SOURCE_FEATURE_PATTERN = /^(?:node|way|relation)\/[1-9]\d{0,19}$/;
 const HASH_PATTERN = /^[a-f0-9]{64}$/;
 const EVIDENCE_REF_PATTERN = /^EVD-[A-Z0-9._:-]{1,120}$/;
 const SAFE_CODE_PATTERN = /^[a-z][a-z0-9_]{1,79}$/;
+const PRODUCTION_COORDINATE_CLAIM_PATTERN = /\bAnalysis point\s+-?\d{1,3}[.]\d{6},\s*-?\d{1,3}[.]\d{6}\s+in EPSG:4326\b/i;
 const FORBIDDEN_STRING_PATTERNS = [
   /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i,
   /\bBearer\s+[A-Za-z0-9._~-]+/i,
@@ -65,6 +66,8 @@ export type Sprint10AnalysisResultEvidence = {
   schemaVersion: typeof SPRINT10_ANALYSIS_EVIDENCE_SCHEMA;
   captureKind: "single_synthetic_public_analysis_response";
   rawSourcePackCaptured: false;
+  coordinateReferencedItemsCaptured: false;
+  excludedCoordinateReferencedItemCount: number;
   analysisSchemaVersion: 6;
   sourceFeatureId: string;
   evidencePackId: string;
@@ -346,6 +349,37 @@ function parseContent(value: unknown, depth: "quick" | "standard" | "deep"): Jso
   };
 }
 
+function redactCoordinateReferencedItems(content: JsonRecord): {
+  content: JsonRecord;
+  excludedCoordinateReferencedItemCount: number;
+} {
+  const omitted = Symbol("coordinate-referenced-item");
+  let excludedCoordinateReferencedItemCount = 0;
+  const visit = (value: unknown): unknown | typeof omitted => {
+    if (Array.isArray(value)) {
+      return value.map(visit).filter((item) => item !== omitted);
+    }
+    if (!record(value)) return value;
+    if (Array.isArray(value.evidenceRefs) && value.evidenceRefs.includes("EVD-COORDINATES")) {
+      excludedCoordinateReferencedItemCount += 1;
+      return omitted;
+    }
+    const retained: JsonRecord = {};
+    for (const [key, child] of Object.entries(value)) {
+      const visited = visit(child);
+      if (visited !== omitted) retained[key] = visited;
+    }
+    return retained;
+  };
+  const redacted = visit(content);
+  if (!record(redacted)) fail("validated content could not be safely filtered.");
+  const serialized = JSON.stringify(redacted);
+  if (serialized.includes("EVD-COORDINATES") || PRODUCTION_COORDINATE_CLAIM_PATTERN.test(serialized)) {
+    fail("coordinate-referenced content remained after filtering.");
+  }
+  return { content: redacted, excludedCoordinateReferencedItemCount };
+}
+
 function parseSubmitted(value: unknown, responseRequest: JsonRecord) {
   if (!record(value)) fail("submitted request is missing.");
   const role = value.role;
@@ -417,16 +451,19 @@ export function buildSprint10AnalysisResultEvidence(input: Sprint10AnalysisEvide
       input.telemetryIdentity.depth !== submitted.depth) fail("telemetry identity does not match the submitted analysis.");
   const telemetry = parseSprint10ProviderTelemetry(input.telemetryIdentity, response);
   if (!telemetry) fail("provider telemetry is not accepted by the canonical Sprint 10 parser.");
+  const parsedContent = redactCoordinateReferencedItems(parseContent(response.content, submitted.depth));
   const evidence: Sprint10AnalysisResultEvidence = {
     schemaVersion: SPRINT10_ANALYSIS_EVIDENCE_SCHEMA,
     captureKind: "single_synthetic_public_analysis_response",
     rawSourcePackCaptured: false,
+    coordinateReferencedItemsCaptured: false,
+    excludedCoordinateReferencedItemCount: parsedContent.excludedCoordinateReferencedItemCount,
     analysisSchemaVersion: 6,
     sourceFeatureId: input.expectedSourceFeatureId,
     evidencePackId: response.evidencePackId as string,
     evidencePackHash: response.evidencePackHash,
     submitted,
-    content: parseContent(response.content, submitted.depth),
+    content: parsedContent.content,
     telemetry: safeTelemetry(telemetry)
   };
   const bytes = Buffer.byteLength(`${JSON.stringify(evidence)}\n`, "utf8");
