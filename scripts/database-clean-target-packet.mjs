@@ -132,7 +132,7 @@ for (const filename of migrationFiles) {
   treeHash.update(content);
   treeHash.update("\0");
 }
-if (inventory.length !== 21) throw new Error(`Expected exactly 21 canonical migrations, found ${inventory.length}`);
+if (inventory.length !== 22) throw new Error(`Expected exactly 22 canonical migrations, found ${inventory.length}`);
 
 const historicalManifest = JSON.parse(await readFile(historicalManifestUrl, "utf8"));
 let readbackEvidence = null;
@@ -189,7 +189,7 @@ const output = {
     "Do not run migration repair for the explicitly empty target.",
     "Do not use scripts/apply-supabase-migration.mjs for this empty-target replay.",
     "This helper does not execute supabase, psql, HTTP, SQL, migration repair or database writes.",
-    "A later owner-approved remote dry-run must enumerate exactly these 21 versions before any apply."
+    "A later owner-approved remote dry-run must enumerate exactly these 22 versions before any apply."
   ]
 };
 

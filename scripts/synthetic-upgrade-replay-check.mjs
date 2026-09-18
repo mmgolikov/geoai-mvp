@@ -37,8 +37,8 @@ if (preLedger.length !== 1) {
 if (liveLedger.length !== manifest.canonicalBaselineCount || liveLedger.length !== 12) {
   failures.push(`Expected the exact 12-entry hosted ledger; found ${liveLedger.length}`);
 }
-if (pending.length !== 8) {
-  failures.push(`Expected exactly eight review-only pending migrations; found ${pending.length}`);
+if (pending.length !== 9) {
+  failures.push(`Expected exactly nine review-only pending migrations; found ${pending.length}`);
 }
 
 const allEntries = [...preLedger, ...liveLedger, ...pending];
@@ -440,7 +440,7 @@ runSupabase(
   "Rehearse the required pre-ledger repair locally"
 );
 assertLedger(sortedReconciledLiveLedger, "Verify the reconciled noncontiguous hosted ledger", false);
-runSupabase(["migration", "up", "--local", "--include-all"], "Apply all eight review-only pending migrations locally, including the seven 20260716 version holes");
+runSupabase(["migration", "up", "--local", "--include-all"], "Apply all nine review-only pending migrations locally, including the seven 20260716 version holes");
 assertLedger(sortedCompleteLedger, "Verify the complete synthetic upgrade ledger", false);
 assertPostUpgradeSurface();
 

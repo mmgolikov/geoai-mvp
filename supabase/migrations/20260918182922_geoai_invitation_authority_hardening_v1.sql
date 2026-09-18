@@ -247,6 +247,22 @@ begin
     perform geoai_private.require_aal2();
   end if;
 
+  -- Suspensions/disablement are explicit administrative decisions. Even an
+  -- owner must use the versioned membership command to reactivate a recipient.
+  if exists (
+    select 1 from public.organization_memberships membership
+    where membership.organization_id = invitation.organization_id
+      and membership.profile_id = actor_id
+      and membership.status in ('disabled', 'suspended')
+  ) or exists (
+    select 1 from public.project_memberships membership
+    where membership.project_id = invitation.project_id
+      and membership.user_id = actor_id
+      and membership.status = 'disabled'
+  ) then
+    raise exception 'recipient membership requires explicit administrative reactivation' using errcode = '42501';
+  end if;
+
   -- An invitation must not overwrite an existing elevated membership on behalf
   -- of an issuer who could not assign that authority in the first place.
   if exists (
@@ -276,7 +292,11 @@ begin
   ) values (
     invitation.organization_id, actor_id, invitation.organization_role, 'active'
   ) on conflict (organization_id, profile_id) do update
-    set role = excluded.role, status = 'active';
+    set role = case
+      when array_position(array['owner','admin','member'], organization_memberships.role)
+        < array_position(array['owner','admin','member'], excluded.role)
+      then organization_memberships.role else excluded.role end,
+      status = 'active';
 
   if invitation.project_id is not null then
     insert into public.project_memberships (
@@ -288,7 +308,11 @@ begin
     from public.projects project
     where project.id = invitation.project_id
     on conflict (project_id, user_id) do update
-      set role = excluded.role, status = 'active';
+      set role = case
+        when array_position(array['owner','admin','analyst','viewer','client_viewer'], project_memberships.role)
+          < array_position(array['owner','admin','analyst','viewer','client_viewer'], excluded.role)
+        then project_memberships.role else excluded.role end,
+        status = 'active';
   end if;
 
   update public.invitations

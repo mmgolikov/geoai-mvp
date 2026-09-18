@@ -223,6 +223,19 @@
         "schema diff, advisor and rollback evidence",
         "explicit exact-target development apply approval"
       ]
+    },
+    {
+      "version": "20260918182922",
+      "name": "geoai_invitation_authority_hardening_v1",
+      "applyState": "not_applied_development_candidate",
+      "requires": [
+        "existing invitation lifecycle migrations applied first",
+        "current issuer and existing membership authority regression",
+        "clean replay and populated-clone upgrade preservation",
+        "46 assertion invitation authority pgTAP suite",
+        "independent role and grant review",
+        "founder-approved exact development target only; never Production"
+      ]
     }
   ],
   "rule": "Files under supabase/legacy_migrations are provenance only. Clean replay starts with the declared pre-ledger bootstrap. On the existing development project its schema fingerprint must be verified and its ledger version repaired to applied before any push. The following twelve immutable files must match the live ledger exactly as a noncontiguous applied version set; the seven 20260716 files remain pending even though the two later 20260726 DLD files are applied."

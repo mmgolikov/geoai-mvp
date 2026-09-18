@@ -123,8 +123,25 @@ select extensions.is(pg_temp.deny_unchanged(4,pg_temp.accept_command('existing-p
 select extensions.is(pg_temp.invoke(7,pg_temp.issue_command('platform','admin',null,6)), '00000', 'platform admin may issue elevated organization invitation');
 select extensions.is(pg_temp.invoke(6,pg_temp.accept_command('platform')), '00000', 'legitimate platform invitation accepted');
 
+select extensions.is(pg_temp.invoke(3,pg_temp.issue_command('recipient-disabled','member','viewer',8)), '00000', 'project admin issues within role ceiling');
+update public.organization_memberships set status='disabled' where profile_id=pg_temp.pid(8);
+select extensions.is(pg_temp.deny_unchanged(8,pg_temp.accept_command('recipient-disabled')), '42501:unchanged', 'project invitation cannot reactivate organization-disabled recipient');
+update public.organization_memberships set status='suspended' where profile_id=pg_temp.pid(8);
+select extensions.is(pg_temp.deny_unchanged(8,pg_temp.accept_command('recipient-disabled')), '42501:unchanged', 'project invitation cannot reactivate organization-suspended recipient');
+select extensions.is(pg_temp.invoke(1,pg_temp.issue_command('owner-reactivation','member',null,8)), '00000', 'owner invitation issuance remains bounded');
+select extensions.is(pg_temp.deny_unchanged(8,pg_temp.accept_command('owner-reactivation')), '42501:unchanged', 'owner must also use explicit membership reactivation, not invitation');
+update public.organization_memberships set status='active' where profile_id=pg_temp.pid(8);
+update public.project_memberships set status='disabled' where user_id=pg_temp.pid(8);
+select extensions.is(pg_temp.deny_unchanged(8,pg_temp.accept_command('recipient-disabled')), '42501:unchanged', 'invitation cannot reactivate disabled project membership');
+update public.project_memberships set status='active',role='analyst' where user_id=pg_temp.pid(8);
+select extensions.is(pg_temp.invoke(8,pg_temp.accept_command('recipient-disabled')), '00000', 'active existing analyst may accept legitimate lower-role invitation');
+select extensions.is((select role from public.project_memberships where user_id=pg_temp.pid(8)), 'analyst', 'existing stronger project role is preserved; downgrade requires membership command');
+select extensions.is(pg_temp.invoke(1,pg_temp.issue_command('owner-preservation','member',null,5)), '00000', 'owner may issue ordinary invitation to existing owner');
+select extensions.is(pg_temp.invoke(5,pg_temp.accept_command('owner-preservation')), '00000', 'existing owner can accept authorized invitation without downgrade');
+select extensions.is((select role from public.organization_memberships where profile_id=pg_temp.pid(5)), 'owner', 'existing stronger organization role is preserved');
+
 select extensions.ok(exists(select 1 from pg_trigger where tgname='organization_memberships_last_owner' and not tgisinternal)
   and exists(select 1 from pg_trigger where tgname='project_memberships_last_owner' and not tgisinternal), 'last-owner guards remain installed');
-select extensions.is((select count(*)::integer from public.admin_audit_events where action='invitation_accepted' and organization_id='94000000-0000-0000-0000-000000000101'), 5, 'exactly five successful acceptances produce audit events; denials produce none');
+select extensions.is((select count(*)::integer from public.admin_audit_events where action='invitation_accepted' and organization_id='94000000-0000-0000-0000-000000000101'), 7, 'exactly seven successful acceptances produce audit events; denials produce none');
 select * from extensions.finish();
 rollback;
