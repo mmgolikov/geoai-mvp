@@ -174,10 +174,14 @@ for (const marker of [
   "expectNoHorizontalOverflow(page)",
   "Primary mobile controls must have a rendered box",
   'control.href === "/prototype/point-to-object"',
-  'control.text === "Open demo access"',
-  'control.text === "Open demo"',
+  'url.pathname === "/workspace"',
   'control.label === "Open demo profile"'
 ]) requireText(responsiveSpec, marker, `Responsive/keyboard browser flow is missing ${marker}`);
+
+const protectedEntrySpec = read("tests/e2e/sprint10-auth-entry.spec.ts");
+for (const marker of ["[390, 834, 1440]", "AxeBuilder", "reachedEmail", "auth-entry.png"]) {
+  requireText(protectedEntrySpec, marker, `Protected login accessibility/visual coverage missing ${marker}`);
+}
 
 for (const marker of [
   "@axe-core/playwright",
@@ -258,10 +262,10 @@ for (const marker of [
   '"/prototype/point-to-object"',
   'name: "Leave a request"',
   '"/request-access"',
-  'name: "Sign in to GeoAI"',
+  'name: "Open demo profile"',
   'name: "Your profile"',
   "landing-${viewport.name}.png",
-  "login-${viewport.name}.png",
+  "workspace-${viewport.name}.png",
   "profile-${viewport.name}.png"
 ]) requireText(commercialAlignmentVisualSpec, marker, `Commercial Landing/Account visual flow is missing ${marker}`);
 

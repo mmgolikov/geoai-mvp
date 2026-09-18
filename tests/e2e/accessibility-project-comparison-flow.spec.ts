@@ -79,19 +79,11 @@ async function tabUntilLocator(
 
 async function signInDemoWithKeyboard(page: Page, nextPath: "/projects" | "/workspace") {
   await page.goto(`/login?next=${encodeURIComponent(nextPath)}&intent=demo`);
-  await expect(page.getByRole("heading", { level: 1, name: "Sign in to GeoAI" })).toBeVisible();
-
-  const demoCredentials = page.getByRole("button", { name: "Open demo access" });
-  await tabUntilLocator(page, demoCredentials, { maximumTabs: 40 });
-  await page.keyboard.press("Enter");
-  await expect(page.getByLabel("Email or phone")).toHaveValue("demo@geoai.space");
-  await expect(page.getByLabel("Password")).toHaveValue("111111");
-
-  const openDemo = page.getByRole("button", { name: "Open demo", exact: true });
-  await tabUntilLocator(page, openDemo, { maximumTabs: 20 });
-  await page.keyboard.press("Enter");
+  // Public demo has no credential step. Protected login has its own persona suite.
   await expect(page).toHaveURL((url) => url.pathname === nextPath);
-  await expect(page.getByRole("link", { name: "Open demo profile" })).toHaveAttribute("data-authenticated", "true");
+  const profile = page.getByRole("link", { name: "Open demo profile" });
+  await expect(profile).toHaveAttribute("data-authenticated", "true");
+  await tabUntilLocator(page, profile, { maximumTabs: 40 });
 }
 
 test.describe.configure({ mode: "serial" });

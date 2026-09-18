@@ -14,8 +14,6 @@ function record(name: string, details: Record<string, unknown>) {
 
 async function signInDemo(page: Page, nextPath = "/workspace") {
   await page.goto(`/login?next=${encodeURIComponent(nextPath)}&intent=demo`);
-  await page.getByRole("button", { name: "Open demo access" }).click();
-  await page.getByRole("button", { name: "Open demo", exact: true }).click();
   await expect(page).toHaveURL((url) => url.pathname === nextPath);
 }
 
@@ -36,17 +34,16 @@ test("quarantines malformed, unknown-version and oversized browser-local state",
   record("browser-local-corruption", { malformedJson: "quarantined", unknownSchemaVersion: "ignored", oversizedRepository: "rejected", route: "/projects/legacy", canonicalEntry: "/projects" });
 });
 
-test("fails closed without crashing when localStorage is unavailable", async ({ page }) => {
+test("fails closed for project writes without crashing when localStorage is unavailable", async ({ page }) => {
   await page.addInitScript(() => {
     Object.defineProperty(window, "localStorage", { configurable: true, get() { throw new DOMException("blocked", "SecurityError"); } });
   });
-  await page.goto("/login?next=/workspace&intent=demo");
-  await page.getByRole("button", { name: "Open demo access" }).click();
-  await page.getByRole("button", { name: "Open demo", exact: true }).click();
-  await expect(page).toHaveURL((url) => url.pathname === "/login");
-  await expect(page.getByRole("heading", { level: 1, name: "Sign in to GeoAI" })).toBeVisible();
+  await signInDemo(page, "/projects");
+  await expect(page.getByRole("alert").filter({ hasText: "Saved projects could not be verified" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "+ New project", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Retry verification" })).toBeVisible();
   await expect(page.locator("body")).not.toContainText("Application error");
-  record("localStorage-unavailable", { result: "demo session unavailable without a crash", persistence: "fail-closed", protectedRouteOpened: false });
+  record("localStorage-unavailable", { result: "explicit public demo remains available without a fake storage-backed identity", persistence: "fail-closed", projectWriteDisabled: true });
 });
 
 test("fails closed when sessionStorage is unavailable", async ({ page }) => {
@@ -91,7 +88,9 @@ test("logout removes namespaced local/session state without touching unrelated k
   }, { prefix: namespace });
   await page.goto("/profile");
   await page.getByRole("button", { name: "Sign out" }).click();
-  await expect(page).toHaveURL((url) => url.pathname === "/login");
+  // Public-demo sign-out clears demo data; it cannot turn a public deployment
+  // into a protected one. Server logout denial is tested under supabase_auth.
+  await expect(page.getByRole("button", { name: "Sign out" })).toBeEnabled();
   const state = await page.evaluate(({ prefix }) => ({
     local: localStorage.getItem(`${prefix}:logout-local`),
     session: sessionStorage.getItem(`${prefix}:logout-session`),

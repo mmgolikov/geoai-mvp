@@ -47,7 +47,7 @@ for (const viewport of viewports) {
   test.describe(`${viewport.name} public access entry`, () => {
     test.use({ viewport: { width: viewport.width, height: viewport.height } });
 
-    test("keeps the landing product entries and login usable without horizontal overflow", async ({ page }) => {
+    test("keeps the public-demo landing and continuation usable without horizontal overflow", async ({ page }) => {
       await page.goto("/");
 
       await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
@@ -62,10 +62,9 @@ for (const viewport of viewports) {
       await expectNoHorizontalOverflow(page);
 
       await page.goto("/login?next=/workspace&intent=demo");
-      await expect(page.getByRole("heading", { level: 1, name: "Sign in to GeoAI" })).toBeVisible();
-      await expect(page.getByLabel("Email or phone")).toBeVisible();
-      await expect(page.getByLabel("Password")).toBeVisible();
-      await expect(page.getByRole("button", { name: "Open demo access" })).toBeVisible();
+      await expect(page).toHaveURL((url) => url.pathname === "/workspace");
+      await expect(page.getByRole("link", { name: "Open demo profile" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Open demo access" })).toHaveCount(0);
       await expectNoHorizontalOverflow(page);
     });
   });
@@ -100,15 +99,6 @@ test.describe("mobile keyboard and target-size access", () => {
     await tabUntil(page, (control) => control.href === "/prototype/point-to-object", 40);
 
     await page.goto("/login?next=/workspace&intent=demo");
-    await expect(page).toHaveURL((url) => url.pathname === "/login" && url.searchParams.get("intent") === "demo");
-
-    await tabUntil(page, (control) => control.text === "Open demo access");
-    await page.keyboard.press("Enter");
-    await expect(page.getByLabel("Email or phone")).toHaveValue("demo@geoai.space");
-    await expect(page.getByLabel("Password")).toHaveValue("111111");
-
-    await tabUntil(page, (control) => control.text === "Open demo");
-    await page.keyboard.press("Enter");
     await expect(page).toHaveURL((url) => url.pathname === "/workspace");
 
     const authenticatedProfile = page.getByRole("link", { name: "Open demo profile" });

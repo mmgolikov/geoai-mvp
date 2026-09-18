@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
 import { installLocalWebKitHttpCsp } from "./helpers/local-webkit-csp";
 
 // Run against a build made with NEXT_PUBLIC_AUTH_MODE=supabase_auth.
@@ -36,7 +37,7 @@ const entries = [
   }
 ] as const;
 
-for (const width of [390, 1440]) {
+for (const width of [390, 834, 1440]) {
   for (const entry of entries) {
     test(`S1 auth entry ${width}px: ${entry.name} without hydration errors`, async ({ page }, testInfo) => {
       await page.setViewportSize({ width, height: width === 390 ? 844 : 1000 });
@@ -57,6 +58,23 @@ for (const width of [390, 1440]) {
       await expect(page.getByRole("heading", { name: "Sign in to GeoAI", exact: true })).toBeVisible();
       await expect(page.getByText(`After authorization: ${entry.destination}`, { exact: false })).toBeVisible();
       await expect(page.getByRole("button", { name: "Open demo access", exact: true })).toHaveCount(0);
+
+      if (entry.name === "hostile login destination") {
+        // Login visual, keyboard and Axe coverage belongs to this protected
+        // persona, never to demo_public's automatic continuation.
+        const email = page.getByLabel(/^Email or phone/);
+        let reachedEmail = false;
+        for (let tabs = 0; tabs < 40; tabs += 1) {
+          await page.keyboard.press("Tab");
+          reachedEmail = await email.evaluate((element) => document.activeElement === element);
+          if (reachedEmail) break;
+        }
+        expect(reachedEmail).toBe(true);
+        await page.keyboard.type("keyboard-only@example.invalid");
+        await expect(email).toHaveValue("keyboard-only@example.invalid");
+        const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
+        expect(axe.violations.filter((violation) => ["serious", "critical"].includes(violation.impact ?? ""))).toEqual([]);
+      }
 
       // Change local form state, without submitting, to prove hydration completed.
       await page.getByLabel(/^Email or phone/).fill("entry-fixture@example.invalid");

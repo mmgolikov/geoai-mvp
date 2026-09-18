@@ -88,8 +88,6 @@ async function captureCommercialVisual(page: Page, label: string, fileName: stri
 
 async function openDemoProfile(page: Page) {
   await page.goto("/login?next=/workspace&intent=demo");
-  await page.getByRole("button", { name: "Open demo access" }).click();
-  await page.getByRole("button", { name: "Open demo", exact: true }).click();
   await expect(page).toHaveURL((url) => url.pathname === "/workspace");
   await page.goto("/profile");
   await expect(page.getByRole("heading", { level: 1, name: "Your profile" })).toBeVisible();
@@ -101,7 +99,7 @@ test.describe("commercial Landing and Account visual acceptance", () => {
     await fs.rm(visualDirectory, { recursive: true, force: true });
   });
 
-  test("captures Landing, Login and Profile at all declared viewports", async ({ browser }) => {
+  test("captures public-demo Landing, Workspace and Profile at all declared viewports", async ({ browser }) => {
     for (const viewport of viewports) {
       const context = await browser.newContext({
         colorScheme: "light",
@@ -132,9 +130,10 @@ test.describe("commercial Landing and Account visual acceptance", () => {
       await captureCommercialVisual(page, `${viewport.name} Landing`, `landing-${viewport.name}.png`);
 
       await page.goto("/login?next=/workspace&intent=demo");
-      await expect(page.getByRole("heading", { level: 1, name: "Sign in to GeoAI" })).toBeVisible();
+      await expect(page).toHaveURL((url) => url.pathname === "/workspace");
+      await expect(page.getByRole("link", { name: "Open demo profile" })).toBeVisible();
       await expectNoHorizontalOverflow(page);
-      await captureCommercialVisual(page, `${viewport.name} Login`, `login-${viewport.name}.png`);
+      await captureCommercialVisual(page, `${viewport.name} Workspace`, `workspace-${viewport.name}.png`);
 
       await openDemoProfile(page);
       await expectNoHorizontalOverflow(page);

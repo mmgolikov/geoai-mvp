@@ -82,16 +82,8 @@ async function tabUntilLocator(
 }
 
 async function useDemoCredentialsWithKeyboard(page: Page) {
-  const demoCredentials = page.getByRole("button", { name: "Open demo access" });
-  await tabUntilLocator(page, demoCredentials, { maximumTabs: 40 });
-  await page.keyboard.press("Enter");
-  await expect(page.getByLabel("Email or phone")).toHaveValue("demo@geoai.space");
-  await expect(page.getByLabel("Password")).toHaveValue("111111");
-
-  const openDemo = page.getByRole("button", { name: "Open demo", exact: true });
-  await tabUntilLocator(page, openDemo, { maximumTabs: 20 });
-  await page.keyboard.press("Enter");
   await expect(page).toHaveURL((url) => url.pathname === "/workspace");
+  await tabUntilLocator(page, page.getByRole("link", { name: "Open demo profile" }), { maximumTabs: 40 });
 }
 
 test.describe("accessible critical screens and keyboard-only workspace journey", () => {
@@ -108,9 +100,6 @@ test.describe("accessible critical screens and keyboard-only workspace journey",
     await expect(page).toHaveURL((url) => url.pathname === "/prototype/point-to-object");
 
     await page.goto("/login?next=/workspace&intent=demo");
-    await expect(page.getByRole("heading", { level: 1, name: "Sign in to GeoAI" })).toBeVisible();
-    await recordAccessibilityResult(page, "Unified login", evidence);
-
     await useDemoCredentialsWithKeyboard(page);
     await expect(page.getByRole("link", { name: "Open demo profile" })).toHaveAttribute("data-authenticated", "true");
     await recordAccessibilityResult(page, "Workspace setup", evidence);
