@@ -19,7 +19,9 @@ const expectedRoles = new Map([
   ["set_project_member(uuid,uuid,text,text,bigint,uuid)", ["authenticated"]],
   ["organization_admin_snapshot(uuid,integer,timestampwithtimezone,uuid)", ["authenticated"]],
   ["upsert_point_object_analysis_run(text,text,text,text,jsonb,text,jsonb,jsonb,jsonb,text,text,text,text,text)", ["authenticated"]],
-  ["list_point_object_analysis_runs(text,integer)", ["authenticated"]]
+  ["list_point_object_analysis_runs(text,integer)", ["authenticated"]],
+  ["put_point_object_project_artifact(text,jsonb,jsonb,bigint)", ["authenticated"]],
+  ["list_point_object_project_artifacts(text,integer,timestampwithtimezone,uuid)", ["authenticated"]]
 ]);
 
 function normalizeSignature(value) {
@@ -125,5 +127,5 @@ if (failures.length) {
   process.exit(1);
 }
 console.log(
-  "Data API operator contract passed: exact 16-RPC canonical allowlist, point-object authenticated-only grants, negative inventory fixtures, api-only authenticator override, reload and rollback warning are present."
+  "Data API operator contract passed: exact 18-RPC canonical allowlist, point-object authenticated-only grants, negative inventory fixtures, api-only authenticator override, reload and rollback warning are present."
 );

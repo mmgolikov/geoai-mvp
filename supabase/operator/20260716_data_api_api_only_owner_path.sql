@@ -24,7 +24,9 @@ declare
     to_regprocedure('api.set_project_member(uuid,uuid,text,text,bigint,uuid)'),
     to_regprocedure('api.organization_admin_snapshot(uuid,integer,timestamp with time zone,uuid)'),
     to_regprocedure('api.upsert_point_object_analysis_run(text,text,text,text,jsonb,text,jsonb,jsonb,jsonb,text,text,text,text,text)'),
-    to_regprocedure('api.list_point_object_analysis_runs(text,integer)')
+    to_regprocedure('api.list_point_object_analysis_runs(text,integer)'),
+    to_regprocedure('api.put_point_object_project_artifact(text,jsonb,jsonb,bigint)'),
+    to_regprocedure('api.list_point_object_project_artifacts(text,integer,timestamp with time zone,uuid)')
   ];
 begin
   if current_user <> 'postgres' then
@@ -120,6 +122,8 @@ begin
     text, text, text, text, jsonb, text, jsonb, jsonb, jsonb, text, text, text, text, text
   ) to authenticated;
   grant execute on function api.list_point_object_analysis_runs(text, integer) to authenticated;
+  grant execute on function api.put_point_object_project_artifact(text, jsonb, jsonb, bigint) to authenticated;
+  grant execute on function api.list_point_object_project_artifacts(text, integer, timestamptz, uuid) to authenticated;
 
   alter role authenticator set pgrst.db_schemas = 'api';
 end

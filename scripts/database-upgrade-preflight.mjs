@@ -20,7 +20,7 @@ const expectedFiles = [...manifest.preLedgerReconciliations, ...manifest.liveApp
   .map(({ version, name }) => `${version}_${name}.sql`).sort();
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const localErrors = [];
-if (!same(filenames, expectedFiles) || filenames.length !== 22) localErrors.push("Canonical file inventory drift.");
+if (!same(filenames, expectedFiles) || filenames.length !== 23) localErrors.push("Canonical file inventory drift.");
 for (const entry of [...manifest.preLedgerReconciliations, ...manifest.liveAppliedMigrations]) {
   const filename = `${entry.version}_${entry.name}.sql`;
   if (!filenames.includes(filename)) continue;
@@ -85,7 +85,7 @@ export function validatePlan(plan, receipt, readbackSha256, nowMs = Date.now()) 
   if (plan?.readbackSha256 !== readbackSha256) errors.push("Dry-run evidence is not bound to this readback.");
   for (const key of Object.keys(binding)) if (plan?.[key] !== binding[key]) errors.push(`Dry-run ${key} mismatch.`);
   if (!same(plan?.argv, ["db", "push", "--linked", "--dry-run", "--include-all"])) errors.push("Dry-run argv must include include-all and exclude apply/seed/roles flags.");
-  if (plan?.exitCode !== 0 || !same(plan?.versions, pendingVersions)) errors.push("Dry-run must report exactly the nine pending versions in order and exit zero.");
+  if (plan?.exitCode !== 0 || !same(plan?.versions, pendingVersions)) errors.push("Dry-run must report exactly the manifest pending versions in order and exit zero.");
   if (!/^[a-f0-9]{64}$/.test(plan?.rawOutputSha256 ?? "")) errors.push("Missing raw-output digest; operator must retain output separately.");
   return errors;
 }
@@ -97,7 +97,7 @@ export function evaluate(receipt, receiptSha256, plan, nowMs = Date.now()) {
     stage: !receipt ? "inventory_only" : errors.length ? "rejected" : plan ? "supplied_dryrun_contract_valid_root_execution_gate_pending" : receipt.ledger.length === 12 ? "supplied_pre_repair_contract_valid_root_repair_pending" : "supplied_post_repair_contract_valid_dryrun_not_performed",
     suppliedEvidenceOnly: true, remoteStateVerified: false, networkOrDatabaseAccessPerformed: false,
     hostedApplyReady: false, mutationPerformed: false, errors,
-    remainingGates: ["Independent live readback and clean exact commit binding", "Backup plus tested restore; Data API exposure decision", "Verify standing founder development authority and precise target; no repeated migration approval required", "Fresh exact-candidate upgrade replay and drift/advisors", "Post-apply 22-entry ledger, 16-RPC containment and real JWT tenant/persona tests"],
+    remainingGates: ["Historical 12/13-entry preflight only; do not use against already upgraded development", "Independent live readback and clean exact commit binding", "Backup plus tested restore; Data API exposure decision", "Verify standing founder development authority and precise target; no repeated migration approval required", "Fresh exact-candidate upgrade replay and drift/advisors", "Post-apply 23-entry ledger, 18-RPC containment and real JWT tenant/persona tests"],
     warning: "This checks supplied JSON attestations, not live state, execution authority or raw CLI output. Never invoke the existing auto-apply wrapper for this restored target."
   };
 }

@@ -356,6 +356,33 @@ for (const file of await collectRouteFiles(apiRoot)) {
     }
 
     if (policy.scope === "caller_owned_preview") {
+      if (route === "/api/prototype/point-to-object/project-artifacts") {
+        const identity = handler.body.indexOf("await requirePilotIdentity(request)");
+        const identityDenial = handler.body.indexOf("if (!identity.allowed) return identity.response", identity);
+        const isPut = handler.method === "PUT";
+        const origin = isPut ? handler.body.indexOf("requirePilotMutationOrigin(request)", identityDenial) : identityDenial;
+        const originDenial = isPut ? handler.body.indexOf("if (mutationOrigin) return mutationOrigin", origin) : origin;
+        const authorization = handler.body.indexOf(`await authorize(request, "${policy.action}")`, originDenial);
+        const denial = handler.body.indexOf('if ("response" in authorization) return authorization.response', authorization);
+        const input = handler.body.indexOf(isPut ? "await readBoundedJson(request, POINT_OBJECT_CLOUD_BODY_BYTES)" : "new URL(request.url)");
+        const rpc = handler.body.indexOf(isPut ? "await putPointObjectCloudArtifact(" : "await listPointObjectCloudArtifacts(");
+        const helperStart = source.indexOf("async function authorize(");
+        const helperEnd = source.indexOf("export async function GET", helperStart);
+        const helper = source.slice(helperStart, helperEnd);
+        const gate = helper.indexOf("if (!getPointObjectPersistenceGate().enabled)");
+        const fixedScope = helper.indexOf("getPointObjectCloudProjectKey()");
+        const projectGuard = helper.indexOf("await authorizePointObjectCloud(");
+        const projectDenial = helper.indexOf("if (!access.allowed)");
+        if (!["GET", "PUT"].includes(handler.method) || identity < 0 || identityDenial < identity ||
+          origin < identityDenial || originDenial < origin || authorization < originDenial || denial < authorization ||
+          input < denial || rpc < input || gate < 0 || fixedScope < gate || projectGuard < fixedScope || projectDenial < projectGuard ||
+          !handler.body.includes("privateNoStoreJson") || !helper.includes("return { access, projectKey }")) {
+          failures.push(`${relative} ${handler.method}: cloud artifact identity, origin, fixed scope and project denial must precede bounded input and RPC`);
+        }
+        protectedHandlers += 1;
+        guardCalls += 1;
+        continue;
+      }
       const identityIndex = handler.body.indexOf("await requirePilotIdentity(request)");
       const identityDenialIndex = handler.body.indexOf("if (!identity.allowed) return identity.response", identityIndex);
       const mutationOriginIndex = handler.method === "POST"

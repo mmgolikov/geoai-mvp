@@ -236,6 +236,18 @@
         "independent role and grant review",
         "founder-approved exact development target only; never Production"
       ]
+    },
+    {
+      "version": "20260918203424",
+      "name": "point_object_project_artifacts_v1",
+      "applyState": "not_applied_development_candidate",
+      "requires": [
+        "exact creator-private scope disabled by default",
+        "59 assertion cloud artifact pgTAP suite and fresh canonical replay",
+        "same-actor quota concurrency and data-preserving deactivation tests",
+        "fresh exact-target backup, drift and isolation verification",
+        "founder-approved development only; no Production or implicit local-data upload"
+      ]
     }
   ],
   "rule": "Files under supabase/legacy_migrations are provenance only. Clean replay starts with the declared pre-ledger bootstrap. On the existing development project its schema fingerprint must be verified and its ledger version repaired to applied before any push. The following twelve immutable files must match the live ledger exactly as a noncontiguous applied version set; the seven 20260716 files remain pending even though the two later 20260726 DLD files are applied."

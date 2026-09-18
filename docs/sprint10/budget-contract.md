@@ -46,6 +46,14 @@ Understated attempt or aggregate cost, missing cache fields, fractional tokens, 
 
 The current compatible profiles are enforced, including Luna/Terra/Sol Quick Analyse rules, Sol Deep rules, Create Quick Terra-or-higher, Standard/Deep Create Sol, and the actual Create Quick repair behavior (same Terra-or-higher model with medium reasoning).
 
+### September 19 pre-live recheck
+
+The Standard short-context rates above were rechecked against the [official OpenAI pricing table](https://developers.openai.com/api/docs/pricing) before live dispatch; they are unchanged. Model catalogue availability does not prove this account's access or actual provider execution.
+
+At the current conservative input/output bounds, two worst-price Sol attempts would total at most USD 1.07 for Analyse (81,000 input tokens at the cache-write rate plus 6,500 output tokens per attempt) and USD 0.266 for Create (17,000 input plus 2,400 output per attempt). These are calculated reserve checks, not measured charges. The USD 1.20 / USD 0.30 reservations remain unchanged. Actual accepted traces must identify every attempt and its token usage; an unconfirmed charge still blocks further dispatch.
+
+The initial live journey covers Standard Analyse and Standard Create only. Its result cannot establish the Quick/Standard/Deep quality difference or the full two-market, six-journey acceptance matrix. Those require additional separately reserved runs on the accepted candidate and an evidence-grounding review.
+
 ## File integrity and concurrency
 
 The private root must be a canonical, non-symlink directory with no group/world permissions (`0700`). The ledger must be its direct child. Path traversal, symlinked roots or ledgers, hard-linked ledgers, non-regular files and non-private ledger permissions are rejected.
