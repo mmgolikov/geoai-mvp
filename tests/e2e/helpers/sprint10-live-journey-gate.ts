@@ -2,6 +2,28 @@ export type Sprint10PaidDispatchReservation<T> = {
   receipt: T;
 };
 
+export const SPRINT10_LIVE_PAID_SCOPE_MATRIX = {
+  journey: { ai: 1, create: 1 },
+  "dubai-analyse": { ai: 1, create: 0 },
+  "dubai-find": { ai: 0, create: 0 },
+  "singapore-create": { ai: 0, create: 1 }
+} as const;
+
+export type Sprint10LiveScope = keyof typeof SPRINT10_LIVE_PAID_SCOPE_MATRIX;
+
+export function sprint10PaidPostDecision(
+  scope: Sprint10LiveScope,
+  route: "ai" | "create",
+  occurrence: number
+): { ok: true } | { ok: false; reason: "route_disallowed" | "occurrence_exceeded" } {
+  const expected = SPRINT10_LIVE_PAID_SCOPE_MATRIX[scope][route];
+  if (expected === 0) return { ok: false, reason: "route_disallowed" };
+  if (!Number.isInteger(occurrence) || occurrence < 1 || occurrence > expected) {
+    return { ok: false, reason: "occurrence_exceeded" };
+  }
+  return { ok: true };
+}
+
 export type Sprint10PaidDispatchResult<T> =
   | { ok: true; receipt: T }
   | { ok: false; reason: string };

@@ -1,15 +1,22 @@
 import { spawnSync } from "node:child_process";
 import {
+  closeSync,
+  constants,
+  fchmodSync,
+  fstatSync,
+  fsyncSync,
   lstatSync,
   mkdtempSync,
+  openSync,
   readFileSync,
   realpathSync,
   rmSync,
   statSync,
+  unlinkSync,
   writeFileSync
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const exactDevelopmentProjectRef = "pphdqkurxneyagvnnjdt";
@@ -51,7 +58,7 @@ function privateRegularFile(path, label) {
   }
 }
 
-function validateLedger(rootValue, pathValue, allowUnknown = false) {
+function validateLedger(rootValue, pathValue, allowUnresolved = false) {
   if (!isAbsolute(rootValue) || !isAbsolute(pathValue)) fail("The ledger root and path must be explicit absolute paths.");
   const root = resolve(rootValue);
   const path = resolve(pathValue);
@@ -68,10 +75,72 @@ function validateLedger(rootValue, pathValue, allowUnknown = false) {
   catch { fail("The existing cycle ledger is missing or invalid; it will not be initialized."); }
   if (ledger?.schemaVersion !== 1 || ledger?.cycleId !== exactCycleId || ledger?.ledgerId !== exactLedgerId ||
       ledger?.ceilingUsd !== 15 || !Array.isArray(ledger?.receipts) ||
-      ledger.receipts.some((receipt) => receipt?.ledgerId !== exactLedgerId || (!allowUnknown && receipt?.state === "unknown"))) {
-    fail("The existing exact USD 15 cycle ledger is not accepted or contains an unknown charge.");
+      ledger.receipts.some((receipt) => receipt?.ledgerId !== exactLedgerId ||
+        (!allowUnresolved && (receipt?.state === "unknown" || receipt?.state === "reserved")))) {
+    fail("The existing exact USD 15 cycle ledger is not accepted or contains an unresolved reserved/unknown charge.");
   }
   return ledger;
+}
+
+function runtimeEnvironment(source = process.env) {
+  const allowed = [
+    "PATH", "HOME", "TMPDIR", "TMP", "TEMP", "LANG", "LC_ALL", "TZ",
+    "PLAYWRIGHT_BROWSERS_PATH", "SystemRoot", "WINDIR", "ComSpec", "PATHEXT"
+  ];
+  return Object.fromEntries(allowed.flatMap((key) => typeof source[key] === "string" ? [[key, source[key]]] : []));
+}
+
+function commandOutput(command, args, repositoryRoot, label) {
+  const result = spawnSync(command, args, {
+    cwd: repositoryRoot,
+    env: runtimeEnvironment(),
+    encoding: "utf8",
+    maxBuffer: 64 * 1024,
+    timeout: 10_000,
+    killSignal: "SIGTERM"
+  });
+  if (result.error || result.signal || result.status !== 0) fail(`${label} could not be verified with a sanitized environment.`);
+  return result.stdout.trim();
+}
+
+function validateLocalCheckout(repositoryRoot, expectedCommit) {
+  const head = commandOutput("git", ["rev-parse", "HEAD"], repositoryRoot, "The local harness HEAD").toLowerCase();
+  if (head !== expectedCommit) fail("The local harness HEAD does not match the exact expected Preview commit.");
+  const status = commandOutput("git", ["status", "--porcelain=v1", "--untracked-files=all"], repositoryRoot, "The local harness worktree");
+  if (status.length > 0) fail("The local harness worktree must be clean before any credential reaches a child process.");
+}
+
+function acquireRunLease(rootValue, pathValue, commit, scope) {
+  const root = resolve(rootValue);
+  const ledgerPath = resolve(pathValue);
+  const leasePath = join(root, `.${basename(ledgerPath)}.sprint10-live-journey.lock`);
+  let descriptor;
+  try {
+    descriptor = openSync(leasePath, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW, 0o600);
+    fchmodSync(descriptor, 0o600);
+    writeFileSync(descriptor, JSON.stringify({ schemaVersion: 1, pid: process.pid, startedAt: new Date().toISOString(), commit, scope }));
+    fsyncSync(descriptor);
+    const details = fstatSync(descriptor);
+    if (!details.isFile() || details.nlink !== 1 || (details.mode & 0o077) !== 0) fail("The live-run lease is not a private regular file.");
+    return { descriptor, path: leasePath, dev: details.dev, ino: details.ino };
+  } catch {
+    if (typeof descriptor === "number") closeSync(descriptor);
+    fail("Another live run or an unreconciled crash lease already owns this exact ledger.");
+  }
+}
+
+function releaseRunLease(lease) {
+  const active = lstatSync(lease.path);
+  const held = fstatSync(lease.descriptor);
+  if (!active.isFile() || active.isSymbolicLink() || active.dev !== lease.dev || active.ino !== lease.ino ||
+      held.dev !== lease.dev || held.ino !== lease.ino) {
+    closeSync(lease.descriptor);
+    fail("The live-run lease identity changed while the runner was active.");
+  }
+  closeSync(lease.descriptor);
+  unlinkSync(lease.path);
+  const directory = openSync(dirname(lease.path), constants.O_RDONLY);
+  try { fsyncSync(directory); } finally { closeSync(directory); }
 }
 
 function validateReceipt(pathValue, previewUrl, commit) {
@@ -111,7 +180,7 @@ function validatePersona() {
   }
 }
 
-function preflight() {
+function preflight(repositoryRoot) {
   if (required("GEOAI_SPRINT10_LIVE_EXPLICIT_RUN") !== exactExplicitRun) {
     fail("The exact root live-journey opt-in is required.");
   }
@@ -126,6 +195,7 @@ function preflight() {
   }
   const commit = required("GEOAI_SPRINT10_LIVE_EXPECTED_COMMIT_SHA").trim().toLowerCase();
   if (!/^[0-9a-f]{40}$/.test(commit)) fail("The expected Preview release identity must be one exact Git SHA.");
+  validateLocalCheckout(repositoryRoot, commit);
   if (required("GEOAI_SPRINT10_LIVE_SUPABASE_PROJECT_REF") !== exactDevelopmentProjectRef) {
     fail("The journey is restricted to the exact development Supabase Auth project.");
   }
@@ -180,6 +250,27 @@ function findInconclusive(value) {
   return null;
 }
 
+function findCleanupFailure(value) {
+  if (typeof value === "string") {
+    const match = /LIVE_JOURNEY_CLEANUP_FAILED: ([A-Za-z0-9_-]+)/.exec(value);
+    return match?.[1] ?? null;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const match = findCleanupFailure(item);
+      if (match) return match;
+    }
+    return null;
+  }
+  if (value && typeof value === "object") {
+    for (const item of Object.values(value)) {
+      const match = findCleanupFailure(item);
+      if (match) return match;
+    }
+  }
+  return null;
+}
+
 function receiptSummary(config) {
   const ledger = validateLedger(config.ledgerRoot, config.ledgerPath, true);
   return ledger.receipts.slice(config.baselineReceiptCount).map((receipt) => ({
@@ -192,14 +283,17 @@ function receiptSummary(config) {
 }
 
 function run() {
-  const config = preflight();
   const repositoryRoot = fileURLToPath(new URL("..", import.meta.url));
+  const config = preflight(repositoryRoot);
   const playwrightCli = fileURLToPath(new URL("../node_modules/@playwright/test/cli.js", import.meta.url));
   const playwrightEntry = fileURLToPath(new URL("../node_modules/@playwright/test/index.js", import.meta.url));
   const temporaryDirectory = mkdtempSync(join(tmpdir(), "geoai-sprint10-live-journey-"));
   const configPath = join(temporaryDirectory, "playwright.config.cjs");
   const outputDir = join(temporaryDirectory, "output");
   const projectName = "sprint10-root-live-journey";
+  let lease = null;
+  try {
+  const browserEnvironment = runtimeEnvironment();
   const configSource = `
 const { defineConfig } = require(${JSON.stringify(playwrightEntry)});
 module.exports = defineConfig({
@@ -222,13 +316,27 @@ module.exports = defineConfig({
     trace: "off",
     screenshot: "off",
     video: "off",
-    serviceWorkers: "block"
+    serviceWorkers: "block",
+    launchOptions: { env: ${JSON.stringify(browserEnvironment)} }
   },
   projects: [{ name: ${JSON.stringify(projectName)} }]
 });
 `;
   writeFileSync(configPath, configSource, { encoding: "utf8", mode: 0o600 });
-  const childEnvironment = { ...process.env, GEOAI_SPRINT10_LIVE_RUNNER_ACTIVE: "1" };
+  const discoveryEnvironment = runtimeEnvironment();
+  const liveKeys = [
+    "GEOAI_E2E_BASE_URL", "GEOAI_SPRINT10_LIVE_SCOPE", "GEOAI_SPRINT10_LIVE_PREVIEW_URL",
+    "GEOAI_SPRINT10_LIVE_EXPECTED_COMMIT_SHA", "GEOAI_SPRINT10_LIVE_SUPABASE_PROJECT_REF",
+    "GEOAI_SPRINT10_LIVE_PREVIEW_BYPASS_SECRET", "GEOAI_SPRINT10_LIVE_EMAIL",
+    "GEOAI_SPRINT10_LIVE_PASSWORD", "GEOAI_SPRINT10_LIVE_USER_ID", "GEOAI_SPRINT10_LIVE_EXPECTED_LEDGER_ID",
+    "GEOAI_SPRINT10_LIVE_LEDGER_ROOT", "GEOAI_SPRINT10_LIVE_LEDGER_PATH",
+    "GEOAI_SPRINT10_LIVE_DEPLOYMENT_RECEIPT_PATH"
+  ];
+  const liveEnvironment = {
+    ...runtimeEnvironment(),
+    ...Object.fromEntries(liveKeys.map((key) => [key, required(key)])),
+    GEOAI_SPRINT10_LIVE_RUNNER_ACTIVE: "1"
+  };
   const commonArguments = [
     playwrightCli,
     "test",
@@ -239,29 +347,35 @@ module.exports = defineConfig({
     "--retries=0",
     "--workers=1"
   ];
-  try {
+    lease = acquireRunLease(config.ledgerRoot, config.ledgerPath, config.commit, config.scope);
     const discovery = spawnSync(process.execPath, [...commonArguments, "--list"], {
       cwd: repositoryRoot,
-      env: childEnvironment,
+      env: discoveryEnvironment,
       encoding: "utf8",
-      maxBuffer: 16 * 1024 * 1024
+      maxBuffer: 16 * 1024 * 1024,
+      timeout: 60_000,
+      killSignal: "SIGTERM"
     });
+    if (discovery.error || discovery.signal) fail("The offline discovery child exceeded its bounded execution window.");
     const discoveryReport = parseJsonReport(discovery, "offline project/test discovery");
     const projects = Array.isArray(discoveryReport?.config?.projects)
       ? discoveryReport.config.projects.map((project) => project?.name)
       : [];
     const tests = countReportTests(discoveryReport?.suites);
-    if (discovery.error || discovery.status !== 0 || projects.length !== 1 || projects[0] !== projectName || tests !== 1 ||
+    if (discovery.status !== 0 || projects.length !== 1 || projects[0] !== projectName || tests !== 1 ||
         (Array.isArray(discoveryReport?.errors) && discoveryReport.errors.length > 0)) {
       fail(`The bounded discovery receipt was not accepted (projects=${projects.length}, tests=${tests}).`);
     }
 
     const result = spawnSync(process.execPath, commonArguments, {
       cwd: repositoryRoot,
-      env: childEnvironment,
+      env: liveEnvironment,
       encoding: "utf8",
-      maxBuffer: 32 * 1024 * 1024
+      maxBuffer: 32 * 1024 * 1024,
+      timeout: 750_000,
+      killSignal: "SIGTERM"
     });
+    if (result.error || result.signal) fail("The live child exceeded its bounded execution window; logout is not verified and operator action is required.");
     const report = parseJsonReport(result, "live journey");
     const stats = report?.stats ?? {};
     const passed = Number(stats.expected ?? -1);
@@ -269,6 +383,19 @@ module.exports = defineConfig({
     const failed = Number(stats.unexpected ?? -1);
     const flaky = Number(stats.flaky ?? -1);
     const receipts = receiptSummary(config);
+    const cleanupFailure = findCleanupFailure(report);
+    if (cleanupFailure) {
+      console.log(JSON.stringify({
+        status: "FAIL_CLEANUP",
+        scope: config.scope,
+        previewHost: config.host,
+        commit: config.commit,
+        stage: cleanupFailure,
+        receipts
+      }));
+      process.exitCode = 1;
+      return;
+    }
     const inconclusive = findInconclusive(report);
     if (inconclusive) {
       console.log(JSON.stringify({
@@ -294,13 +421,19 @@ module.exports = defineConfig({
       receipts
     }));
   } finally {
-    rmSync(temporaryDirectory, { recursive: true, force: true });
+    try { rmSync(temporaryDirectory, { recursive: true, force: true }); }
+    finally { if (lease) releaseRunLease(lease); }
   }
 }
 
-try {
-  run();
-} catch (error) {
-  console.error(error instanceof Error ? error.message : "The bounded live journey runner failed closed.");
-  process.exitCode = 1;
+export { acquireRunLease, releaseRunLease, runtimeEnvironment, validateLedger };
+
+const directEntry = process.argv[1] ? realpathSync(resolve(process.argv[1])) : null;
+if (directEntry === realpathSync(fileURLToPath(import.meta.url))) {
+  try {
+    run();
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : "The bounded live journey runner failed closed.");
+    process.exitCode = 1;
+  }
 }

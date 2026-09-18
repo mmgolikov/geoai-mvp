@@ -27,6 +27,9 @@ import {
 } from "./helpers/sprint10-live-budget";
 import {
   dispatchSprint10PaidRequest,
+  SPRINT10_LIVE_PAID_SCOPE_MATRIX,
+  sprint10PaidPostDecision,
+  type Sprint10LiveScope,
   sprint10LiveRequestKey
 } from "./helpers/sprint10-live-journey-gate";
 
@@ -37,7 +40,7 @@ const CAVEAT = "Screening hypothesis; official validation required; not a legal,
 const EXACT_DEVELOPMENT_PROJECT_REF = "pphdqkurxneyagvnnjdt";
 const EXPECTED_LEDGER_ID = "5aa405b3-bbda-48aa-aeea-ca3357be4042";
 const LIVE_SCOPES = ["journey", "dubai-analyse", "dubai-find", "singapore-create"] as const;
-type LiveScope = (typeof LIVE_SCOPES)[number];
+type LiveScope = Sprint10LiveScope;
 
 const runnerActive = process.env.GEOAI_SPRINT10_LIVE_RUNNER_ACTIVE === "1";
 const selectedScope = process.env.GEOAI_SPRINT10_LIVE_SCOPE as LiveScope | undefined;
@@ -223,8 +226,12 @@ function installBudgetGate(page: Page, configuration: LiveConfiguration) {
     if (request.method() !== "POST") return route.fallback();
     const routeName = new URL(request.url()).pathname.endsWith("/ai") ? "ai" : "create";
     occurrences[routeName] += 1;
-    if (occurrences[routeName] > 1) {
-      fatal = `The bounded ${routeName} scenario attempted more than one paid POST.`;
+    const expected = SPRINT10_LIVE_PAID_SCOPE_MATRIX[configuration.scope][routeName];
+    const decision = sprint10PaidPostDecision(configuration.scope, routeName, occurrences[routeName]);
+    if (!decision.ok) {
+      fatal = decision.reason === "route_disallowed"
+        ? `The ${configuration.scope} scope attempted a disallowed ${routeName} paid POST before reservation.`
+        : `The bounded ${routeName} scenario attempted more than ${expected} paid POST.`;
       return route.abort("blockedbyclient");
     }
     let body: Record<string, unknown> | null = null;
@@ -317,10 +324,18 @@ function installBudgetGate(page: Page, configuration: LiveConfiguration) {
     paidDispatchCount: () => occurrences.ai + occurrences.create,
     receiptIds: () => [...receiptIds],
     waitForTerminalReceipts,
+    assertExpectedScopeCounts() {
+      for (const routeName of ["ai", "create"] as const) {
+        guard(occurrences[routeName] === SPRINT10_LIVE_PAID_SCOPE_MATRIX[configuration.scope][routeName],
+          `The ${configuration.scope} scope did not produce the exact ${routeName} paid-POST count.`);
+      }
+      if (fatal) throw new Error(fatal);
+    },
     async finalize() {
       await Promise.all([...terminalTasks]);
       for (const item of pending.values()) markUnknown(item, "request_failed_after_dispatch");
       pending.clear();
+      if (fatal) throw new Error(fatal);
     }
   };
 }
@@ -382,13 +397,59 @@ async function login(page: Page, configuration: LiveConfiguration) {
     "The browser session did not match the injected permanent synthetic identity.");
 }
 
-async function logout(page: Page) {
+async function browserSessionState(page: Page, expectedUserId: string) {
+  return page.evaluate(async (userId) => {
+    try {
+      const response = await fetch("/api/auth/session", { method: "GET", credentials: "same-origin", cache: "no-store" });
+      const body = await response.json().catch(() => null) as {
+        isAuthenticated?: unknown;
+        supabaseAuthenticated?: unknown;
+        sessionStatus?: unknown;
+        user?: { id?: unknown } | null;
+      } | null;
+      if (response.status !== 200 || response.headers.get("cache-control")?.includes("no-store") !== true) return "unavailable";
+      if (body?.isAuthenticated === false && body?.supabaseAuthenticated === false && body?.sessionStatus === "session_missing" && body?.user === null) {
+        return "anonymous";
+      }
+      if (body?.isAuthenticated === true && body?.supabaseAuthenticated === true && body?.user?.id === userId) return "authenticated";
+      return "unavailable";
+    } catch {
+      return "unavailable";
+    }
+  }, expectedUserId);
+}
+
+async function logoutVerified(page: Page, expectedUserId: string) {
+  const initial = await browserSessionState(page, expectedUserId);
+  if (initial === "anonymous") return;
+  if (initial !== "authenticated") throw new Error("LIVE_JOURNEY_CLEANUP_FAILED: logout_session_precheck");
   await page.goto("/profile");
   const button = page.getByRole("button", { name: "Sign out", exact: true });
-  if (await button.isVisible().catch(() => false)) await button.click();
+  if (!await button.isVisible().catch(() => false)) throw new Error("LIVE_JOURNEY_CLEANUP_FAILED: logout_action_missing");
+  const responsePromise = page.waitForResponse((response) =>
+    response.request().method() === "POST" && new URL(response.url()).pathname === "/api/auth/logout", { timeout: 30_000 });
+  await button.click();
+  const response = await responsePromise;
+  const payload: unknown = await response.json().catch(() => null);
+  if (response.status() !== 200 || !record(payload) || payload.ok !== true || payload.status !== "signed_out") {
+    throw new Error("LIVE_JOURNEY_CLEANUP_FAILED: logout_response");
+  }
+  await expect.poll(() => browserSessionState(page, expectedUserId), { timeout: 30_000 }).toBe("anonymous");
 }
 
 type ArtifactKind = "analyse" | "find" | "create";
+
+type LocalArtifactState = {
+  count: number;
+  artifactId: string;
+  payloadHash: string;
+  label: string;
+  viewRevision: number;
+  domainIdentity: string;
+  activeAlternativeId: unknown;
+  shortlistCount: number | null;
+  comparisonView: unknown;
+};
 
 async function localArtifactState(page: Page, userId: string, kind: ArtifactKind) {
   return page.evaluate(({ expectedUserId, expectedKind }) => {
@@ -402,10 +463,38 @@ async function localArtifactState(page: Page, userId: string, kind: ArtifactKind
     if (!artifact) return null;
     const payload = recordForBrowser(artifact.payload);
     const session = recordForBrowser(payload?.session);
+    const analysis = recordForBrowser(payload?.analysis);
+    const subject = recordForBrowser(analysis?.subject);
+    const result = recordForBrowser(session?.result);
+    const aoi = recordForBrowser(payload?.aoi);
+    const generated = recordForBrowser(payload?.generated);
+    const candidateIds = Array.isArray(result?.candidates)
+      ? result.candidates.map((candidate) => recordForBrowser(candidate)?.sourceFeatureId ?? null)
+      : [];
+    const shortlistIds = Array.isArray(session?.shortlist)
+      ? session.shortlist.map((candidate) => recordForBrowser(candidate)?.sourceFeatureId ?? null)
+      : [];
+    const alternativeIds = Array.isArray(generated?.alternatives)
+      ? generated.alternatives.map((alternative) => recordForBrowser(alternative)?.id ?? null)
+      : [];
+    const domainIdentity = expectedKind === "analyse"
+      ? { sourceFeatureId: subject?.sourceFeatureId ?? null, evidencePackHash: analysis?.evidencePackHash ?? null }
+      : expectedKind === "find"
+        ? { candidateIds, shortlistIds }
+        : {
+            aoiId: aoi?.id ?? null,
+            generatedAt: generated?.generatedAt ?? null,
+            promptVersion: generated?.promptVersion ?? null,
+            alternativeIds
+          };
     return {
       count: artifacts.filter((candidate) => candidate.kind === expectedKind).length,
+      artifactId: artifact.artifactId,
+      payloadHash: artifact.payloadHash,
+      label: artifact.label,
+      viewRevision: artifact.viewRevision,
+      domainIdentity: JSON.stringify(domainIdentity),
       activeAlternativeId: payload?.activeAlternativeId ?? null,
-      dashboardOpen: payload?.dashboardOpen ?? null,
       shortlistCount: Array.isArray(session?.shortlist) ? session.shortlist.length : null,
       comparisonView: session?.comparisonView ?? null
     };
@@ -414,6 +503,24 @@ async function localArtifactState(page: Page, userId: string, kind: ArtifactKind
       return typeof value === "object" && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : null;
     }
   }, { expectedUserId: userId, expectedKind: kind });
+}
+
+async function requireLocalArtifactState(page: Page, userId: string, kind: ArtifactKind): Promise<LocalArtifactState> {
+  const state = await localArtifactState(page, userId, kind);
+  guard(state && state.count === 1 && typeof state.artifactId === "string" && state.artifactId.length > 0 &&
+    typeof state.payloadHash === "string" && /^[a-f0-9]{64}$/.test(state.payloadHash) &&
+    typeof state.label === "string" && state.label.length > 0 && typeof state.viewRevision === "number" &&
+    Number.isInteger(state.viewRevision) && state.viewRevision >= 0 &&
+    typeof state.domainIdentity === "string",
+  `The browser-local ${kind} artifact identity is missing or ambiguous.`);
+  return state as LocalArtifactState;
+}
+
+function assertSameArtifact(before: LocalArtifactState, after: LocalArtifactState) {
+  expect(after.artifactId).toBe(before.artifactId);
+  expect(after.payloadHash).toBe(before.payloadHash);
+  expect(after.viewRevision).toBe(before.viewRevision);
+  expect(after.domainIdentity).toBe(before.domainIdentity);
 }
 
 const replayKeys = [
@@ -432,10 +539,17 @@ function assertNoReplay(before: Record<string, number>, after: Record<string, nu
   for (const key of replayKeys) expect(after[key] ?? 0, `${key} must not replay while reopening a browser-local artifact`).toBe(before[key] ?? 0);
 }
 
+async function stableLocalBarrier(page: Page) {
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  await page.waitForTimeout(1_000);
+}
+
 async function reopenSavedArtifact(
   page: Page,
+  userId: string,
   kind: ArtifactKind,
   policy: NetworkPolicy,
+  expected: LocalArtifactState,
   verify: () => Promise<void>
 ) {
   await page.goto("/projects?view=spatial");
@@ -447,6 +561,9 @@ async function reopenSavedArtifact(
   const before = policy.snapshotJourneyRequests();
   await card.getByRole("button", { name: kind === "analyse" ? "Open result" : "Show on map", exact: true }).click();
   await verify();
+  await stableLocalBarrier(page);
+  const reopened = await requireLocalArtifactState(page, userId, kind);
+  assertSameArtifact(expected, reopened);
   assertNoReplay(before, policy.snapshotJourneyRequests());
 }
 
@@ -490,9 +607,11 @@ async function runDubaiAnalyse(page: Page, configuration: LiveConfiguration, pol
   "The Dubai Analyse response did not preserve current V10 depth, role/scenario provenance and source identity.");
   await expect(page.getByTestId("ai-success")).toBeVisible();
   await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
-  await expect.poll(async () => (await localArtifactState(page, configuration.userId, "analyse"))?.count ?? 0).toBe(1);
+  const expectedDomainIdentity = JSON.stringify({ sourceFeatureId: chosen.id, evidencePackHash: payload.evidencePackHash });
+  await expect.poll(async () => (await localArtifactState(page, configuration.userId, "analyse"))?.domainIdentity ?? null).toBe(expectedDomainIdentity);
+  const saved = await requireLocalArtifactState(page, configuration.userId, "analyse");
   const paidBeforeReopen = budget.paidDispatchCount();
-  await reopenSavedArtifact(page, "analyse", policy, async () => {
+  await reopenSavedArtifact(page, configuration.userId, "analyse", policy, saved, async () => {
     await expect(page.getByTestId("ai-success")).toBeVisible();
     await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
   });
@@ -537,6 +656,7 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
     "Dubai Find did not return two distinct exact source identities.");
   const items = page.getByTestId("find-scroll-region").getByRole("listitem");
   await expect(items).toHaveCount(candidates.length);
+  const beforeLocalComparison = policy.snapshotJourneyRequests();
   await items.nth(0).getByRole("button", { name: "Compare", exact: true }).click();
   await items.nth(1).getByRole("button", { name: "Compare", exact: true }).click();
   await page.getByRole("button", { name: "Compare selected", exact: true }).click();
@@ -547,9 +667,18 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
     const state = await localArtifactState(page, configuration.userId, "find");
     return `${state?.shortlistCount ?? 0}:${state?.comparisonView ?? "none"}`;
   }).toBe("2:dashboard");
+  await stableLocalBarrier(page);
+  assertNoReplay(beforeLocalComparison, policy.snapshotJourneyRequests());
+  const expectedDomainIdentity = JSON.stringify({
+    candidateIds: candidates.map((candidate) => candidate.sourceFeatureId),
+    shortlistIds: identities
+  });
+  await expect.poll(async () => (await localArtifactState(page, configuration.userId, "find"))?.domainIdentity ?? null).toBe(expectedDomainIdentity);
+  const saved = await requireLocalArtifactState(page, configuration.userId, "find");
   const paidBeforeReopen = budget.paidDispatchCount();
-  await reopenSavedArtifact(page, "find", policy, async () => {
+  await reopenSavedArtifact(page, configuration.userId, "find", policy, saved, async () => {
     await expect(page.getByTestId("find-full-comparison-dashboard")).toBeVisible();
+    for (const identity of identities) await expect(page.getByText(String(identity), { exact: true })).toBeVisible();
   });
   expect(budget.paidDispatchCount()).toBe(paidBeforeReopen);
 }
@@ -587,11 +716,13 @@ async function runSingaporeCreate(page: Page, configuration: LiveConfiguration, 
   const payload: unknown = await response.json();
   await budget.waitForTerminalReceipts();
   guard(response.status() === 200 && record(payload) && payload.mode === "openai_concept" &&
+    typeof payload.generatedAt === "string" && Number.isFinite(Date.parse(payload.generatedAt)) &&
     payload.promptVersion === SPRINT10_CREATE_PROMPT_VERSION && Array.isArray(payload.alternatives) && payload.alternatives.length === 2 &&
     payload.alternatives.every((item) => record(item) && (item.id === "A" || item.id === "B")) && payload.caveat === CAVEAT,
   "The Singapore Create response did not return one strict current A/B concept.");
   await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
   const paidAfterGeneration = budget.paidDispatchCount();
+  const beforeLocalViews = policy.snapshotJourneyRequests();
   await page.getByTestId("create-alternative-b").click();
   await page.getByTestId("create-open-result-dashboard").click();
   await expect(page.getByTestId("create-full-result-dashboard")).toBeVisible();
@@ -599,9 +730,18 @@ async function runSingaporeCreate(page: Page, configuration: LiveConfiguration, 
   expect(budget.paidDispatchCount()).toBe(paidAfterGeneration);
   await expect.poll(async () => {
     const state = await localArtifactState(page, configuration.userId, "create");
-    return `${state?.activeAlternativeId ?? "none"}:${String(state?.dashboardOpen)}`;
-  }).toBe("B:true");
-  await reopenSavedArtifact(page, "create", policy, async () => {
+    return state?.activeAlternativeId ?? "none";
+  }).toBe("B");
+  await stableLocalBarrier(page);
+  assertNoReplay(beforeLocalViews, policy.snapshotJourneyRequests());
+  const saved = await requireLocalArtifactState(page, configuration.userId, "create");
+  const savedDomain: unknown = JSON.parse(saved.domainIdentity);
+  guard(record(savedDomain) && typeof savedDomain.aoiId === "string" && savedDomain.aoiId.length > 0 &&
+    savedDomain.generatedAt === payload.generatedAt && savedDomain.promptVersion === payload.promptVersion &&
+    Array.isArray(savedDomain.alternativeIds) && JSON.stringify(savedDomain.alternativeIds) ===
+      JSON.stringify((payload.alternatives as Array<Record<string, unknown>>).map((alternative) => alternative.id)),
+  "The saved Create artifact is not bound to the generated AOI/A/B result identity.");
+  await reopenSavedArtifact(page, configuration.userId, "create", policy, saved, async () => {
     await expect(page.getByTestId("create-full-result-dashboard")).toBeVisible();
     await expect(page.getByTestId("create-result-kpis")).toHaveAttribute("data-active-variant", "B");
   });
@@ -609,6 +749,9 @@ async function runSingaporeCreate(page: Page, configuration: LiveConfiguration, 
   await page.reload();
   await expect(page.getByTestId("create-full-result-dashboard")).toBeVisible();
   await expect(page.getByTestId("create-result-kpis")).toHaveAttribute("data-active-variant", "B");
+  await stableLocalBarrier(page);
+  const reloaded = await requireLocalArtifactState(page, configuration.userId, "create");
+  assertSameArtifact(saved, reloaded);
   assertNoReplay(beforeReload, policy.snapshotJourneyRequests());
   expect(budget.paidDispatchCount()).toBe(paidAfterGeneration);
 }
@@ -624,9 +767,11 @@ test("root-authorized protected Preview source-to-decision journey", async ({ pa
   await budget.ready;
   await page.setViewportSize({ width: 1440, height: 1000 });
   let delayedInconclusive: InconclusiveLiveCoverageError | null = null;
+  let loginAttempted = false;
   try {
     await verifyAnonymousProtection(configuration);
     await verifyExactPreview(page, configuration);
+    loginAttempted = true;
     await login(page, configuration);
     if (configuration.scope === "journey" || configuration.scope === "dubai-analyse") {
       await runDubaiAnalyse(page, configuration, policy, budget);
@@ -642,13 +787,21 @@ test("root-authorized protected Preview source-to-decision journey", async ({ pa
       await runSingaporeCreate(page, configuration, policy, budget);
     }
     await budget.waitForTerminalReceipts();
+    budget.assertExpectedScopeCounts();
     policy.assertClean();
     if (delayedInconclusive) throw delayedInconclusive;
   } finally {
-    try {
-      await budget.finalize();
-    } finally {
-      await logout(page).catch(() => undefined);
+    let terminalFailure: unknown = null;
+    try { await budget.finalize(); } catch (error) { terminalFailure = error; }
+    if (loginAttempted) {
+      try { await logoutVerified(page, configuration.userId); }
+      catch (error) {
+        terminalFailure = error instanceof Error && error.message.startsWith("LIVE_JOURNEY_CLEANUP_FAILED:")
+          ? error
+          : new Error("LIVE_JOURNEY_CLEANUP_FAILED: logout");
+      }
     }
+    try { policy.assertClean(); } catch (error) { terminalFailure ??= error; }
+    if (terminalFailure) throw terminalFailure;
   }
 });

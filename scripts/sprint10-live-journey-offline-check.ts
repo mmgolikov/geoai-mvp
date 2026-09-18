@@ -11,6 +11,8 @@ import {
 } from "../tests/e2e/helpers/sprint10-live-budget.ts";
 import {
   dispatchSprint10PaidRequest,
+  SPRINT10_LIVE_PAID_SCOPE_MATRIX,
+  sprint10PaidPostDecision,
   sprint10LiveRequestKey
 // @ts-expect-error Node's strip-types runner requires the explicit TypeScript extension.
 } from "../tests/e2e/helpers/sprint10-live-journey-gate.ts";
@@ -32,9 +34,10 @@ function identity(requestKey: string): Sprint10RequestIdentity {
   };
 }
 
-function validPayload(target: Sprint10RequestIdentity) {
-  const costRateSource = "OpenAI gpt-5.6-luna Standard API rate accessed 2026-09-04: USD 0.2/M ordinary input, USD 0.02/M cached input, USD 0.25/M cache writes, USD 1.2/M output";
-  const attempt = {
+function validPayload(target: Sprint10RequestIdentity, withRepair = false) {
+  const lunaRate = "OpenAI gpt-5.6-luna Standard API rate accessed 2026-09-04: USD 0.2/M ordinary input, USD 0.02/M cached input, USD 0.25/M cache writes, USD 1.2/M output";
+  const terraRate = "OpenAI gpt-5.6-terra Standard API rate accessed 2026-09-04: USD 2/M ordinary input, USD 0.2/M cached input, USD 2.5/M cache writes, USD 12/M output";
+  const initialAttempt = {
     attempt: 1,
     purpose: "initial",
     model: "gpt-5.6-luna",
@@ -47,27 +50,42 @@ function validPayload(target: Sprint10RequestIdentity) {
     totalTokens: 110,
     estimatedCostUsd: 0.000032
   };
+  const repairAttempt = {
+    attempt: 2,
+    purpose: "repair",
+    model: "gpt-5.6-terra",
+    reasoningEffort: "low",
+    requestId: "offline-response-2",
+    inputTokens: 80,
+    cachedInputTokens: 0,
+    cacheWriteTokens: 0,
+    outputTokens: 8,
+    totalTokens: 88,
+    estimatedCostUsd: 0.000256
+  };
+  const attemptTrace = withRepair ? [initialAttempt, repairAttempt] : [initialAttempt];
+  const finalAttempt = attemptTrace.at(-1)!;
   return {
     mode: "openai",
     schemaVersion: 6,
     telemetry: {
       provider: "openai",
       schemaVersion: 6,
-      model: attempt.model,
-      reasoningEffort: attempt.reasoningEffort,
+      model: finalAttempt.model,
+      reasoningEffort: finalAttempt.reasoningEffort,
       depth: target.depth,
       promptVersion: target.promptVersion,
-      requestId: attempt.requestId,
+      requestId: finalAttempt.requestId,
       latencyMs: 25,
-      attempts: 1,
-      attemptTrace: [attempt],
-      inputTokens: attempt.inputTokens,
-      cachedInputTokens: attempt.cachedInputTokens,
-      cacheWriteTokens: attempt.cacheWriteTokens,
-      outputTokens: attempt.outputTokens,
-      totalTokens: attempt.totalTokens,
-      estimatedCostUsd: attempt.estimatedCostUsd,
-      costRateSource,
+      attempts: attemptTrace.length,
+      attemptTrace,
+      inputTokens: attemptTrace.reduce((sum, attempt) => sum + attempt.inputTokens, 0),
+      cachedInputTokens: 0,
+      cacheWriteTokens: 0,
+      outputTokens: attemptTrace.reduce((sum, attempt) => sum + attempt.outputTokens, 0),
+      totalTokens: attemptTrace.reduce((sum, attempt) => sum + attempt.totalTokens, 0),
+      estimatedCostUsd: Number(attemptTrace.reduce((sum, attempt) => sum + attempt.estimatedCostUsd, 0).toFixed(8)),
+      costRateSource: withRepair ? `${lunaRate} | ${terraRate}` : lunaRate,
       stored: false,
       toolCalls: 0
     }
@@ -75,6 +93,18 @@ function validPayload(target: Sprint10RequestIdentity) {
 }
 
 async function run() {
+  assert.deepEqual(SPRINT10_LIVE_PAID_SCOPE_MATRIX, {
+    journey: { ai: 1, create: 1 },
+    "dubai-analyse": { ai: 1, create: 0 },
+    "dubai-find": { ai: 0, create: 0 },
+    "singapore-create": { ai: 0, create: 1 }
+  }, "Every selectable live scope must have one exact paid-route matrix.");
+  assert.deepEqual(sprint10PaidPostDecision("dubai-find", "ai", 1), { ok: false, reason: "route_disallowed" });
+  assert.deepEqual(sprint10PaidPostDecision("dubai-find", "create", 1), { ok: false, reason: "route_disallowed" });
+  assert.deepEqual(sprint10PaidPostDecision("dubai-analyse", "ai", 1), { ok: true });
+  assert.deepEqual(sprint10PaidPostDecision("dubai-analyse", "ai", 2), { ok: false, reason: "occurrence_exceeded" });
+  assert.deepEqual(sprint10PaidPostDecision("singapore-create", "create", 1), { ok: true });
+
   const firstIdentity = identity(sprint10LiveRequestKey("offline-valid", "ai", 1, commit));
   const telemetry = parseSprint10ProviderTelemetry(firstIdentity, validPayload(firstIdentity));
   assert.ok(telemetry, "Current V10 telemetry must pass the shared strict parser.");
@@ -90,6 +120,16 @@ async function run() {
     telemetry
   });
   assert.equal(ledger.receipts[0]?.state, "settled");
+
+  const repairIdentity = identity(sprint10LiveRequestKey("offline-one-repair", "ai", 1, commit));
+  const repairTelemetry = parseSprint10ProviderTelemetry(repairIdentity, validPayload(repairIdentity, true));
+  assert.ok(repairTelemetry, "One telemetry-visible provider repair must be accepted by the explicit founder contract.");
+  assert.equal(repairTelemetry.attempts, 2);
+  assert.deepEqual(repairTelemetry.attemptTrace.map((attempt) => attempt.purpose), ["initial", "repair"]);
+  const tooManyAttempts = structuredClone(validPayload(repairIdentity, true));
+  tooManyAttempts.telemetry.attempts = 3;
+  assert.equal(parseSprint10ProviderTelemetry(repairIdentity, tooManyAttempts), null,
+    "More than one provider repair must be rejected by strict telemetry.");
 
   for (let index = 0; index < 12; index += 1) {
     const target = identity(sprint10LiveRequestKey(`offline-budget-${index}`, "ai", 1, commit));
@@ -139,7 +179,7 @@ async function run() {
   );
   assert.equal(later.ok, false, "Invalid telemetry must stop every later paid request.");
 
-  console.log("Sprint 10 live journey offline gate checks passed (reservation ordering, no retry, strict telemetry, unknown-charge stop).");
+  console.log("Sprint 10 live journey offline gate checks passed (scope matrix, reservation ordering, no browser retry, one bounded provider repair, strict telemetry, unknown-charge stop).");
 }
 
 run().catch((error) => {
