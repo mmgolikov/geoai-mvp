@@ -18,6 +18,7 @@ Runtime: Node 24.19.0, pinned npm lockfile. No API credentials loaded into this 
 | API route inventory | PASS | Static 76-route inventory, not live authorization acceptance |
 | data-honesty scan | PASS | 437-file rule scan, not factual certification |
 | sprint06-security-compat Chrome | 4/4 PASS | Landing EN/RU 390/430/1440 and mobile mode buttons; scripted fixture checks |
+| sprint06-security-compat WebKit | 4/4 PASS, 8.8 s | Same local fixture smoke; initial sandbox browser launch failed before page load, approved separate-browser retry passed; not physical iPhone |
 | Eight-suite Chrome baseline | 52/56 PASS | Local browser fixture coverage; four failures below |
 
 The baseline server ran at `http://127.0.0.1:3100` with the released default `demo_public` auth mode. Baseline is not the new authenticated candidate.
@@ -32,6 +33,8 @@ The baseline server ran at `http://127.0.0.1:3100` with the released default `de
 Auth owner classified all four as auth-mode/persona drift: default demo mode resolves synchronously, creates a browser-local demo identity, does not fetch the mocked session endpoint, and does not load the Supabase subscription chunk. The latter three tests depend on behavior absent in that mode. This is a code-based diagnosis, not a re-run under the corrected environment and not evidence of hosted authority or a protected identity leak. Do not discard these failures, weaken anonymous assertions or call the full baseline green. Run the intended persona under a correct isolated environment and retain both demo and anonymous/authenticated coverage. Protected-route guest denial supersedes old tests expecting unauthenticated product rendering; move any still-needed loading-state check to a component/provider fixture.
 
 Trace/screenshot artifacts: `artifacts/sprint10-baseline-full/`. Landing artifacts: `artifacts/sprint10-baseline-chrome/`. Control viewed the full-page EN 1440px and RU 390px landing captures for overall layout: ordered sections, bounded hero map and no obvious collapsed/overlapping block in those captures. The tall mobile image was downscaled by the viewer, so detailed text/touch-target acceptance is not established by this glance. Independent candidate regression remains separate.
+
+WebKit successful artifacts are under `artifacts/sprint10-baseline-webkit-authorized/`; original launch failures remain under `artifacts/sprint10-baseline-webkit/`. This distinction is retained, not counted as product regression or hidden by overwriting output.
 
 ## Next gate
 
