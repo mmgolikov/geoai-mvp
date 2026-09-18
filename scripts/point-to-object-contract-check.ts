@@ -1237,6 +1237,7 @@ function assertStaticBoundaries(): void {
     "components/point-to-object/analysis-client.tsx",
     "components/point-to-object/create-panel.tsx",
     "components/point-to-object/create-result-dashboard.tsx",
+    "components/point-to-object/create-result-preview-3d.tsx",
     "components/point-to-object/decision-cards.tsx",
     "components/point-to-object/find-comparison-dashboard.tsx",
     "components/point-to-object/live-object-map.tsx",
@@ -1322,8 +1323,9 @@ function assertStaticBoundaries(): void {
   assert.match(analysisClientSource, /expectedSourceFeatureId/,
     "The browser must bind analysis to the server-resolved selection identity.");
   const networkParserIndex = analysisClientSource.indexOf("const payload = parsePointObjectAiResponse(rawPayload)");
-  const networkCommitIndex = analysisClientSource.indexOf("commitAnalysis(normalized, activeSelection)", networkParserIndex);
-  assert.ok(networkParserIndex >= 0 && networkCommitIndex > networkParserIndex,
+  const receiptCheckIndex = analysisClientSource.indexOf("pointObjectAnalysisReceiptMatches(normalized.request, requestSnapshot)", networkParserIndex);
+  const networkCommitIndex = analysisClientSource.indexOf("commitAnalysis(normalized, activeSelection, requestSnapshot,", receiptCheckIndex);
+  assert.ok(networkParserIndex >= 0 && receiptCheckIndex > networkParserIndex && networkCommitIndex > receiptCheckIndex,
     "The browser must runtime-validate the V3 network response before committing it to UI state or session storage.");
   assert.equal(/response\.json\(\) as PointObjectAiResponse/.test(analysisClientSource), false,
     "The network response must not bypass runtime validation through a TypeScript cast.");
