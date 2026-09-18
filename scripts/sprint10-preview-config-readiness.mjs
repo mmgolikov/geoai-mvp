@@ -25,7 +25,8 @@ console.log(JSON.stringify({
   previewAiEnabled: flag("GEOAI_ALLOW_POINT_OBJECT_PREVIEW_AI"),
   previewPersistenceEnabled: flag("GEOAI_ALLOW_POINT_OBJECT_PREVIEW_PERSISTENCE"),
   publishableKeyPresent: Boolean(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim()),
-  openAiKeyPresent: Boolean(process.env.OPENAI_API_KEY?.trim()),
+  openAiKeyAvailableToThisProcess: Boolean(process.env.OPENAI_API_KEY?.trim()),
+  hostedSensitiveKeyPresenceIsNotInferred: true,
   automationProtectionCredentialPresent: Boolean(process.env.VERCEL_AUTOMATION_BYPASS_SECRET?.trim()),
   secretValuesEmitted: false,
   runtimeAcceptance: false
