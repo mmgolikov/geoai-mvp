@@ -2,6 +2,8 @@
 
 Status: READ-ONLY OBSERVATION; NOT UPGRADE OR ACTIVATION APPROVAL
 
+**Current authority:** the founder subsequently approved necessary data-preserving work on this development target, followed by exact protected-Preview connection/Auth configuration. Earlier per-stage approval wording in this historical observation is superseded by the 20:07 update in `DATABASE_POPULATED_UPGRADE_PREFLIGHT.md`. Recovery/security/compatibility checks remain technical prerequisites. Email delivery is deferred until domain and corporate email exist.
+
 Target: `geoai-dev`, `pphdqkurxneyagvnnjdt`; PostgreSQL 17.6.1.141; eu-west-1.
 
 ## Superseded observation

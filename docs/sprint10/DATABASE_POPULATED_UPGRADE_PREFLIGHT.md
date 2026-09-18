@@ -1,6 +1,8 @@
 # Populated development database: non-writing preflight
 
-18 September 2026 · candidate only · hosted activation remains held
+18 September 2026 · candidate only · hosted activation remains technically gated
+
+**Authority update, 20:07 Moscow:** necessary data-preserving development schema/grant/data/ledger work in `pphdqkurxneyagvnnjdt` and exact protected-Preview connection/Auth configuration are founder-approved. Earlier requests for a fresh approval at each stage are superseded. Root may execute the staged plan once recovery, compatibility, exact-order and security checks pass; no reset, security weakening or Production action is approved. Transactional email is deferred until domain and corporate email exist.
 
 Exact target: `geoai-dev` / `pphdqkurxneyagvnnjdt`. Do not substitute the separate rehearsal project. The current target is populated; `DATABASE_CLEAN_TARGET_PACKET.md` is inapplicable.
 
@@ -40,12 +42,12 @@ The typed attestation is **not** a parser or independent verification of raw CLI
 ## Strict stage boundaries
 
 1. Fresh read-only catalog/ledger/fingerprint; exact clean Git commit and migration hashes; backup and tested restore; confirm actual Data API exposure.
-2. Ask for exact-target **ledger repair only** approval. Never replay the pre-ledger CREATE over the existing table. Read back 13 entries afterwards.
-3. Separately authorize the **dry-run only** with include-all. Bind and inspect the exact eight-version order, then stop.
-4. Obtain new exact **apply** approval after fresh replay/drift evidence. Do not invoke `scripts/apply-supabase-migration.mjs`: it remains NO-GO for this target because it omits include-all/exact order checks and automatically advances from dry-run to apply.
+2. Perform the narrowly scoped **ledger repair only** under the existing development authorization once the fresh fingerprint and recovery prerequisites pass. Never replay the pre-ledger CREATE over the existing table. Read back 13 entries afterwards.
+3. Run the **dry-run only** with include-all. Bind and inspect the exact eight-version order, then stop to check it.
+4. Apply only after fresh replay/drift, compatibility, recovery and security evidence passes; no repeat per-migration permission is required within the approved exact scope. Do not invoke `scripts/apply-supabase-migration.mjs`: it remains NO-GO for this target because it omits include-all/exact order checks and automatically advances from dry-run to apply.
 5. After any future approved apply, verify 21 ledger entries, schema drift, 16-RPC allowlist/grants, advisors and real JWT owner/analyst/viewer/anonymous/cross-tenant access. Authenticated identity is not project membership or source access.
 
-Backups must cover the existing database and required Auth/Storage state with a tested restore path; an environment string or default schema-only CLI dump is not sufficient evidence. A fresh local replay is currently blocked by unavailable Docker/Postgres runtimes; historical CI replay does not waive this gate. No runtime installation was performed.
+Backups must cover the existing database and required Auth/Storage state with a tested restore path; an environment string or default schema-only CLI dump is not sufficient evidence. Fresh CI run `35372511749` on `909e312` proves clean replay and synthetic noncontiguous upgrade, each with 183/183 pgTAP PASS. It is not a backup or restored clone of this populated target. Local Docker/Postgres remains unavailable. No runtime installation was performed.
 
 ## Verification in this slice
 
