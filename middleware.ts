@@ -10,34 +10,54 @@ function isAuthCookieMutationPath(pathname: string) {
     pathname.startsWith("/api/onboarding/invitation/");
 }
 
+// These handlers enforce requirePilotIdentity() first and then the shared
+// requirePilotMutationOrigin() before body parsing or any upstream work. Keep
+// the ordering at route level so anonymous calls receive the identity denial;
+// all other API mutations retain the middleware-level origin boundary.
+const pilotIdentityFirstApiPaths = new Set([
+  "/api/prototype/point-to-object/analysis-runs",
+  "/api/prototype/point-to-object/area-context",
+  "/api/prototype/point-to-object/context",
+  "/api/prototype/point-to-object/create",
+  "/api/prototype/point-to-object/find",
+  "/api/prototype/point-to-object/search",
+  "/api/prototype/point-to-object/suggest"
+]);
+
+function requiresRouteLevelIdentityBeforeOrigin(pathname: string) {
+  return pilotIdentityFirstApiPaths.has(pathname);
+}
+
 export function middleware(request: NextRequest) {
   const authMode = getEffectiveAuthMode();
   if (authMode !== "supabase_auth" && !isAuthCookieMutationPath(request.nextUrl.pathname)) {
     return NextResponse.next({ request });
   }
 
-  const originDecision = evaluateApiMutationOrigin({
-    method: request.method,
-    pathname: request.nextUrl.pathname,
-    requestUrl: request.url,
-    origin: request.headers.get("origin"),
-    secFetchSite: request.headers.get("sec-fetch-site"),
-    host: request.headers.get("host"),
-    forwardedHost: request.headers.get("x-forwarded-host"),
-    forwardedProto: request.headers.get("x-forwarded-proto")
-  });
-  if (!originDecision.allowed) {
-    return NextResponse.json({
-      ok: false,
-      status: "request_origin_rejected",
-      message: "Authenticated API mutations require a same-origin request."
-    }, {
-      status: 403,
-      headers: {
-        "Cache-Control": "private, no-store, max-age=0",
-        "Vary": "Origin, Sec-Fetch-Site, Cookie"
-      }
+  if (!requiresRouteLevelIdentityBeforeOrigin(request.nextUrl.pathname)) {
+    const originDecision = evaluateApiMutationOrigin({
+      method: request.method,
+      pathname: request.nextUrl.pathname,
+      requestUrl: request.url,
+      origin: request.headers.get("origin"),
+      secFetchSite: request.headers.get("sec-fetch-site"),
+      host: request.headers.get("host"),
+      forwardedHost: request.headers.get("x-forwarded-host"),
+      forwardedProto: request.headers.get("x-forwarded-proto")
     });
+    if (!originDecision.allowed) {
+      return NextResponse.json({
+        ok: false,
+        status: "request_origin_rejected",
+        message: "Authenticated API mutations require a same-origin request."
+      }, {
+        status: 403,
+        headers: {
+          "Cache-Control": "private, no-store, max-age=0",
+          "Vary": "Origin, Sec-Fetch-Site, Cookie"
+        }
+      });
+    }
   }
 
   if (authMode !== "supabase_auth") {

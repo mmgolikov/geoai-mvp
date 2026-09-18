@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 
 import { getPointObjectSurfaceStatus } from "@/src/lib/ai/openai-upstream-gate";
+import { requirePilotIdentity, requirePilotMutationOrigin } from "@/src/lib/auth/require-pilot-identity";
 import { readBoundedJson } from "@/src/lib/http/bounded-json";
 import {
   isPointObjectLocale,
@@ -88,6 +89,10 @@ function validBody(value: unknown): value is {
 }
 
 export async function POST(request: Request) {
+  const identity = await requirePilotIdentity(request);
+  if (!identity.allowed) return identity.response;
+  const mutationOrigin = requirePilotMutationOrigin(request);
+  if (mutationOrigin) return mutationOrigin;
   if (!runtimeAllowed()) {
     return NextResponse.json({ mode: "unavailable", error: "Address search is not available in this environment." }, {
       status: 403, headers: noStoreHeaders()

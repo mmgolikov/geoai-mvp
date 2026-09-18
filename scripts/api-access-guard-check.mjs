@@ -44,9 +44,16 @@ for (const file of await collectRouteFiles(apiRoot)) {
       failures.push(`${relative} ${handler.method}: missing explicit route-access classification`);
       continue;
     }
-    if (policy.access === "public_preview" || policy.access === "protected_preview" || policy.access === "public_bounded_runtime") {
+    if (policy.access === "public_preview" || policy.access === "protected_preview" || policy.access === "public_bounded_runtime" || policy.access === "identity_bounded_runtime") {
       const publicBoundedRuntime = policy.access === "public_bounded_runtime";
-      const runtimeIndexes = publicBoundedRuntime
+      const identityBoundedRuntime = policy.access === "identity_bounded_runtime";
+      const boundedRuntime = publicBoundedRuntime || identityBoundedRuntime;
+      const identityIndex = handler.body.indexOf("await requirePilotIdentity(request)");
+      const identityDenialIndex = handler.body.indexOf("if (!identity.allowed) return identity.response", identityIndex);
+      const mutationOriginIndex = handler.method === "POST"
+        ? handler.body.indexOf("requirePilotMutationOrigin(request)", identityDenialIndex)
+        : identityDenialIndex;
+      const runtimeIndexes = boundedRuntime
         ? [handler.body.indexOf("if (!runtimeAllowed())")]
         : [
             handler.body.indexOf("if (!previewRuntimeAllowed())"),
@@ -56,6 +63,15 @@ for (const file of await collectRouteFiles(apiRoot)) {
       const runtimeIndex = validRuntimeIndexes.length > 0 ? Math.min(...validRuntimeIndexes) : -1;
       if (runtimeIndex < 0) {
         failures.push(`${relative} ${handler.method}: bounded runtime route must fail closed outside its enabled environment policy`);
+        continue;
+      }
+      if (identityBoundedRuntime && (
+        identityIndex < 0 ||
+        identityDenialIndex < identityIndex ||
+        mutationOriginIndex < identityDenialIndex ||
+        runtimeIndex < mutationOriginIndex
+      )) {
+        failures.push(`${relative} ${handler.method}: authenticated bounded runtime must deny an unverified identity and then enforce mutation origin before runtime, body, quota, challenge or upstream work`);
         continue;
       }
       if (
@@ -76,8 +92,8 @@ for (const file of await collectRouteFiles(apiRoot)) {
       const requiredRuntimeStatus = sourceRuntimeAction
         ? "getPointObjectSurfaceStatus().enabled"
         : "getPointObjectUpstreamStatus().enabled";
-      if (publicBoundedRuntime && !source.includes(requiredRuntimeStatus)) {
-        failures.push(`${relative} ${handler.method}: public bounded runtime route must require its centralized point-to-object policy`);
+      if (boundedRuntime && !source.includes(requiredRuntimeStatus)) {
+        failures.push(`${relative} ${handler.method}: bounded runtime route must require its centralized point-to-object policy`);
         continue;
       }
 
@@ -340,13 +356,21 @@ for (const file of await collectRouteFiles(apiRoot)) {
     }
 
     if (policy.scope === "caller_owned_preview") {
+      const identityIndex = handler.body.indexOf("await requirePilotIdentity(request)");
+      const identityDenialIndex = handler.body.indexOf("if (!identity.allowed) return identity.response", identityIndex);
+      const mutationOriginIndex = handler.method === "POST"
+        ? handler.body.indexOf("requirePilotMutationOrigin(request)", identityDenialIndex)
+        : identityDenialIndex;
       const gateIndex = handler.body.indexOf("if (!getPointObjectPersistenceGate().enabled)");
       const bodyIndex = handler.body.indexOf("await readBoundedJson(request, 768 * 1024)");
       const guardIndex = handler.body.indexOf("await authorizePointObjectAnalysis(");
       const denialIndex = handler.body.indexOf("if (!access.allowed)", guardIndex);
       const rpcIndex = handler.body.search(/await (?:list|persist)PointObjectAnalysisRun/);
       if (
-        gateIndex < 0 ||
+        identityIndex < 0 ||
+        identityDenialIndex < identityIndex ||
+        mutationOriginIndex < identityDenialIndex ||
+        gateIndex < mutationOriginIndex ||
         guardIndex < gateIndex ||
         denialIndex < guardIndex ||
         rpcIndex < denialIndex ||

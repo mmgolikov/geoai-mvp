@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { AuthenticatedRouteGate } from "@/components/auth/authenticated-route-gate";
 import { TopNavigation } from "@/components/top-navigation";
 import { WorkspaceShell } from "@/components/workspace-shell";
+import { requirePilotPageIdentity } from "@/src/lib/auth/require-pilot-page-identity";
 import { createSpatialSourceRequest } from "@/src/lib/spatial-b2/source-mode";
 
 export const metadata: Metadata = {
@@ -17,6 +18,10 @@ type WorkspacePageProps = {
 
 export default async function WorkspacePage({ searchParams }: WorkspacePageProps) {
   const params = await searchParams;
+  const nextPath = typeof params?.spatialMode === "string"
+    ? `/workspace?spatialMode=${encodeURIComponent(params.spatialMode)}`
+    : "/workspace";
+  await requirePilotPageIdentity(nextPath);
   const spatialSourceRequest = createSpatialSourceRequest({
     requestedSourceMode: params?.spatialMode,
     vercelEnvironment: process.env.VERCEL_ENV,

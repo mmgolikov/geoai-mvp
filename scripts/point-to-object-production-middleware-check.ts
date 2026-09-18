@@ -75,7 +75,16 @@ for (const path of paths) {
 assert.equal(fixtureGlobal.__geoaiMiddlewareSessionCalls, paths.length);
 
 const crossOrigin = await loaded.middleware(request("context", "https://other.example.test"));
-assert.equal(crossOrigin.status, 403, "The existing global cross-origin interception must remain enforced.");
-assert.match(crossOrigin.headers.get("Cache-Control") ?? "", /no-store/);
+assert.equal(crossOrigin.status, 200, "Identity-first Point-to-Object routes must defer origin enforcement to the route after session refresh.");
+assert.equal(fixtureGlobal.__geoaiMiddlewareSessionCalls, paths.length + 1);
+for (const path of paths) {
+  const route = readFileSync(new URL(`app/api/prototype/point-to-object/${path}/route.ts`, repositoryRoot), "utf8");
+  const identityIndex = route.indexOf("await requirePilotIdentity(request)");
+  const originIndex = route.indexOf("requirePilotMutationOrigin(request)", identityIndex);
+  const bodyIndex = route.indexOf("readBoundedJson(request", originIndex);
+  assert.ok(identityIndex >= 0, `${path} must enforce permanent identity at route level.`);
+  assert.ok(originIndex > identityIndex, `${path} must enforce mutation origin after identity.`);
+  assert.ok(bodyIndex > originIndex, `${path} must enforce mutation origin before bounded body parsing.`);
+}
 
-console.log("Point-to-object Production middleware checks passed: all five named routes continue in default public and same-origin authenticated modes, while cross-origin interception remains denied.");
+console.log("Point-to-object Production middleware checks passed: public mode remains unchanged; authenticated requests refresh once and each identity-first route enforces origin before body parsing.");

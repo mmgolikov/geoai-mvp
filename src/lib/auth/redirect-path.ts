@@ -4,6 +4,8 @@ const approvedAuthDestinations = new Set([
   "/onboarding",
   "/profile",
   "/projects",
+  "/prototype/point-to-object",
+  "/prototype/point-to-object/analysis",
   "/workspace"
 ]);
 

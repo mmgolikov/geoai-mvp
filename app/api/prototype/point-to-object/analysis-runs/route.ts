@@ -1,5 +1,6 @@
 import { readBoundedJson } from "@/src/lib/http/bounded-json";
 import { privateNoStoreJson } from "@/src/lib/http/private-no-store";
+import { requirePilotIdentity, requirePilotMutationOrigin } from "@/src/lib/auth/require-pilot-identity";
 import {
   authorizePointObjectAnalysis,
   listPointObjectAnalysisRuns,
@@ -11,6 +12,8 @@ import { getPointObjectPersistenceGate } from "@/src/lib/prototype/point-object-
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
+  const identity = await requirePilotIdentity(request);
+  if (!identity.allowed) return identity.response;
   if (!getPointObjectPersistenceGate().enabled) {
     return privateNoStoreJson(
       { ok: false, persisted: false, message: "Point-to-object persistence is unavailable." },
@@ -57,6 +60,10 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const identity = await requirePilotIdentity(request);
+  if (!identity.allowed) return identity.response;
+  const mutationOrigin = requirePilotMutationOrigin(request);
+  if (mutationOrigin) return mutationOrigin;
   if (!getPointObjectPersistenceGate().enabled) {
     return privateNoStoreJson(
       { ok: false, persisted: false, message: "Point-to-object persistence is unavailable." },

@@ -1,8 +1,10 @@
 import { AuthenticatedRouteGate } from "@/components/auth/authenticated-route-gate";
 import { ProfilePanel } from "@/components/auth/profile-panel";
 import { PointObjectHeader } from "@/components/point-to-object/prototype-header";
+import { requirePilotPageIdentity } from "@/src/lib/auth/require-pilot-page-identity";
 
-export default function ProfilePage() {
+export default async function ProfilePage() {
+  await requirePilotPageIdentity("/profile");
   return (
     <>
       <PointObjectHeader backToMap />

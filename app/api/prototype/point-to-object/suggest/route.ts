@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 
 import { getPointObjectSurfaceStatus } from "@/src/lib/ai/openai-upstream-gate";
+import { requirePilotIdentity, requirePilotMutationOrigin } from "@/src/lib/auth/require-pilot-identity";
 import { readBoundedJson } from "@/src/lib/http/bounded-json";
 import {
   parsePointObjectAutocompleteRequest,
@@ -75,6 +76,10 @@ function consumeRateLimit(request: Request): { allowed: true } | { allowed: fals
 }
 
 export async function POST(request: Request) {
+  const identity = await requirePilotIdentity(request);
+  if (!identity.allowed) return identity.response;
+  const mutationOrigin = requirePilotMutationOrigin(request);
+  if (mutationOrigin) return mutationOrigin;
   if (!runtimeAllowed()) {
     return NextResponse.json({ mode: "unavailable", code: "AUTOCOMPLETE_DISABLED", error: "Place suggestions are not available in this environment." }, {
       status: 403,
