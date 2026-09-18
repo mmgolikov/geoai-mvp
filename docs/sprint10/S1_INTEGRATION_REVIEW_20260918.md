@@ -96,3 +96,30 @@ The empty-target replay packet is INAPPLICABLE. Existing data must be preserved.
 ### Current ownership / next slice
 
 Two bounded70-minute worker assignments from clean `c9be8fa` are running: GenAI in `/private/tmp/geoai-sprint10-analysis-provenance-20260918` owns role/scenario request-to-provider/result provenance; Dev in `/private/tmp/geoai-sprint10-find-state-20260918` owns Find reset/active/shortlist/geometry state. Their new work is not included in the PASS results above. Root owns integration/shared tests/database/docs. No paid provider request yet; budget USD15 unchanged, measured cycle spendUSD0, unknown charges0.
+
+## September 18 follow-on, through 19:27 Moscow
+
+### Analysis provenance, exact current receipts and timeout branches
+
+- `68180a6` integrates worker `265b173`: validated role/scenario registry pairing before evidence/provider access; request/prompt V10/receipt/save/reopen binding; explicit legacy receipt preservation. A role is a decision lens, never permission or new source evidence.
+- Independent review caught `null === null` falsely importing unrelated Find context for unresolved points. Worker `9627c7b`, integrated as `c21dc16`, requires matching nonempty trusted `node|way|relation/<id>` in both initial-settings and request-provenance branches. Four targeted provenance tests cover exact match, null, mismatch and in-flight context change.
+- Root `0fa5b23` updates current-response fixtures to echo actual role/scenario and V10, separates historical role-less V9 immutable zero-call reopen coverage, and binds the global budget prompt constant to the actual application constant. Sprint09 receipts/ledger are not reused or reset. Independent re-review: GO for these two local corrective findings only.
+- Optimized **demo_public application build `0fa5b23`: PASS80 routes**; lint/types, provenance checks, actual AI handler denial/upstream guard and budget checks PASS. Network-restricted Google Fonts failure was retained; allowed public-font retry succeeded.
+- Initial Chrome **23/24** failure is retained in `artifacts/sprint10-provenance-integrated-chrome`: the timeout fixture advanced its clock while the challenge GET was still pending, so its expected second POST never existed. The network trace shows initial GET/POST, aborted challenge GET, then successful retry GET/POST. This was not evidence of a frozen product or failed retry. Initial WebKit **24/24 PASS27.6s** remains a separate receipt.
+- Root test-only `47d9f49` waits for the deliberately delayed POST, preserves the strict three-POST retry assertion, and adds a separate held-challenge timeout case proving the aborted request never dispatches and the explicit retry succeeds. No product deadline or success condition was weakened.
+- Final **Chrome25/25 PASS46.4s** and **WebKit25/25 PASS22.6s**, retries0, one worker, application `0fa5b23`, test harness `47d9f49`. Artifacts: `artifacts/sprint10-provenance-integrated-chrome-final` and `artifacts/sprint10-provenance-integrated-webkit-final`. Covers depth/role/scenario, blank/custom/preset, double-submit, cancellation, 429/malformed error, both timeout phases, late response, saved/current/legacy restore, identity mismatch, EN/RU390/1440.
+- Root inspected fresh Chrome RU390 controls and EN1440 overview: enabled refresh, clear draft/result depth and no clipping/overflow in inspected views. Synthetic report prose contains English by design; this does not certify live generated RU or a physical iPhone.
+
+### Database preflight is local, not an apply permission
+
+Root `288dc9d` adds a non-writing populated-target upgrade preflight, fixes the aggregate pending count from7 to8, and records the complete read-only pre-ledger fingerprint from18:53:42. Independent review: GO for local helper; no severity findings. 47 synthetic checks, canonical21/12+1+8 inventory,16-RPC contract and aggregate checks PASS. Every result remains hostedApplyReady=false. Target is populated geoai-dev, not the separate hibernated rehearsal project. Backup/tested restore, actual Data API exposure, fresh real DB replay and separately approved repair/dry-run/apply remain open. No hosted write took place.
+
+### Find correction is not yet integrated
+
+Worker `d197117` + `9f72186` was independently rejected before root integration: a new search could temporarily retain a prior saved-artifact ID, letting an immediate shortlist update change an older saved result; stale controls were aria-disabled but still visually/native enabled. Dev is correcting cohort generation/artifact binding and adding a delayed-persistence browser regression in its assigned Find worktree. Root has not weakened existing Create502/restore/market-reset tests or declared the Find slice accepted.
+
+### Next independent implementation and remaining live boundary
+
+The completed GenAI worker was reassigned to a fresh `47d9f49` worktree `/private/tmp/geoai-sprint10-create-preview-20260918` for bounded S2 Create dashboard 3D preparation/implementation. Ownership is the Create dashboard/new local preview/helper/dedicated tests only; Dev keeps map/Find ownership. Two long-running workers, one bounded reviewer, sole root integrator remain the coordination rule.
+
+The process has no OpenAI key; the existing user-repo `.env.local` entry is a placeholder, not a usable key. Only presence/placeholder status was checked; no value was printed, copied or persisted. The founder-approved existing-key choice and USD15 cycle cap remain unchanged. Existing hosted-server key availability is not proven by this local check. No paid calls, charges, unknown charges or ledger reservations; protected Preview and usable authorized runtime remain prerequisites for live testing. No push, deploy, hosted Auth/env/grants/schema, Main or Production mutation.
