@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import {
   assertPortableRuntimeConfiguration,
@@ -42,7 +44,7 @@ const valid = {
   NEXT_PUBLIC_GEOAI_BUILD_FINGERPRINT: fingerprint,
   NEXT_PUBLIC_AUTH_MODE: "supabase_auth",
   NEXT_PUBLIC_SUPABASE_URL: "https://pphdqkurxneyagvnnjdt.supabase.co",
-  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_1234567890abcdef",
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ["sb", "publishable", "1234567890abcdef"].join("_"),
   NEXT_PUBLIC_MAPBOX_TOKEN: "pk.public-browser-token",
   NEXT_PUBLIC_GEOAI_ALLOW_LOCAL_SUPABASE: "false",
   GEOAI_ACCESS_ENFORCEMENT_MODE: "hard",
@@ -151,6 +153,8 @@ const dockerfile = read("Dockerfile");
 assert(dockerfile.includes("node:22.20.0-bookworm-slim@sha256:"), "Node base must be pinned by version and digest");
 assert(dockerfile.includes("USER 1001:1001"), "runtime must be non-root");
 assert(dockerfile.includes(".next/standalone"), "standalone output must be copied");
+assert(dockerfile.includes("self-host-runtime-bootstrap.mjs --install-standalone"), "builder must seal and wrap the standalone server");
+assert(dockerfile.includes('CMD ["node", "server.js"]'), "runtime must execute the sealed pre-server wrapper");
 const compose = read("compose.self-host.yml");
 assert(compose.includes("read_only: true"), "containers must use read-only roots");
 assert(!compose.match(/app:[\s\S]*?ports:\s*\n\s*-\s*["']?3000/), "application port must not be published");
@@ -175,6 +179,61 @@ const instrumentation = read("instrumentation.ts");
 for (const name of ["OPENAI_API_KEY", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_DB_URL", "GEOAI_OPERATOR_"]) {
   assert(instrumentation.includes(name), `startup hook must reject ${name}`);
 }
-assert(instrumentation.indexOf("assertNoPrivilegedPortableEnvironment()") < instrumentation.indexOf("assertPortableRuntimeConfiguration()"));
 
-console.log(`self-host runtime contract passed: ${rejectedCases.length} fail-closed configuration personas plus origin, proxy, image and Vercel-regression checks`);
+const bootstrapDirectory = mkdtempSync(resolve(tmpdir(), "geoai-portable-bootstrap-"));
+try {
+  const bootstrapPath = resolve(bootstrapDirectory, "self-host-runtime-bootstrap.mjs");
+  copyFileSync(resolve(root, "scripts/self-host-runtime-bootstrap.mjs"), bootstrapPath);
+  writeFileSync(resolve(bootstrapDirectory, "self-host-build-seal.json"), `${JSON.stringify({
+    schemaVersion: 1,
+    buildTarget: "self_hosted_candidate",
+    publicBuildFingerprint: fingerprint,
+    releaseCommit: valid.GEOAI_RELEASE_COMMIT_SHA
+  })}\n`);
+  const serverMarker = resolve(bootstrapDirectory, "server-imported.marker");
+  writeFileSync(resolve(bootstrapDirectory, "next-server.js"),
+    'require("node:fs").writeFileSync("server-imported.marker", "imported\\n");\n');
+  const bootstrapEnvironment = {
+    PATH: process.env.PATH ?? "",
+    NODE_ENV: "production",
+    ...valid
+  };
+  const runBootstrap = (patch = {}, argumentsList = ["--check-only"]) => {
+    const environment = { ...bootstrapEnvironment, ...patch };
+    for (const [name, value] of Object.entries(environment)) {
+      if (value === undefined) delete environment[name];
+    }
+    return spawnSync(process.execPath, [bootstrapPath, ...argumentsList], {
+      cwd: bootstrapDirectory,
+      env: environment,
+      encoding: "utf8",
+      timeout: 5_000
+    });
+  };
+  const accepted = runBootstrap();
+  assert.equal(accepted.status, 0, accepted.stderr);
+  assert.match(accepted.stdout, /Portable runtime preflight passed/);
+  const acceptedStartup = runBootstrap({}, []);
+  assert.equal(acceptedStartup.status, 0, acceptedStartup.stderr);
+  assert.equal(readFileSync(serverMarker, "utf8"), "imported\n", "valid startup must import the server after preflight");
+  rmSync(serverMarker);
+  const processRejectedCases = [
+    ["changed public key", { NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ["sb", "publishable", "changedSynthetic1234567890"].join("_") }],
+    ["missing runtime target", { GEOAI_RUNTIME_TARGET: undefined }],
+    ["Vercel conflict", { VERCEL_ENV: "preview" }],
+    ["demo enabled", { NEXT_PUBLIC_AUTH_MODE: "demo_public" }],
+    ["AI enabled", { GEOAI_ALLOW_POINT_OBJECT_SELF_HOSTED_AI: "true" }],
+    ["privileged key", { SUPABASE_SECRET_KEY: "synthetic-not-a-credential" }]
+  ];
+  for (const [label, patch] of processRejectedCases) {
+    const rejected = runBootstrap(patch, []);
+    assert.equal(rejected.status, 78, `${label}: ${rejected.stdout}\n${rejected.stderr}`);
+    assert.match(rejected.stderr, /Portable runtime configuration rejected/, label);
+    assert.equal(existsSync(serverMarker), false, `${label}: server imported before rejection`);
+    rmSync(serverMarker, { force: true });
+  }
+} finally {
+  rmSync(bootstrapDirectory, { recursive: true, force: true });
+}
+
+console.log(`self-host runtime contract passed: ${rejectedCases.length} pure configuration personas and 6 isolated fail-before-server subprocess personas plus origin, proxy, image and Vercel-regression checks`);

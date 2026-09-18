@@ -14,6 +14,7 @@ ARG NEXT_PUBLIC_SUPABASE_URL
 ARG NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 ARG NEXT_PUBLIC_MAPBOX_TOKEN
 ARG GEOAI_PUBLIC_BUILD_FINGERPRINT
+ARG GEOAI_RELEASE_COMMIT_SHA
 ENV GEOAI_BUILD_TARGET=self_hosted_candidate \
     NEXT_PUBLIC_AUTH_MODE=${NEXT_PUBLIC_AUTH_MODE} \
     NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL} \
@@ -24,7 +25,8 @@ COPY --from=dependencies /app/node_modules ./node_modules
 COPY . .
 RUN node scripts/self-host-runtime-contract-check.mjs --verify-public-fingerprint \
     && npm run build \
-    && test -f .next/standalone/server.js
+    && test -f .next/standalone/server.js \
+    && node scripts/self-host-runtime-bootstrap.mjs --install-standalone .next/standalone
 
 FROM ${NODE_IMAGE} AS runner
 WORKDIR /app

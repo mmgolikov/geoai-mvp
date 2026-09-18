@@ -19,7 +19,7 @@ This packet runs one non-root, read-only Next.js standalone container behind one
    node --env-file=ops/self-host/.env.runtime scripts/self-host-runtime-contract-check.mjs --print-public-fingerprint
    ```
 
-3. Put the returned 64-hex digest in both `GEOAI_PUBLIC_BUILD_FINGERPRINT` and `NEXT_PUBLIC_GEOAI_BUILD_FINGERPRINT`. The Docker build verifies that the digest matches the build inputs; startup verifies it again against runtime inputs and the value embedded by Next.js.
+3. Put the returned 64-hex digest in both `GEOAI_PUBLIC_BUILD_FINGERPRINT` and `NEXT_PUBLIC_GEOAI_BUILD_FINGERPRINT`. The Docker build writes an immutable image seal containing that digest and the exact `GEOAI_RELEASE_COMMIT_SHA`. The container entrypoint validates the runtime environment against the seal and exits nonzero before importing the Next server if either changes. Next instrumentation repeats the validation as defense in depth.
 4. Run the offline source contract and type/build checks before any host work:
 
    ```sh
@@ -44,6 +44,7 @@ docker compose --env-file ops/self-host/.env.runtime -f compose.self-host.yml ps
 - `/api/runtime/readiness` performs one bounded, read-only `api.healthcheck()` against managed Supabase and returns only sanitized state. A 503 must not restart the application.
 - Verify Caddy's certificate, exact public origin, Auth callback allowlist, login/logout/session refresh, cross-origin rejection, two-user isolation, and token-free logs. Real Auth/API execution is outside this packet and remains root-owned.
 - Do not enable AI or persistence flags in this first packet. Those need their separately accepted contracts and, for provider calls, explicit paid-call authority.
+- Keep the image command at `node server.js`: the build replaces that entry file with the mandatory sealed pre-server gate and retains Next's generated entry as internal `next-server.js`. A rejected configuration exits with code 78 before application code can open the listen socket; invoking `next-server.js` directly is an unsupported bypass.
 
 ## Logs and rollback
 

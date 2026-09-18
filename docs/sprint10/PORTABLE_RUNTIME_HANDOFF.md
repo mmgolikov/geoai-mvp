@@ -11,6 +11,7 @@ Target: one Next.js standalone instance behind Caddy, managed Supabase, 5–10 n
 - Pinned multi-stage Node 22 glibc image; minimal standalone runtime, fixed non-root UID/GID, read-only root, no published app port.
 - Pinned Caddy reverse proxy with automatic HTTPS, bounded body/log files, credential/query redaction, zero upstream retries, and a 130-second response-header timeout.
 - Strict startup rejection for unknown/conflicting runtime identity, fake Vercel identity, malformed/non-public origin, host mismatch, non-exact release identity, public build drift, demo/soft/local fallback, wrong managed Supabase target, AI/persistence enablement, and privileged/operator/provider credentials.
+- The image seals the exact public-build fingerprint and release commit during the build. Its mandatory bootstrap validates that seal and every runtime guard, then exits `78` before importing `server.js` on rejection. Next instrumentation is secondary defense, not the startup authority.
 - A configured public origin anchors mutation validation, Auth callback redirects, and Secure invitation-cookie decisions. Forwarded headers must agree with that configured authority; they are not independently trusted.
 - Liveness (`/api/health`) is dependency-free. Readiness (`/api/runtime/readiness`) uses the existing five-second read-only `api.healthcheck()` and returns sanitized states only.
 - The point-object UI surface may be explicitly enabled for deterministic local behavior, while self-host AI and cloud persistence are forced off in this first packet.
