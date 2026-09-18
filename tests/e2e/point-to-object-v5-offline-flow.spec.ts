@@ -525,7 +525,7 @@ test("Sprint06 J06 keeps unsent RU refinement separate on Back and restores it w
   await page.getByRole("tab", { name: "Поиск", exact: true }).click();
   await page.getByTestId("find-search-cta").click();
   const third = page.getByRole("listitem").filter({ hasText: "Marina Candidate Three" });
-  await third.getByRole("button").first().click();
+  await third.getByRole("button", { name: "Открыть анализ", exact: true }).click();
   const original = "Проверить окружение выбранного объекта QA06";
   const draft = "QA06 несохранённое уточнение: транспорт и подъезд";
   await page.getByLabel("Что вы хотите узнать?").fill(original);
@@ -1002,7 +1002,7 @@ test("V5.1 keeps exact identity and the complete Find comparison flow coherent o
   await firstFindMarker.evaluate((element) => (element as HTMLButtonElement).click());
   await expect.poll(() => contextRequests.length).toBe(contextCallsBeforeFootprint + 1);
   expect(contextRequests.at(-1)).toMatchObject({ expectedSourceFeatureId: "way/2001", locale: "en" });
-  await expect(firstFindMarker).toHaveCount(0);
+  await expect(firstFindMarker).toBeVisible();
   await waitForFindMapIdle();
   await expect.poll(() => page.evaluate(() => {
     const map = (window as unknown as { findRestoreMap: import("maplibre-gl").Map }).findRestoreMap;
@@ -1197,7 +1197,25 @@ test("Find keeps an estate-agency OSM record as a POI and resolves only a physic
   await physicalMarker.evaluate((element) => (element as HTMLButtonElement).click());
   await expect.poll(() => contextRequests.length).toBe(1);
   expect(contextRequests[0]?.expectedSourceFeatureId).toBe("way/9102");
-  await expect(physicalMarker).toHaveCount(0);
+  await expect(physicalMarker).toBeVisible();
+  await expect.poll(() => page.evaluate(() => {
+    type Hook = { memoizedState: unknown; next: Hook | null };
+    type Fiber = { memoizedState: Hook | null; return: Fiber | null };
+    const canvas = document.querySelector("[data-testid='live-map-canvas']")!;
+    const key = Object.getOwnPropertyNames(canvas).find(value => value.startsWith("__reactFiber$"))!;
+    let fiber: Fiber | null = (canvas as unknown as Record<string, Fiber>)[key];
+    while (fiber) {
+      for (let hook = fiber.memoizedState; hook; hook = hook.next) {
+        const map = (hook.memoizedState as { current?: import("maplibre-gl").Map } | null)?.current;
+        if (typeof map?.querySourceFeatures !== "function" || !map.getSource("geoai-find-footprints")) continue;
+        const features = map.querySourceFeatures("geoai-find-footprints");
+        return features.some(feature => feature.properties?.resultId === "way/9102" && feature.geometry.type === "Polygon")
+          && !features.some(feature => feature.properties?.resultId === "way/9101");
+      }
+      fiber = fiber.return;
+    }
+    return false;
+  })).toBe(true);
 });
 
 test("empty saved Find restores its query viewport without a fabricated selection or rerun", async ({ page }) => {

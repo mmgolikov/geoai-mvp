@@ -1,35 +1,19 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { registerHooks } from "node:module";
 
-const selectionSource = readFileSync(new URL("../src/lib/prototype/point-to-object-map-selection.ts", import.meta.url), "utf8");
-
-function exportedBody(name: string): string {
-  const start = selectionSource.indexOf(`export function ${name}(`);
-  assert.notEqual(start, -1, `${name} must remain exported`);
-  const brace = selectionSource.indexOf("{", start);
-  let depth = 0;
-  for (let index = brace; index < selectionSource.length; index += 1) {
-    if (selectionSource[index] === "{") depth += 1;
-    if (selectionSource[index] === "}") depth -= 1;
-    if (depth === 0) return selectionSource.slice(brace + 1, index);
+registerHooks({
+  resolve(specifier, context, nextResolve) {
+    if ((specifier.startsWith("./") || specifier.startsWith("../")) && !/\.[cm]?[jt]sx?$/.test(specifier)) {
+      try { return nextResolve(`${specifier}.ts`, context); } catch { /* Report the canonical error below. */ }
+    }
+    return nextResolve(specifier, context);
   }
-  throw new Error(`Could not parse ${name}`);
-}
+});
 
-const pointObjectFindPresentationState = new Function(
-  "resultId", "activeId", "hoveredId", "shortlistIds",
-  exportedBody("pointObjectFindPresentationState")
-) as (resultId: string, activeId: string | null, hoveredId: string | null, shortlistIds: ReadonlySet<string>) => string;
-
-const verifiedFootprintBody = exportedBody("pointObjectFindVerifiedFootprint");
-const pointObjectFindVerifiedFootprint = (geometry: object | null, provenance: string | null, resultKind: string): unknown =>
-  new Function("geometry", "provenance", "resultKind", "validatePointObjectReplacementAoi", "structuredClone", verifiedFootprintBody)(
-    geometry,
-    provenance,
-    resultKind,
-    (candidate: { coordinates: unknown[] }) => ({ valid: candidate.coordinates.length > 0 }),
-    structuredClone
-  );
+// Execute the actual production helpers and geometry validator, not copied bodies or stubs.
+const { pointObjectFindPresentationState, pointObjectFindVerifiedFootprint } =
+  await import("../src/lib/prototype/point-to-object-map-selection");
 
 const polygon = {
   type: "Polygon" as const,
@@ -53,6 +37,11 @@ assert.deepEqual(pointObjectFindVerifiedFootprint(polygon, "confirmed_complete_f
 assert.deepEqual(pointObjectFindVerifiedFootprint(multiPolygon, "confirmed_complete_footprint", "mapped_building_or_landuse"), multiPolygon);
 assert.equal(pointObjectFindVerifiedFootprint(polygon, "confirmed_complete_footprint", "mapped_poi"), null, "a POI representative point must never acquire invented building geometry");
 assert.equal(pointObjectFindVerifiedFootprint(polygon, null, "mapped_building_or_landuse"), null, "unverified geometry must remain a representative point");
+assert.equal(pointObjectFindVerifiedFootprint({ type: "Polygon", coordinates: [] }, "confirmed_complete_footprint", "mapped_building_or_landuse"), null);
+assert.equal(pointObjectFindVerifiedFootprint({ type: "Polygon", coordinates: [[[55, 25], [NaN, 25], [55, 25]]] }, "confirmed_complete_footprint", "mapped_building_or_landuse"), null);
+assert.equal(pointObjectFindVerifiedFootprint({ type: "MultiPolygon", coordinates: [polygon.coordinates, []] }, "confirmed_complete_footprint", "mapped_building_or_landuse"), null, "one invalid member invalidates the returned footprint");
+const clonedFootprint = pointObjectFindVerifiedFootprint(polygon, "confirmed_complete_footprint", "mapped_building_or_landuse");
+assert.notEqual(clonedFootprint, polygon, "returned geometry cannot mutate the source record");
 
 const client = readFileSync(new URL("../components/point-to-object/prototype-client-v5.tsx", import.meta.url), "utf8");
 const map = readFileSync(new URL("../components/point-to-object/live-object-map.tsx", import.meta.url), "utf8");

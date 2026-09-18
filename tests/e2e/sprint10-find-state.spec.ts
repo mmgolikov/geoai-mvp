@@ -1,5 +1,10 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 import { sessionMissingFixture } from "./helpers/auth-persona";
+import { installLocalWebKitHttpCsp } from "./helpers/local-webkit-csp";
+
+test.beforeEach(async ({ page }, testInfo) => {
+  await installLocalWebKitHttpCsp(page, testInfo.project.use.browserName, testInfo.project.use.baseURL);
+});
 
 const caveat = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
 let findCalls = 0;
