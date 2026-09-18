@@ -70,7 +70,7 @@ for (const marker of [
   assert(browserSpec.includes(marker), `Public-request browser contract is missing ${marker}`);
 }
 assert(packageJson.scripts?.["test:public-request-contract"] === "node scripts/public-request-contract-check.mjs", "Public-request static command is missing");
-assert(packageJson.scripts?.["test:e2e:auth-session"]?.includes("tests/e2e/public-request-flow.spec.ts"), "Public-request browser flow is not in focused CI");
+assert(packageJson.scripts?.["test:e2e:auth-session:demo"]?.includes("tests/e2e/public-request-flow.spec.ts"), "Public-request browser flow is not in the explicit demo CI lane");
 assert(workflow.includes("npm run test:public-request-contract"), "Quality Gate does not run the public-request static contract");
 
 if (failures.length > 0) {

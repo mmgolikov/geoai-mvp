@@ -127,7 +127,7 @@ if (manifest) {
 for (const file of ["browser-console.log", "next-application.log", "pdf-generation.log", "pdf-print-summary.md"]) read(`${pdfEvidenceDir}/${file}`);
 
 const workflow = read(".github/workflows/geoai-quality-gate.yml");
-for (const marker of ["npm run test:api-route-inventory", "npm run test:e2e:auth-session", "npm run evidence:pdf-print", "poppler-utils", "lighthouse-desktop-request-access.json", "lighthouse-desktop-profile.json", "next-application.log", "npm run test:system-stabilization-audit"]) {
+for (const marker of ["npm run test:api-route-inventory", "npm run test:e2e:auth-session:demo", "npm run test:e2e:auth-persona:protected", "npm run test:e2e:auth-boundary:protected", "npm run evidence:pdf-print", "poppler-utils", "lighthouse-desktop-request-access.json", "lighthouse-desktop-profile.json", "next-application.log", "npm run test:system-stabilization-audit"]) {
   if (!workflow.includes(marker)) failures.push(`.github/workflows/geoai-quality-gate.yml: missing permanent evidence step ${marker}`);
 }
 

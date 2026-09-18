@@ -12,7 +12,11 @@ export default defineConfig({
     ignoreHTTPSErrors: true
   },
   projects: [
-    { name: "chrome-local-https", use: { browserName: "chromium", channel: "chrome" } },
+    {
+      name: "chrome-local-https",
+      testMatch: ["auth-session-flow.spec.ts", "sprint10-auth-entry.spec.ts", "pilot-auth-boundary.spec.ts"],
+      use: { browserName: "chromium", channel: "chrome" }
+    },
     { name: "webkit-local-https", use: { browserName: "webkit", channel: undefined } }
   ],
   reporter: [["line"], ["junit", { outputFile: "artifacts/sprint10-auth-https-junit.xml" }]],

@@ -39,8 +39,21 @@ if (packageJson.devDependencies?.["@playwright/test"] !== "1.61.1") {
 if (packageJson.devDependencies?.["@axe-core/playwright"] !== "4.12.1") {
   failures.push("@axe-core/playwright must stay exactly pinned to 4.12.1");
 }
-if (packageJson.scripts?.["test:e2e:auth-session"] !== "playwright test tests/e2e/auth-session-flow.spec.ts tests/e2e/auth-responsive-flow.spec.ts tests/e2e/public-request-flow.spec.ts tests/e2e/accessibility-workspace-flow.spec.ts tests/e2e/accessibility-project-comparison-flow.spec.ts tests/e2e/mobile-product-flow.spec.ts tests/e2e/mobile-global-navigation.spec.ts tests/e2e/commercial-alignment-visual.spec.ts tests/e2e/system-resilience-flow.spec.ts tests/e2e/design-foundation-shell.spec.ts tests/e2e/primitive-state-evidence.spec.tsx tests/e2e/route-body-invariance.spec.ts tests/e2e/workspace-consolidation.spec.ts") {
-  failures.push("The focused Auth/session, responsive, accessibility and commercial visual Playwright command is missing");
+if (packageJson.scripts?.["test:e2e:auth-session:demo"] !== "playwright test tests/e2e/auth-responsive-flow.spec.ts tests/e2e/public-request-flow.spec.ts tests/e2e/accessibility-workspace-flow.spec.ts tests/e2e/accessibility-project-comparison-flow.spec.ts tests/e2e/mobile-product-flow.spec.ts tests/e2e/mobile-global-navigation.spec.ts tests/e2e/commercial-alignment-visual.spec.ts tests/e2e/system-resilience-flow.spec.ts tests/e2e/design-foundation-shell.spec.ts tests/e2e/primitive-state-evidence.spec.tsx tests/e2e/route-body-invariance.spec.ts tests/e2e/workspace-consolidation.spec.ts") {
+  failures.push("The explicit demo responsive, accessibility and commercial visual Playwright command is missing");
+}
+for (const [name, command] of [
+  ["test:e2e:auth-persona:protected", "playwright test --config playwright.auth-persona.config.ts"],
+  ["test:e2e:auth-boundary:protected", "playwright test --config playwright.local-https.config.ts"]
+]) {
+  if (packageJson.scripts?.[name] !== command) failures.push(`Missing explicit protected command: ${name}`);
+}
+const protectedHttpsConfig = read("playwright.local-https.config.ts");
+for (const specName of ["auth-session-flow.spec.ts", "sprint10-auth-entry.spec.ts", "pilot-auth-boundary.spec.ts"]) {
+  requireText(protectedHttpsConfig, specName, `Protected HTTPS coverage missing ${specName}`);
+}
+for (const specName of ["sprint10-find-state.spec.ts", "sprint10-analysis-state.spec.ts", "sprint10-analysis-provenance.spec.ts", "sprint10-create-preview.spec.ts"]) {
+  requireText(packageJson.scripts["test:e2e:point-to-object-v5:demo"] ?? "", specName, `Demo aggregate missing ${specName}`);
 }
 if (packageJson.scripts?.["test:e2e:auth-real-persona"] !== "playwright test tests/e2e/real-email-auth-flow.spec.ts") {
   failures.push("The explicit trusted-terminal real email Auth persona command is missing");
@@ -304,25 +317,39 @@ for (const marker of [
   "mapboxContribution"
 ]) requireText(lighthouseBudgetScript, marker, `Lighthouse budget contract is missing ${marker}`);
 
-const browserStepStart = workflow.indexOf("- name: Browser Auth/session flow");
+const browserStepStart = workflow.indexOf("- name: Browser demo-public product flow");
 const buildStepStart = workflow.indexOf("- name: Build", browserStepStart);
 if (browserStepStart === -1 || buildStepStart === -1) {
-  failures.push("Quality Gate must run the browser Auth/session flow before the production build");
+  failures.push("Quality Gate must run explicit demo browser journeys before the default build");
 } else {
   const browserStep = workflow.slice(browserStepStart, buildStepStart);
   for (const marker of [
-    "NEXT_PUBLIC_AUTH_MODE: supabase_auth",
-    "NEXT_PUBLIC_SUPABASE_URL: https://bkmfcjzalcvdsdvyxpgi.supabase.co",
-    'GEOAI_ACCESS_ENFORCEMENT_MODE: hard',
-    'GEOAI_ALLOW_DEMO_PUBLIC: "false"',
-    'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="sb_publishable_${E2E_KEY_SUFFIX}"',
-    "npm run test:e2e:auth-session"
+    "NEXT_PUBLIC_AUTH_MODE: demo_public",
+    'GEOAI_ACCESS_ENFORCEMENT_MODE: soft',
+    'GEOAI_ALLOW_DEMO_PUBLIC: "true"',
+    "npm run test:e2e:auth-session:demo",
+    "npm run test:e2e:point-to-object-v5:demo"
   ]) requireText(browserStep, marker, `Browser CI step is missing ${marker}`);
   for (const marker of [
     "artifacts/lighthouse-desktop-login.json",
     "http://127.0.0.1:3100/login?next=/workspace&intent=demo"
   ]) requireText(browserStep, marker, `Isolated Login Lighthouse step is missing ${marker}`);
   if (browserStep.includes("secrets.")) failures.push("Browser CI must not read a real GitHub secret");
+}
+const protectedStep = workflow.slice(workflow.indexOf("  protected-browser:"), workflow.indexOf("  database-replay:"));
+for (const marker of [
+  "NEXT_PUBLIC_AUTH_MODE: supabase_auth",
+  "NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321",
+  'NEXT_PUBLIC_GEOAI_ALLOW_LOCAL_SUPABASE: "true"',
+  "GEOAI_ACCESS_ENFORCEMENT_MODE: hard",
+  'GEOAI_ALLOW_DEMO_PUBLIC: "false"',
+  "npm run test:e2e:auth-persona:protected",
+  "npm run test:e2e:auth-boundary:protected",
+  "node scripts/sprint10-local-https.mjs",
+  "npx playwright install --with-deps webkit"
+]) requireText(protectedStep, marker, `Protected CI lane missing ${marker}`);
+if (protectedStep.includes("secrets.") || protectedStep.includes(".supabase.co")) {
+  failures.push("Protected negative CI must use localhost-only synthetic configuration without hosted keys or URLs");
 }
 
 requireText(workflow, "npm run test:auth-session-e2e-contract", "Quality Gate must run the static E2E wiring contract");

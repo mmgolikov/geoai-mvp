@@ -136,7 +136,7 @@ for (const viewport of viewports) {
       const generated = page.getByLabel("Generated request brief");
       await expect(generated).toHaveValue(/GeoAI Evidence Organization/);
       await expect(page.getByRole("button", { name: "Copy request brief" })).toBeVisible();
-      await expect(page.getByRole("link", { name: "Open demo instead" })).toHaveAttribute("href", "/login?next=/workspace&intent=demo");
+      await expect(page.getByRole("link", { name: "Open demo instead" })).toHaveAttribute("href", "/demo");
       for (const prohibited of ["Request sent", "Request submitted", "Request received", "We will contact you", "Successfully delivered"]) {
         await expect(page.getByText(prohibited, { exact: true })).toHaveCount(0);
       }

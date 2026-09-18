@@ -386,18 +386,15 @@ jobs:
           set -euo pipefail
           npm run test:runtime-source-pack | tee artifacts/runtime-source-pack-check.txt
 
-      - name: Browser Auth/session flow
+      - name: Browser demo-public product flow
         shell: bash
         env:
-          NEXT_PUBLIC_AUTH_MODE: supabase_auth
-          NEXT_PUBLIC_SUPABASE_URL: https://bkmfcjzalcvdsdvyxpgi.supabase.co
-          E2E_KEY_SUFFIX: geoai_ci_browser_contract_only
-          GEOAI_ACCESS_ENFORCEMENT_MODE: hard
-          GEOAI_ALLOW_DEMO_PUBLIC: "false"
+          NEXT_PUBLIC_AUTH_MODE: demo_public
+          GEOAI_ACCESS_ENFORCEMENT_MODE: soft
+          GEOAI_ALLOW_DEMO_PUBLIC: "true"
           GEOAI_E2E_BASE_URL: http://127.0.0.1:3100
         run: |
           set -euo pipefail
-          export NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="sb_publishable_${E2E_KEY_SUFFIX}"
           npm run dev -- -p 3100 > /tmp/geoai-e2e-next.log 2>&1 &
           APP_PID=$!
           cleanup() {
@@ -426,8 +423,8 @@ jobs:
           fi
 
           google-chrome --version | tee artifacts/google-chrome-version.txt
-          npm run test:e2e:point-to-object-v5 | tee artifacts/point-to-object-v5-e2e.txt
-          npm run test:e2e:auth-session | tee artifacts/auth-session-e2e.txt
+          npm run test:e2e:point-to-object-v5:demo | tee artifacts/point-to-object-v5-demo-e2e.txt
+          npm run test:e2e:auth-session:demo | tee artifacts/auth-session-demo-e2e.txt
           npx lighthouse 'http://127.0.0.1:3100/login?next=/workspace&intent=demo' \
             --quiet \
             --preset=desktop \
@@ -604,6 +601,85 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: geoai-quality-evidence-${{ github.run_id }}
+          path: artifacts/
+          if-no-files-found: warn
+          retention-days: 14
+
+  protected-browser:
+    name: Anonymous protected SSR and API browser boundaries
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CI: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+      NEXT_PUBLIC_AUTH_MODE: supabase_auth
+      NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+      NEXT_PUBLIC_GEOAI_ALLOW_LOCAL_SUPABASE: "true"
+      GEOAI_ACCESS_ENFORCEMENT_MODE: hard
+      GEOAI_ALLOW_DEMO_PUBLIC: "false"
+      E2E_KEY_SUFFIX: geoai_ci_browser_contract_only
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies and browser engine
+        run: |
+          npm ci
+          npx playwright install --with-deps webkit
+          mkdir -p artifacts
+          git rev-parse HEAD > artifacts/protected-tested-commit-sha.txt
+      - name: Protected anonymous entry and byte preservation
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:e2e:auth-persona:protected -- --retries=0 | tee artifacts/auth-persona-protected.txt
+      - name: Build protected localhost fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          export NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="sb_publishable_${E2E_KEY_SUFFIX}"
+          npm run build | tee artifacts/protected-build.txt
+      - name: Protected optimized HTTPS Chrome and WebKit boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          export NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="sb_publishable_${E2E_KEY_SUFFIX}"
+          NODE_ENV=production node scripts/sprint10-local-https.mjs > /tmp/geoai-protected-https.log 2>&1 &
+          APP_PID=$!
+          cleanup() {
+            kill "$APP_PID" 2>/dev/null || true
+            wait "$APP_PID" 2>/dev/null || true
+            cp /tmp/geoai-protected-https.log artifacts/protected-https-server.log
+          }
+          trap cleanup EXIT
+          READY=0
+          for attempt in $(seq 1 60); do
+            if curl --insecure --fail --silent https://127.0.0.1:3443/login > /dev/null; then
+              READY=1
+              break
+            fi
+            if ! kill -0 "$APP_PID" 2>/dev/null; then
+              cat /tmp/geoai-protected-https.log
+              exit 1
+            fi
+            sleep 1
+          done
+          if [ "$READY" -ne 1 ]; then
+            cat /tmp/geoai-protected-https.log
+            exit 1
+          fi
+          npm run test:e2e:auth-boundary:protected -- --retries=0 | tee artifacts/auth-boundary-protected.txt
+      - name: Upload protected browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: geoai-protected-browser-${{ github.run_id }}
           path: artifacts/
           if-no-files-found: warn
           retention-days: 14

@@ -22,6 +22,7 @@ data/local_fallback/
 data/local-fallback/
 data/local-fallback/*.json
 .vercel
+supabase/.temp/
 .env*
 !.env.example
 !.env.operator.example
