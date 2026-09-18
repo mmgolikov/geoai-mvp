@@ -4,6 +4,9 @@ import {
 } from "@/src/lib/prototype/point-object-projects-contract";
 
 export const POINT_OBJECT_CLOUD_SCHEMA_VERSION = 1 as const;
+export const POINT_OBJECT_CLOUD_OPERATION_BYTES = 768 * 1024;
+// Raw UTF-8 HTTP body ceiling. The operation and SQL JSONB text use different
+// representations and have separate fixed caps (768, 832 and 896 KiB).
 export const POINT_OBJECT_CLOUD_BODY_BYTES = 832 * 1024;
 export const POINT_OBJECT_CLOUD_PAGE_SIZE = 4;
 
@@ -36,20 +39,47 @@ export type PointObjectCloudStoredItem = {
   artifact: SavedPointObjectArtifact;
 };
 
-export type PointObjectCloudPutReceipt = {
-  status: "created" | "replayed" | "updated" | "conflict";
-  id: string | null;
+export type PointObjectCloudConflictReason =
+  | "split_key"
+  | "missing"
+  | "key_conflict"
+  | "local_project_identity"
+  | "immutable_or_readonly"
+  | "stale_cloud_revision"
+  | "stale_view_revision";
+
+type PointObjectCloudCurrentReceipt = {
+  id: string;
   cloudRevision: number;
   viewRevision: number;
   payloadHash: string;
   immutableHash: string;
   clientPayloadHash: string;
-  createdAt: string | null;
-  updatedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
 };
+
+export type PointObjectCloudPutReceipt =
+  | (PointObjectCloudCurrentReceipt & {
+      status: "created" | "replayed" | "updated";
+      conflictReason: null;
+    })
+  | {
+      status: "conflict";
+      conflictReason: PointObjectCloudConflictReason;
+      id: string | null;
+      cloudRevision: number | null;
+      viewRevision: number | null;
+      payloadHash: string | null;
+      immutableHash: string | null;
+      clientPayloadHash: string | null;
+      createdAt: string | null;
+      updatedAt: string | null;
+    };
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const hashPattern = /^[a-f0-9]{64}$/;
+const timestampPattern = /^[0-9]{4}-[0-9]{2}-[0-9]{2}T.*(?:Z|[+-][0-9]{2}:[0-9]{2})$/;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -62,7 +92,7 @@ function hasExactKeys(value: Record<string, unknown>, expected: readonly string[
 }
 
 function isTimestamp(value: unknown): value is string {
-  return typeof value === "string" && Number.isFinite(Date.parse(value));
+  return typeof value === "string" && timestampPattern.test(value) && Number.isFinite(Date.parse(value));
 }
 
 function validBoundedText(value: unknown, maximum: number): value is string {
@@ -75,7 +105,7 @@ export function parsePointObjectCloudLocalProject(value: unknown): PointObjectCl
       !validBoundedText(value.projectId, 160) || !validBoundedText(value.name, 120) || !isTimestamp(value.createdAt)) {
     return null;
   }
-  return { projectId: value.projectId, name: value.name.trim(), createdAt: value.createdAt };
+  return { projectId: value.projectId.trim(), name: value.name.trim(), createdAt: value.createdAt };
 }
 
 export function parsePointObjectCloudPutInput(value: unknown): PointObjectCloudPutInput | null {
@@ -140,7 +170,18 @@ export async function hashPointObjectCloudImmutableArtifact(artifact: SavedPoint
 
 export async function validatePointObjectCloudPutInput(value: unknown): Promise<PointObjectCloudPutInput | null> {
   const parsed = parsePointObjectCloudPutInput(value);
-  if (!parsed || parsed.artifact.payloadHash !== await hashPointObjectCloudFullArtifact(parsed.artifact)) return null;
+  if (!parsed) return null;
+  const operation = {
+    kind: parsed.artifact.kind,
+    locale: parsed.artifact.locale,
+    marketKey: parsed.artifact.marketKey,
+    label: parsed.artifact.label,
+    payload: parsed.artifact.payload
+  };
+  if (!isTimestamp(parsed.artifact.completedAt) || !isTimestamp(parsed.artifact.updatedAt) ||
+      Date.parse(parsed.artifact.updatedAt) < Date.parse(parsed.artifact.completedAt) ||
+      new TextEncoder().encode(JSON.stringify(operation)).byteLength > POINT_OBJECT_CLOUD_OPERATION_BYTES ||
+      parsed.artifact.payloadHash !== await hashPointObjectCloudFullArtifact(parsed.artifact)) return null;
   return parsed;
 }
 
@@ -186,14 +227,31 @@ export async function parsePointObjectCloudStoredItem(value: unknown): Promise<P
 
 export function parsePointObjectCloudPutReceipt(value: unknown): PointObjectCloudPutReceipt | null {
   if (!isRecord(value) || !hasExactKeys(value, [
-    "status", "id", "cloudRevision", "viewRevision", "payloadHash", "immutableHash", "clientPayloadHash", "createdAt", "updatedAt"
-  ]) || !["created", "replayed", "updated", "conflict"].includes(String(value.status)) ||
-      !(value.id === null || (typeof value.id === "string" && uuidPattern.test(value.id))) ||
-      !Number.isInteger(value.cloudRevision) || Number(value.cloudRevision) < 0 ||
-      !Number.isInteger(value.viewRevision) || Number(value.viewRevision) < 0 || Number(value.viewRevision) > 100_000 ||
-      typeof value.payloadHash !== "string" || !hashPattern.test(value.payloadHash) ||
-      typeof value.immutableHash !== "string" || !hashPattern.test(value.immutableHash) ||
-      typeof value.clientPayloadHash !== "string" || !hashPattern.test(value.clientPayloadHash) ||
-      !(value.createdAt === null || isTimestamp(value.createdAt)) || !(value.updatedAt === null || isTimestamp(value.updatedAt))) return null;
-  return value as PointObjectCloudPutReceipt;
+    "status", "conflictReason", "id", "cloudRevision", "viewRevision", "payloadHash", "immutableHash",
+    "clientPayloadHash", "createdAt", "updatedAt"
+  ])) return null;
+
+  const validCurrent = typeof value.id === "string" && uuidPattern.test(value.id) &&
+    Number.isInteger(value.cloudRevision) && Number(value.cloudRevision) >= 1 &&
+    Number.isInteger(value.viewRevision) && Number(value.viewRevision) >= 0 && Number(value.viewRevision) <= 100_000 &&
+    typeof value.payloadHash === "string" && hashPattern.test(value.payloadHash) &&
+    typeof value.immutableHash === "string" && hashPattern.test(value.immutableHash) &&
+    typeof value.clientPayloadHash === "string" && hashPattern.test(value.clientPayloadHash) &&
+    isTimestamp(value.createdAt) && isTimestamp(value.updatedAt);
+
+  if (value.status === "created" || value.status === "replayed" || value.status === "updated") {
+    return validCurrent && value.conflictReason === null
+      ? value as PointObjectCloudPutReceipt
+      : null;
+  }
+  const conflictReasons: readonly PointObjectCloudConflictReason[] = [
+    "split_key", "missing", "key_conflict", "local_project_identity",
+    "immutable_or_readonly", "stale_cloud_revision", "stale_view_revision"
+  ];
+  if (value.status !== "conflict" || !conflictReasons.includes(value.conflictReason as PointObjectCloudConflictReason)) return null;
+  const absentCurrent = value.id === null && value.cloudRevision === null && value.viewRevision === null &&
+    value.payloadHash === null && value.immutableHash === null && value.clientPayloadHash === null &&
+    value.createdAt === null && value.updatedAt === null;
+  const reasonHasNoCurrent = value.conflictReason === "split_key" || value.conflictReason === "missing";
+  return (reasonHasNoCurrent ? absentCurrent : validCurrent) ? value as PointObjectCloudPutReceipt : null;
 }

@@ -38,6 +38,9 @@ function repositoryError(error: { code?: string } | null): PointObjectCloudRepos
   if (error?.code === "23505" || error?.code === "40001") {
     return { ok: false, status: 409, message: "The project artifact changed concurrently." };
   }
+  if (error?.code === "54000") {
+    return { ok: false, status: 409, message: "Project artifact storage capacity was reached." };
+  }
   return { ok: false, status: 503, message: "Project artifact persistence is temporarily unavailable." };
 }
 

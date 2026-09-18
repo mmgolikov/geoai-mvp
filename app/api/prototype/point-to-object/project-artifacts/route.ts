@@ -140,8 +140,9 @@ export async function PUT(request: Request) {
       ok: false,
       persisted: false,
       conflict: true,
+      reason: receipt.conflictReason,
       message: "The cloud artifact changed or belongs to a different immutable result.",
-      current: {
+      current: receipt.id === null ? null : {
         cloudRevision: receipt.cloudRevision,
         payloadHash: receipt.clientPayloadHash,
         immutableHash: receipt.immutableHash
