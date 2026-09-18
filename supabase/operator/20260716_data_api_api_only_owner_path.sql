@@ -22,7 +22,9 @@ declare
     to_regprocedure('api.revoke_invitation(uuid,bigint,uuid)'),
     to_regprocedure('api.set_organization_member(uuid,uuid,text,text,bigint,uuid)'),
     to_regprocedure('api.set_project_member(uuid,uuid,text,text,bigint,uuid)'),
-    to_regprocedure('api.organization_admin_snapshot(uuid,integer,timestamp with time zone,uuid)')
+    to_regprocedure('api.organization_admin_snapshot(uuid,integer,timestamp with time zone,uuid)'),
+    to_regprocedure('api.upsert_point_object_analysis_run(text,text,text,text,jsonb,text,jsonb,jsonb,jsonb,text,text,text,text,text)'),
+    to_regprocedure('api.list_point_object_analysis_runs(text,integer)')
   ];
 begin
   if current_user <> 'postgres' then
@@ -114,6 +116,10 @@ begin
   grant execute on function api.set_organization_member(uuid, uuid, text, text, bigint, uuid) to authenticated;
   grant execute on function api.set_project_member(uuid, uuid, text, text, bigint, uuid) to authenticated;
   grant execute on function api.organization_admin_snapshot(uuid, integer, timestamptz, uuid) to authenticated;
+  grant execute on function api.upsert_point_object_analysis_run(
+    text, text, text, text, jsonb, text, jsonb, jsonb, jsonb, text, text, text, text, text
+  ) to authenticated;
+  grant execute on function api.list_point_object_analysis_runs(text, integer) to authenticated;
 
   alter role authenticator set pgrst.db_schemas = 'api';
 end
