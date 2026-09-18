@@ -1,6 +1,7 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 import { conceptTemplate, generateConceptMassingAlternatives, validateRedevelopmentProgram } from "../../src/lib/prototype/point-to-object-create";
 import { POINT_OBJECT_CREATE_RESULT_CAVEAT } from "../../src/lib/prototype/point-to-object-create-result";
+import { declaredAuthPersona, expectDeclaredAuthPersona } from "./helpers/auth-persona";
 import { installLocalWebKitHttpCsp } from "./helpers/local-webkit-csp";
 
 test.beforeEach(async ({ page, browserName }, testInfo) => {
@@ -1241,7 +1242,8 @@ test("empty saved Find restores its query viewport without a fabricated selectio
   expect(unexpectedExternal).toEqual([]);
 });
 
-test("true guest Create restores its exact result and mode without another request", async ({ page }) => {
+test("auth-persona: Create restores its exact result and mode without another request", async ({ page }, testInfo) => {
+  const persona = declaredAuthPersona(testInfo);
   createPostRequests.length = 0;
   areaContextPostRequests = 0;
   const createRequestMethods: string[] = [];
@@ -1266,7 +1268,7 @@ test("true guest Create restores its exact result and mode without another reque
   });
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto("/prototype/point-to-object?mode=create");
-  await expect(page.getByRole("link", { name: "Sign in to GeoAI", exact: true })).toBeVisible();
+  await expectDeclaredAuthPersona(page, persona);
   await page.getByLabel("Upload GeoJSON").setInputFiles({
     name: "guest-create-area.geojson",
     mimeType: "application/geo+json",
@@ -1282,6 +1284,29 @@ test("true guest Create restores its exact result and mode without another reque
   await expect(page.getByTestId("create-dashboard-alternative-b")).toHaveAttribute("aria-selected", "true");
   const requestMethodsAfterGeneration = [...createRequestMethods];
   const areaContextCallsAfterGeneration = areaContextPostRequests;
+  if (persona === "demo_public") {
+    await expect.poll(() => page.evaluate(() => {
+      const key = Object.keys(localStorage).find((item) => item.startsWith("geoai:point-to-object:projects:v1:"));
+      const store = key ? JSON.parse(localStorage.getItem(key) ?? "null") : null;
+      return store?.projects?.flatMap((project: { artifacts?: Array<{ kind?: string; payload?: { activeAlternativeId?: string } }> }) =>
+        project.artifacts ?? []).some((artifact: { kind?: string; payload?: { activeAlternativeId?: string } }) =>
+        artifact.kind === "create" && artifact.payload?.activeAlternativeId === "B") ?? false;
+    })).toBe(true);
+    await expect.poll(() => page.evaluate(() => sessionStorage.getItem("geoai:point-to-object:create:v1"))).toBeNull();
+    await page.goto("/projects?view=spatial");
+    await page.getByRole("button", { name: "Show on map", exact: true }).first().click();
+    await expect(page).toHaveURL(/\/prototype\/point-to-object$/);
+    await expect(page.getByRole("tab", { name: "Create", exact: true })).toHaveAttribute("aria-selected", "true");
+    const restoredDashboard = page.getByTestId("create-full-result-dashboard");
+    await expect(restoredDashboard).toBeVisible();
+    await expect(restoredDashboard.getByTestId("create-dashboard-alternative-b")).toHaveAttribute("aria-selected", "true");
+    await restoredDashboard.getByRole("button", { name: "Show on map", exact: true }).click();
+    await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
+    expect(createRequestMethods).toEqual(requestMethodsAfterGeneration);
+    expect(areaContextPostRequests).toBe(areaContextCallsAfterGeneration);
+    expect(unexpectedExternal).toEqual([]);
+    return;
+  }
   await page.goto("/prototype/point-to-object?mode=find");
   await expect(page.getByRole("tab", { name: "Find", exact: true })).toHaveAttribute("aria-selected", "true");
   expect(createRequestMethods).toEqual(requestMethodsAfterGeneration);
@@ -1345,6 +1370,9 @@ test("true guest Create restores its exact result and mode without another reque
   await page.evaluate((raw) => sessionStorage.setItem("geoai:point-to-object:create:v1", raw), preservedGuestSession!);
   await page.reload();
   await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
+  // Exercise the product's explicit mock-demo transition through its UI. It
+  // does not authorize the protected server mutation asserted separately in
+  // the Supabase-auth persona test.
   await signInDemo(page, "/prototype/point-to-object");
   await expect(page.locator('[data-point-object-header] a[href="/profile"]')).toHaveAttribute("data-authenticated", "true");
   await expect.poll(() => page.evaluate(() => sessionStorage.getItem("geoai:point-to-object:create:v1"))).toBeNull();

@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
+import { declaredAuthPersona, expectDeclaredAuthPersona } from "./helpers/auth-persona";
 import { installLocalWebKitHttpCsp } from "./helpers/local-webkit-csp";
 
 test.beforeEach(async ({ page, browserName }, testInfo) => {
@@ -541,7 +542,8 @@ async function expectNoVisibleResolverBoilerplate(page: Page) {
   expect(visibleCopy).not.toMatch(/way\/91001|Q777|EVD-|SHA-256|sourceResponseHash|resolver/i);
 }
 
-test('fresh guest retains selection and unsent RU analysis draft after normal Back and reload', async ({ page }, testInfo) => {
+test('auth-persona: visitor retains selection and unsent RU analysis draft after normal Back and reload', async ({ page }, testInfo) => {
+  const persona = declaredAuthPersona(testInfo);
   await page.setViewportSize({ width: 430, height: 932 });
   const { apiCalls } = await installAnalysisRoutes(page);
   await page.route('https://tiles.openfreemap.org/styles/**', route => route.fulfill({ json: { version: 8, sources: {}, layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#e8edf0' } }] } }));
@@ -553,6 +555,7 @@ test('fresh guest retains selection and unsent RU analysis draft after normal Ba
   await page.route('**/api/prototype/point-to-object/context', route => route.fulfill({ json: { mode: 'resolved', subject: selection.resolvedObject } }));
   await page.context().addCookies([{ name: 'geoai_locale', value: 'ru', url: testInfo.project.use.baseURL! }]);
   await page.goto('/prototype/point-to-object');
+  await expectDeclaredAuthPersona(page, persona);
   await page.getByRole('combobox', { name: 'Поиск адреса или места', exact: true }).fill('Synthetic Harbour');
   await page.getByRole('option').filter({ hasText: 'Synthetic Harbour Hotel' }).click();
   await page.getByRole('button', { name: 'Открыть задачу', exact: true }).click();
@@ -570,7 +573,7 @@ test('fresh guest retains selection and unsent RU analysis draft after normal Ba
     identity: localStorage.getItem('geoai:point-to-object:browser-identity:v1')
   }));
   const before = await state();
-  expect(before.identity).toBeNull();
+  expect(before.identity).toBe(persona === "demo_public" ? "demo:demo-user-geoai" : null);
   expect(before.draft).toContain(draft);
   expect(before.selection).not.toBeNull();
   const count = () => apiCalls.filter(call => call.path.endsWith('/ai')).map(call => call.method);
@@ -599,10 +602,10 @@ test('fresh guest retains selection and unsent RU analysis draft after normal Ba
   await expect(input).toHaveValue(draft);
   expect(count()).toEqual(['GET', 'POST']);
   const final = await state();
-  expect(final.identity).toBeNull();
+  expect(final.identity).toBe(persona === "demo_public" ? "demo:demo-user-geoai" : null);
   expect(final.draft).toBe(before.draft);
   await page.screenshot({ path: testInfo.outputPath('guest-analysis-restored-430-ru.png'), fullPage: true });
-  console.log(JSON.stringify({ result: 'PASS', viewport: '430x932', locale: 'ru', guest: true, aiRequests: count(), selectionRetainedAfterMap: true, draftRecoveredAfterBrowserBack: true, reloadAndDirectEntryRecovered: true }));
+  console.log(JSON.stringify({ result: 'PASS', viewport: '430x932', locale: 'ru', authPersona: persona, aiRequests: count(), selectionRetainedAfterMap: true, draftRecoveredAfterBrowserBack: true, reloadAndDirectEntryRecovered: true }));
 });
 
 test("V9 Standard renders its structured criteria review and restores it without another AI request", async ({ page }) => {
@@ -859,7 +862,8 @@ test("Saved Analyse reopens RU from EN Projects and EN from RU Projects without 
   expect(unexpectedExternal).toEqual([]);
 });
 
-test("an optional Supabase subscription chunk failure falls back to the server-verified anonymous session", async ({ page }) => {
+test("auth-persona: optional Supabase subscription failure is isolated from public demo and falls back to verified anonymous", async ({ page }, testInfo) => {
+  const persona = declaredAuthPersona(testInfo);
   const pageErrors: string[] = [];
   let sessionGets = 0;
   let subscriptionChunkRequests = 0;
@@ -877,6 +881,15 @@ test("an optional Supabase subscription chunk failure falls back to the server-v
     await route.continue();
   });
 
+  if (persona === "demo_public") {
+    await page.goto("/prototype/point-to-object");
+    await expectDeclaredAuthPersona(page, persona);
+    expect(subscriptionChunkRequests).toBe(0);
+    expect(sessionGets).toBe(0);
+    expect(pageErrors).toEqual([]);
+    return;
+  }
+
   await page.goto("/login?next=%2Fworkspace");
   await expect(page.getByRole("heading", { name: "Sign in to GeoAI" })).toBeVisible();
   await expect.poll(() => subscriptionChunkRequests).toBeGreaterThanOrEqual(1);
@@ -884,6 +897,12 @@ test("an optional Supabase subscription chunk failure falls back to the server-v
   await expect(page).toHaveURL(/\/login\?/);
   expect(await page.evaluate(() => localStorage.getItem("geoai-mock-demo-session-v1"))).toBeNull();
   expect(pageErrors).toEqual([]);
+
+  const protectedMutation = await page.request.post("/api/projects", { data: { name: "Anonymous boundary probe" } });
+  expect(protectedMutation.status()).toBe(403);
+  const denial = await protectedMutation.json() as { ok?: boolean; project?: unknown };
+  expect(denial).toMatchObject({ ok: false });
+  expect(denial).not.toHaveProperty("project");
 });
 
 test("Projects preserves bytes and permits explicit retry when integrity hashing is temporarily unavailable", async ({ page }) => {
