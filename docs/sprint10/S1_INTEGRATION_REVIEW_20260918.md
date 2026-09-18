@@ -38,6 +38,9 @@ Runtime Node 24.19.0, locked dependencies, no credential copies and no provider 
 - Integrated production build: PASS, 80 routes. Application code corresponds to `09bffd2`; subsequent change was a test-only addition.
 - Actual AI handler offline checks: PASS for 401/403/503 identity denial before malformed/oversized body handling, no denied challenge, no evidence/provider execution, origin rejection, existing runtime flags and demo compatibility.
 - API access wiring and 76-route inventory: PASS static contracts only.
+- Synthetic `supabase_auth` production build on exact `ce94f0f`: PASS after public Google Fonts download retry. Local host URL and a noncredential publishable-format placeholder only; no external Supabase/provider connection.
+- Real local HTTP negative suite: 2/2 PASS in 561ms, including AI GET challenge, malformed/oversized POST, other live routes and forged bearer/mixed transport. This verifies anonymous denial, not authenticated authorization.
+- Mobile Chrome guarded navigation preserves the exact map `next` path and reaches the login heading, but emits React hydration error #418. Root traced the likely mismatch to `LoginPanel` rendering `getDestination()` as `/workspace` on SSR versus the query-specific destination on the initial client render. Returned to dev_1 with reproduction; NOT PASS. Diagnostic screenshot: `artifacts/sprint10-integrated-auth-denial/login-mobile-hydration.png`.
 - Existing complete point-to-object runtime gate: PASS offline.
 - Initial combined Chrome run: 10/10 PASS (six analysis lifecycle and four landing/security compatibility cases), one worker, no retries, fail-on-flaky enabled.
 - Final combined Chrome: 14/14 PASS in 12.8 seconds; WebKit: 14/14 PASS in 17.5 seconds, one worker, no retries, fail-on-flaky. Includes the six lifecycle cases, four landing cases and four new EN/RU analysis cases at 390/1440px. All external browser URLs blocked in the analysis fixtures.
@@ -48,6 +51,12 @@ Runtime Node 24.19.0, locked dependencies, no credential copies and no provider 
 ## External dependency evidence
 
 The read-only Supabase schema/RLS catalog query to `bkmfcjzalcvdsdvyxpgi` timed out on 18 September: `Connection terminated due to connection timeout`. The connector wraps it as `INVALID_ARGUMENT`; this is not evidence of an invalid SQL statement or empty schema. No hosted mutation attempted. Actual DB replay and permanent/anonymous/cross-project RLS persona validation remain unproven.
+
+### Founder reconnect, 17:44–17:46 Moscow
+
+After the founder reconnected Supabase, fresh reads to **geoai-dev `pphdqkurxneyagvnnjdt` succeed**: table listing, migration history, catalog SQL and security advisors. The catalog confirms public has zero application tables, api/private schemas do not exist, migration history is empty and advisor lints are empty. System auth/vault objects are present. Empty lints on an empty application schema do not prove application security. Management metadata still said COMING_UP while catalog queries already worked.
+
+The separate **geoai-auth-rehearsal `bkmfcjzalcvdsdvyxpgi`** still timed out; advisors specifically reported hibernation, despite ACTIVE_HEALTHY metadata. Do not confuse these two targets. The dev connectivity blocker is removed, but no pilot mapping, migration/apply, auth setting, grants, credentials, data or environment change has been authorized or performed.
 
 ## Budget and next gate
 
