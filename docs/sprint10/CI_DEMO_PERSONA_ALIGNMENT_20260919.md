@@ -15,6 +15,6 @@ Real login coverage remains in the separate `supabase_auth` localhost HTTPS pers
 - First functional run: 32/33; the new storage warning locator also matched Next.js's empty route announcer. The selector was scoped to its warning text; the complete 33-test suite then passed.
 - TypeScript, Auth/session static contracts, secret hygiene and diff checks passed.
 - Root inspected the generated mobile landing visual: readable content and actions without horizontal overflow. Existing visual capture suites passed their layout assertions.
-- Protected build and expanded HTTPS browser tests: recorded separately after execution; not inferred from this public-demo result.
+- Protected optimized build: **80/80 routes PASS**. Expanded localhost HTTPS browser suite at `c3e8bdc8942d97813a6f56271f0effb5db487888`: **28/28 Chrome + WebKit PASS**, 23.3 seconds, retries 0; tablet/mobile/desktop login, keyboard/Axe and negative Auth boundaries included. Both owned local servers stopped after checks.
 
 These are local/fixture regression receipts. They prove neither paid-provider behavior nor hosted login, cloud persistence, transactional email delivery or pilot readiness. Existing strict server Auth assertions and source/provider guards are unchanged.
