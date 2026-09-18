@@ -5,25 +5,43 @@ import {
   fchmodSync,
   fstatSync,
   fsyncSync,
+  existsSync,
   lstatSync,
   mkdtempSync,
   openSync,
   readFileSync,
   realpathSync,
   rmSync,
-  statSync,
   unlinkSync,
   writeFileSync
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  RESERVE_USD,
+  SPRINT10_LIVE_CEILING_USD,
+  readSprint10SpendLedgerFile,
+  sprint10LedgerLockPath
+} from "../tests/e2e/helpers/sprint10-live-budget.ts";
 
 const exactDevelopmentProjectRef = "pphdqkurxneyagvnnjdt";
 const exactLedgerId = "5aa405b3-bbda-48aa-aeea-ca3357be4042";
-const exactCycleId = "GEOAI_FOUR_SPRINTS_2026_09_18";
 const exactExplicitRun = "root-paid-live-journey-2026-09-18";
 const acceptedScopes = new Set(["journey", "dubai-analyse", "dubai-find", "singapore-create"]);
+export const LIVE_SCOPE_RECEIPT_PLAN = Object.freeze({
+  journey: Object.freeze([
+    Object.freeze({ route: "ai", depth: "standard", reserveUsd: RESERVE_USD.ai }),
+    Object.freeze({ route: "create", depth: "standard", reserveUsd: RESERVE_USD.create })
+  ]),
+  "dubai-analyse": Object.freeze([
+    Object.freeze({ route: "ai", depth: "standard", reserveUsd: RESERVE_USD.ai })
+  ]),
+  "dubai-find": Object.freeze([]),
+  "singapore-create": Object.freeze([
+    Object.freeze({ route: "create", depth: "standard", reserveUsd: RESERVE_USD.create })
+  ])
+});
 const forbiddenProductionHosts = new Set([
   "geoai-mvp.vercel.app",
   "geoai-id0xnwco2-geoaidev.vercel.app",
@@ -58,28 +76,49 @@ function privateRegularFile(path, label) {
   }
 }
 
-function validateLedger(rootValue, pathValue, allowUnresolved = false) {
-  if (!isAbsolute(rootValue) || !isAbsolute(pathValue)) fail("The ledger root and path must be explicit absolute paths.");
-  const root = resolve(rootValue);
-  const path = resolve(pathValue);
-  if (realpathSync(root) !== root || !statSync(root).isDirectory() || (statSync(root).mode & 0o077) !== 0) {
-    fail("The ledger root must be one existing private 0700 real directory.");
+function liveRunLeasePath(ledgerPath) {
+  return join(dirname(resolve(ledgerPath)), `.${basename(resolve(ledgerPath))}.sprint10-live-journey.lock`);
+}
+
+function rejectExistingLease(ledgerPath, { allowActiveRunnerLease = false } = {}) {
+  const paths = [sprint10LedgerLockPath(ledgerPath)];
+  if (!allowActiveRunnerLease) paths.push(liveRunLeasePath(ledgerPath));
+  if (paths.some((path) => existsSync(path))) {
+    fail("An active or stale ledger lease blocks read-only live-journey validation.");
   }
-  const relation = relative(root, path);
-  if (!relation || relation === ".." || relation.startsWith(`..${sep}`) || isAbsolute(relation) || dirname(path) !== root) {
-    fail("The cycle ledger must be a direct child of its explicit private root.");
-  }
-  privateRegularFile(path, "The existing cycle ledger");
+}
+
+export function validateLedger(rootValue, pathValue, allowUnresolved = false) {
   let ledger;
-  try { ledger = JSON.parse(readFileSync(path, "utf8")); }
-  catch { fail("The existing cycle ledger is missing or invalid; it will not be initialized."); }
-  if (ledger?.schemaVersion !== 1 || ledger?.cycleId !== exactCycleId || ledger?.ledgerId !== exactLedgerId ||
-      ledger?.ceilingUsd !== 15 || !Array.isArray(ledger?.receipts) ||
-      ledger.receipts.some((receipt) => receipt?.ledgerId !== exactLedgerId ||
-        (!allowUnresolved && (receipt?.state === "unknown" || receipt?.state === "reserved")))) {
+  try { ledger = readSprint10SpendLedgerFile(rootValue, pathValue); }
+  catch { fail("The existing exact USD 15 cycle ledger is malformed, missing or unsafe."); }
+  if (ledger.ledgerId !== exactLedgerId || ledger.ceilingUsd !== SPRINT10_LIVE_CEILING_USD ||
+      (!allowUnresolved && ledger.receipts.some((receipt) => receipt.state === "unknown" || receipt.state === "reserved"))) {
     fail("The existing exact USD 15 cycle ledger is not accepted or contains an unresolved reserved/unknown charge.");
   }
   return ledger;
+}
+
+export function validateLiveLedgerPreflight(rootValue, pathValue, scope) {
+  rejectExistingLease(pathValue);
+  const ledger = validateLedger(rootValue, pathValue);
+  validateLiveLedgerScopeHeadroom(ledger, scope);
+  return ledger;
+}
+
+export function validateLiveLedgerScopeHeadroom(ledger, scope) {
+  if (!acceptedScopes.has(scope)) fail("The selected bounded live scope is not accepted for ledger preflight.");
+  const reserveRequired = LIVE_SCOPE_RECEIPT_PLAN[scope]
+    .reduce((sum, item) => Number((sum + item.reserveUsd).toFixed(8)), 0);
+  if (Number((ledger.estimatedOrReservedUsd + reserveRequired).toFixed(8)) > ledger.ceilingUsd) {
+    fail("The selected live scope has insufficient remaining USD 15 reserve headroom.");
+  }
+  return { reserveRequired, remainingUsd: Number((ledger.ceilingUsd - ledger.estimatedOrReservedUsd).toFixed(8)) };
+}
+
+export function validateLiveLedgerPostRun(rootValue, pathValue, { allowActiveRunnerLease = false } = {}) {
+  rejectExistingLease(pathValue, { allowActiveRunnerLease });
+  return validateLedger(rootValue, pathValue);
 }
 
 function runtimeEnvironment(source = process.env) {
@@ -113,7 +152,10 @@ function validateLocalCheckout(repositoryRoot, expectedCommit) {
 function acquireRunLease(rootValue, pathValue, commit, scope) {
   const root = resolve(rootValue);
   const ledgerPath = resolve(pathValue);
-  const leasePath = join(root, `.${basename(ledgerPath)}.sprint10-live-journey.lock`);
+  if (!isAbsolute(rootValue) || !isAbsolute(pathValue) || dirname(ledgerPath) !== root) {
+    fail("The live-run lease requires the exact ledger direct child of its private root.");
+  }
+  const leasePath = liveRunLeasePath(ledgerPath);
   let descriptor;
   try {
     descriptor = openSync(leasePath, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW, 0o600);
@@ -208,7 +250,7 @@ function preflight(repositoryRoot) {
   validatePersona();
   const ledgerRoot = required("GEOAI_SPRINT10_LIVE_LEDGER_ROOT");
   const ledgerPath = required("GEOAI_SPRINT10_LIVE_LEDGER_PATH");
-  const ledger = validateLedger(ledgerRoot, ledgerPath);
+  const ledger = validateLiveLedgerPreflight(ledgerRoot, ledgerPath, scope);
   const receiptPath = required("GEOAI_SPRINT10_LIVE_DEPLOYMENT_RECEIPT_PATH");
   validateReceipt(receiptPath, previewUrl, commit);
   const approval = required("GEOAI_SPRINT10_LIVE_RUN_APPROVAL");
@@ -272,7 +314,7 @@ function findCleanupFailure(value) {
 }
 
 function receiptSummary(config) {
-  const ledger = validateLedger(config.ledgerRoot, config.ledgerPath, true);
+  const ledger = validateLiveLedgerPostRun(config.ledgerRoot, config.ledgerPath, { allowActiveRunnerLease: true });
   return ledger.receipts.slice(config.baselineReceiptCount).map((receipt) => ({
     id: receipt.id,
     route: receipt.identity?.route,
@@ -426,7 +468,7 @@ module.exports = defineConfig({
   }
 }
 
-export { acquireRunLease, releaseRunLease, runtimeEnvironment, validateLedger };
+export { acquireRunLease, releaseRunLease, runtimeEnvironment };
 
 const directEntry = process.argv[1] ? realpathSync(resolve(process.argv[1])) : null;
 if (directEntry === realpathSync(fileURLToPath(import.meta.url))) {

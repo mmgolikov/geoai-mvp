@@ -113,7 +113,7 @@ export type Sprint10LedgerLock = {
   release: () => void;
 };
 
-const RESERVE_USD: Readonly<Record<Sprint10Route, number>> = { ai: 1.2, create: 0.3 };
+export const RESERVE_USD: Readonly<Record<Sprint10Route, number>> = { ai: 1.2, create: 0.3 };
 const MODEL_PATTERN = /^gpt-5\.6-(luna|terra|sol)(?:-\d{4}-\d{2}-\d{2})?$/;
 const HOST_PATTERN = /^geoai-[a-z0-9-]+\.vercel\.app$/;
 const COMMIT_PATTERN = /^[0-9a-f]{40}$/;

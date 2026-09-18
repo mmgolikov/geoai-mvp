@@ -20,7 +20,10 @@ import {
 } from "node:fs";
 import { basename, dirname, isAbsolute, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { validateLedger } from "./sprint10-live-journey-run.mjs";
+import {
+  LIVE_SCOPE_RECEIPT_PLAN,
+  validateLiveLedgerPreflight
+} from "./sprint10-live-journey-run.mjs";
 
 const exactProjectRef = "pphdqkurxneyagvnnjdt";
 const exactSupabaseOrigin = `https://${exactProjectRef}.supabase.co`;
@@ -128,21 +131,29 @@ export function validateActiveCheckpointPath(pathValue, mustExist = false) {
 
 export function writeActivePersonaCheckpoint(pathValue, input, { replace = false } = {}) {
   const path = validateActiveCheckpointPath(pathValue, replace);
-  if (!input || !["active", "retired", "retirement_failed"].includes(input.state) ||
+  if (!input || !["provisioning", "active", "retired", "retirement_failed"].includes(input.state) ||
       !/^[0-9a-f]{18}$/.test(input.runId) || !/^[0-9a-f]{40}$/.test(input.gitHead) ||
       input.projectRef !== exactProjectRef || !Array.isArray(input.personas) || input.personas.length !== 2 ||
       input.personas[0]?.lane !== "A" || input.personas[1]?.lane !== "B" ||
-      input.personas.some((persona) => !uuidPattern.test(persona?.userId ?? "") ||
-        Object.keys(persona).sort().join(",") !== "lane,userId")) {
+      input.personas.some((persona) =>
+        !["not_attempted", "create_dispatched", "uuid_known", "active", "retired", "retirement_failed"].includes(persona?.state) ||
+        !(persona.userId === null || uuidPattern.test(persona.userId ?? "")) ||
+        Object.keys(persona).sort().join(",") !== "lane,state,userId" ||
+        (["uuid_known", "active"].includes(persona.state) && persona.userId === null) ||
+        (["not_attempted", "create_dispatched"].includes(persona.state) && persona.userId !== null)) ||
+      (input.state === "retired" && input.personas.some((persona) => persona.state !== "retired")) ||
+      (input.state === "retirement_failed" &&
+        (input.personas.some((persona) => !["retired", "retirement_failed"].includes(persona.state)) ||
+          input.personas.every((persona) => persona.state === "retired")))) {
     fail("The active-persona checkpoint payload is not accepted.", "checkpoint_payload_invalid");
   }
   const payload = {
-    schemaVersion: "geoai.sprint10.active-persona-checkpoint.v1",
+    schemaVersion: "geoai.sprint10.active-persona-checkpoint.v2",
     state: input.state,
     runId: input.runId,
     projectRef: exactProjectRef,
     gitHead: input.gitHead,
-    personas: input.personas.map(({ lane, userId }) => ({ lane, userId }))
+    personas: input.personas.map(({ lane, state, userId }) => ({ lane, state, userId }))
   };
   const temporaryPath = resolve(dirname(path), `.${basename(path)}.${randomUUID()}.tmp`);
   let descriptor;
@@ -178,7 +189,7 @@ export function validateRuntimeConfig(
   argv,
   gitHead,
   nodeMajor = Number(process.versions.node.split(".")[0]),
-  { ledgerValidator = validateLedger } = {}
+  { ledgerPreflight = validateLiveLedgerPreflight } = {}
 ) {
   if (!Array.isArray(argv) || argv.length !== 2) {
     fail("The hosted Auth probe accepts no command-line arguments; all sensitive inputs must remain runtime-only.");
@@ -247,7 +258,7 @@ export function validateRuntimeConfig(
     if (ledgerId !== exactLedgerId) fail("The optional live-journey ledger identity is not accepted.");
     const ledgerRoot = required(env, "GEOAI_HOSTED_AUTH_PROBE_LIVE_LEDGER_ROOT");
     const ledgerPath = required(env, "GEOAI_HOSTED_AUTH_PROBE_LIVE_LEDGER_PATH");
-    const ledger = ledgerValidator(ledgerRoot, ledgerPath);
+    const ledger = ledgerPreflight(ledgerRoot, ledgerPath, scope);
     if (ledger?.ledgerId !== exactLedgerId) fail("The early read-only ledger receipt is not accepted.");
     const liveApproval = required(env, "GEOAI_HOSTED_AUTH_PROBE_LIVE_RUN_APPROVAL");
     if (liveApproval !== `paid-live-journey:${exactLedgerId}:${preview.hostname}:${expectedCommitSha}:${scope}`) {
@@ -503,6 +514,15 @@ function newSyntheticPersona(lane, runId) {
     createAttempted: false,
     createOutcomeUnknown: false,
     createAbsenceProven: false,
+    provisioningState: "not_attempted",
+    credentialsCleared: false,
+    auth: {
+      primaryPasswordLogin: false,
+      getClaims: false,
+      getUser: false,
+      currentProfile: false,
+      secondaryPasswordLogin: false
+    },
     cleanup: {
       serverGlobalRevokeConfirmed: false,
       refreshTokensRejected: 0,
@@ -584,7 +604,7 @@ export function unknownCreateFailure(persona) {
   };
 }
 
-async function createPersona(admin, config, adminFetch, persona) {
+async function createPersona(admin, config, adminFetch, persona, { onUuidKnown = () => {} } = {}) {
   let result;
   let requestFailure = null;
   persona.createAttempted = true;
@@ -603,6 +623,7 @@ async function createPersona(admin, config, adminFetch, persona) {
   if (result?.data?.user?.id) {
     captureCreatedUserId(persona, result.data);
     persona.createOutcomeUnknown = false;
+    onUuidKnown(persona);
   }
   if (requestFailure || result?.error || !persona.userId) {
     if (requestFailure && isDefinitivePreDispatchFailure(requestFailure)) {
@@ -621,6 +642,7 @@ async function createPersona(admin, config, adminFetch, persona) {
     if (recovery.userId) {
       persona.userId = recovery.userId;
       persona.createOutcomeUnknown = false;
+      onUuidKnown(persona);
     }
     fail(
       recovery.userId
@@ -654,6 +676,8 @@ async function createSession(createClient, config, persona, label) {
     accessToken: data.session.access_token,
     refreshToken: data.session.refresh_token
   });
+  if (label === "primary") persona.auth.primaryPasswordLogin = true;
+  if (label === "secondary") persona.auth.secondaryPasswordLogin = true;
   return { client, data };
 }
 
@@ -666,11 +690,13 @@ async function authenticatePersona(createClient, config, persona) {
   assert.equal(claimsData?.claims?.sub, persona.userId);
   assert.equal(claimsData?.claims?.role, "authenticated");
   assert.equal(claimsData?.claims?.is_anonymous, false);
+  persona.auth.getClaims = true;
 
   const { data: userData, error: userError } = await primary.client.auth.getUser(primaryAccessToken);
   assertNoError(userError, `getUser ${persona.lane}`);
   assert.equal(userData?.user?.id, persona.userId);
   assert.equal(userData?.user?.email?.toLowerCase(), persona.email);
+  persona.auth.getUser = true;
 
   const profileResponse = await primary.client.schema("api").rpc("current_profile");
   assertNoError(profileResponse.error, `api.current_profile ${persona.lane}`);
@@ -683,6 +709,7 @@ async function authenticatePersona(createClient, config, persona) {
   assert.equal(profile.status, "active");
   assert.equal(profile.identity_kind, "user");
   persona.profileId = profile.id;
+  persona.auth.currentProfile = true;
 
   await createSession(createClient, config, persona, "secondary");
   assert.equal(persona.sessions.length, 2, `persona ${persona.lane} must hold two independent sessions before retirement`);
@@ -798,6 +825,7 @@ export function assertActiveCurrentPersona(personas, runId, invocationState) {
       !uuidPattern.test(primary.userId ?? "") || !uuidPattern.test(primary.profileId ?? "") ||
       !uuidPattern.test(secondary.userId ?? "") || !uuidPattern.test(secondary.profileId ?? "") ||
       primary.userId === secondary.userId || primary.profileId === secondary.profileId ||
+      primary.provisioningState !== "active" || secondary.provisioningState !== "active" ||
       typeof primary.email !== "string" || typeof primary.password !== "string" || primary.password.length < 8 ||
       primary.createOutcomeUnknown !== false || !Array.isArray(primary.sessions) || primary.sessions.length !== 2 ||
       primary.sessions.some((session) => !session?.accessToken || !session?.refreshToken) ||
@@ -835,16 +863,22 @@ export function buildLiveJourneyChildEnvironment(config, personas, env = process
   return childEnvironment;
 }
 
-function parseLiveReceipts(value, scope) {
+function parseLiveReceipts(value, scope, { allowPartialPrefix = false } = {}) {
   if (!Array.isArray(value) || value.length > 2) fail("The live child receipt list is not accepted.", "live_receipt_invalid");
+  const expected = LIVE_SCOPE_RECEIPT_PLAN[scope];
+  if (!expected || (!allowPartialPrefix && value.length !== expected.length) ||
+      (allowPartialPrefix && value.length > expected.length)) {
+    fail("The live child spend receipt does not match the selected bounded scope.", "live_receipt_invalid");
+  }
   const seen = new Set();
-  const receipts = value.map((receipt) => {
+  const receipts = value.map((receipt, index) => {
+    const expectedReceipt = expected[index];
     if (!exactKeys(receipt, ["id", "route", "depth", "state", "estimatedUsd"]) ||
         !Number.isSafeInteger(receipt.id) || receipt.id < 1 || seen.has(receipt.id) ||
-        !["ai", "create"].includes(receipt.route) || !["quick", "standard", "deep"].includes(receipt.depth) ||
-        !["settled", "reserved", "unknown"].includes(receipt.state) ||
+        receipt.route !== expectedReceipt?.route || receipt.depth !== expectedReceipt?.depth ||
+        receipt.state !== "settled" ||
         typeof receipt.estimatedUsd !== "number" || !Number.isFinite(receipt.estimatedUsd) ||
-        receipt.estimatedUsd < 0 || receipt.estimatedUsd > 15) {
+        receipt.estimatedUsd < 0 || receipt.estimatedUsd > expectedReceipt.reserveUsd) {
       fail("A live child spend receipt is malformed.", "live_receipt_invalid");
     }
     seen.add(receipt.id);
@@ -856,16 +890,6 @@ function parseLiveReceipts(value, scope) {
       estimatedUsd: receipt.estimatedUsd
     };
   });
-  const expectedRoutes = {
-    journey: ["ai", "create"],
-    "dubai-analyse": ["ai"],
-    "dubai-find": [],
-    "singapore-create": ["create"]
-  }[scope];
-  if (!expectedRoutes || receipts.map((receipt) => receipt.route).sort().join(",") !== [...expectedRoutes].sort().join(",") ||
-      receipts.reduce((sum, receipt) => sum + receipt.estimatedUsd, 0) > 15) {
-    fail("The live child spend receipt does not match the selected bounded scope.", "live_receipt_invalid");
-  }
   return receipts;
 }
 
@@ -877,33 +901,32 @@ export function parseLiveJourneyChildReceipt(result, expected) {
       value.commit !== expected.commit) {
     fail("The live child receipt is not bound to the exact Preview tuple.", "live_receipt_invalid");
   }
-  const receipts = parseLiveReceipts(value.receipts, expected.scope);
-  const base = {
-    scope: value.scope,
-    previewHost: value.previewHost,
-    commit: value.commit,
-    receipts
-  };
   if (value.status === "PASS") {
+    const receipts = parseLiveReceipts(value.receipts, expected.scope);
     if (result.status !== 0 || !exactKeys(value, ["status", "scope", "previewHost", "commit", "browserLocalPersistenceOnly", "receipts"]) ||
-        value.browserLocalPersistenceOnly !== true || receipts.some((receipt) => receipt.state !== "settled")) {
+        value.browserLocalPersistenceOnly !== true) {
       fail("The live PASS receipt is not accepted.", "live_receipt_invalid");
     }
-    return { status: "PASS", ...base, browserLocalPersistenceOnly: true };
+    return { status: "PASS", scope: value.scope, previewHost: value.previewHost, commit: value.commit, receipts,
+      browserLocalPersistenceOnly: true };
   }
   if (value.status === "INCONCLUSIVE") {
+    const receipts = parseLiveReceipts(value.receipts, expected.scope);
     if (result.status !== 2 || !exactKeys(value, ["status", "scope", "previewHost", "commit", "reason", "receipts"]) ||
         typeof value.reason !== "string" || !/^[A-Za-z0-9 .,:;()/_-]{1,500}$/.test(value.reason)) {
       fail("The live INCONCLUSIVE receipt is not accepted.", "live_receipt_invalid");
     }
-    return { status: "INCONCLUSIVE", ...base, reason: value.reason };
+    return { status: "INCONCLUSIVE", scope: value.scope, previewHost: value.previewHost, commit: value.commit, receipts,
+      reason: value.reason };
   }
   if (value.status === "FAIL_CLEANUP") {
-    if (result.status === 0 || !exactKeys(value, ["status", "scope", "previewHost", "commit", "stage", "receipts"]) ||
+    const receipts = parseLiveReceipts(value.receipts, expected.scope, { allowPartialPrefix: true });
+    if (result.status !== 1 || !exactKeys(value, ["status", "scope", "previewHost", "commit", "stage", "receipts"]) ||
         typeof value.stage !== "string" || !/^[A-Za-z0-9_-]{1,80}$/.test(value.stage)) {
       fail("The live cleanup-failure receipt is not accepted.", "live_receipt_invalid");
     }
-    return { status: "FAIL_CLEANUP", ...base, stage: value.stage };
+    return { status: "FAIL_CLEANUP", scope: value.scope, previewHost: value.previewHost, commit: value.commit, receipts,
+      stage: value.stage };
   }
   fail("The live child returned an unsupported status.", "live_receipt_invalid");
 }
@@ -959,13 +982,19 @@ export function runReviewedLiveJourney(
   }
 }
 
-export async function runBestEffortStages(stages, failureIdentity) {
+export async function runBestEffortStages(stages, failureIdentity, onStage = () => {}) {
   const failures = [];
   for (const [stage, operation] of stages) {
     try {
       await operation();
     } catch (error) {
       failures.push({ ...failureIdentity, stage, error: safeError(error) });
+    } finally {
+      try {
+        onStage(stage);
+      } catch (error) {
+        failures.push({ ...failureIdentity, stage: `${stage}_checkpoint`, error: safeError(error) });
+      }
     }
   }
   return failures;
@@ -1042,9 +1071,10 @@ function clearPersonaCredentials(persona) {
     session.client = null;
   }
   persona.sessions = [];
+  persona.credentialsCleared = true;
 }
 
-export async function retirePersona(createClient, admin, adminFetch, config, persona) {
+export async function retirePersona(createClient, admin, adminFetch, config, persona, { onStage = () => {} } = {}) {
   const failures = [];
   if (!persona.userId) {
     if (persona.createAttempted && !persona.createAbsenceProven) {
@@ -1062,17 +1092,115 @@ export async function retirePersona(createClient, admin, adminFetch, config, per
     ["password_rejected_after_ban", () => assertPasswordRejected(createClient, config, persona)],
     ["stale_jwt_current_profile_empty", () => assertStaleJwtProfileEmpty(createClient, config, persona)],
     ["retired_user_readback", () => assertFinalBanReadback(admin, persona)]
-  ], { userId: persona.userId }));
+  ], { userId: persona.userId }, onStage));
   clearPersonaCredentials(persona);
   return failures;
 }
 
-async function runHostedProbe() {
-  const gitHead = readGitState();
-  const config = validateRuntimeConfig(process.env, process.argv, gitHead);
-  const { createClient } = await import("@supabase/supabase-js");
-  const runId = randomUUID().replaceAll("-", "").slice(0, 18);
-  const personas = [newSyntheticPersona("A", runId), newSyntheticPersona("B", runId)];
+function personaRetirementProven(persona) {
+  if (!persona.userId) return (!persona.createAttempted || persona.createAbsenceProven) && persona.credentialsCleared;
+  return persona.cleanup.serverGlobalRevokeConfirmed === true && persona.cleanup.refreshTokensRejected === 2 &&
+    persona.cleanup.banned === true && persona.cleanup.passwordRejected === true &&
+    persona.cleanup.currentProfileEmpty === true && persona.cleanup.finalBanReadback === true &&
+    persona.credentialsCleared === true;
+}
+
+function lifecycleCheckpointInput(config, runId, personas, state) {
+  return {
+    state,
+    runId,
+    projectRef: exactProjectRef,
+    gitHead: config.expectedCommitSha,
+    personas: personas.map(({ lane, provisioningState, userId }) => ({
+      lane,
+      state: provisioningState,
+      userId: uuidPattern.test(userId ?? "") ? userId : null
+    }))
+  };
+}
+
+function observedLifecycle(personas, { anonymousDenial, isolatedProfiles, previewHarness }) {
+  return {
+    createDispatched: personas.filter((persona) => persona.createAttempted).length,
+    uuidsKnown: personas.filter((persona) => uuidPattern.test(persona.userId ?? "")).length,
+    anonymousCurrentProfileDenied: anonymousDenial,
+    isolatedProfiles,
+    previewHarness,
+    auth: personas.map((persona) => ({
+      lane: persona.lane,
+      primaryPasswordLogin: persona.auth.primaryPasswordLogin,
+      getClaims: persona.auth.getClaims,
+      getUser: persona.auth.getUser,
+      currentProfile: persona.auth.currentProfile,
+      secondaryPasswordLogin: persona.auth.secondaryPasswordLogin
+    }))
+  };
+}
+
+function terminalPersonaEvidence(persona) {
+  return {
+    lane: persona.lane,
+    userId: uuidPattern.test(persona.userId ?? "") ? persona.userId : null,
+    checkpointState: persona.provisioningState,
+    createAttempted: persona.createAttempted,
+    createAbsenceProven: persona.createAbsenceProven,
+    serverGlobalRevokeConfirmed: persona.cleanup.serverGlobalRevokeConfirmed,
+    refreshTokensRejected: persona.cleanup.refreshTokensRejected,
+    banned: persona.cleanup.banned,
+    passwordRejected: persona.cleanup.passwordRejected,
+    currentProfileEmpty: persona.cleanup.currentProfileEmpty,
+    finalBanReadback: persona.cleanup.finalBanReadback,
+    credentialsCleared: persona.credentialsCleared,
+    retirementProven: personaRetirementProven(persona)
+  };
+}
+
+function successfulChecks(personas, observations) {
+  return {
+    adminCreateUserWithoutEmailDelivery: personas.filter((persona) => uuidPattern.test(persona.userId ?? "")).length,
+    primaryPasswordLogin: personas.filter((persona) => persona.auth.primaryPasswordLogin).length,
+    independentSecondarySessionLogin: personas.filter((persona) => persona.auth.secondaryPasswordLogin).length,
+    getClaims: personas.filter((persona) => persona.auth.getClaims).length,
+    getUser: personas.filter((persona) => persona.auth.getUser).length,
+    currentProfile: personas.filter((persona) => persona.auth.currentProfile).length,
+    isolatedProfiles: observations.isolatedProfiles,
+    anonymousCurrentProfileDenied: observations.anonymousDenial,
+    previewHarness: observations.previewHarness
+  };
+}
+
+function successfulRetirement(personas) {
+  return {
+    rawServerGlobalRevokeConfirmed: personas.filter((persona) => persona.cleanup.serverGlobalRevokeConfirmed).length,
+    independentRefreshTokensRejected: personas.reduce((sum, persona) => sum + persona.cleanup.refreshTokensRejected, 0),
+    permanentAdminBan: personas.filter((persona) => persona.cleanup.banned).length,
+    passwordLoginRejectedWithUserBannedCode: personas.filter((persona) => persona.cleanup.passwordRejected).length,
+    staleJwtCurrentProfileSuccessfulEmptyResult: personas.filter((persona) => persona.cleanup.currentProfileEmpty).length,
+    finalFutureBanReadback: personas.filter((persona) => persona.cleanup.finalBanReadback).length,
+    hardDeletedUsers: 0,
+    profileRowsPreservedByDesignNotBroadReadBack: personas.filter((persona) => uuidPattern.test(persona.profileId ?? "")).length
+  };
+}
+
+export async function runHostedProbe(options = {}) {
+  const environment = options.env ?? process.env;
+  const gitHead = options.gitHead ?? readGitState();
+  const config = options.config ?? validateRuntimeConfig(environment, options.argv ?? process.argv, gitHead);
+  const createClient = options.createClient ?? (await import("@supabase/supabase-js")).createClient;
+  const runId = options.runId ?? randomUUID().replaceAll("-", "").slice(0, 18);
+  const personas = options.personas ?? [newSyntheticPersona("A", runId), newSyntheticPersona("B", runId)];
+  const operations = {
+    createPersona: options.operations?.createPersona ?? createPersona,
+    authenticatePersona: options.operations?.authenticatePersona ?? authenticatePersona,
+    verifyAnonymousDenial: options.operations?.verifyAnonymousDenial ?? verifyAnonymousDenial,
+    runExistingPreviewHarness: options.operations?.runExistingPreviewHarness ?? runExistingPreviewHarness,
+    runReviewedLiveJourney: options.operations?.runReviewedLiveJourney ?? runReviewedLiveJourney,
+    retirePersona: options.operations?.retirePersona ?? retirePersona,
+    writeCheckpoint: options.operations?.writeCheckpoint ?? writeActivePersonaCheckpoint,
+    onEvent: options.operations?.onEvent ?? (() => {})
+  };
+  const emitReceipt = options.emitReceipt ?? ((receipt) => console.log(JSON.stringify(receipt)));
+  const setExitCode = options.setExitCode ?? ((code) => { process.exitCode = code; });
   const recoveryEmails = new Set(personas.map((persona) => persona.email));
   const adminFetch = createBoundedFetch("admin", { recoveryEmails });
   const admin = createClient(config.supabaseUrl, config.adminSecretKey, clientOptions(adminFetch));
@@ -1081,77 +1209,107 @@ async function runHostedProbe() {
   let previewHarness = "not_requested";
   let liveJourney = { status: "NOT_REQUESTED" };
   let checkpointWritten = false;
+  let anonymousDenialObserved = false;
+  let isolatedProfilesObserved = false;
   const liveInvocationState = { invoked: false };
 
   try {
-    for (const persona of personas) await createPersona(admin, config, adminFetch, persona);
+    if (config.liveJourney) {
+      operations.writeCheckpoint(config.liveJourney.checkpointPath,
+        lifecycleCheckpointInput(config, runId, personas, "provisioning"));
+      checkpointWritten = true;
+      operations.onEvent("checkpoint_initialized", { personas, config });
+    }
+    for (const persona of personas) {
+      if (config.liveJourney) {
+        persona.createAttempted = true;
+        persona.createOutcomeUnknown = true;
+        persona.provisioningState = "create_dispatched";
+        operations.writeCheckpoint(config.liveJourney.checkpointPath,
+          lifecycleCheckpointInput(config, runId, personas, "provisioning"), { replace: true });
+        operations.onEvent(`${persona.lane}_create_dispatched`, { personas, config });
+      }
+      await operations.createPersona(admin, config, adminFetch, persona, {
+        onUuidKnown(knownPersona) {
+          if (!config.liveJourney) return;
+          knownPersona.provisioningState = "uuid_known";
+          operations.writeCheckpoint(config.liveJourney.checkpointPath,
+            lifecycleCheckpointInput(config, runId, personas, "provisioning"), { replace: true });
+          operations.onEvent(`${knownPersona.lane}_uuid_known`, { personas, config });
+        }
+      });
+    }
     assert.notEqual(personas[0].userId, personas[1].userId);
-    for (const persona of personas) await authenticatePersona(createClient, config, persona);
+    for (const persona of personas) {
+      await operations.authenticatePersona(createClient, config, persona);
+      if (config.liveJourney) {
+        persona.provisioningState = "active";
+        operations.writeCheckpoint(config.liveJourney.checkpointPath,
+          lifecycleCheckpointInput(config, runId, personas, "provisioning"), { replace: true });
+        operations.onEvent(`${persona.lane}_authenticated`, { personas, config });
+      }
+    }
     assert.notEqual(personas[0].profileId, personas[1].profileId, "A/B profiles must remain isolated");
     assert.equal(personas[0].userId === personas[1].userId, false);
-    await verifyAnonymousDenial(createClient, config);
+    isolatedProfilesObserved = true;
+    await operations.verifyAnonymousDenial(createClient, config);
+    anonymousDenialObserved = true;
     if (config.liveJourney) {
-      writeActivePersonaCheckpoint(config.liveJourney.checkpointPath, {
-        state: "active",
-        runId,
-        projectRef: exactProjectRef,
-        gitHead: config.expectedCommitSha,
-        personas: personas.map(({ lane, userId }) => ({ lane, userId }))
-      });
-      checkpointWritten = true;
+      operations.writeCheckpoint(config.liveJourney.checkpointPath,
+        lifecycleCheckpointInput(config, runId, personas, "active"), { replace: true });
+      operations.onEvent("checkpoint_active", { personas, config });
     }
-    previewHarness = runExistingPreviewHarness(config, personas);
+    previewHarness = operations.runExistingPreviewHarness(config, personas);
+    operations.onEvent("preview_child_complete", { personas, config });
     if (config.liveJourney) {
-      liveJourney = runReviewedLiveJourney(config, personas, runId, { invocationState: liveInvocationState });
+      liveJourney = operations.runReviewedLiveJourney(config, personas, runId, { invocationState: liveInvocationState });
+      operations.onEvent("live_child_complete", { personas, config });
     }
   } catch (error) {
     executionError = error instanceof Error ? error : new Error("The hosted Auth probe failed closed.");
   } finally {
     for (const persona of personas) {
-      cleanupFailures.push(...await retirePersona(createClient, admin, adminFetch, config, persona));
-    }
-    if (config.liveJourney && checkpointWritten) {
       try {
-        writeActivePersonaCheckpoint(config.liveJourney.checkpointPath, {
-          state: cleanupFailures.length === 0 ? "retired" : "retirement_failed",
-          runId,
-          projectRef: exactProjectRef,
-          gitHead: config.expectedCommitSha,
-          personas: personas.map(({ lane, userId }) => ({ lane, userId }))
-        }, { replace: true });
+        cleanupFailures.push(...await operations.retirePersona(createClient, admin, adminFetch, config, persona, {
+          onStage(stage) {
+            if (config.liveJourney && checkpointWritten) {
+              operations.writeCheckpoint(config.liveJourney.checkpointPath,
+                lifecycleCheckpointInput(config, runId, personas, "active"), { replace: true });
+            }
+            operations.onEvent(`${persona.lane}_retirement_${stage}`, { personas, config });
+          }
+        }));
       } catch (error) {
         cleanupFailures.push({
-          userId: personas[0]?.userId ?? "unknown",
-          stage: "checkpoint_retirement_state",
+          userId: persona.userId ?? "unknown",
+          stage: "retirement_unexpected_failure",
           error: safeError(error)
         });
+        clearPersonaCredentials(persona);
+      }
+      persona.provisioningState = personaRetirementProven(persona) ? "retired" : "retirement_failed";
+      if (config.liveJourney && checkpointWritten) {
+        try {
+          const terminalSoFar = personas.every((candidate) =>
+            candidate.provisioningState === "retired" || candidate.provisioningState === "retirement_failed");
+          const state = terminalSoFar
+            ? personas.every((candidate) => candidate.provisioningState === "retired") ? "retired" : "retirement_failed"
+            : "active";
+          operations.writeCheckpoint(config.liveJourney.checkpointPath,
+            lifecycleCheckpointInput(config, runId, personas, state), { replace: true });
+          operations.onEvent(`${persona.lane}_retirement_complete`, { personas, config });
+        } catch (error) {
+          cleanupFailures.push({
+            userId: persona.userId ?? "unknown",
+            stage: "checkpoint_retirement_state",
+            error: safeError(error)
+          });
+        }
       }
     }
   }
 
-  if (cleanupFailures.length > 0) {
-    if (config.liveJourney) {
-      console.log(JSON.stringify({
-        schemaVersion: "geoai.sprint10.hosted-auth-live-journey-receipt.v1",
-        status: "FAIL_ACTION_REQUIRED",
-        projectRef: exactProjectRef,
-        gitHead: config.expectedCommitSha,
-        previewHost: config.liveJourney.previewHost,
-        scope: config.liveJourney.scope,
-        ledgerId: config.liveJourney.ledgerId,
-        checks: {
-          adminCreateUserWithoutEmailDelivery: personas.filter((persona) => persona.userId).length,
-          previewHarness
-        },
-        liveJourney: liveJourney.status === "NOT_REQUESTED"
-          ? { status: "FAIL", stage: "pre_live_failure" }
-          : liveJourney,
-        cleanupFailures: sanitizedCleanupFailures(cleanupFailures),
-        secretMaterialEmitted: false
-      }));
-      process.exitCode = 1;
-      return;
-    }
+  if (cleanupFailures.length > 0 && !config.liveJourney) {
     console.error(JSON.stringify({
       status: "FAIL_ACTION_REQUIRED",
       projectRef: exactProjectRef,
@@ -1160,47 +1318,44 @@ async function runHostedProbe() {
     fail("Terminal credential retirement was not proven for every potentially created synthetic user.", "retirement_unproven");
   }
   if (config.liveJourney) {
-    const checks = {
-      adminCreateUserWithoutEmailDelivery: 2,
-      primaryPasswordLogin: 2,
-      independentSecondarySessionLogin: 2,
-      getClaims: 2,
-      getUser: 2,
-      currentProfile: 2,
-      isolatedProfiles: true,
-      anonymousCurrentProfileDenied: true,
-      previewHarness
-    };
-    const retirement = {
-      rawServerGlobalRevokeConfirmed: 2,
-      independentRefreshTokensRejected: 4,
-      permanentAdminBan: 2,
-      passwordLoginRejectedWithUserBannedCode: 2,
-      staleJwtCurrentProfileSuccessfulEmptyResult: 2,
-      finalFutureBanReadback: 2,
-      hardDeletedUsers: 0,
-      profileRowsPreservedByDesignNotBroadReadBack: 2
-    };
+    const observations = { anonymousDenial: anonymousDenialObserved, isolatedProfiles: isolatedProfilesObserved, previewHarness };
     const sanitizedLiveJourney = executionError && liveJourney.status === "NOT_REQUESTED"
       ? { status: "FAIL", stage: "pre_live_failure" }
       : liveJourney;
-    const status = executionError || sanitizedLiveJourney.status === "FAIL" || sanitizedLiveJourney.status === "FAIL_CLEANUP"
-      ? "FAIL"
-      : sanitizedLiveJourney.status;
-    console.log(JSON.stringify({
+    const retirementProven = personas.every(personaRetirementProven);
+    const successStatus = !executionError && retirementProven && cleanupFailures.length === 0 &&
+      ["PASS", "INCONCLUSIVE"].includes(sanitizedLiveJourney.status)
+      ? sanitizedLiveJourney.status
+      : null;
+    const baseReceipt = {
       schemaVersion: "geoai.sprint10.hosted-auth-live-journey-receipt.v1",
-      status,
       projectRef: exactProjectRef,
       gitHead: config.expectedCommitSha,
       previewHost: config.liveJourney.previewHost,
       scope: config.liveJourney.scope,
       ledgerId: config.liveJourney.ledgerId,
-      checks,
       liveJourney: sanitizedLiveJourney,
-      retirement,
       secretMaterialEmitted: false
-    }));
-    process.exitCode = status === "PASS" ? 0 : status === "INCONCLUSIVE" ? 2 : 1;
+    };
+    if (successStatus) {
+      emitReceipt({
+        ...baseReceipt,
+        status: successStatus,
+        checks: successfulChecks(personas, observations),
+        retirement: successfulRetirement(personas)
+      });
+      setExitCode(successStatus === "PASS" ? 0 : 2);
+      return;
+    }
+    const actionRequired = cleanupFailures.length > 0 || !retirementProven;
+    emitReceipt({
+      ...baseReceipt,
+      status: actionRequired ? "FAIL_ACTION_REQUIRED" : "FAIL",
+      observed: observedLifecycle(personas, observations),
+      personas: personas.map(terminalPersonaEvidence),
+      ...(actionRequired ? { cleanupFailures: sanitizedCleanupFailures(cleanupFailures) } : {})
+    });
+    setExitCode(1);
     return;
   }
   if (executionError) throw executionError;

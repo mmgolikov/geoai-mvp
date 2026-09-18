@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import {
   chmodSync,
+  existsSync,
   lstatSync,
   mkdtempSync,
   readFileSync,
@@ -16,6 +17,7 @@ import {
   assertActiveCurrentPersona,
   buildLiveJourneyChildEnvironment,
   parseLiveJourneyChildReceipt,
+  runHostedProbe,
   runReviewedLiveJourney,
   sanitizedCleanupFailures,
   validateRuntimeConfig,
@@ -45,8 +47,7 @@ const ledger = {
   ceilingUsd: 15,
   generation: 0,
   receipts: [],
-  estimatedOrReservedUsd: 0,
-  notes: []
+  estimatedOrReservedUsd: 0
 };
 writeFileSync(ledgerPath, `${JSON.stringify(ledger)}\n`, { mode: 0o600 });
 chmodSync(ledgerPath, 0o600);
@@ -86,10 +87,11 @@ const actualValidatedConfig = validateRuntimeConfig(baseEnvironment, ["node", "o
 assert.equal(actualValidatedConfig.liveJourney.ledgerId, exactLedgerId,
   "the combined seam must use the live runner's real exported read-only ledger validator");
 const config = validateRuntimeConfig(baseEnvironment, ["node", "operator"], head, 22, {
-  ledgerValidator(root, path) {
+  ledgerPreflight(root, path, scope) {
     earlyLedgerValidations += 1;
     assert.equal(root, privateRoot);
     assert.equal(path, ledgerPath);
+    assert.equal(scope, "journey");
     return ledger;
   }
 });
@@ -102,7 +104,7 @@ const authOnlyConfig = validateRuntimeConfig({
   GEOAI_HOSTED_AUTH_PROBE_PREVIEW_SEAM: "disabled",
   GEOAI_HOSTED_AUTH_PROBE_LIVE_JOURNEY_SEAM: "disabled"
 }, ["node", "operator"], head, 22, {
-  ledgerValidator() { throw new Error("Auth-only mode must not inspect the live ledger"); }
+  ledgerPreflight() { throw new Error("Auth-only mode must not inspect the live ledger"); }
 });
 assert.equal(authOnlyConfig.liveJourney, null);
 
@@ -118,14 +120,14 @@ for (const [name, delta] of [
   }]
 ]) {
   assert.throws(() => validateRuntimeConfig({ ...baseEnvironment, ...delta }, ["node", "operator"], head, 22, {
-    ledgerValidator: () => ledger
+    ledgerPreflight: () => ledger
   }), undefined, `${name} must fail before any account creation`);
 }
 
 const personas = [
   {
     lane: "A", runId, email: "offline-a@example.invalid", password: "offline-a-password",
-    userId: userA, profileId: profileA, createOutcomeUnknown: false,
+    userId: userA, profileId: profileA, createOutcomeUnknown: false, provisioningState: "active",
     sessions: [
       { accessToken: "a-access-1", refreshToken: "a-refresh-1" },
       { accessToken: "a-access-2", refreshToken: "a-refresh-2" }
@@ -137,7 +139,7 @@ const personas = [
   },
   {
     lane: "B", runId, email: "offline-b@example.invalid", password: "offline-b-password",
-    userId: userB, profileId: profileB, createOutcomeUnknown: false,
+    userId: userB, profileId: profileB, createOutcomeUnknown: false, provisioningState: "active",
     sessions: [
       { accessToken: "b-access-1", refreshToken: "b-refresh-1" },
       { accessToken: "b-access-2", refreshToken: "b-refresh-2" }
@@ -175,8 +177,8 @@ assert(!Object.values(childEnvironment).includes("a-access-1"));
 assert(!Object.values(childEnvironment).includes("b-refresh-2"));
 
 const paidReceipts = [
-  { id: 1, route: "ai", depth: "standard", state: "settled", estimatedUsd: 1.25 },
-  { id: 2, route: "create", depth: "quick", state: "settled", estimatedUsd: 2.5 }
+  { id: 1, route: "ai", depth: "standard", state: "settled", estimatedUsd: 1.2 },
+  { id: 2, route: "create", depth: "standard", state: "settled", estimatedUsd: 0.3 }
 ];
 const childTuple = { scope: "journey", previewHost, commit: head };
 const childResult = (status, value) => ({ status, signal: null, error: null, stdout: JSON.stringify(value), stderr: "suppressed" });
@@ -190,6 +192,40 @@ assert.equal(parseLiveJourneyChildReceipt(childResult(1, cleanupValue), childTup
 assert.throws(() => parseLiveJourneyChildReceipt(childResult(0, { ...passValue, extra: true }), childTuple));
 assert.throws(() => parseLiveJourneyChildReceipt(childResult(0, { ...passValue, receipts: [] }), childTuple));
 assert.throws(() => parseLiveJourneyChildReceipt(childResult(2, { ...inconclusiveValue, reason: "bad\nreason" }), childTuple));
+for (const receipts of [
+  [{ ...paidReceipts[0], depth: "quick" }, paidReceipts[1]],
+  [{ ...paidReceipts[0], estimatedUsd: 1.20000001 }, paidReceipts[1]],
+  [paidReceipts[0], { ...paidReceipts[1], estimatedUsd: 0.30000001 }],
+  [{ ...paidReceipts[0], state: "reserved" }, paidReceipts[1]],
+  [{ ...paidReceipts[0], state: "unknown" }, paidReceipts[1]],
+  [paidReceipts[0], { ...paidReceipts[1], id: 1 }],
+  [{ ...paidReceipts[0], route: "create" }, paidReceipts[1]],
+  [paidReceipts[0]],
+  [...paidReceipts, { id: 3, route: "create", depth: "standard", state: "settled", estimatedUsd: 0.01 }]
+]) {
+  assert.throws(() => parseLiveJourneyChildReceipt(childResult(0, { ...passValue, receipts }), childTuple));
+  assert.throws(() => parseLiveJourneyChildReceipt(childResult(2, { ...inconclusiveValue, receipts }), childTuple));
+}
+assert.equal(parseLiveJourneyChildReceipt(childResult(1, { ...cleanupValue, receipts: [] }), childTuple).receipts.length, 0);
+assert.equal(parseLiveJourneyChildReceipt(childResult(1, { ...cleanupValue, receipts: [paidReceipts[0]] }), childTuple).receipts.length, 1);
+assert.throws(() => parseLiveJourneyChildReceipt(childResult(1, {
+  ...cleanupValue,
+  receipts: [paidReceipts[1]]
+}), childTuple), undefined, "cleanup receipts must be an ordered settled prefix");
+assert.throws(() => parseLiveJourneyChildReceipt(childResult(2, cleanupValue), childTuple));
+for (const [scope, receipts] of [
+  ["dubai-analyse", [paidReceipts[0]]],
+  ["dubai-find", []],
+  ["singapore-create", [paidReceipts[1]]]
+]) {
+  const tuple = { scope, previewHost, commit: head };
+  assert.equal(parseLiveJourneyChildReceipt(childResult(0, {
+    status: "PASS",
+    ...tuple,
+    browserLocalPersistenceOnly: true,
+    receipts
+  }), tuple).status, "PASS");
+}
 
 let passSpawns = 0;
 let passSpawnOptions;
@@ -245,7 +281,7 @@ assert.deepEqual(invalidReceipt, { status: "FAIL", stage: "live_child_invalid_re
 
 const activeCheckpoint = writeActivePersonaCheckpoint(checkpointPath, {
   state: "active", runId, projectRef: "pphdqkurxneyagvnnjdt", gitHead: head,
-  personas: [{ lane: "A", userId: userA }, { lane: "B", userId: userB }]
+  personas: [{ lane: "A", state: "active", userId: userA }, { lane: "B", state: "active", userId: userB }]
 });
 assert.equal(activeCheckpoint.state, "active");
 assert.equal(lstatSync(checkpointPath).mode & 0o077, 0);
@@ -257,19 +293,19 @@ for (const forbidden of [personas[0].email, personas[0].password, personas[1].em
 }
 const retiredCheckpoint = writeActivePersonaCheckpoint(checkpointPath, {
   state: "retired", runId, projectRef: "pphdqkurxneyagvnnjdt", gitHead: head,
-  personas: [{ lane: "A", userId: userA }, { lane: "B", userId: userB }]
+  personas: [{ lane: "A", state: "retired", userId: userA }, { lane: "B", state: "retired", userId: userB }]
 }, { replace: true });
 assert.equal(retiredCheckpoint.state, "retired");
 assert.equal(JSON.parse(readFileSync(checkpointPath, "utf8")).state, "retired");
 
 const failedCheckpointPath = join(privateRoot, "cleanup-failed-personas.json");
 writeActivePersonaCheckpoint(failedCheckpointPath, {
-  state: "active", runId, projectRef: "pphdqkurxneyagvnnjdt", gitHead: head,
-  personas: [{ lane: "A", userId: userA }, { lane: "B", userId: userB }]
+  state: "provisioning", runId, projectRef: "pphdqkurxneyagvnnjdt", gitHead: head,
+  personas: [{ lane: "A", state: "uuid_known", userId: userA }, { lane: "B", state: "create_dispatched", userId: null }]
 });
 const failedCheckpoint = writeActivePersonaCheckpoint(failedCheckpointPath, {
   state: "retirement_failed", runId, projectRef: "pphdqkurxneyagvnnjdt", gitHead: head,
-  personas: [{ lane: "A", userId: userA }, { lane: "B", userId: userB }]
+  personas: [{ lane: "A", state: "retired", userId: userA }, { lane: "B", state: "retirement_failed", userId: null }]
 }, { replace: true });
 assert.equal(failedCheckpoint.state, "retirement_failed");
 assert.equal(JSON.parse(readFileSync(failedCheckpointPath, "utf8")).state, "retirement_failed");
@@ -286,13 +322,189 @@ assert.deepEqual(sanitizedFailures, [{
   error: "auth/logout_failed"
 }]);
 
+const retirementStages = [
+  "server_global_revoke",
+  "primary_refresh_rejected",
+  "secondary_refresh_rejected",
+  "admin_ban",
+  "password_rejected_after_ban",
+  "stale_jwt_current_profile_empty",
+  "retired_user_readback"
+];
+const lifecycleFaults = [
+  "checkpoint_initialized",
+  "A_create_dispatched",
+  "A_uuid_known",
+  "B_create_dispatched",
+  "B_uuid_known",
+  "A_authenticated",
+  "B_authenticated",
+  "checkpoint_active",
+  "preview_child_complete",
+  "live_child_complete",
+  "A_retirement_unexpected_throw",
+  ...retirementStages.flatMap((stage) => [`A_retirement_${stage}`, `B_retirement_${stage}`])
+];
+
+async function runLifecycleFixture(faultAt = null, liveStatus = "PASS") {
+  const suffix = String(faultAt ?? liveStatus).replaceAll(/[^A-Za-z0-9_-]/g, "_");
+  const path = join(privateRoot, `lifecycle-${suffix}.json`);
+  const fixtureConfig = {
+    ...config,
+    liveJourney: { ...config.liveJourney, checkpointPath: path }
+  };
+  const counters = { creates: 0, preview: 0, live: 0, retire: 0 };
+  const createByLane = { A: 0, B: 0 };
+  const receipts = [];
+  const exits = [];
+  let faultSnapshot = null;
+  const ids = { A: userA, B: userB };
+  const profiles = { A: profileA, B: profileB };
+  const operations = {
+    onEvent(event) {
+      if (event === faultAt && !event.includes("_retirement_")) {
+        faultSnapshot = JSON.parse(readFileSync(path, "utf8"));
+        throw new Error(`offline_fault_${event}`);
+      }
+    },
+    async createPersona(_admin, _config, _fetch, persona, { onUuidKnown }) {
+      counters.creates += 1;
+      createByLane[persona.lane] += 1;
+      persona.createAttempted = true;
+      persona.createOutcomeUnknown = false;
+      persona.userId = ids[persona.lane];
+      onUuidKnown(persona);
+    },
+    async authenticatePersona(_createClient, _config, persona) {
+      persona.auth = {
+        primaryPasswordLogin: true,
+        getClaims: true,
+        getUser: true,
+        currentProfile: true,
+        secondaryPasswordLogin: true
+      };
+      persona.profileId = profiles[persona.lane];
+      persona.sessions = [
+        { accessToken: `${persona.lane}-access-1`, refreshToken: `${persona.lane}-refresh-1` },
+        { accessToken: `${persona.lane}-access-2`, refreshToken: `${persona.lane}-refresh-2` }
+      ];
+    },
+    async verifyAnonymousDenial() {},
+    runExistingPreviewHarness() {
+      counters.preview += 1;
+      return "passed_existing_reviewed_runner";
+    },
+    runReviewedLiveJourney() {
+      counters.live += 1;
+      return liveStatus === "INCONCLUSIVE"
+        ? { status: "INCONCLUSIVE", scope: "journey", previewHost, commit: head, receipts: paidReceipts,
+            reason: "Find returned one candidate." }
+        : { status: "PASS", scope: "journey", previewHost, commit: head, receipts: paidReceipts,
+            browserLocalPersistenceOnly: true };
+    },
+    async retirePersona(_createClient, _admin, _fetch, _config, persona, { onStage }) {
+      counters.retire += 1;
+      if (faultAt === `${persona.lane}_retirement_unexpected_throw`) {
+        faultSnapshot = JSON.parse(readFileSync(path, "utf8"));
+        throw new Error("offline_unexpected_retirement_throw");
+      }
+      const failures = [];
+      if (!persona.userId) {
+        persona.credentialsCleared = true;
+        if (persona.createAttempted && !persona.createAbsenceProven) {
+          failures.push({ userId: "unknown", stage: "unknown_create_outcome", error: "offline/unknown" });
+        }
+        return failures;
+      }
+      for (const stage of retirementStages) {
+        const event = `${persona.lane}_retirement_${stage}`;
+        if (event === faultAt) {
+          faultSnapshot = JSON.parse(readFileSync(path, "utf8"));
+          failures.push({ userId: persona.userId, stage, error: "offline/fault" });
+        } else if (stage === "server_global_revoke") persona.cleanup.serverGlobalRevokeConfirmed = true;
+        else if (stage.includes("refresh_rejected")) persona.cleanup.refreshTokensRejected += 1;
+        else if (stage === "admin_ban") persona.cleanup.banned = true;
+        else if (stage === "password_rejected_after_ban") persona.cleanup.passwordRejected = true;
+        else if (stage === "stale_jwt_current_profile_empty") persona.cleanup.currentProfileEmpty = true;
+        else if (stage === "retired_user_readback") persona.cleanup.finalBanReadback = true;
+        onStage(stage);
+      }
+      persona.sessions = [];
+      persona.password = null;
+      persona.credentialsCleared = true;
+      return failures;
+    }
+  };
+  await runHostedProbe({
+    config: fixtureConfig,
+    gitHead: head,
+    runId,
+    createClient: () => ({}),
+    operations,
+    emitReceipt: (receipt) => receipts.push(receipt),
+    setExitCode: (code) => exits.push(code)
+  });
+  assert.equal(receipts.length, 1);
+  assert.equal(exits.length, 1);
+  assert(counters.creates <= 2, "a lifecycle failure must never replay synthetic creation");
+  assert(createByLane.A <= 1 && createByLane.B <= 1,
+    "each synthetic lane may dispatch create at most once");
+  const finalCheckpoint = existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : null;
+  if (faultAt) {
+    assert(faultSnapshot, `${faultAt} must leave an inspectable pre-fault checkpoint`);
+    assert.equal(faultSnapshot.runId, runId);
+    assert.deepEqual(faultSnapshot.personas.map((persona) => persona.lane), ["A", "B"]);
+    assert(!JSON.stringify(faultSnapshot).includes("@example.invalid"));
+    assert.equal(receipts[0].status, faultAt.includes("_retirement_") || faultAt.endsWith("_create_dispatched")
+      ? "FAIL_ACTION_REQUIRED" : "FAIL");
+    assert.equal(receipts[0].observed.createDispatched,
+      receipts[0].personas.filter((persona) => persona.createAttempted).length);
+  }
+  return { counters, createByLane, receipt: receipts[0], exit: exits[0], faultSnapshot, finalCheckpoint };
+}
+
+const integratedPass = await runLifecycleFixture();
+assert.equal(integratedPass.receipt.status, "PASS");
+assert.equal(integratedPass.exit, 0);
+assert.deepEqual(integratedPass.counters, { creates: 2, preview: 1, live: 1, retire: 2 });
+assert.equal(integratedPass.finalCheckpoint.state, "retired");
+assert.equal(integratedPass.receipt.checks.adminCreateUserWithoutEmailDelivery, 2);
+assert.equal(integratedPass.receipt.retirement.finalFutureBanReadback, 2);
+const integratedInconclusive = await runLifecycleFixture(null, "INCONCLUSIVE");
+assert.equal(integratedInconclusive.receipt.status, "INCONCLUSIVE");
+assert.equal(integratedInconclusive.exit, 2);
+for (const faultAt of lifecycleFaults) {
+  const outcome = await runLifecycleFixture(faultAt);
+  assert.equal(outcome.exit, 1);
+  assert.equal(Object.hasOwn(outcome.receipt, "checks"), false,
+    "failure receipts must not contain intended happy-path Auth counts");
+  assert.equal(Object.hasOwn(outcome.receipt, "retirement"), false,
+    "failure receipts must not contain aggregate retirement claims");
+  if (faultAt.includes("_retirement_")) assert.equal(outcome.finalCheckpoint.state, "retirement_failed");
+  if (faultAt === "checkpoint_initialized") {
+    assert.equal(outcome.receipt.observed.createDispatched, 0);
+    assert.equal(outcome.receipt.observed.uuidsKnown, 0);
+  }
+  if (faultAt === "A_create_dispatched") {
+    assert.deepEqual(outcome.faultSnapshot.personas[0], { lane: "A", state: "create_dispatched", userId: null });
+  }
+  if (faultAt === "A_uuid_known") {
+    assert.deepEqual(outcome.faultSnapshot.personas[0], { lane: "A", state: "uuid_known", userId: userA });
+  }
+  if (faultAt === "B_uuid_known") {
+    assert.deepEqual(outcome.faultSnapshot.personas[1], { lane: "B", state: "uuid_known", userId: userB });
+  }
+}
+
 const operator = readFileSync(new URL("./sprint10-hosted-auth-probe.mjs", import.meta.url), "utf8");
 const handoff = readFileSync(new URL("../docs/sprint10/HOSTED_AUTH_PROBE_HANDOFF.md", import.meta.url), "utf8");
 const ownedSources = [
   operator,
   handoff,
   readFileSync(new URL("./sprint10-hosted-auth-probe-check.mjs", import.meta.url), "utf8"),
-  readFileSync(new URL("./sprint10-hosted-auth-live-check.mjs", import.meta.url), "utf8")
+  readFileSync(new URL("./sprint10-hosted-auth-live-check.mjs", import.meta.url), "utf8"),
+  readFileSync(new URL("./sprint10-live-journey-run.mjs", import.meta.url), "utf8"),
+  readFileSync(new URL("./sprint10-live-journey-runner-offline-check.mjs", import.meta.url), "utf8")
 ];
 for (const source of ownedSources) {
   assert.doesNotMatch(source, /\beyJ[A-Za-z0-9_-]{20,}[.][A-Za-z0-9_-]{8,}[.][A-Za-z0-9_-]{8,}/,
@@ -302,15 +514,6 @@ for (const source of ownedSources) {
   assert.doesNotMatch(source, /\bsb_(?:secret|publishable)_(?!test_)[A-Za-z0-9_-]{16,}/,
     "owned files must not contain a Supabase-key-shaped value");
 }
-const activeCheckpointWrite = operator.indexOf("state: \"active\"");
-const previewHarnessCall = operator.indexOf("previewHarness = runExistingPreviewHarness", activeCheckpointWrite);
-const liveCall = operator.indexOf("liveJourney = runReviewedLiveJourney");
-const retirementFinally = operator.indexOf("} finally {", liveCall);
-const retirementCall = operator.indexOf("retirePersona(createClient", retirementFinally);
-assert(activeCheckpointWrite > 0 && previewHarnessCall > activeCheckpointWrite && liveCall > previewHarnessCall,
-  "the private active-persona checkpoint must precede both browser children");
-assert(liveCall > 0 && retirementFinally > liveCall && retirementCall > retirementFinally,
-  "the live child must remain inside the try governed by unconditional persona retirement");
 assert.match(operator, /schemaVersion: "geoai[.]sprint10[.]hosted-auth-probe-receipt[.]v2"/,
   "the Auth-only v2 receipt must remain available unchanged");
 for (const name of [
@@ -339,13 +542,15 @@ console.log(JSON.stringify({
     activePersonaGuards: 4,
     childEnvironmentSecretExclusions: 10,
     childReceiptStates: 3,
-    strictReceiptDenials: 3,
+    strictReceiptDenials: 23,
+    exactScopeReceiptMatrices: 4,
     singleChildSpawn: passSpawns,
     timeoutFailClosed: 1,
     invalidReceiptFailClosed: 1,
     atomicCheckpointTransitions: 4,
     cleanupFailureSanitization: 1,
     ownedFileSecretPatternScan: ownedSources.length,
-    unconditionalRetirementSourceOrder: 1
+    integratedLifecycleSuccessStates: 2,
+    integratedLifecycleFaults: lifecycleFaults.length
   }
 }));
