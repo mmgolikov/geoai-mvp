@@ -386,6 +386,18 @@ jobs:
           set -euo pipefail
           npm run test:runtime-source-pack | tee artifacts/runtime-source-pack-check.txt
 
+      - name: Sprint 10 offline isolation and portable-runtime contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/point-object-cloud-persistence-check.mjs | tee artifacts/sprint10-cloud-contract.txt
+          npm run test:self-host-runtime | tee artifacts/sprint10-self-host-contract.txt
+          node scripts/sprint10-real-password-auth-check.mjs | tee artifacts/sprint10-password-harness-contract.txt
+          node scripts/sprint10-hosted-auth-probe-check.mjs | tee artifacts/sprint10-hosted-auth-contract.txt
+          node --experimental-transform-types scripts/sprint10-live-budget-check.ts | tee artifacts/sprint10-live-budget-contract.txt
+          node --experimental-transform-types scripts/sprint10-live-journey-offline-check.ts | tee artifacts/sprint10-live-journey-contract.txt
+          node --experimental-transform-types scripts/sprint10-live-journey-runner-offline-check.mjs | tee artifacts/sprint10-live-runner-contract.txt
+
       - name: Browser demo-public product flow
         shell: bash
         env:
