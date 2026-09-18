@@ -42,6 +42,13 @@ import {
   type PointObjectProjectIdentity
 } from "@/src/lib/prototype/point-object-projects";
 import { readPointObjectFindSession } from "@/src/lib/prototype/point-to-object-find-session";
+import {
+  createPointObjectAnalysisRequestIdentity,
+  pointObjectAnalysisReceiptMatches,
+  pointObjectAnalysisRequestChanged,
+  pointObjectSelectionEvidenceKeys,
+  type PointObjectAnalysisRequestIdentity
+} from "@/src/lib/prototype/point-to-object-analysis-request-state";
 import { pointObjectHasSelectedIdentity, pointObjectSelectedLookupId, pointObjectSelectionLabel } from "@/src/lib/prototype/point-to-object-trusted-identity";
 
 type AnalysisSettings = {
@@ -56,6 +63,14 @@ const DEFAULT_SETTINGS: AnalysisSettings = {
   goal: "development_screening",
   perspective: "developer",
   horizon: "current"
+};
+
+const ANALYSIS_REQUEST_TIMEOUT_MS = 45_000;
+
+type ActiveAnalysisRequest = {
+  controller: AbortController;
+  requestId: number;
+  timeoutId: number;
 };
 
 function settingsForFindIntent(role: ExploreRole, scenario: ExploreScenarioId): AnalysisSettings {
@@ -186,17 +201,21 @@ export function PointToObjectAnalysis() {
   const [perspective, setPerspective] = useState<PointObjectAnalysisPerspective>(DEFAULT_SETTINGS.perspective);
   const [horizon, setHorizon] = useState<PointObjectAnalysisHorizon>(DEFAULT_SETTINGS.horizon);
   const [loading, setLoading] = useState(false);
+  const [inFlightRequest, setInFlightRequest] = useState<PointObjectAnalysisRequestIdentity | null>(null);
+  const [completedRequest, setCompletedRequest] = useState<PointObjectAnalysisRequestIdentity | null>(null);
   const [requestError, setRequestError] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const [missingSelection, setMissingSelection] = useState(false);
   const analysisRef = useRef<PointObjectAiResponse | null>(null);
   const requestSequenceRef = useRef(0);
-  const activeRequestRef = useRef<AbortController | null>(null);
+  const activeRequestRef = useRef<ActiveAnalysisRequest | null>(null);
   const localeRef = useRef(locale);
   const translationRef = useRef(t);
+  const userRef = useRef(user);
   const projectIdentityRef = useRef<PointObjectProjectIdentity | null>(pointObjectProjectIdentity(user));
   localeRef.current = locale;
   translationRef.current = t;
+  userRef.current = user;
   projectIdentityRef.current = pointObjectProjectIdentity(user);
   const questionScope = useCallback((activeSelection: LiveMapSelection) => {
     const identityKey = pointObjectProjectIdentity(user);
@@ -206,6 +225,27 @@ export function PointToObjectAnalysis() {
   }, [locale, user]);
   const questionScopeRef = useRef(questionScope);
   questionScopeRef.current = questionScope;
+
+  const requestIdentity = useCallback((
+    activeSelection: LiveMapSelection,
+    activeQuestion: string | null,
+    settings: AnalysisSettings,
+    requestLocale: "en" | "ru"
+  ): PointObjectAnalysisRequestIdentity => {
+    const findSession = readPointObjectFindSession();
+    const keys = pointObjectSelectionEvidenceKeys(activeSelection);
+    return createPointObjectAnalysisRequestIdentity({
+      ...keys,
+      role: findSession?.role ?? userRef.current?.profile.defaultRole ?? "unspecified",
+      scenario: findSession?.scenario ?? "unspecified",
+      depth: settings.depth,
+      goal: settings.goal,
+      perspective: settings.perspective,
+      horizon: settings.horizon,
+      locale: requestLocale,
+      question: activeQuestion
+    });
+  }, []);
 
   useEffect(() => {
     if (!selection || !isSessionResolved) return;
@@ -234,10 +274,12 @@ export function PointToObjectAnalysis() {
   const commitAnalysis = useCallback((
     nextAnalysis: PointObjectAiResponse,
     activeSelection: LiveMapSelection,
+    requestSnapshot: PointObjectAnalysisRequestIdentity | null,
     saveContext: { identityKey: PointObjectProjectIdentity; destination: PointObjectProjectDestination } | null = null
   ) => {
     analysisRef.current = nextAnalysis;
     setAnalysis(nextAnalysis);
+    setCompletedRequest(nextAnalysis.mode === "openai" ? requestSnapshot : null);
     writePointObjectAnalysis(nextAnalysis, activeSelection);
     if (saveContext && projectIdentityRef.current === saveContext.identityKey && nextAnalysis.mode === "openai") {
       void savePointObjectOperation(saveContext.identityKey, {
@@ -250,21 +292,31 @@ export function PointToObjectAnalysis() {
     }
   }, []);
 
-  const requestAnalysis = useCallback(async (activeSelection: LiveMapSelection, activeQuestion: string, settings: AnalysisSettings) => {
+  const requestAnalysis = useCallback(async (activeSelection: LiveMapSelection, requestSnapshot: PointObjectAnalysisRequestIdentity) => {
+    if (activeRequestRef.current) return;
     const initiatingIdentity = projectIdentityRef.current;
     const destination = initiatingIdentity ? capturePointObjectProjectDestination(initiatingIdentity, {
       label: pointObjectSelectionLabel(activeSelection, activeSelection.resolvedObject, localeRef.current === "ru" ? "Анализ выбранного объекта" : "Selected object analysis")
     }) : null;
-    activeRequestRef.current?.abort();
     const requestId = requestSequenceRef.current + 1;
     requestSequenceRef.current = requestId;
     const controller = new AbortController();
-    activeRequestRef.current = controller;
+    const preserveExisting = analysisRef.current?.mode === "openai";
+    const timeoutId = window.setTimeout(() => {
+      if (activeRequestRef.current?.requestId !== requestId) return;
+      requestSequenceRef.current += 1;
+      controller.abort();
+      activeRequestRef.current = null;
+      setLoading(false);
+      setInFlightRequest(null);
+      setRequestError(translationRef.current(preserveExisting ? "analysis.timeout.previous" : "analysis.timeout"));
+    }, ANALYSIS_REQUEST_TIMEOUT_MS);
+    activeRequestRef.current = { controller, requestId, timeoutId };
     const isCurrent = () => !controller.signal.aborted && requestSequenceRef.current === requestId;
     setLoading(true);
+    setInFlightRequest(requestSnapshot);
     setRequestError(null);
     setAnnouncement("");
-    const preserveExisting = analysisRef.current?.mode === "openai";
     try {
       const challengeResponse = await fetch("/api/prototype/point-to-object/ai", { method: "GET", cache: "no-store", signal: controller.signal });
       const challengePayload = await challengeResponse.json() as { mode: "ready" | "unavailable"; challenge?: string; error?: string };
@@ -272,7 +324,7 @@ export function PointToObjectAnalysis() {
       if (!challengeResponse.ok || challengePayload.mode !== "ready" || !challengePayload.challenge) {
         const unavailable: PointObjectAiResponse = { mode: "unavailable", error: challengePayload.error ?? translationRef.current("analysis.unavailable.body"), retryable: true };
         if (preserveExisting) setRequestError(unavailable.error ?? translationRef.current("analysis.unavailable.body"));
-        else commitAnalysis(unavailable, activeSelection);
+        else commitAnalysis(unavailable, activeSelection, null);
         return;
       }
 
@@ -284,12 +336,12 @@ export function PointToObjectAnalysis() {
           caseKey: activeSelection.locationKey,
           longitude: activeSelection.longitude,
           latitude: activeSelection.latitude,
-          locale: localeRef.current,
-          question: activeQuestion.trim() || null,
-          depth: settings.depth,
-          goal: settings.goal,
-          perspective: settings.perspective,
-          horizon: settings.horizon,
+          locale: requestSnapshot.locale,
+          question: requestSnapshot.question,
+          depth: requestSnapshot.depth,
+          goal: requestSnapshot.goal,
+          perspective: requestSnapshot.perspective,
+          horizon: requestSnapshot.horizon,
           expectedSourceFeatureId: pointObjectSelectedLookupId(activeSelection),
           consent: true,
           challenge: challengePayload.challenge
@@ -305,7 +357,7 @@ export function PointToObjectAnalysis() {
           retryable: true
         };
         if (preserveExisting) setRequestError(unavailable.error ?? translationRef.current("analysis.unavailable.body"));
-        else commitAnalysis(unavailable, activeSelection);
+        else commitAnalysis(unavailable, activeSelection, null);
         return;
       }
       const normalized: PointObjectAiResponse = payload.mode === "openai" ? payload : {
@@ -314,26 +366,32 @@ export function PointToObjectAnalysis() {
         retryable: payload.retryable ?? response.status >= 500
       };
       if (normalized.mode === "openai") {
-        commitAnalysis(normalized, activeSelection, initiatingIdentity && destination && projectIdentityRef.current === initiatingIdentity
+        if (!pointObjectAnalysisReceiptMatches(normalized.request, requestSnapshot)) {
+          const mismatch = translationRef.current("analysis.unavailable.body");
+          if (preserveExisting) setRequestError(mismatch);
+          else commitAnalysis({ mode: "unavailable", error: mismatch, retryable: true }, activeSelection, null);
+          return;
+        }
+        commitAnalysis(normalized, activeSelection, requestSnapshot, initiatingIdentity && destination && projectIdentityRef.current === initiatingIdentity
           ? { identityKey: initiatingIdentity, destination }
           : null);
-        setQuestion("");
-        writePointObjectQuestion("");
         setAnnouncement(preserveExisting ? translationRef.current("analysis.updated") : translationRef.current("analysis.complete"));
       } else if (preserveExisting) {
         setRequestError(normalized.error ?? translationRef.current("analysis.unavailable.body"));
       } else {
-        commitAnalysis(normalized, activeSelection);
+        commitAnalysis(normalized, activeSelection, null);
       }
     } catch (error) {
       if (!isCurrent() || (error instanceof DOMException && error.name === "AbortError")) return;
       const unavailable: PointObjectAiResponse = { mode: "unavailable", error: translationRef.current("analysis.unavailable.body"), retryable: true };
       if (preserveExisting) setRequestError(unavailable.error ?? translationRef.current("analysis.unavailable.body"));
-      else commitAnalysis(unavailable, activeSelection);
+      else commitAnalysis(unavailable, activeSelection, null);
     } finally {
       if (isCurrent()) {
+        window.clearTimeout(timeoutId);
         activeRequestRef.current = null;
         setLoading(false);
+        setInFlightRequest(null);
       }
     }
   }, [commitAnalysis]);
@@ -361,8 +419,9 @@ export function PointToObjectAnalysis() {
         }
         analysisRef.current = restoredAnalysis;
         setAnalysis(restoredAnalysis);
+        setCompletedRequest(requestIdentity(restoredSelection, restoredAnalysis.request.question, restoredAnalysis.request, restoredAnalysis.request.locale));
         setDepth(restoredAnalysis.request.depth);
-        setGoal(restoredDraft !== null ? "custom" : restoredAnalysis.request.goal);
+        setGoal(restoredDraft?.trim() ? "custom" : restoredAnalysis.request.goal);
         setPerspective(restoredAnalysis.request.perspective);
         setHorizon(restoredAnalysis.request.horizon);
         setAnnouncement(translationRef.current("analysis.saved"));
@@ -385,17 +444,20 @@ export function PointToObjectAnalysis() {
         // Defer automatic dispatch until this effect survives React's setup /
         // cleanup replay. A cleaned-up mount must not send even a challenge GET.
         if (restoredDraft === null) queueMicrotask(() => {
-          if (!cancelled) void requestAnalysis(restoredSelection, restoredQuestion, restoredSettings);
+          if (!cancelled) void requestAnalysis(restoredSelection, requestIdentity(restoredSelection, restoredQuestion, restoredSettings, localeRef.current));
         });
       }
     }
     return () => {
       cancelled = true;
       requestSequenceRef.current += 1;
-      activeRequestRef.current?.abort();
+      if (activeRequestRef.current) {
+        window.clearTimeout(activeRequestRef.current.timeoutId);
+        activeRequestRef.current.controller.abort();
+      }
       activeRequestRef.current = null;
     };
-  }, [isSessionResolved, requestAnalysis, setLocale]);
+  }, [isSessionResolved, requestAnalysis, requestIdentity, setLocale]);
 
   // Language and viewing-profile changes never trigger paid work. Saved report
   // text keeps its original language until the user explicitly updates it.
@@ -406,9 +468,24 @@ export function PointToObjectAnalysis() {
 
   function submitFollowUp(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selection || !question.trim() || loading) return;
-    writePointObjectQuestion(question.trim());
-    void requestAnalysis(selection, question.trim(), currentSettings());
+    if (!selection || loading || activeRequestRef.current) return;
+    const activeQuestion = question.trim() || null;
+    const effectiveGoal = activeQuestion ? goal : goal === "custom" ? DEFAULT_SETTINGS.goal : goal;
+    const settings = currentSettings({ goal: effectiveGoal });
+    if (effectiveGoal !== goal) setGoal(effectiveGoal);
+    writePointObjectQuestion(activeQuestion ?? "");
+    void requestAnalysis(selection, requestIdentity(selection, activeQuestion, settings, locale));
+  }
+
+  function cancelAnalysis() {
+    if (!activeRequestRef.current) return;
+    requestSequenceRef.current += 1;
+    window.clearTimeout(activeRequestRef.current.timeoutId);
+    activeRequestRef.current.controller.abort();
+    activeRequestRef.current = null;
+    setLoading(false);
+    setInFlightRequest(null);
+    setRequestError(analysisRef.current?.mode === "openai" ? t("analysis.cancelled.previous") : t("analysis.cancelled"));
   }
 
   function selectFocusedAnalysis(focusedGoal: PointObjectAnalysisGoal, focusedQuestion: string) {
@@ -448,8 +525,13 @@ export function PointToObjectAnalysis() {
         ? t("selection.relation.exact")
         : t("selection.relation.nearest", { distance: Math.round(subject.resultCentroidDistanceM) })
     : null;
-  const completedDepth = analysis?.mode === "openai" ? analysis.request.depth : depth;
-  const localizedDepth = completedDepth === "quick" ? t("analysis.quick") : completedDepth === "deep" ? t("analysis.deep") : t("analysis.standard");
+  const depthLabel = (value: PointObjectAnalysisDepth) => value === "quick" ? t("analysis.quick") : value === "deep" ? t("analysis.deep") : t("analysis.standard");
+  const completedDepth = analysis?.mode === "openai" ? analysis.request.depth : null;
+  const localizedDepth = depthLabel(completedDepth ?? depth);
+  const inFlightDepth = inFlightRequest?.depth ?? null;
+  const localizedInFlightDepth = depthLabel(inFlightDepth ?? depth);
+  const draftRequest = selection ? requestIdentity(selection, question, currentSettings(), locale) : null;
+  const requestChanged = pointObjectAnalysisRequestChanged(draftRequest, completedRequest);
   const dispositionText = content?.decisionBrief.disposition === "continue_screening" ? t("analysis.continue") : content?.decisionBrief.disposition === "hold" ? t("analysis.hold") : t("analysis.insufficient");
   const localizedConfidence = (value: string) => locale === "ru" ? (value === "medium" ? "средняя" : value === "low" ? "низкая" : value) : value;
   const confidenceLabel = (value: string) => t("analysis.confidence", { value: localizedConfidence(value) });
@@ -507,21 +589,22 @@ export function PointToObjectAnalysis() {
           </div>
 
           <div className="mt-5">
-            {loading && !content ? <LoadingAnalysis depth={depth} /> : null}
-            {loading && content ? <div className="mb-5 rounded-xl border border-[#a8d8d5] bg-[#eefaf8] px-4 py-3 text-sm font-semibold text-[#087f8c]" role="status">{t("analysis.loading.preserve", { depth: localizedDepth })}</div> : null}
+            {loading && !content ? <LoadingAnalysis depth={inFlightDepth ?? depth} /> : null}
+            {loading && content ? <div className="mb-5 rounded-xl border border-[#a8d8d5] bg-[#eefaf8] px-4 py-3 text-sm font-semibold text-[#087f8c]" role="status">{t("analysis.loading.preserve", { depth: localizedInFlightDepth })}</div> : null}
             {requestError && content ? <div className="mb-5 rounded-xl border border-[#e7c47e] bg-[#fffaf0] px-4 py-3 text-sm text-[#6b4b16]" role="alert">{requestError} {t("analysis.previous")}</div> : null}
+            {!loading && requestError && !content && analysis?.mode !== "unavailable" ? <div className="mb-5 rounded-xl border border-[#e7c47e] bg-[#fffaf0] px-4 py-3 text-sm text-[#6b4b16]" role="alert">{requestError}</div> : null}
             {!loading && analysis?.mode === "unavailable" ? (
               <section className="rounded-[20px] border border-[#e7c47e] bg-[#fffaf0] p-6 shadow-soft" role="alert">
                 <h2 className="text-lg font-bold">{t("analysis.unavailable.title")}</h2>
                 <p className="mt-2 text-sm leading-6 text-[#6b4b16]">{analysis.error ?? t("analysis.unavailable.body")}</p>
-                {selection && analysis.retryable !== false ? <button type="button" onClick={() => void requestAnalysis(selection, question, currentSettings())} className="mt-5 min-h-11 rounded-control bg-[#087f8c] px-5 text-sm font-bold text-white">{t("analysis.tryAgain")}</button> : null}
+                {selection && draftRequest && analysis.retryable !== false ? <button type="button" onClick={() => void requestAnalysis(selection, draftRequest)} className="mt-5 min-h-11 rounded-control bg-[#087f8c] px-5 text-sm font-bold text-white">{t("analysis.tryAgain")}</button> : null}
               </section>
             ) : null}
 
             {content ? (
               <div className="space-y-5" data-testid="ai-success">
                 {analysis?.mode === "openai" ? <PointObjectDecisionCards context={geoContext} generatedAt={analysis.generatedAt} reportPerspective={localizedPerspective(analysis.request.perspective)} places={mergedLocationContext.filter((item) => item.evidenceRefs.some((ref) => /^EVD-CONTEXT-\d+$/.test(ref)))} groupLabels={contextGroupLabels} districtLabels={districtLabels} /> : null}
-                {analysis?.mode === "openai" && analysis.request.locale !== locale ? <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-white p-3 text-xs text-muted"><span>{locale === "ru" ? "Текст отчёта сохранён на исходном языке. Обновление — отдельный AI-запрос." : "Report text is kept in its saved language. Updating is a separate AI request."}</span><button type="button" disabled={loading} className="min-h-11 rounded-lg border border-line px-3 font-bold text-[#087f8c] disabled:opacity-50" onClick={() => selection && void requestAnalysis(selection, analysis.request.question ?? "", { depth: analysis.request.depth, goal: analysis.request.goal, perspective: analysis.request.perspective, horizon: analysis.request.horizon })}>{locale === "ru" ? "Обновить на русском" : "Update in English"}</button></div> : null}
+                {analysis?.mode === "openai" && analysis.request.locale !== locale ? <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-white p-3 text-xs text-muted"><span>{locale === "ru" ? "Текст отчёта сохранён на исходном языке. Обновление — отдельный AI-запрос." : "Report text is kept in its saved language. Updating is a separate AI request."}</span><button type="button" disabled={loading} className="min-h-11 rounded-lg border border-line px-3 font-bold text-[#087f8c] disabled:opacity-50" onClick={() => selection && void requestAnalysis(selection, requestIdentity(selection, analysis.request.question, analysis.request, locale))}>{locale === "ru" ? "Обновить на русском" : "Update in English"}</button></div> : null}
                 <section className="rounded-[20px] border border-[#c8d9ec] bg-white p-5 shadow-soft sm:p-7">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="text-xs font-bold uppercase tracking-[0.1em] text-[#087f8c]">{t("analysis.decisionBrief")}</p>
@@ -660,6 +743,15 @@ export function PointToObjectAnalysis() {
               </div>
               <p className="mt-2 text-[11px] leading-4 text-muted">{depthOptions.find((option) => option.value === depth)?.description}</p>
             </fieldset>
+            <p
+              className="mt-3 text-[11px] leading-4 text-muted"
+              data-testid="analysis-request-state"
+              data-draft-depth={depth}
+              data-in-flight-depth={inFlightRequest?.depth ?? "none"}
+              data-completed-depth={completedDepth ?? "none"}
+            >
+              {locale === "ru" ? "Черновик" : "Draft"}: {depthLabel(depth)} · {inFlightRequest ? `${locale === "ru" ? "Выполняется" : "Running"}: ${localizedInFlightDepth} · ` : ""}{locale === "ru" ? "Результат" : "Result"}: {completedDepth ? depthLabel(completedDepth) : "—"}
+            </p>
             <details className="mt-4 rounded-xl border border-line bg-[#fbfcfd] p-3">
               <summary className="cursor-pointer text-xs font-bold text-[#475467]">{t("analysis.settings")}</summary>
               <div className="mt-3 grid gap-3">
@@ -667,7 +759,8 @@ export function PointToObjectAnalysis() {
                 <label className="text-xs font-semibold text-[#475467]">{t("analysis.horizon")}<ReliableSelect value={horizon} onChange={(event) => setHorizon(event.target.value as PointObjectAnalysisHorizon)} data-testid="point-object-analysis-horizon-select" wrapperClassName="mt-1" className="min-h-10 rounded-lg border border-line bg-white pl-3 text-sm text-[#344054] outline-none focus:border-[#087f8c] focus-visible:ring-2 focus-visible:ring-[#bfe4e2]"><option value="current">{t("analysis.current")}</option><option value="one_to_three_years">{t("analysis.oneToThree")}</option><option value="long_term">{t("analysis.longTerm")}</option></ReliableSelect></label>
               </div>
             </details>
-            <button type="submit" disabled={!question.trim() || loading} className="mt-4 min-h-12 w-full rounded-control bg-[#087f8c] px-4 text-sm font-bold text-white disabled:cursor-not-allowed disabled:bg-[#b7c4d7]">{loading ? t("analysis.running", { depth: localizedDepth }) : t("analysis.run")}</button>
+            {loading ? <button type="button" onClick={cancelAnalysis} className="mt-4 min-h-11 w-full rounded-control border border-[#e7c47e] bg-[#fffaf0] px-4 text-sm font-bold text-[#6b4b16]">{t("analysis.cancel")}</button> : null}
+            <button type="submit" disabled={!selection || loading} className={`${loading ? "mt-2" : "mt-4"} min-h-12 w-full rounded-control bg-[#087f8c] px-4 text-sm font-bold text-white disabled:cursor-not-allowed disabled:bg-[#b7c4d7]`}>{loading ? t("analysis.running", { depth: localizedInFlightDepth }) : requestChanged ? t("analysis.run") : t("analysis.refresh")}</button>
           </form>
         </div></aside>
       </div>

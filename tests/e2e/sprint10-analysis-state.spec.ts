@@ -1,0 +1,151 @@
+import { expect, test, type Page, type Route } from "@playwright/test";
+import { sprint10AnalysisResponse, sprint10Selection } from "./helpers/sprint10-analysis-fixture";
+
+async function json(route: Route, body: unknown, status = 200) {
+  await route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
+}
+
+async function prepare(page: Page) {
+  const posts: Array<Record<string, unknown>> = [];
+  let releasePending: (() => void) | null = null;
+  let holdNextPost = false;
+  let nextFailure: { body: unknown; status: number } | null = null;
+  let sequence = 0;
+  await page.addInitScript((selection) => {
+    sessionStorage.setItem("geoai:point-to-object:selection:v3", JSON.stringify(selection));
+  }, sprint10Selection);
+  await page.route("**/api/auth/session", (route) => json(route, { isAuthenticated: false, user: null }));
+  await page.route("**/api/auth/logout", (route) => json(route, { ok: true }));
+  await page.route("**/api/prototype/point-to-object/ai", async (route) => {
+    if (route.request().method() === "GET") return json(route, { mode: "ready", challenge: "A".repeat(43) });
+    const body = route.request().postDataJSON() as Record<string, unknown>;
+    posts.push(body);
+    sequence += 1;
+    if (holdNextPost) await new Promise<void>((resolve) => { releasePending = resolve; });
+    if (nextFailure) {
+      const failure = nextFailure;
+      nextFailure = null;
+      await json(route, failure.body, failure.status);
+      return;
+    }
+    await json(route, sprint10AnalysisResponse({
+      depth: body.depth as "quick" | "standard" | "deep",
+      goal: body.goal as "object_profile" | "development_screening" | "redevelopment" | "due_diligence" | "custom",
+      perspective: body.perspective as "developer" | "investor" | "asset_owner",
+      horizon: body.horizon as "current" | "one_to_three_years" | "long_term",
+      question: body.question as string | null,
+      locale: body.locale as "en" | "ru"
+    }, sequence));
+  });
+  return {
+    posts,
+    holdNext: () => { holdNextPost = true; },
+    release: () => { holdNextPost = false; releasePending?.(); releasePending = null; },
+    failNext: (body: unknown, status: number) => { nextFailure = { body, status }; }
+  };
+}
+
+test("S1 keeps draft, in-flight and completed depth honest and allows an explicit blank rerun", async ({ page }) => {
+  const api = await prepare(page);
+  await page.goto("/prototype/point-to-object/analysis");
+  await expect(page.getByTestId("ai-success")).toBeVisible();
+  expect(api.posts).toHaveLength(1);
+  expect(api.posts[0]?.depth).toBe("standard");
+
+  await page.getByRole("button", { name: "Deep", exact: true }).click();
+  const run = page.getByRole("button", { name: /Run|Refresh/ });
+  await expect(run).toBeEnabled();
+  api.holdNext();
+  await run.click();
+  await expect(page.getByTestId("analysis-request-state")).toHaveAttribute("data-draft-depth", "deep");
+  await expect(page.getByTestId("analysis-request-state")).toHaveAttribute("data-in-flight-depth", "deep");
+  await expect(page.getByTestId("analysis-request-state")).toHaveAttribute("data-completed-depth", "standard");
+  await expect(page.getByRole("status").filter({ hasText: /Deep/ })).toBeVisible();
+  api.release();
+  await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "deep");
+  expect(api.posts).toHaveLength(2);
+  expect(api.posts[1]).toMatchObject({ depth: "deep", question: null });
+});
+
+test("S1 accepts blank, custom and preset runs and suppresses a double-submit", async ({ page }) => {
+  const api = await prepare(page);
+  await page.goto("/prototype/point-to-object/analysis");
+  await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
+
+  await page.getByRole("button", { name: "Quick", exact: true }).click();
+  const run = page.getByRole("button", { name: /Run|Refresh/ });
+  await run.evaluate((button: HTMLButtonElement) => { button.click(); button.click(); });
+  await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "quick");
+  expect(api.posts).toHaveLength(2);
+  expect(api.posts[1]).toMatchObject({ depth: "quick", question: null });
+
+  const composer = page.getByRole("textbox", { name: "Run a focused analysis", exact: true });
+  await composer.fill("Check access evidence");
+  await page.getByRole("button", { name: "Run focused analysis", exact: true }).click();
+  await expect(page.getByText("Bounded answer: Check access evidence", { exact: true })).toBeVisible();
+  expect(api.posts[2]).toMatchObject({ goal: "custom", question: "Check access evidence" });
+
+  await page.getByRole("button", { name: "Object profile", exact: true }).click();
+  await page.getByRole("button", { name: "Run focused analysis", exact: true }).click();
+  await expect.poll(() => api.posts.length).toBe(4);
+  await expect(page.getByRole("button", { name: "Refresh analysis", exact: true })).toBeEnabled();
+  expect(api.posts[3]?.goal).toBe("object_profile");
+  expect(api.posts[3]?.question).toContain("Build a concise decision-oriented profile");
+});
+
+test("S1 keeps the last result on 429 and malformed error responses and allows retry", async ({ page }) => {
+  const api = await prepare(page);
+  await page.goto("/prototype/point-to-object/analysis");
+  await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
+
+  api.failNext({ mode: "unavailable", code: "AI_RATE_LIMITED", error: "Fixture rate limit", retryable: true }, 429);
+  await page.getByRole("button", { name: "Deep", exact: true }).click();
+  await page.getByRole("button", { name: "Run focused analysis", exact: true }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "Fixture rate limit" })).toBeVisible();
+  await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
+  await expect(page.getByRole("button", { name: "Run focused analysis", exact: true })).toBeEnabled();
+
+  api.failNext({ unexpected: true }, 502);
+  await page.getByRole("button", { name: "Run focused analysis", exact: true }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "Please try again shortly" })).toBeVisible();
+  await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
+  expect(api.posts).toHaveLength(3);
+});
+
+test("S1 times out a stalled request without replacing the completed result", async ({ page }) => {
+  const api = await prepare(page);
+  await page.goto("/prototype/point-to-object/analysis");
+  await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
+  await page.clock.install();
+  await page.getByRole("button", { name: "Deep", exact: true }).click();
+  api.holdNext();
+  await page.getByRole("button", { name: "Run focused analysis", exact: true }).click();
+  await expect(page.getByTestId("analysis-request-state")).toHaveAttribute("data-in-flight-depth", "deep");
+  await page.clock.fastForward(45_001);
+  await expect(page.getByRole("alert").filter({ hasText: "timed out" })).toBeVisible();
+  await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
+  await expect(page.getByTestId("analysis-request-state")).toHaveAttribute("data-in-flight-depth", "none");
+  api.release();
+  await page.clock.fastForward(100);
+  await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
+});
+
+test("S1 preserves the last result across cancel and reopen without a paid-route replay", async ({ page }) => {
+  const api = await prepare(page);
+  await page.goto("/prototype/point-to-object/analysis");
+  await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
+  await page.getByRole("button", { name: "Quick", exact: true }).click();
+  api.holdNext();
+  await page.getByRole("button", { name: /Run|Refresh/ }).click();
+  await expect(page.getByRole("button", { name: "Cancel analysis" })).toBeVisible();
+  await page.getByRole("button", { name: "Cancel analysis" }).click();
+  await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
+  expect(api.posts).toHaveLength(2);
+  api.release();
+  await page.waitForTimeout(100);
+  await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
+
+  await page.reload();
+  await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
+  expect(api.posts).toHaveLength(2);
+});
