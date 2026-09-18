@@ -45,7 +45,8 @@ assert.match(client, /findResult\.criteria\.bounds/);
 assert.match(session, /analysisTargetSourceFeatureId/);
 assert.match(session, /pointObjectFindSessionForProfileAudience/);
 assert.match(session, /mappedMaximumLevels/);
-assert.match(analysis, /findSession\?\.analysisTargetSourceFeatureId === selectedSourceFeatureId/);
+assert.match(analysis, /pointObjectAnalysisTargetMatches\(selectedSourceFeatureId, findSession\.analysisTargetSourceFeatureId\)/,
+  "Find-to-analysis provenance must require the exact validated source identity helper.");
 assert.match(analysis, /settingsForFindIntent\(findSession\.role, findSession\.scenario\)/);
 
 const findDrawerStart = client.indexOf('data-testid="find-drawer"');

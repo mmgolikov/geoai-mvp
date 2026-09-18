@@ -19,6 +19,8 @@ const source = readFileSync(new URL("../src/lib/prototype/point-to-object-ai.ts"
   .replace(/import \{[\s\S]*?\} from "\.\/point-to-object-ai-core";/,
     "const buildPointObjectResponsesRequest = () => globalThis.__pointObjectOversizedRequest;")
   .replace(/import type \{ GroundablePointObjectEvidencePack \} from "\.\/point-to-object-live-evidence";/, "")
+  .replace(/import \{ pointObjectAnalysisRoleScenarioOrUnspecified \} from "\.\/point-to-object-ai-provenance";/,
+    'const pointObjectAnalysisRoleScenarioOrUnspecified = () => ({ role: "unspecified", scenario: "unspecified" });')
   .concat("\nexport { requestOpenAi as __requestOpenAiForCheck };\n");
 
 const service = await import(`data:text/javascript;base64,${Buffer.from(

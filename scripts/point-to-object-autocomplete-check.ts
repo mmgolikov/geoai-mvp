@@ -199,14 +199,16 @@ await assert.rejects(
 );
 
 const routeSource = readFileSync(path.join(ROOT, "app/api/prototype/point-to-object/suggest/route.ts"), "utf8");
+const identityIndex = routeSource.indexOf("await requirePilotIdentity(request)");
+const mutationOriginIndex = routeSource.indexOf("requirePilotMutationOrigin(request)", identityIndex);
 const runtimeIndex = routeSource.indexOf("if (!runtimeAllowed())");
 const originIndex = routeSource.indexOf("if (!sameOrigin(request))");
 const bodyIndex = routeSource.indexOf("await readBoundedJson(request, 1_024)");
 const parseIndex = routeSource.indexOf("parsePointObjectAutocompleteRequest(", bodyIndex);
 const rateIndex = routeSource.indexOf("consumeRateLimit(request)", parseIndex);
 const providerIndex = routeSource.indexOf("suggestPointObjects(", rateIndex);
-assert.ok(runtimeIndex >= 0 && originIndex > runtimeIndex && bodyIndex > originIndex && parseIndex > bodyIndex && rateIndex > parseIndex && providerIndex > rateIndex,
-  "Runtime, same-origin, body, parser and rate gates must run before Photon.");
+assert.ok(identityIndex >= 0 && mutationOriginIndex > identityIndex && runtimeIndex > mutationOriginIndex && originIndex > runtimeIndex && bodyIndex > originIndex && parseIndex > bodyIndex && rateIndex > parseIndex && providerIndex > rateIndex,
+  "Identity, mutation-origin, runtime, same-origin, body, parser and rate gates must run before Photon.");
 assert.match(routeSource, /private, no-store/);
 assert.equal(routeSource.includes("Nominatim"), false, "Autocomplete must not be routed through public Nominatim.");
 const explicitSearchSource = readFileSync(path.join(ROOT, "app/api/prototype/point-to-object/search/route.ts"), "utf8");
@@ -255,6 +257,12 @@ const NextResponse = {
     });
   }
 };
+const requirePilotIdentity = async (request) => request.headers.get("x-test-auth") === "deny"
+  ? { allowed: false, response: NextResponse.json({ code: "AUTH_REQUIRED" }, { status: 401 }) }
+  : { allowed: true, identity: { subject: "synthetic-contract-subject" } };
+const requirePilotMutationOrigin = (request) => request.headers.get("x-test-mutation-origin") === "deny"
+  ? NextResponse.json({ code: "ORIGIN_INVALID" }, { status: 403 })
+  : null;
 const getPointObjectSurfaceStatus = () => ({ enabled: process.env.GEOAI_AUTOCOMPLETE_ROUTE_TEST_ENABLED === "1" });
 const readBoundedJson = async (request, maximumBytes) => {
   const text = await request.text();
@@ -278,13 +286,14 @@ const suggestPointObjects = async (request) => {
 const routeRuntimeSource = routeSource
   .replace('import { NextResponse } from "next/server";', routeRuntimeStub)
   .replace(/import \{ getPointObjectSurfaceStatus \} from "@\/src\/lib\/ai\/openai-upstream-gate";\n/, "")
+  .replace(/import \{ requirePilotIdentity, requirePilotMutationOrigin \} from "@\/src\/lib\/auth\/require-pilot-identity";\n/, "")
   .replace(/import \{ readBoundedJson \} from "@\/src\/lib\/http\/bounded-json";\n/, "")
   .replace(/import \{\n\s+parsePointObjectAutocompleteRequest,[\s\S]*?\n\} from "@\/src\/lib\/prototype\/point-to-object-autocomplete";\n/, "");
 const routeRuntimeJavascript = stripTypeScriptTypes(routeRuntimeSource, { mode: "transform", sourceMap: false });
 const routeRuntime = await import(`data:text/javascript;base64,${Buffer.from(routeRuntimeJavascript).toString("base64")}`) as {
   POST(request: Request): Promise<Response>;
 };
-function routeRequest(body: string, options: { origin?: string; ip?: string } = {}): Request {
+function routeRequest(body: string, options: { origin?: string; ip?: string; authDenied?: boolean; mutationOriginDenied?: boolean } = {}): Request {
   const headers = new Headers({
     "Content-Type": "application/json",
     "x-forwarded-host": "preview.example.test",
@@ -292,10 +301,17 @@ function routeRequest(body: string, options: { origin?: string; ip?: string } = 
     "x-forwarded-for": options.ip ?? "203.0.113.10"
   });
   if (options.origin) headers.set("Origin", options.origin);
+  if (options.authDenied) headers.set("x-test-auth", "deny");
+  if (options.mutationOriginDenied) headers.set("x-test-mutation-origin", "deny");
   return new Request("https://preview.example.test/api/prototype/point-to-object/suggest", { method: "POST", headers, body });
 }
 const validRouteBody = JSON.stringify({ marketKey: "dubai", locale: "en", query: "Marina" });
 const previousRouteTestEnabled = process.env.GEOAI_AUTOCOMPLETE_ROUTE_TEST_ENABLED;
+process.env.GEOAI_AUTOCOMPLETE_ROUTE_TEST_ENABLED = "1";
+const authDenied = await routeRuntime.POST(routeRequest(validRouteBody, { origin: "https://preview.example.test", authDenied: true }));
+assert.equal(authDenied.status, 401, "Identity denial must fail before the runtime and provider path.");
+const mutationOriginDenied = await routeRuntime.POST(routeRequest(validRouteBody, { origin: "https://preview.example.test", mutationOriginDenied: true }));
+assert.equal(mutationOriginDenied.status, 403, "Mutation-origin denial must fail before the runtime and provider path.");
 process.env.GEOAI_AUTOCOMPLETE_ROUTE_TEST_ENABLED = "0";
 const runtimeDenied = await routeRuntime.POST(routeRequest(validRouteBody, { origin: "https://preview.example.test" }));
 assert.equal(runtimeDenied.status, 403);

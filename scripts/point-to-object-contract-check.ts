@@ -73,6 +73,7 @@ function semanticHash(value: unknown): string {
 }
 
 async function importErasableTypeScript(filePath: string, transforms: Array<[RegExp, string]> = []): Promise<Record<string, unknown>> {
+  registerCoreTypeScriptHooks();
   let source = readFileSync(filePath, "utf8");
   for (const [pattern, replacement] of transforms) source = source.replace(pattern, replacement);
   const javascript = stripTypeScriptTypes(source, { mode: "transform", sourceMap: false });
@@ -543,6 +544,9 @@ function registerCoreTypeScriptHooks(): void {
   if (coreHooksRegistered) return;
   registerHooks({
     resolve(specifier, context, nextResolve) {
+      if (specifier.startsWith("@/")) {
+        return nextResolve(pathToFileURL(path.join(ROOT, `${specifier.slice(2)}.ts`)).href, context);
+      }
       if ((specifier.startsWith("./") || specifier.startsWith("../")) &&
           !/\.[cm]?[jt]sx?$/.test(specifier)) {
         try {
@@ -1452,6 +1456,9 @@ async function assertCandidateAiSafety(): Promise<void> {
     ]
   ]);
   const liveSessionPath = path.join(ROOT, "components/point-to-object/live-session.ts");
+  const provenanceModuleUrl = pathToFileURL(
+    path.join(ROOT, "src/lib/prototype/point-to-object-ai-provenance.ts")
+  ).href;
   const liveSession = await importErasableTypeScript(liveSessionPath, [
     [
       /import \{ LIVE_POINT_CAVEAT \} from "@\/src\/lib\/point-to-object\/contracts";\n/,
@@ -1459,11 +1466,15 @@ async function assertCandidateAiSafety(): Promise<void> {
     ],
     [
       /import \{\n  POINT_OBJECT_ANALYSIS_LEGACY_PROMPT_VERSION,\n  POINT_OBJECT_ANALYSIS_LEGACY_RESULT_SCHEMA_VERSION,\n  POINT_OBJECT_ANALYSIS_PREVIOUS_PROMPT_VERSION,\n  POINT_OBJECT_ANALYSIS_PROMPT_VERSION,\n  POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION\n\} from "@\/components\/point-to-object\/live-types";\n/,
-      `const POINT_OBJECT_ANALYSIS_LEGACY_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V7_2026_09_04";\nconst POINT_OBJECT_ANALYSIS_LEGACY_RESULT_SCHEMA_VERSION = 5;\nconst POINT_OBJECT_ANALYSIS_PREVIOUS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V8_2026_09_06";\nconst POINT_OBJECT_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V9_2026_09_12";\nconst POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION = 6;\n`
+      `const POINT_OBJECT_ANALYSIS_LEGACY_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V7_2026_09_04";\nconst POINT_OBJECT_ANALYSIS_LEGACY_RESULT_SCHEMA_VERSION = 5;\nconst POINT_OBJECT_ANALYSIS_PREVIOUS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V9_2026_09_12";\nconst POINT_OBJECT_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V10_2026_09_18";\nconst POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION = 6;\n`
     ],
     [
       /import \{ isPointObjectLocale, isPointObjectMarketKey \} from "@\/src\/lib\/prototype\/point-to-object-markets";\n/,
       `const isPointObjectLocale = (value) => value === "en" || value === "ru";\nconst isPointObjectMarketKey = (value) => ["dubai", "abu_dhabi", "doha", "riyadh", "jeddah", "kuala_lumpur", "singapore", "hong_kong", "moscow"].includes(value);\n`
+    ],
+    [
+      /import \{\n  parsePointObjectAnalysisRoleScenario,\n  POINT_OBJECT_ANALYSIS_UNSPECIFIED\n\} from "@\/src\/lib\/prototype\/point-to-object-ai-provenance";\n/,
+      `import { parsePointObjectAnalysisRoleScenario, POINT_OBJECT_ANALYSIS_UNSPECIFIED } from ${JSON.stringify(provenanceModuleUrl)};\n`
     ]
   ]);
   const parseClientTelemetry = liveSession.parsePointObjectAiTelemetry as (value: unknown) => JsonObject | null;
@@ -1938,10 +1949,10 @@ async function assertCandidateAiSafety(): Promise<void> {
   const currentClientResponse = {
     ...fullClientResponse,
     content: currentValidation.ok ? currentValidation.content : fullClientResponse.content,
-    telemetry: { ...fullClientResponse.telemetry, promptVersion: "POINT_OBJECT_AI_PROMPT_V9_2026_09_12" }
+    telemetry: { ...fullClientResponse.telemetry, promptVersion: "POINT_OBJECT_AI_PROMPT_V10_2026_09_18" }
   };
   const parsedCurrentResponse = parseClientResponse(currentClientResponse) as JsonObject;
-  assert.ok(parsedCurrentResponse, "The client must accept a current V9 review that matches the request depth.");
+  assert.ok(parsedCurrentResponse, "The client must accept a current V10 review that matches the request depth.");
   assert.equal(((parsedCurrentResponse.content as JsonObject).depthReview as JsonObject).depth, "deep");
   assert.equal(parseClientResponse({
     ...currentClientResponse,
