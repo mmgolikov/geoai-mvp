@@ -10,7 +10,19 @@ const defaults = [
   "artifacts/lighthouse-desktop-request-access.json",
   "artifacts/lighthouse-desktop-profile.json"
 ];
-const inputs = defaults.map((fallback, index) => process.argv.slice(2)[index] ?? fallback);
+const args = process.argv.slice(2);
+const scopeFlags = args.filter((arg) => arg.startsWith("--"));
+if (scopeFlags.length > 1 || scopeFlags.some((arg) => !["--public-demo", "--protected-login"].includes(arg))) {
+  console.error("Use at most one explicit Lighthouse scope: --public-demo or --protected-login.");
+  process.exit(1);
+}
+const verificationScope = scopeFlags[0]?.slice(2) ?? "all";
+const paths = args.filter((arg) => !arg.startsWith("--"));
+if (paths.length > defaults.length) {
+  console.error("Unexpected Lighthouse report arguments.");
+  process.exit(1);
+}
+const inputs = defaults.map((fallback, index) => paths[index] ?? fallback);
 const failures = [];
 const baseBudgets = { accessibility: 0.95, "best-practices": 0.9, seo: 0.8, cls: 0.1 };
 
@@ -19,10 +31,11 @@ const profiles = [
   { file: inputs[1], name: "desktop-workspace", expectedPath: "/workspace", budgets: { ...baseBudgets, performance: 0.8, lcp: 2500, tbt: 250, transferredJs: 1_200_000, decodedJs: 3_500_000, routeFirstLoadJs: 2_000_000 } },
   { file: inputs[2], name: "mobile-projects", expectedPath: "/projects", budgets: { ...baseBudgets, performance: 0.6, lcp: 5000, tbt: 500, transferredJs: 1_200_000, decodedJs: 3_500_000, routeFirstLoadJs: 1_000_000 } },
   { file: inputs[3], name: "desktop-workspace-criteria", expectedPath: "/workspace", budgets: { ...baseBudgets, performance: 0.65, lcp: 4000, tbt: 400, transferredJs: 1_300_000, decodedJs: 4_000_000, routeFirstLoadJs: 2_000_000 } },
-  { file: inputs[4], name: "desktop-login", expectedPath: "/login", budgets: { ...baseBudgets, performance: 0.75, lcp: 2500, tbt: 600, transferredJs: 3_000_000, decodedJs: 13_000_000, routeFirstLoadJs: 500_000 }, evidenceMode: "ci_auth_dev_server" },
+  { file: inputs[4], name: "desktop-login", expectedPath: "/login", budgets: { ...baseBudgets, performance: 0.75, lcp: 2500, tbt: 600, transferredJs: 3_000_000, decodedJs: 13_000_000, routeFirstLoadJs: 500_000 }, evidenceMode: "protected_optimized_https_fixture" },
   { file: inputs[5], name: "desktop-request-access", expectedPath: "/request-access", budgets: { ...baseBudgets, performance: 0.75, lcp: 3000, tbt: 400, transferredJs: 900_000, decodedJs: 2_500_000, routeFirstLoadJs: 500_000 } },
   { file: inputs[6], name: "desktop-profile", expectedPath: "/profile", budgets: { ...baseBudgets, accessibility: 0.9, performance: 0.65, lcp: 3500, tbt: 500, transferredJs: 1_000_000, decodedJs: 3_000_000, routeFirstLoadJs: 500_000 }, evidenceMode: "public_demo_built_app" }
-];
+].filter((profile) => verificationScope === "all" ||
+  (verificationScope === "protected-login" ? profile.name === "desktop-login" : profile.name !== "desktop-login"));
 
 const appBuildManifestPath = path.resolve(process.cwd(), ".next", "app-build-manifest.json");
 const appBuildManifest = fs.existsSync(appBuildManifestPath) ? JSON.parse(fs.readFileSync(appBuildManifestPath, "utf8")) : null;
@@ -46,9 +59,15 @@ function auditValue(report, id) {
   return typeof value === "number" ? value : null;
 }
 
-function networkMetrics(report) {
-  const requests = report?.audits?.["network-requests"]?.details?.items ?? [];
+function networkMetrics(report, profileName) {
+  const items = report?.audits?.["network-requests"]?.details?.items;
+  if (!Array.isArray(items)) failures.push(`${profileName} has no Lighthouse network-request evidence`);
+  const requests = Array.isArray(items) ? items : [];
   const scripts = requests.filter((request) => request.resourceType === "Script" || /javascript/i.test(request.mimeType ?? ""));
+  if (scripts.length === 0) failures.push(`${profileName} has no measured application script requests`);
+  if (scripts.some((request) => [request.transferSize, request.resourceSize].some((value) => typeof value !== "number" || !Number.isFinite(value) || value < 0))) {
+    failures.push(`${profileName} has invalid measured JavaScript byte counts`);
+  }
   const chunks = scripts.map((request) => ({
     url: request.url,
     transferredBytes: Number(request.transferSize ?? 0),
@@ -90,7 +109,7 @@ const summaries = [];
 for (const profile of profiles) {
   const report = readReport(profile.file);
   if (!report) continue;
-  const network = networkMetrics(report);
+  const network = networkMetrics(report, profile.name);
   const routeBuild = routeBuildMetrics(profile.expectedPath);
   const summary = {
     profile: profile.name,
@@ -121,6 +140,14 @@ for (const profile of profiles) {
   try {
     const finalUrl = new URL(summary.finalUrl);
     if (finalUrl.pathname !== profile.expectedPath) failures.push(`${profile.name} finished on ${finalUrl.pathname}; expected ${profile.expectedPath}`);
+    if (profile.name === "desktop-login") {
+      const requestedUrl = new URL(summary.requestedUrl);
+      if (requestedUrl.origin !== "https://127.0.0.1:3443" || requestedUrl.pathname !== "/login" ||
+          requestedUrl.search || requestedUrl.hash || requestedUrl.username || requestedUrl.password ||
+          finalUrl.href !== requestedUrl.href) {
+        failures.push("Protected login must measure the exact optimized anonymous HTTPS login without redirects.");
+      }
+    }
   } catch {
     failures.push(`${profile.name} has no valid final URL`);
   }
@@ -138,9 +165,10 @@ for (const profile of profiles) {
   else if (routeBuild.routeFirstLoadJsBytes > profile.budgets.routeFirstLoadJs) failures.push(`${profile.name} route First Load JS ${routeBuild.routeFirstLoadJsBytes} exceeds ${profile.budgets.routeFirstLoadJs}`);
 }
 
-const summaryPath = path.resolve(process.cwd(), "artifacts", "lighthouse-budget-summary.json");
+const summaryName = verificationScope === "protected-login" ? "lighthouse-protected-login-budget-summary.json" : "lighthouse-budget-summary.json";
+const summaryPath = path.resolve(process.cwd(), "artifacts", summaryName);
 fs.mkdirSync(path.dirname(summaryPath), { recursive: true });
-fs.writeFileSync(summaryPath, `${JSON.stringify({ schemaVersion: "2.0", profiles: summaries, failures }, null, 2)}\n`, "utf8");
+fs.writeFileSync(summaryPath, `${JSON.stringify({ schemaVersion: "2.1", verificationScope, profiles: summaries, failures }, null, 2)}\n`, "utf8");
 for (const summary of summaries) {
   console.log(`[lighthouse] ${summary.profile}: final=${summary.finalUrl}, performance=${summary.categories.performance}, LCP=${summary.metrics.largestContentfulPaintMs}ms, CLS=${summary.metrics.cumulativeLayoutShift}, TBT=${summary.metrics.totalBlockingTimeMs}ms, transferredJS=${summary.metrics.transferredJsBytes}, decodedJS=${summary.metrics.decodedJsBytes}, routeFirstLoadJS=${summary.metrics.routeFirstLoadJsBytes}, mapboxDecoded=${summary.metrics.mapboxContribution.decodedBytes}`);
 }
@@ -149,4 +177,4 @@ if (failures.length > 0) {
   for (const failure of failures) console.error(`- ${failure}`);
   process.exit(1);
 }
-console.log("Lighthouse budgets, final-route attribution, JS/chunk inventory and Mapbox contribution passed for all seven profiles including Request Access and Profile.");
+console.log(`Lighthouse budgets, final-route attribution, JS/chunk inventory and Mapbox contribution passed for ${profiles.length} profiles in ${verificationScope} scope. Both CI scopes are required for seven-profile acceptance.`);

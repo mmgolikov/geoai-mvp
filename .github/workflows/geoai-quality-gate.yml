@@ -123,6 +123,7 @@ jobs:
         run: |
           set -euo pipefail
           npm run test:auth-session-e2e-contract | tee artifacts/auth-session-e2e-contract-check.txt
+          node scripts/lighthouse-scope-check.mjs | tee artifacts/lighthouse-scope-check.txt
 
       - name: Auth mutation-origin checks
         shell: bash
@@ -435,13 +436,6 @@ jobs:
           google-chrome --version | tee artifacts/google-chrome-version.txt
           npm run test:e2e:point-to-object-v5:demo | tee artifacts/point-to-object-v5-demo-e2e.txt
           npm run test:e2e:auth-session:demo | tee artifacts/auth-session-demo-e2e.txt
-          npx lighthouse 'http://127.0.0.1:3100/login?next=/workspace&intent=demo' \
-            --quiet \
-            --preset=desktop \
-            --output=json \
-            --output-path=artifacts/lighthouse-desktop-login.json \
-            --only-categories=performance,accessibility,best-practices,seo \
-            --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage --disable-gpu"
 
       - name: Build
         shell: bash
@@ -592,7 +586,7 @@ jobs:
             --output-path=artifacts/lighthouse-desktop-profile.json \
             --only-categories=performance,accessibility,best-practices,seo \
             --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage --disable-gpu"
-          npm run test:lighthouse-budget | tee artifacts/lighthouse-budget-check.txt
+          npm run test:lighthouse-budget -- --public-demo | tee artifacts/lighthouse-budget-check.txt
 
           GEOAI_PDF_BASE_URL=http://127.0.0.1:3000 npm run evidence:pdf-print | tee artifacts/pdf-print-check.txt
           cp /tmp/geoai-next.log artifacts/pdf-print-evidence/next-application.log
@@ -685,6 +679,14 @@ jobs:
             exit 1
           fi
           npm run test:e2e:auth-boundary:protected -- --retries=0 | tee artifacts/auth-boundary-protected.txt
+          npx lighthouse https://127.0.0.1:3443/login \
+            --quiet \
+            --preset=desktop \
+            --output=json \
+            --output-path=artifacts/lighthouse-desktop-login.json \
+            --only-categories=performance,accessibility,best-practices,seo \
+            --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage --disable-gpu --ignore-certificate-errors"
+          npm run test:lighthouse-budget -- --protected-login | tee artifacts/lighthouse-protected-login-budget-check.txt
       - name: Upload protected browser evidence
         if: always()
         uses: actions/upload-artifact@v4

@@ -334,10 +334,9 @@ if (browserStepStart === -1 || buildStepStart === -1) {
     "npm run test:e2e:auth-session:demo",
     "npm run test:e2e:point-to-object-v5:demo"
   ]) requireText(browserStep, marker, `Browser CI step is missing ${marker}`);
-  for (const marker of [
-    "artifacts/lighthouse-desktop-login.json",
-    "http://127.0.0.1:3100/login?next=/workspace&intent=demo"
-  ]) requireText(browserStep, marker, `Isolated Login Lighthouse step is missing ${marker}`);
+  if (browserStep.includes("lighthouse-desktop-login.json")) {
+    failures.push("Login Lighthouse must measure the protected optimized login, not an auto-continuing demo page");
+  }
   if (browserStep.includes("secrets.")) failures.push("Browser CI must not read a real GitHub secret");
 }
 const protectedStep = workflow.slice(workflow.indexOf("  protected-browser:"), workflow.indexOf("  database-replay:"));
@@ -350,13 +349,18 @@ for (const marker of [
   "npm run test:e2e:auth-persona:protected",
   "npm run test:e2e:auth-boundary:protected",
   "node scripts/sprint10-local-https.mjs",
-  "npx playwright install --with-deps webkit"
+  "npx playwright install --with-deps webkit",
+  "npx lighthouse https://127.0.0.1:3443/login",
+  "artifacts/lighthouse-desktop-login.json",
+  "npm run test:lighthouse-budget -- --protected-login"
 ]) requireText(protectedStep, marker, `Protected CI lane missing ${marker}`);
 if (protectedStep.includes("secrets.") || protectedStep.includes(".supabase.co")) {
   failures.push("Protected negative CI must use localhost-only synthetic configuration without hosted keys or URLs");
 }
 
 requireText(workflow, "npm run test:auth-session-e2e-contract", "Quality Gate must run the static E2E wiring contract");
+requireText(workflow, "npm run test:lighthouse-budget -- --public-demo", "Six public-demo Lighthouse profiles remain required alongside protected login");
+requireText(workflow, "node scripts/lighthouse-scope-check.mjs", "Quality Gate must verify Lighthouse scope and failure behavior");
 for (const marker of [
   "artifacts/lighthouse-mobile.json",
   "artifacts/lighthouse-desktop.json",
