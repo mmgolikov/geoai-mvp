@@ -8,7 +8,7 @@ Exact target: `geoai-dev` / `pphdqkurxneyagvnnjdt`. Do not substitute the separa
 
 ## What is implemented
 
-`scripts/database-upgrade-preflight.mjs` only reads local files. It does not read credentials, start a child process, call HTTP/SQL, invoke Supabase CLI, repair the ledger or apply a migration. It checks the 21-file canonical inventory and immutable historical file hashes, then optionally validates supplied readback and dry-run JSON attestations. It never returns hostedApplyReady=true, even for a valid plan.
+`scripts/database-upgrade-preflight.mjs` only reads local files. It does not read credentials, start a child process, call HTTP/SQL, invoke Supabase CLI, repair the ledger or apply a migration. It checks the 22-file canonical inventory and immutable historical file hashes, then optionally validates supplied readback and dry-run JSON attestations. It never returns hostedApplyReady=true, even for a valid plan.
 
 The separate hashes are explicit: `sqlTreeSha256` hashes SQL filenames and bytes with NUL separators; `manifestSha256` hashes the historical manifest. This differs from the older operator guard's combined SQL-plus-manifest digest. They must not be substituted.
 
@@ -18,7 +18,7 @@ node scripts/database-upgrade-preflight-check.mjs
 node scripts/check-supabase-migration.mjs
 ```
 
-The first command is an inventory, not a remote dry-run. The second uses synthetic fixtures. The third now derives **eight**, not seven, pending migrations from the canonical manifest. Historical rehearsal/CI evidence is explicitly not current runtime acceptance.
+The first command is an inventory, not a remote dry-run. The second uses synthetic fixtures. The third now derives **nine** pending migrations from the canonical manifest, including the reviewed invitation-authority forward correction. Historical rehearsal/CI evidence is explicitly not current runtime acceptance.
 
 ## Supplied evidence contract
 
@@ -36,6 +36,7 @@ A later dry-run attestation uses `--plan PATH --expected-plan-sha256 DIGEST`. It
 6. `20260716175210`
 7. `20260716213214`
 8. `20260904065018`
+9. `20260918182922`
 
 The typed attestation is **not** a parser or independent verification of raw CLI output, CLI credentials, linked configuration, a backup or founder approval. A human/root operator must compare and preserve raw output under a separately authorized exact-ref plan. A checksum establishes binding, not authenticity. No live dry-run was run in this slice.
 
@@ -43,13 +44,19 @@ The typed attestation is **not** a parser or independent verification of raw CLI
 
 1. Fresh read-only catalog/ledger/fingerprint; exact clean Git commit and migration hashes; backup and tested restore; confirm actual Data API exposure.
 2. Perform the narrowly scoped **ledger repair only** under the existing development authorization once the fresh fingerprint and recovery prerequisites pass. Never replay the pre-ledger CREATE over the existing table. Read back 13 entries afterwards.
-3. Run the **dry-run only** with include-all. Bind and inspect the exact eight-version order, then stop to check it.
+3. Run the **dry-run only** with include-all. Bind and inspect the exact nine-version order, then stop to check it.
 4. Apply only after fresh replay/drift, compatibility, recovery and security evidence passes; no repeat per-migration permission is required within the approved exact scope. Do not invoke `scripts/apply-supabase-migration.mjs`: it remains NO-GO for this target because it omits include-all/exact order checks and automatically advances from dry-run to apply.
-5. After any future approved apply, verify 21 ledger entries, schema drift, 16-RPC allowlist/grants, advisors and real JWT owner/analyst/viewer/anonymous/cross-tenant access. Authenticated identity is not project membership or source access.
+5. After any future approved apply, verify 22 ledger entries, schema drift, 16-RPC allowlist/grants, advisors and real JWT owner/analyst/viewer/anonymous/cross-tenant access. Authenticated identity is not project membership or source access.
 
-Backups must cover the existing database and required Auth/Storage state with a tested restore path; an environment string or default schema-only CLI dump is not sufficient evidence. Fresh CI run `35372511749` on `909e312` proves clean replay and synthetic noncontiguous upgrade, each with 183/183 pgTAP PASS. It is not a backup or restored clone of this populated target. Local Docker/Postgres remains unavailable. No runtime installation was performed.
+Backups must cover the existing database and required Auth/Storage state with a tested restore path; an environment string or default schema-only CLI dump is not sufficient evidence. Current CI database job `35383035451` on `10d994d` proves clean replay and synthetic noncontiguous upgrade, each with 229/229 pgTAP PASS. The overall CI run failed a separate demo-browser scenario and is not release acceptance. Root additionally restored the real backup into an isolated no-network container: all 31 original table counts/digests matched; populated upgrade preserved all 355 original rows on original columns except the documented profile timestamp backfill. See `DATABASE_RECOVERY_20260918.md`. This supersedes the earlier local-runtime-unavailable observation.
 
-## Verification in this slice
+## Root execution checkpoint — 22:15 Moscow
+
+Root performed only the pre-ledger metadata reconciliation `20260705100000` on the exact development target at 22:08. Fresh actual readback contains 13 entries, preserves the original 12 statement fingerprints and still matches the full existing health-table fingerprint. No bootstrap CREATE was replayed.
+
+The normal pinned CLI dry-run completed with exit zero and precisely the nine filenames above in order. Raw output and SHA-bound supplied attestations are retained under ignored `artifacts/sprint10-dev-dryrun-*`; the non-writing checker accepted them while fresh. No schema push, API-only operator configuration, account creation or paid call has yet occurred at this checkpoint. Root still checks transaction concurrency and performs exact post-apply checks; this document does not auto-authorize or execute a later step.
+
+## Historical initial verification (before the later checkpoint)
 
 - 47 pure offline cases: valid 12/13-entry receipts; wrong target/Production; stale/future data; hash/ledger/column/policy/grant drift; no include-all; apply/seed/role flags; missing/extra/reordered migration; nonzero dry-run; unbound evidence. Every output remains non-apply-ready.
 - Static aggregate and canonical chain: PASS; canonical SQL and historical manifest unchanged.

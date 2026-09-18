@@ -3,9 +3,9 @@
   "lastVerified": "2026-09-18",
   "authority": "docs/DOCUMENTATION_INDEX.md",
   "counts": {
-    "markdownDocuments": 206,
+    "markdownDocuments": 211,
     "activeAuthorities": 12,
-    "nonActiveDocuments": 194
+    "nonActiveDocuments": 199
   },
   "documents": {
     "AGENTS.md": {
@@ -1148,6 +1148,12 @@
       "successor": "docs/DOCUMENTATION_INDEX.md",
       "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
     },
+    "docs/sprint10/CREATE_HOST_SIZING_HANDOFF.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
     "docs/sprint10/CREATE_PREVIEW_HANDOFF.md": {
       "lifecycle": "historical_or_scoped_reference",
       "currentAuthority": false,
@@ -1188,6 +1194,30 @@
       "lifecycle": "historical_or_scoped_delivery_evidence",
       "currentAuthority": false,
       "successor": "docs/CODEX_BACKLOG_2026_07_16.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/sprint10/INVITATION_CONCURRENCY_GATE_REVIEW.md": {
+      "lifecycle": "historical_or_scoped_delivery_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CODEX_BACKLOG_2026_07_16.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/sprint10/INVITATION_CONCURRENCY_HANDOFF.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/sprint10/REAL_PASSWORD_AUTH_CORRECTIVE_REVIEW.md": {
+      "lifecycle": "historical_or_scoped_delivery_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CODEX_BACKLOG_2026_07_16.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/sprint10/REAL_PASSWORD_AUTH_TEST_HANDOFF.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
       "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
     },
     "docs/sprint10/S1_INTEGRATION_REVIEW_20260918.md": {
