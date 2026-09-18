@@ -95,7 +95,9 @@ The publishable-format value is an explicit synthetic fixture, not a secret or r
 
 ## Blockers and boundaries
 
-No blocker remains for this bounded integrated test correction. It does not prove a real hosted Supabase login, real membership/RLS enforcement or Production Auth; those require separately authorized hosted personas and evidence.
+Root independent review found one test-coverage blocker in `98a7f23`: the conversion to an explicit demo persona had dropped failed-Create-update and market-reset regressions. Root restored those assertions against the correct owner-demo project store: forced 502 preserves last-good B and exact saved project bytes; reload plus explicit project reopen makes no new Create call; Singapore clears the active concept/session without deleting the archived project. The restored case passed in optimized local Chrome (1/1, 4.2 seconds) against application source `c9be8fa`. Final reviewer and combined-browser acceptance are tracked in `S1_INTEGRATION_REVIEW_20260918.md`, not inferred from the earlier 4/4 result.
+
+This correction does not prove a real hosted Supabase login, real membership/RLS enforcement or Production Auth; those require separately authorized hosted personas and evidence.
 
 No paid/provider call, dependency mutation, secret access, push, deployment, Production/main change or Supabase change occurred.
 

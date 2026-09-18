@@ -1320,6 +1320,46 @@ test("auth-persona: public demo reopens saved A/B Create without AI while protec
   await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
   expect(createRequestMethods).toEqual(requestMethodsAfterGeneration);
   expect(areaContextPostRequests).toBe(areaContextCallsAfterGeneration);
+
+  // A failed update may not replace the saved success. The explicit public-demo
+  // persona persists to its project, not the obsolete anonymous session store.
+  const savedCreateBytes = () => page.evaluate(() => {
+    const key = Object.keys(localStorage).find((item) => item.startsWith("geoai:point-to-object:projects:v1:"));
+    return key ? localStorage.getItem(key) : null;
+  });
+  const beforeFailedUpdate = await savedCreateBytes();
+  expect(beforeFailedUpdate).not.toBeNull();
+  await page.unroute("**/api/prototype/point-to-object/create");
+  await page.route("**/api/prototype/point-to-object/create", async (route) => {
+    if (route.request().method() === "GET") return json(route, { mode: "ready", challenge: "B".repeat(43) });
+    await json(route, { mode: "unavailable", error: "deliberate demo update failure" }, 502);
+  });
+  await page.getByText("Concept parameters", { exact: true }).click();
+  await page.getByRole("slider", { name: "Blocks" }).fill("2");
+  await page.getByTestId("create-generate-action").click();
+  await expect(page.getByTestId("create-generation-error")).toBeVisible();
+  await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
+  await expect(page.getByTestId("create-alternative-b")).toHaveAttribute("aria-selected", "true");
+  expect(await savedCreateBytes()).toBe(beforeFailedUpdate);
+  const afterFailureMethods = [...createRequestMethods];
+  await page.reload();
+  await page.goto("/projects?view=spatial");
+  await page.getByRole("button", { name: "Show on map", exact: true }).first().click();
+  await expect(page.getByTestId("create-full-result-dashboard")).toBeVisible();
+  await expect(page.getByTestId("create-dashboard-alternative-b")).toHaveAttribute("aria-selected", "true");
+  await page.getByTestId("create-full-result-dashboard").getByRole("button", { name: "Show on map", exact: true }).click();
+  await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
+  expect(createRequestMethods).toEqual(afterFailureMethods);
+
+  // Market reset clears the current canvas, not the user's saved project.
+  await page.getByTestId("point-object-city-select").selectOption("singapore");
+  await expect(page.getByTestId("generated-concept-summary")).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => sessionStorage.getItem("geoai:point-to-object:create:v1"))).toBeNull();
+  expect(await savedCreateBytes()).toBe(beforeFailedUpdate);
+  await page.reload();
+  await expect(page.getByTestId("generated-concept-summary")).toHaveCount(0);
+  expect(await savedCreateBytes()).toBe(beforeFailedUpdate);
+  expect(createRequestMethods).toEqual(afterFailureMethods);
   expect(unexpectedExternal).toEqual([]);
 });
 
