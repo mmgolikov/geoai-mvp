@@ -1,6 +1,12 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 import { sprint10AnalysisResponse, sprint10Selection } from "./helpers/sprint10-analysis-fixture";
 import { POINT_OBJECT_ANALYSIS_CLIENT_DEADLINE_MS } from "../../src/lib/prototype/point-to-object-analysis-request-state";
+import { installLocalWebKitHttpCsp } from "./helpers/local-webkit-csp";
+
+test.beforeEach(async ({ page }, testInfo) => {
+  await installLocalWebKitHttpCsp(page, testInfo.project.use.browserName, testInfo.project.use.baseURL);
+  await page.route(/^https:\/\//, (route) => route.abort());
+});
 
 async function json(route: Route, body: unknown, status = 200) {
   await route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
@@ -189,3 +195,38 @@ test("S1 preserves the last result across cancel and reopen without a paid-route
   await expect(page.getByTestId("analysis-request-state")).toHaveAttribute("data-draft-scenario", "b2b_commercial_real_estate");
   expect(api.posts).toHaveLength(2);
 });
+
+for (const width of [390, 1440]) {
+  for (const locale of ["en", "ru"] as const) {
+    test(`S1 analysis controls and saved result remain usable at ${width}px ${locale}`, async ({ page }, testInfo) => {
+      const errors: string[] = [];
+      page.on("pageerror", (error) => errors.push(error.message));
+      await page.setViewportSize({ width, height: 900 });
+      const api = await prepare(page);
+      await page.goto("/prototype/point-to-object/analysis");
+      await expect(page.getByTestId("ai-success")).toBeVisible();
+      await page.getByRole("button", { name: new RegExp(`^${locale}$`, "i") }).click();
+      const deep = page.getByRole("button", { name: locale === "ru" ? "Глубоко" : "Deep", exact: true });
+      await expect(deep).toBeVisible();
+      expect(api.posts).toHaveLength(1);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
+      await page.screenshot({ path: testInfo.outputPath(`analysis-overview-${width}-${locale}.png`) });
+      await deep.click();
+      const run = page.getByRole("button", { name: locale === "ru" ? "Запустить целевой анализ" : "Run focused analysis", exact: true });
+      await expect(run).toBeEnabled();
+      await run.click();
+      await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "deep");
+      expect(api.posts).toHaveLength(2);
+      expect(api.posts[1]).toMatchObject({ depth: "deep", locale });
+      const refresh = page.getByRole("button", { name: locale === "ru" ? "Обновить анализ" : "Refresh analysis", exact: true });
+      await expect(refresh).toBeEnabled();
+      await refresh.scrollIntoViewIfNeeded();
+      const bounds = await refresh.boundingBox();
+      expect(bounds?.height).toBeGreaterThanOrEqual(44);
+      expect(bounds!.x).toBeGreaterThanOrEqual(0);
+      expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+      await page.screenshot({ path: testInfo.outputPath(`analysis-controls-${width}-${locale}.png`) });
+      expect(errors).toEqual([]);
+    });
+  }
+}
