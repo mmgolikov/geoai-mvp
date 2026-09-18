@@ -1,11 +1,14 @@
 import { expect, test, type BrowserContext, type Page, type Route } from "@playwright/test";
+import { readFileSync } from "node:fs";
+import { isAbsolute } from "node:path";
 
 test.use({ trace: "off", screenshot: "off", video: "off", serviceWorkers: "block" });
 
 const exactDevelopmentProjectRef = "pphdqkurxneyagvnnjdt";
 const forbiddenProductionHosts = new Set([
   "geoai-mvp.vercel.app",
-  "geoai-id0xnwco2-geoaidev.vercel.app"
+  "geoai-id0xnwco2-geoaidev.vercel.app",
+  "geoai-a71p4fxnr-geoaidev.vercel.app"
 ]);
 const localSampleKey = "geoai:point-to-object:projects:v1:harness-local-sample";
 const localSampleValue = JSON.stringify({
@@ -21,6 +24,10 @@ const expectedCommitSha = process.env.GEOAI_REAL_PASSWORD_AUTH_EXPECTED_COMMIT_S
 const expectedProjectRef = process.env.GEOAI_REAL_PASSWORD_AUTH_SUPABASE_PROJECT_REF?.trim() ?? "";
 const previewBypassSecret = process.env.GEOAI_REAL_PASSWORD_AUTH_PREVIEW_BYPASS_SECRET ?? "";
 const runApproval = process.env.GEOAI_REAL_PASSWORD_AUTH_RUN_APPROVAL?.trim() ?? "";
+const explicitRunApproval = process.env.GEOAI_REAL_PASSWORD_AUTH_EXPLICIT_RUN?.trim() ?? "";
+const selectedScope = process.env.GEOAI_REAL_PASSWORD_AUTH_SCOPE?.trim() ?? "";
+const deploymentReceiptPath = process.env.GEOAI_REAL_PASSWORD_AUTH_DEPLOYMENT_RECEIPT_PATH?.trim() ?? "";
+const runnerActive = process.env.GEOAI_REAL_PASSWORD_AUTH_RUNNER_ACTIVE === "1";
 
 type Persona = {
   email: string;
@@ -40,17 +47,7 @@ const secondaryPersona: Persona = {
   expectedUserId: process.env.GEOAI_REAL_PASSWORD_AUTH_SECONDARY_USER_ID?.trim() ?? ""
 };
 
-const targetFields = [
-  previewUrl,
-  baseUrl,
-  expectedCommitSha,
-  expectedProjectRef,
-  previewBypassSecret,
-  runApproval
-];
-const primaryFields = Object.values(primaryPersona);
 const secondaryFields = Object.values(secondaryPersona);
-const primaryConfigured = targetFields.every(Boolean) && primaryFields.every(Boolean);
 const anySecondaryFieldConfigured = secondaryFields.some(Boolean);
 const secondaryConfigured = secondaryFields.every(Boolean);
 
@@ -81,7 +78,65 @@ function validPersona(persona: Persona, lane: "primary" | "secondary") {
     `The injected ${lane} expected identity must be an exact UUID.`);
 }
 
+type RootDeploymentReceipt = {
+  schemaVersion?: unknown;
+  verifiedAt?: unknown;
+  expiresAt?: unknown;
+  deployment?: {
+    id?: unknown;
+    url?: unknown;
+    state?: unknown;
+    target?: unknown;
+    commitSha?: unknown;
+  } | null;
+  protection?: {
+    kind?: unknown;
+    anonymousStatus?: unknown;
+    locationOrigin?: unknown;
+    locationPath?: unknown;
+  } | null;
+};
+
+function loadAndValidateRootDeploymentReceipt(): RootDeploymentReceipt {
+  guard(deploymentReceiptPath.length > 0 && isAbsolute(deploymentReceiptPath),
+    "An absolute root-owned exact-deployment receipt path is required.");
+  let receipt: RootDeploymentReceipt;
+  try {
+    receipt = JSON.parse(readFileSync(deploymentReceiptPath, "utf8")) as RootDeploymentReceipt;
+  } catch {
+    throw new Error("The root-owned exact-deployment receipt is missing or is not valid JSON.");
+  }
+  guard(receipt.schemaVersion === "geoai.sprint10.real-password-preview-receipt.v1",
+    "The root-owned exact-deployment receipt schema is not accepted.");
+  const verifiedAt = typeof receipt.verifiedAt === "string" ? Date.parse(receipt.verifiedAt) : Number.NaN;
+  const expiresAt = typeof receipt.expiresAt === "string" ? Date.parse(receipt.expiresAt) : Number.NaN;
+  const now = Date.now();
+  guard(Number.isFinite(verifiedAt) && verifiedAt <= now && Number.isFinite(expiresAt) && expiresAt > now,
+    "The root-owned exact-deployment receipt is not currently valid.");
+  guard(typeof receipt.deployment?.id === "string" && /^dpl_[A-Za-z0-9]+$/.test(receipt.deployment.id),
+    "The root-owned receipt does not contain an exact Vercel deployment ID.");
+  guard(receipt.deployment?.url === previewUrl && receipt.deployment?.state === "READY" &&
+    receipt.deployment?.target === "preview" && receipt.deployment?.commitSha === expectedCommitSha,
+  "The root-owned receipt is not bound to this exact READY Preview URL, target and commit.");
+  guard(receipt.protection?.kind === "vercel_sso" &&
+    [301, 302, 303, 307, 308].includes(Number(receipt.protection?.anonymousStatus)) &&
+    receipt.protection?.locationOrigin === "https://vercel.com" && receipt.protection?.locationPath === "/sso-api",
+  "The root-owned receipt does not prove the expected anonymous Vercel SSO protection challenge.");
+  return receipt;
+}
+
 function validateHarnessConfiguration() {
+  guard(explicitRunApproval === "existing-password-only-live-acceptance",
+    "The real-password harness requires the exact explicit live-run opt-in.");
+  guard(runnerActive,
+    "The real-password harness must be started through scripts/sprint10-real-password-auth-run.mjs.");
+  guard(selectedScope === "primary" || selectedScope === "primary_and_secondary",
+    "The selected persona scope must be primary or primary_and_secondary.");
+  guard(previewUrl.length > 0 && baseUrl.length > 0 && expectedCommitSha.length > 0 &&
+    expectedProjectRef.length > 0 && previewBypassSecret.length > 0 && runApproval.length > 0,
+  "The exact target configuration is incomplete.");
+  guard(Object.values(primaryPersona).every(Boolean),
+    "The primary existing-password persona configuration is incomplete.");
   guard(expectedProjectRef === exactDevelopmentProjectRef,
     "The real-password harness is restricted to the exact approved development Supabase project.");
   guard(/^[0-9a-f]{40}$/.test(expectedCommitSha),
@@ -104,11 +159,16 @@ function validateHarnessConfiguration() {
   validPersona(primaryPersona, "primary");
   guard(!anySecondaryFieldConfigured || secondaryConfigured,
     "Secondary-persona configuration is partial; provide all three secondary values or none of them.");
-  if (secondaryConfigured) {
+  guard(selectedScope !== "primary_and_secondary" || secondaryConfigured,
+    "The selected two-persona scope requires a complete secondary persona.");
+  guard(selectedScope !== "primary" || !anySecondaryFieldConfigured,
+    "The primary-only scope must not receive unused secondary credentials.");
+  if (selectedScope === "primary_and_secondary") {
     validPersona(secondaryPersona, "secondary");
     guard(primaryPersona.email !== secondaryPersona.email && primaryPersona.expectedUserId !== secondaryPersona.expectedUserId,
       "Primary and secondary personas must be distinct existing identities.");
   }
+  loadAndValidateRootDeploymentReceipt();
 }
 
 type NetworkPolicy = {
@@ -118,37 +178,64 @@ type NetworkPolicy = {
 async function installNetworkPolicy(page: Page): Promise<NetworkPolicy> {
   const targetOrigin = new URL(previewUrl).origin;
   const authOrigin = `https://${exactDevelopmentProjectRef}.supabase.co`;
-  const allowedOrigins = new Set([targetOrigin, authOrigin]);
+  const allowedApplicationReadPaths = new Set([
+    "/",
+    "/api/health",
+    "/api/auth/session",
+    "/api/prototype/point-to-object/ai",
+    "/login",
+    "/profile",
+    "/projects",
+    "/prototype/point-to-object",
+    "/favicon.svg"
+  ]);
   let unexpectedExternalRequests = 0;
   let disallowedApplicationMutations = 0;
   let disallowedSupabaseOperations = 0;
 
-  page.on("request", (request) => {
+  await page.route("**/*", async (route: Route) => {
+    const request = route.request();
     const url = new URL(request.url());
     const method = request.method().toUpperCase();
-    if (url.origin === targetOrigin && !["GET", "HEAD", "OPTIONS"].includes(method) &&
-        !(method === "POST" && url.pathname === "/api/auth/logout")) {
-      disallowedApplicationMutations += 1;
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      await route.continue();
+      return;
+    }
+    if (url.origin === targetOrigin) {
+      const safeRead = ["GET", "HEAD"].includes(method) &&
+        (allowedApplicationReadPaths.has(url.pathname) || url.pathname.startsWith("/_next/"));
+      const exactLogout = method === "POST" && url.pathname === "/api/auth/logout" && !url.search;
+      if (!safeRead && !exactLogout) {
+        disallowedApplicationMutations += 1;
+        await route.abort("blockedbyclient");
+        return;
+      }
+      await route.continue({
+        headers: {
+          ...request.headers(),
+          "x-vercel-protection-bypass": previewBypassSecret
+        }
+      });
+      return;
     }
     if (url.origin === authOrigin) {
-      const authOnly = url.pathname.startsWith("/auth/v1/");
-      const prohibitedIdentityOperation = /\/(?:signup|otp|invite|recover)$/.test(url.pathname) ||
-        (url.pathname.endsWith("/user") && !["GET", "HEAD", "OPTIONS"].includes(method));
-      if (!authOnly || prohibitedIdentityOperation) disallowedSupabaseOperations += 1;
-    }
-  });
-
-  await page.route((url) => url.origin === targetOrigin, async (route: Route) => {
-    await route.continue({
-      headers: {
-        ...route.request().headers(),
-        "x-vercel-protection-bypass": previewBypassSecret
+      const authPreflight = method === "OPTIONS" &&
+        ["/auth/v1/token", "/auth/v1/user", "/auth/v1/logout"].includes(url.pathname);
+      const passwordOrRefresh = method === "POST" && url.pathname === "/auth/v1/token" &&
+        ["password", "refresh_token"].includes(url.searchParams.get("grant_type") ?? "") &&
+        [...url.searchParams.keys()].every((key) => key === "grant_type");
+      const readUser = method === "GET" && url.pathname === "/auth/v1/user" && !url.search;
+      const logout = method === "POST" && url.pathname === "/auth/v1/logout" &&
+        [...url.searchParams.keys()].every((key) => key === "scope") &&
+        (!url.searchParams.has("scope") || ["local", "global", "others"].includes(url.searchParams.get("scope") ?? ""));
+      if (!authPreflight && !passwordOrRefresh && !readUser && !logout) {
+        disallowedSupabaseOperations += 1;
+        await route.abort("blockedbyclient");
+        return;
       }
-    });
-  });
-  await page.route((url) =>
-    (url.protocol === "http:" || url.protocol === "https:") && !allowedOrigins.has(url.origin),
-  async (route: Route) => {
+      await route.continue();
+      return;
+    }
     unexpectedExternalRequests += 1;
     await route.abort("blockedbyclient");
   });
@@ -163,6 +250,26 @@ async function installNetworkPolicy(page: Page): Promise<NetworkPolicy> {
         "The auth harness observed a Supabase request outside existing-user authentication.");
     }
   };
+}
+
+async function verifyAnonymousPreviewProtection() {
+  const targetOrigin = new URL(previewUrl).origin;
+  const receipt = loadAndValidateRootDeploymentReceipt();
+  const response = await fetch(`${targetOrigin}/api/health`, {
+    method: "GET",
+    redirect: "manual",
+    credentials: "omit",
+    cache: "no-store",
+    headers: { Accept: "text/html" }
+  });
+  guard(response.status === receipt.protection?.anonymousStatus,
+    "The anonymous Preview response no longer matches the root-owned protection receipt.");
+  const rawLocation = response.headers.get("location");
+  guard(typeof rawLocation === "string" && rawLocation.length > 0,
+    "The anonymous Preview did not return a protection redirect target.");
+  const location = new URL(rawLocation, targetOrigin);
+  guard(location.origin === "https://vercel.com" && location.pathname === "/sso-api",
+    "The anonymous Preview did not challenge through the exact Vercel SSO target.");
 }
 
 async function verifyExactPreview(page: Page) {
@@ -312,8 +419,8 @@ async function signOutAndVerify(page: Page) {
 
 test.describe("Sprint 10 existing-user password Auth acceptance harness", () => {
   test.skip(
-    !primaryConfigured,
-    "Requires an explicitly approved exact Preview and one injected existing synthetic password persona."
+    explicitRunApproval !== "existing-password-only-live-acceptance",
+    "The live harness is absent from default execution and requires its exact explicit runner opt-in."
   );
 
   test.beforeAll(() => {
@@ -321,8 +428,9 @@ test.describe("Sprint 10 existing-user password Auth acceptance harness", () => 
   });
 
   test("verifies exact Preview, SSR continuity, guarded API and logout without data mutations", async ({ page, context }) => {
-    const policy = await installNetworkPolicy(page);
     await context.clearCookies();
+    await verifyAnonymousPreviewProtection();
+    const policy = await installNetworkPolicy(page);
     try {
       await verifyExactPreview(page);
       await loginWithExistingPassword(page, primaryPersona);
@@ -344,38 +452,38 @@ test.describe("Sprint 10 existing-user password Auth acceptance harness", () => 
     }
   });
 
-  test("keeps two existing-user browser cookie sessions isolated", async ({ browser }) => {
-    test.skip(!secondaryConfigured,
-      "A second existing synthetic persona is optional until browser-session isolation evidence is requested.");
+  if (selectedScope === "primary_and_secondary") {
+    test("keeps two existing-user browser cookie sessions isolated", async ({ browser }) => {
+      const contexts: BrowserContext[] = [];
+      await verifyAnonymousPreviewProtection();
+      try {
+        const firstContext = await browser.newContext({ baseURL: previewUrl, serviceWorkers: "block" });
+        const secondContext = await browser.newContext({ baseURL: previewUrl, serviceWorkers: "block" });
+        contexts.push(firstContext, secondContext);
+        const firstPage = await firstContext.newPage();
+        const secondPage = await secondContext.newPage();
+        const firstPolicy = await installNetworkPolicy(firstPage);
+        const secondPolicy = await installNetworkPolicy(secondPage);
 
-    const contexts: BrowserContext[] = [];
-    try {
-      const firstContext = await browser.newContext({ baseURL: previewUrl, serviceWorkers: "block" });
-      const secondContext = await browser.newContext({ baseURL: previewUrl, serviceWorkers: "block" });
-      contexts.push(firstContext, secondContext);
-      const firstPage = await firstContext.newPage();
-      const secondPage = await secondContext.newPage();
-      const firstPolicy = await installNetworkPolicy(firstPage);
-      const secondPolicy = await installNetworkPolicy(secondPage);
+        await verifyExactPreview(firstPage);
+        await loginWithExistingPassword(firstPage, primaryPersona);
+        await loginWithExistingPassword(secondPage, secondaryPersona);
+        assertAuthenticatedSession(await readSessionEvidence(firstPage, primaryPersona.expectedUserId));
+        assertAuthenticatedSession(await readSessionEvidence(secondPage, secondaryPersona.expectedUserId));
 
-      await verifyExactPreview(firstPage);
-      await loginWithExistingPassword(firstPage, primaryPersona);
-      await loginWithExistingPassword(secondPage, secondaryPersona);
-      assertAuthenticatedSession(await readSessionEvidence(firstPage, primaryPersona.expectedUserId));
-      assertAuthenticatedSession(await readSessionEvidence(secondPage, secondaryPersona.expectedUserId));
-
-      await signOutAndVerify(firstPage);
-      assertAuthenticatedSession(await readSessionEvidence(secondPage, secondaryPersona.expectedUserId));
-      guard(await localSampleIsUnchanged(firstPage) && await localSampleIsUnchanged(secondPage),
-        "Browser-local sample bytes changed during the two-context isolation check.");
-      firstPolicy.assertClean();
-      secondPolicy.assertClean();
-    } finally {
-      await Promise.all(contexts.map(async (context) => {
-        for (const page of context.pages()) await removeLocalSample(page);
-        await context.clearCookies();
-        await context.close();
-      }));
-    }
-  });
+        await signOutAndVerify(firstPage);
+        assertAuthenticatedSession(await readSessionEvidence(secondPage, secondaryPersona.expectedUserId));
+        guard(await localSampleIsUnchanged(firstPage) && await localSampleIsUnchanged(secondPage),
+          "Browser-local sample bytes changed during the two-context isolation check.");
+        firstPolicy.assertClean();
+        secondPolicy.assertClean();
+      } finally {
+        await Promise.all(contexts.map(async (context) => {
+          for (const page of context.pages()) await removeLocalSample(page);
+          await context.clearCookies();
+          await context.close();
+        }));
+      }
+    });
+  }
 });
