@@ -32,6 +32,12 @@ import {
   type Sprint10LiveScope,
   sprint10LiveRequestKey
 } from "./helpers/sprint10-live-journey-gate";
+import {
+  SPRINT10_ANALYSIS_EVIDENCE_CAPTURE_OPT_IN,
+  SPRINT10_PUBLIC_ANALYSIS_QUESTION,
+  validateSprint10AnalysisEvidencePath,
+  writeSprint10AnalysisResultEvidence
+} from "./helpers/sprint10-analysis-result-evidence";
 
 test.use({ trace: "off", screenshot: "off", video: "off", serviceWorkers: "block" });
 test.describe.configure({ mode: "serial", retries: 0 });
@@ -57,6 +63,7 @@ type LiveConfiguration = {
   ledgerRoot: string;
   ledgerPath: string;
   receiptPath: string;
+  analysisEvidencePath: string | null;
 };
 
 function guard(condition: unknown, message: string): asserts condition {
@@ -97,6 +104,16 @@ function loadConfiguration(baseURL: string | undefined): LiveConfiguration {
   guard(bypass.trim().length >= 16, "A runtime-only Preview protection bypass credential is required.");
   guard(required("GEOAI_SPRINT10_LIVE_EXPECTED_LEDGER_ID") === EXPECTED_LEDGER_ID,
     "The root-owned cycle ledger identity is not accepted.");
+  const evidenceOptIn = process.env.GEOAI_SPRINT10_ANALYSIS_EVIDENCE_CAPTURE;
+  const evidencePath = process.env.GEOAI_SPRINT10_ANALYSIS_EVIDENCE_PATH;
+  const evidenceRequested = evidenceOptIn !== undefined || evidencePath !== undefined;
+  if (evidenceRequested) {
+    guard(evidenceOptIn === SPRINT10_ANALYSIS_EVIDENCE_CAPTURE_OPT_IN && typeof evidencePath === "string" && evidencePath.length > 0,
+      "Analysis evidence capture requires its exact opt-in and one explicit output path.");
+    guard(selectedScope === "journey" || selectedScope === "dubai-analyse",
+      "Analysis evidence capture is available only for a scope containing the bounded Dubai Analyse scenario.");
+    validateSprint10AnalysisEvidencePath(evidencePath);
+  }
   return {
     scope: selectedScope,
     origin: preview.origin,
@@ -108,7 +125,8 @@ function loadConfiguration(baseURL: string | undefined): LiveConfiguration {
     userId,
     ledgerRoot: required("GEOAI_SPRINT10_LIVE_LEDGER_ROOT"),
     ledgerPath: required("GEOAI_SPRINT10_LIVE_LEDGER_PATH"),
-    receiptPath: required("GEOAI_SPRINT10_LIVE_DEPLOYMENT_RECEIPT_PATH")
+    receiptPath: required("GEOAI_SPRINT10_LIVE_DEPLOYMENT_RECEIPT_PATH"),
+    analysisEvidencePath: evidenceRequested ? evidencePath! : null
   };
 }
 
@@ -593,10 +611,11 @@ async function runDubaiAnalyse(page: Page, configuration: LiveConfiguration, pol
     record(contextPayload.subject) && contextPayload.subject.sourceFeatureId === chosen.id,
   "The selected Dubai source identity was not resolved to the exact structured object.");
   await expect(page.getByRole("button", { name: "Analyze", exact: true })).toBeEnabled({ timeout: 45_000 });
-  await page.locator("#point-object-question").fill("What evidence supports this screening result, and what must be validated before a redevelopment decision?");
+  await page.locator("#point-object-question").fill(SPRINT10_PUBLIC_ANALYSIS_QUESTION);
   const responsePromise = page.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/point-to-object/ai"), { timeout: 180_000 });
   await page.getByRole("button", { name: "Analyze", exact: true }).click();
   const response = await responsePromise;
+  const submittedRequest: unknown = response.request().postDataJSON();
   const payload: unknown = await response.json();
   await budget.waitForTerminalReceipts();
   guard(response.status() === 200 && record(payload) && payload.mode === "openai" && payload.schemaVersion === 6 &&
@@ -605,6 +624,23 @@ async function runDubaiAnalyse(page: Page, configuration: LiveConfiguration, pol
     record(payload.subject) && payload.subject.sourceFeatureId === chosen.id && payload.subject.sourceLabel === "© OpenStreetMap contributors" &&
     record(payload.content) && payload.content.caveat === CAVEAT && record(payload.content.depthReview) && payload.content.depthReview.depth === "standard",
   "The Dubai Analyse response did not preserve current V10 depth, role/scenario provenance and source identity.");
+  if (configuration.analysisEvidencePath) {
+    writeSprint10AnalysisResultEvidence(configuration.analysisEvidencePath, {
+      response: payload,
+      submittedRequest,
+      expectedSourceFeatureId: chosen.id,
+      telemetryIdentity: {
+        requestKey: sprint10LiveRequestKey(configuration.scope, "ai", 1, configuration.commit),
+        phase: "S4",
+        candidateHost: configuration.host,
+        candidateCommit: configuration.commit,
+        route: "ai",
+        depth: "standard",
+        promptVersion: SPRINT10_ANALYSIS_PROMPT_VERSION,
+        schemaVersion: 6
+      }
+    });
+  }
   await expect(page.getByTestId("ai-success")).toBeVisible();
   await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
   const expectedDomainIdentity = JSON.stringify({ sourceFeatureId: chosen.id, evidencePackHash: payload.evidencePackHash });
