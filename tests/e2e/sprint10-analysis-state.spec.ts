@@ -1,5 +1,6 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 import { sprint10AnalysisResponse, sprint10Selection } from "./helpers/sprint10-analysis-fixture";
+import { POINT_OBJECT_ANALYSIS_CLIENT_DEADLINE_MS } from "../../src/lib/prototype/point-to-object-analysis-request-state";
 
 async function json(route: Route, body: unknown, status = 200) {
   await route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
@@ -112,7 +113,7 @@ test("S1 keeps the last result on 429 and malformed error responses and allows r
   expect(api.posts).toHaveLength(3);
 });
 
-test("S1 times out a stalled request without replacing the completed result", async ({ page }) => {
+test("S1 allows a valid Deep request to run beyond 45 seconds", async ({ page }) => {
   const api = await prepare(page);
   await page.goto("/prototype/point-to-object/analysis");
   await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
@@ -121,13 +122,32 @@ test("S1 times out a stalled request without replacing the completed result", as
   api.holdNext();
   await page.getByRole("button", { name: "Run focused analysis", exact: true }).click();
   await expect(page.getByTestId("analysis-request-state")).toHaveAttribute("data-in-flight-depth", "deep");
-  await page.clock.fastForward(45_001);
+  await page.clock.fastForward(50_000);
+  await expect(page.getByTestId("analysis-request-state")).toHaveAttribute("data-in-flight-depth", "deep");
+  await expect(page.getByRole("alert").filter({ hasText: "timed out" })).toHaveCount(0);
+  api.release();
+  await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "deep");
+});
+
+test("S1 times out only after the route contract and supports an explicit retry", async ({ page }) => {
+  const api = await prepare(page);
+  await page.goto("/prototype/point-to-object/analysis");
+  await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
+  await page.clock.install();
+  await page.getByRole("button", { name: "Deep", exact: true }).click();
+  api.holdNext();
+  await page.getByRole("button", { name: "Run focused analysis", exact: true }).click();
+  await page.clock.fastForward(POINT_OBJECT_ANALYSIS_CLIENT_DEADLINE_MS + 1);
   await expect(page.getByRole("alert").filter({ hasText: "timed out" })).toBeVisible();
   await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
   await expect(page.getByTestId("analysis-request-state")).toHaveAttribute("data-in-flight-depth", "none");
   api.release();
   await page.clock.fastForward(100);
+  await page.waitForTimeout(100);
   await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
+  await page.getByRole("button", { name: "Run focused analysis", exact: true }).click();
+  await expect.poll(() => api.posts.length).toBe(3);
+  await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "deep");
 });
 
 test("S1 preserves the last result across cancel and reopen without a paid-route replay", async ({ page }) => {
@@ -145,7 +165,27 @@ test("S1 preserves the last result across cancel and reopen without a paid-route
   await page.waitForTimeout(100);
   await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
 
+  await page.evaluate(() => sessionStorage.setItem("geoai:point-to-object:find:v1", JSON.stringify({
+    version: 1,
+    marketKey: "dubai",
+    locale: "en",
+    audience: "b2b",
+    role: "real_estate_fund",
+    scenario: "b2b_commercial_real_estate",
+    group: "commercial_office",
+    mappedMinimumLevels: "",
+    mappedMaximumLevels: "",
+    result: null,
+    shortlist: [],
+    comparisonOpen: false,
+    analysisTargetSourceFeatureId: null,
+    updatedAt: "2026-09-18T12:00:00.000Z"
+  })));
   await page.reload();
   await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
+  await expect(page.getByTestId("analysis-request-state")).toHaveAttribute("data-completed-role", "developer");
+  await expect(page.getByTestId("analysis-request-state")).toHaveAttribute("data-completed-scenario", "unspecified");
+  await expect(page.getByTestId("analysis-request-state")).toHaveAttribute("data-draft-role", "real_estate_fund");
+  await expect(page.getByTestId("analysis-request-state")).toHaveAttribute("data-draft-scenario", "b2b_commercial_real_estate");
   expect(api.posts).toHaveLength(2);
 });

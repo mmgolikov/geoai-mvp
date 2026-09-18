@@ -44,9 +44,12 @@ import {
 import { readPointObjectFindSession } from "@/src/lib/prototype/point-to-object-find-session";
 import {
   createPointObjectAnalysisRequestIdentity,
+  POINT_OBJECT_ANALYSIS_CLIENT_DEADLINE_MS,
   pointObjectAnalysisReceiptMatches,
   pointObjectAnalysisRequestChanged,
   pointObjectSelectionEvidenceKeys,
+  readPointObjectCompletedRequestIdentity,
+  writePointObjectCompletedRequestIdentity,
   type PointObjectAnalysisRequestIdentity
 } from "@/src/lib/prototype/point-to-object-analysis-request-state";
 import { pointObjectHasSelectedIdentity, pointObjectSelectedLookupId, pointObjectSelectionLabel } from "@/src/lib/prototype/point-to-object-trusted-identity";
@@ -64,8 +67,6 @@ const DEFAULT_SETTINGS: AnalysisSettings = {
   perspective: "developer",
   horizon: "current"
 };
-
-const ANALYSIS_REQUEST_TIMEOUT_MS = 45_000;
 
 type ActiveAnalysisRequest = {
   controller: AbortController;
@@ -281,6 +282,9 @@ export function PointToObjectAnalysis() {
     setAnalysis(nextAnalysis);
     setCompletedRequest(nextAnalysis.mode === "openai" ? requestSnapshot : null);
     writePointObjectAnalysis(nextAnalysis, activeSelection);
+    if (nextAnalysis.mode === "openai") {
+      writePointObjectCompletedRequestIdentity(activeSelection, nextAnalysis, requestSnapshot);
+    }
     if (saveContext && projectIdentityRef.current === saveContext.identityKey && nextAnalysis.mode === "openai") {
       void savePointObjectOperation(saveContext.identityKey, {
         kind: "analyse",
@@ -310,7 +314,7 @@ export function PointToObjectAnalysis() {
       setLoading(false);
       setInFlightRequest(null);
       setRequestError(translationRef.current(preserveExisting ? "analysis.timeout.previous" : "analysis.timeout"));
-    }, ANALYSIS_REQUEST_TIMEOUT_MS);
+    }, POINT_OBJECT_ANALYSIS_CLIENT_DEADLINE_MS);
     activeRequestRef.current = { controller, requestId, timeoutId };
     const isCurrent = () => !controller.signal.aborted && requestSequenceRef.current === requestId;
     setLoading(true);
@@ -419,7 +423,10 @@ export function PointToObjectAnalysis() {
         }
         analysisRef.current = restoredAnalysis;
         setAnalysis(restoredAnalysis);
-        setCompletedRequest(requestIdentity(restoredSelection, restoredAnalysis.request.question, restoredAnalysis.request, restoredAnalysis.request.locale));
+        // Never reconstruct historical role/scenario/evidence identity from the
+        // current profile or find state. Older/project-restored results without
+        // an immutable snapshot remain visible, but their completed identity is unknown.
+        setCompletedRequest(readPointObjectCompletedRequestIdentity(restoredSelection, restoredAnalysis));
         setDepth(restoredAnalysis.request.depth);
         setGoal(restoredDraft?.trim() ? "custom" : restoredAnalysis.request.goal);
         setPerspective(restoredAnalysis.request.perspective);
@@ -747,8 +754,12 @@ export function PointToObjectAnalysis() {
               className="mt-3 text-[11px] leading-4 text-muted"
               data-testid="analysis-request-state"
               data-draft-depth={depth}
+              data-draft-role={draftRequest?.role ?? "unknown"}
+              data-draft-scenario={draftRequest?.scenario ?? "unknown"}
               data-in-flight-depth={inFlightRequest?.depth ?? "none"}
               data-completed-depth={completedDepth ?? "none"}
+              data-completed-role={completedRequest?.role ?? "unknown"}
+              data-completed-scenario={completedRequest?.scenario ?? "unknown"}
             >
               {locale === "ru" ? "Черновик" : "Draft"}: {depthLabel(depth)} · {inFlightRequest ? `${locale === "ru" ? "Выполняется" : "Running"}: ${localizedInFlightDepth} · ` : ""}{locale === "ru" ? "Результат" : "Result"}: {completedDepth ? depthLabel(completedDepth) : "—"}
             </p>
