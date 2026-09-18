@@ -15,7 +15,9 @@ async function json(route: Route, body: unknown, status = 200) {
 async function prepare(page: Page) {
   const posts: Array<Record<string, unknown>> = [];
   let releasePending: (() => void) | null = null;
+  let releaseChallenge: (() => void) | null = null;
   let holdNextPost = false;
+  let holdNextChallenge = false;
   let nextFailure: { body: unknown; status: number } | null = null;
   let sequence = 0;
   await page.addInitScript((selection) => {
@@ -24,7 +26,10 @@ async function prepare(page: Page) {
   await page.route("**/api/auth/session", (route) => json(route, { isAuthenticated: false, user: null }));
   await page.route("**/api/auth/logout", (route) => json(route, { ok: true }));
   await page.route("**/api/prototype/point-to-object/ai", async (route) => {
-    if (route.request().method() === "GET") return json(route, { mode: "ready", challenge: "A".repeat(43) });
+    if (route.request().method() === "GET") {
+      if (holdNextChallenge) await new Promise<void>((resolve) => { releaseChallenge = resolve; });
+      return json(route, { mode: "ready", challenge: "A".repeat(43) });
+    }
     const body = route.request().postDataJSON() as Record<string, unknown>;
     posts.push(body);
     sequence += 1;
@@ -48,7 +53,11 @@ async function prepare(page: Page) {
   });
   return {
     posts,
+    hasPendingPost: () => releasePending !== null,
+    hasPendingChallenge: () => releaseChallenge !== null,
     holdNext: () => { holdNextPost = true; },
+    holdChallenge: () => { holdNextChallenge = true; },
+    releaseChallenge: () => { holdNextChallenge = false; releaseChallenge?.(); releaseChallenge = null; },
     release: () => { holdNextPost = false; releasePending?.(); releasePending = null; },
     failNext: (body: unknown, status: number) => { nextFailure = { body, status }; }
   };
@@ -70,6 +79,7 @@ test("S1 keeps draft, in-flight and completed depth honest and allows an explici
   await expect(page.getByTestId("analysis-request-state")).toHaveAttribute("data-in-flight-depth", "deep");
   await expect(page.getByTestId("analysis-request-state")).toHaveAttribute("data-completed-depth", "standard");
   await expect(page.getByRole("status").filter({ hasText: /Deep/ })).toBeVisible();
+  await expect.poll(api.hasPendingPost).toBe(true);
   api.release();
   await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "deep");
   expect(api.posts).toHaveLength(2);
@@ -130,6 +140,7 @@ test("S1 allows a valid Deep request to run beyond 45 seconds", async ({ page })
   api.holdNext();
   await page.getByRole("button", { name: "Run focused analysis", exact: true }).click();
   await expect(page.getByTestId("analysis-request-state")).toHaveAttribute("data-in-flight-depth", "deep");
+  await expect.poll(api.hasPendingPost).toBe(true);
   await page.clock.fastForward(50_000);
   await expect(page.getByTestId("analysis-request-state")).toHaveAttribute("data-in-flight-depth", "deep");
   await expect(page.getByRole("alert").filter({ hasText: "timed out" })).toHaveCount(0);
@@ -145,6 +156,10 @@ test("S1 times out only after the route contract and supports an explicit retry"
   await page.getByRole("button", { name: "Deep", exact: true }).click();
   api.holdNext();
   await page.getByRole("button", { name: "Run focused analysis", exact: true }).click();
+  // Start the deadline assertion only after the deliberately delayed POST exists.
+  // Advancing the clock during the challenge GET exercises a different branch.
+  await expect.poll(api.hasPendingPost).toBe(true);
+  expect(api.posts).toHaveLength(2);
   await page.clock.fastForward(POINT_OBJECT_ANALYSIS_CLIENT_DEADLINE_MS + 1);
   await expect(page.getByRole("alert").filter({ hasText: "timed out" })).toBeVisible();
   await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
@@ -158,6 +173,29 @@ test("S1 times out only after the route contract and supports an explicit retry"
   await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "deep");
 });
 
+test("S1 challenge timeout never dispatches the aborted analysis and supports an explicit retry", async ({ page }) => {
+  const api = await prepare(page);
+  await page.goto("/prototype/point-to-object/analysis");
+  await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
+  await page.clock.install();
+  await page.getByRole("button", { name: "Deep", exact: true }).click();
+  api.holdChallenge();
+  await page.getByRole("button", { name: "Run focused analysis", exact: true }).click();
+  await expect.poll(api.hasPendingChallenge).toBe(true);
+  expect(api.posts).toHaveLength(1);
+  await page.clock.fastForward(POINT_OBJECT_ANALYSIS_CLIENT_DEADLINE_MS + 1);
+  await expect(page.getByRole("alert").filter({ hasText: "timed out" })).toBeVisible();
+  api.releaseChallenge();
+  await page.clock.fastForward(100);
+  await page.waitForTimeout(100);
+  expect(api.posts).toHaveLength(1);
+  await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
+  await expect(page.getByTestId("analysis-request-state")).toHaveAttribute("data-in-flight-depth", "none");
+  await page.getByRole("button", { name: "Run focused analysis", exact: true }).click();
+  await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "deep");
+  expect(api.posts).toHaveLength(2);
+});
+
 test("S1 preserves the last result across cancel and unrelated Find context without a paid-route replay", async ({ page }) => {
   const api = await prepare(page);
   await page.goto("/prototype/point-to-object/analysis");
@@ -165,6 +203,7 @@ test("S1 preserves the last result across cancel and unrelated Find context with
   await page.getByRole("button", { name: "Quick", exact: true }).click();
   api.holdNext();
   await page.getByRole("button", { name: /Run|Refresh/ }).click();
+  await expect.poll(api.hasPendingPost).toBe(true);
   await expect(page.getByRole("button", { name: "Cancel analysis" })).toBeVisible();
   await page.getByRole("button", { name: "Cancel analysis" }).click();
   await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
