@@ -18,7 +18,7 @@ import { pathToFileURL } from "node:url";
 // @ts-expect-error The Node transform-types runner requires the explicit TypeScript extension.
 import { SPRINT10_ANALYSIS_PROMPT_VERSION, SPRINT10_CREATE_PROMPT_VERSION, acquireSprint10LedgerLock, createSprint10SpendLedger, createSprint10SpendLedgerFile, markSprint10SpendUnknownFile, parseSprint10ProviderTelemetry, parseSprint10SpendLedger, readSprint10SpendLedgerFile, reserveSprint10Spend, reserveSprint10SpendFile, settleSprint10SpendFile, sprint10LedgerCharge, type Sprint10AttemptTelemetry, type Sprint10RequestIdentity, type Sprint10SpendTelemetry } from "../tests/e2e/helpers/sprint10-live-budget.ts";
 
-const node = "/Users/mmgolikov/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node";
+const node = process.execPath;
 const helperUrl = pathToFileURL(resolve("tests/e2e/helpers/sprint10-live-budget.ts")).href;
 const createdAt = "2026-09-18T10:00:00.000Z";
 const reserveAt = "2026-09-18T10:01:00.000Z";

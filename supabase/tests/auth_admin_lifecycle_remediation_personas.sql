@@ -43,8 +43,8 @@ select extensions.is(
     join pg_namespace namespace on namespace.oid = procedure.pronamespace
     where namespace.nspname = 'api'
   ),
-  16,
-  'canonical chain exposes the exact 16-RPC Data API inventory including the two point-object persistence RPCs'
+  18,
+  'canonical chain exposes the exact 18-RPC Data API inventory including analysis and project-artifact persistence'
 );
 select extensions.has_function(
   'api', 'organization_admin_snapshot',
