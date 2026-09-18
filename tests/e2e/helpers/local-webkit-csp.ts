@@ -23,6 +23,10 @@ export async function installLocalWebKitHttpCsp(page: Page, browserName: string 
       maxRedirects: 0,
       headers: { ...route.request().headers(), "accept-encoding": "identity", connection: "close" }
     });
+    // WebKit cannot fulfill an intercepted navigation with a redirect status.
+    // Replay the real same-origin request so the browser follows the server's
+    // redirect normally; never synthesize a success page at the protected URL.
+    if (response.status() >= 300 && response.status() < 400) return route.continue();
     const headers = response.headers();
     const csp = headers["content-security-policy"];
     if (csp) headers["content-security-policy"] = csp.split(";")

@@ -4,9 +4,9 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 
-export function OnboardingPanel() {
-  const { isAuthenticated, isDemo, user, signOut } = useAuth();
-  const [tokenStaged, setTokenStaged] = useState(false);
+export function OnboardingPanel({ initialInvitationStaged = false }: { initialInvitationStaged?: boolean }) {
+  const { authStatus, isAuthenticated, isDemo, user, signOut } = useAuth();
+  const [tokenStaged, setTokenStaged] = useState(initialInvitationStaged);
   const [stagePending, setStagePending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -85,7 +85,7 @@ export function OnboardingPanel() {
 
         {!stagePending && tokenStaged ? (
           <div className="mt-6 rounded-xl border border-brand/25 bg-[#f1f7f8] p-5">
-            <p className="text-sm font-semibold text-ink">A project is ready to be added to your account.</p>
+            <p className="text-sm font-semibold text-ink">An invitation is ready to be checked for your account.</p>
             {!isAuthenticated ? (
               <p className="mt-2 text-sm leading-6 text-muted">
                 Sign in with the email or phone number that received the invitation, then return here.
@@ -126,7 +126,9 @@ export function OnboardingPanel() {
                   ? "Explore the sample GeoAI workflow with demonstration projects and browser-only data."
                   : isAuthenticated
                     ? "Your account is ready. Assigned projects will appear automatically."
-                    : "Sign in by email, phone or use the ready demo account."}
+                    : authStatus.effectiveMode === "demo_public"
+                      ? "Use the ready browser-local demonstration."
+                      : "Sign in with an existing approved account to continue."}
               </p>
               <Link href={isAuthenticated ? "/workspace" : "/login"} className="mt-4 inline-flex h-10 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50]">
                 {isAuthenticated ? "Open workspace" : "Sign in"}

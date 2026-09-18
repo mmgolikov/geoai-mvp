@@ -53,7 +53,21 @@ test.describe("Sprint 1 permanent-user boundary", () => {
       const cookie = (await context.cookies()).find((candidate) => candidate.name === "geoai-onboarding-invitation");
       return cookie?.value ?? null;
     }).toBe(invitation);
+    expect(await page.evaluate(() => document.cookie)).not.toContain("geoai-onboarding-invitation");
     await expect(page.getByRole("link", { name: "Sign in", exact: true })).toHaveAttribute("href", "/login?next=/onboarding");
+
+    await page.getByRole("link", { name: "Sign in", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Sign in to GeoAI", exact: true })).toBeVisible();
+    // This anonymous round-trip tests cookie-backed re-entry, not a fabricated
+    // successful hosted login or invitation acceptance.
+    await page.goto("/onboarding");
+    await expect(page.getByRole("heading", { name: "Join your GeoAI project", exact: true })).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole("heading", { name: "Join your GeoAI project", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Add project", exact: true })).toHaveCount(0);
+    const renderedPage = await page.request.get("/onboarding");
+    expect(await renderedPage.text()).not.toContain(invitation);
+    expect(renderedPage.headers()["cache-control"]).toContain("no-store");
 
     const acceptance = await page.evaluate(async () => {
       const response = await fetch("/api/onboarding/invitation", {
