@@ -1,6 +1,32 @@
 import type { MultiPolygon, Polygon, Position } from "geojson";
 import { validatePointObjectReplacementAoi } from "./point-to-object-map-replacement";
 
+export type PointObjectFindPresentationState = "result" | "shortlist" | "hover" | "active";
+
+export function pointObjectFindPresentationState(
+  resultId: string,
+  activeId: string | null,
+  hoveredId: string | null,
+  shortlistIds: ReadonlySet<string>
+): PointObjectFindPresentationState {
+  if (resultId === activeId) return "active";
+  if (resultId === hoveredId) return "hover";
+  if (shortlistIds.has(resultId)) return "shortlist";
+  return "result";
+}
+
+export function pointObjectFindVerifiedFootprint(
+  geometry: Polygon | MultiPolygon | null,
+  provenance: string | null,
+  resultKind: "mapped_building_or_landuse" | "mapped_poi" | "unknown" | undefined
+): Polygon | MultiPolygon | null {
+  if (resultKind !== "mapped_building_or_landuse" || provenance !== "confirmed_complete_footprint" || !geometry) return null;
+  if (geometry.type === "Polygon") return validatePointObjectReplacementAoi(geometry).valid ? structuredClone(geometry) : null;
+  if (!geometry.coordinates.length || geometry.coordinates.some((coordinates) =>
+    !validatePointObjectReplacementAoi({ type: "Polygon", coordinates }).valid)) return null;
+  return structuredClone(geometry);
+}
+
 /** -1 outside, 0 boundary, 1 strictly interior. */
 function ringLocation(point: Position, ring: Position[]): number {
   let inside = false;

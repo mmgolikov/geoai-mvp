@@ -31,7 +31,7 @@ import {
 import { pointObjectMarket } from "@/src/lib/prototype/point-to-object-markets";
 import { clearPointObjectPartitionRenderer, reconcilePointObjectCompleteFootprintRenderer } from "@/src/lib/prototype/point-to-object-map-partition-renderer";
 import { pointObjectCompleteFootprintOverlap } from "@/src/lib/prototype/point-to-object-map-partition";
-import { pointObjectTilePolygonMemberAt } from "@/src/lib/prototype/point-to-object-map-selection";
+import { pointObjectFindPresentationState, pointObjectFindVerifiedFootprint, pointObjectTilePolygonMemberAt } from "@/src/lib/prototype/point-to-object-map-selection";
 import { createPointObjectMapResultOpenGuard, groupExactPointObjectProjectResults } from "@/src/lib/prototype/point-to-object-map-project-groups";
 
 const BASEMAPS: Array<{ id: LiveMapBasemapId; labelKey: "map.style.street" | "map.style.light" | "map.style.contrast"; styleUrl: string }> = [
@@ -69,6 +69,7 @@ const MAX_GEOMETRY_POSITIONS = 5_000;
 const MAX_NEARBY_LABELS = 5;
 const EMPTY_CREATE_COORDINATES: Wgs84Position[] = [];
 const EMPTY_FIND_RESULTS: LiveMapFindResult[] = [];
+const EMPTY_FIND_RESULT_IDS: string[] = [];
 const EMPTY_PROJECT_RESULTS: LiveMapProjectResult[] = [];
 const BUILDING_FILTER_SNAPSHOTS = new WeakMap<MapLibreMap, Map<string, PointObjectMapFilterSnapshot>>();
 
@@ -119,7 +120,10 @@ export type LiveObjectMapProps = {
   onCameraMovingChange?: (moving: boolean) => void;
   findResults?: LiveMapFindResult[];
   activeFindResultId?: string | null;
+  hoveredFindResultId?: string | null;
+  shortlistedFindResultIds?: string[];
   onFindResultSelect?: (id: string) => void;
+  onFindResultHover?: (id: string | null) => void;
   projectMarkers?: LiveMapProjectResult[];
   activeProjectMarkerId?: string | null;
   onProjectMarkerSelect?: (id: string) => boolean | void | Promise<boolean | void>;
@@ -306,16 +310,13 @@ function sanitizeGeometry(geometry: Geometry): GeoJsonGeometry | null {
 }
 
 function confirmedFindFootprint(result: LiveMapFindResult): Polygon | MultiPolygon | null {
-  if (result.geometryProvenance !== "confirmed_complete_footprint" || !result.geometry) return null;
+  if (!result.geometry) return null;
   const geometry = sanitizeGeometry(result.geometry);
-  if (geometry?.type === "Polygon") {
-    return validatePointObjectReplacementAoi(geometry).valid ? geometry as Polygon : null;
-  }
-  if (geometry?.type === "MultiPolygon" && geometry.coordinates.length && geometry.coordinates.every((coordinates) =>
-    validatePointObjectReplacementAoi({ type: "Polygon", coordinates }).valid)) {
-    return geometry as MultiPolygon;
-  }
-  return null;
+  return pointObjectFindVerifiedFootprint(
+    geometry?.type === "Polygon" || geometry?.type === "MultiPolygon" ? geometry as Polygon | MultiPolygon : null,
+    result.geometryProvenance ?? null,
+    result.resultKind
+  );
 }
 
 function reliableFindHeight(result: LiveMapFindResult): { height: number; base: number } | null {
@@ -327,13 +328,19 @@ function reliableFindHeight(result: LiveMapFindResult): { height: number; base: 
     : null;
 }
 
-function findFootprintData(results: readonly LiveMapFindResult[], activeId: string | null): FeatureCollection<Polygon | MultiPolygon> {
+function findFootprintData(
+  results: readonly LiveMapFindResult[],
+  activeId: string | null,
+  hoveredId: string | null,
+  shortlistIds: ReadonlySet<string>
+): FeatureCollection<Polygon | MultiPolygon> {
   return {
     type: "FeatureCollection",
     features: results.flatMap((result) => {
       const geometry = confirmedFindFootprint(result);
       if (!geometry) return [];
       const height = reliableFindHeight(result);
+      const presentationState = pointObjectFindPresentationState(result.id, activeId, hoveredId, shortlistIds);
       return [{
         type: "Feature" as const,
         id: result.id,
@@ -341,7 +348,10 @@ function findFootprintData(results: readonly LiveMapFindResult[], activeId: stri
           resultId: result.id,
           number: result.number,
           label: result.label,
-          active: result.id === activeId,
+          presentationState,
+          active: presentationState === "active",
+          hovered: presentationState === "hover",
+          shortlisted: presentationState === "shortlist",
           reliableHeight: Boolean(height),
           renderHeightM: height?.height ?? 0,
           renderMinHeightM: height?.base ?? 0
@@ -356,10 +366,12 @@ function setFindFootprintLayers(
   map: MapLibreMap,
   results: readonly LiveMapFindResult[],
   activeId: string | null,
+  hoveredId: string | null,
+  shortlistIds: ReadonlySet<string>,
   interactionMode: LiveMapInteractionMode,
   viewMode: MapViewMode
 ) {
-  (map.getSource(FIND_FOOTPRINT_SOURCE_ID) as GeoJSONSource | undefined)?.setData(findFootprintData(results, activeId));
+  (map.getSource(FIND_FOOTPRINT_SOURCE_ID) as GeoJSONSource | undefined)?.setData(findFootprintData(results, activeId, hoveredId, shortlistIds));
   const visible = interactionMode === "find";
   if (map.getLayer(FIND_FOOTPRINT_FILL_LAYER_ID)) map.setLayoutProperty(FIND_FOOTPRINT_FILL_LAYER_ID, "visibility", visible ? "visible" : "none");
   if (map.getLayer(FIND_FOOTPRINT_LINE_LAYER_ID)) map.setLayoutProperty(FIND_FOOTPRINT_LINE_LAYER_ID, "visibility", visible ? "visible" : "none");
@@ -925,7 +937,7 @@ function installGeoAiLayers(map: MapLibreMap, viewMode: MapViewMode) {
       }
     }, labelLayer);
   }
-  const findColor: ExpressionSpecification = ["case", ["==", ["get", "active"], true], "#07515a", "#0f978b"];
+  const findColor: ExpressionSpecification = ["match", ["get", "presentationState"], "active", "#07515a", "hover", "#0b6d78", "shortlist", "#087f70", "#5e8f88"];
   if (!map.getSource(FIND_FOOTPRINT_SOURCE_ID)) map.addSource(FIND_FOOTPRINT_SOURCE_ID, {
     type: "geojson",
     data: { type: "FeatureCollection", features: [] }
@@ -935,7 +947,7 @@ function installGeoAiLayers(map: MapLibreMap, viewMode: MapViewMode) {
     type: "fill",
     source: FIND_FOOTPRINT_SOURCE_ID,
     layout: { visibility: "none" },
-    paint: { "fill-color": findColor, "fill-opacity": ["case", ["==", ["get", "active"], true], 0.48, 0.28] }
+    paint: { "fill-color": findColor, "fill-opacity": ["match", ["get", "presentationState"], "active", 0.48, "hover", 0.38, "shortlist", 0.3, 0.1] }
   }, labelLayer);
   if (!map.getLayer(FIND_FOOTPRINT_VOLUME_LAYER_ID)) map.addLayer({
     id: FIND_FOOTPRINT_VOLUME_LAYER_ID,
@@ -948,7 +960,7 @@ function installGeoAiLayers(map: MapLibreMap, viewMode: MapViewMode) {
       "fill-extrusion-color": findColor,
       "fill-extrusion-height": ["get", "renderHeightM"],
       "fill-extrusion-base": ["get", "renderMinHeightM"],
-      "fill-extrusion-opacity": 0.78
+      "fill-extrusion-opacity": ["match", ["get", "presentationState"], "active", 0.78, "hover", 0.66, "shortlist", 0.5, 0.18]
     }
   }, labelLayer);
   if (!map.getLayer(FIND_FOOTPRINT_LINE_LAYER_ID)) map.addLayer({
@@ -956,7 +968,7 @@ function installGeoAiLayers(map: MapLibreMap, viewMode: MapViewMode) {
     type: "line",
     source: FIND_FOOTPRINT_SOURCE_ID,
     layout: { visibility: "none" },
-    paint: { "line-color": "#07515a", "line-width": ["case", ["==", ["get", "active"], true], 4, 2.5] }
+    paint: { "line-color": findColor, "line-width": ["match", ["get", "presentationState"], "active", 4, "hover", 3.5, "shortlist", 3, 1.5] }
   }, labelLayer);
   if (!map.getSource(HIGHLIGHT_SOURCE_ID)) {
     map.addSource(HIGHLIGHT_SOURCE_ID, {
@@ -1085,7 +1097,10 @@ export function LiveObjectMap({
   onCameraMovingChange,
   findResults = EMPTY_FIND_RESULTS,
   activeFindResultId = null,
+  hoveredFindResultId = null,
+  shortlistedFindResultIds = EMPTY_FIND_RESULT_IDS,
   onFindResultSelect,
+  onFindResultHover,
   projectMarkers = EMPTY_PROJECT_RESULTS,
   activeProjectMarkerId = null,
   onProjectMarkerSelect,
@@ -1201,8 +1216,11 @@ export function LiveObjectMap({
   const createVertexCallbackRef = useRef(onCreateVertex);
   const finishDrawingCallbackRef = useRef(onCreateFinishDrawing);
   const findResultCallbackRef = useRef(onFindResultSelect);
+  const findResultHoverCallbackRef = useRef(onFindResultHover);
   const findResultsRef = useRef(findResults);
   const activeFindResultIdRef = useRef(activeFindResultId);
+  const hoveredFindResultIdRef = useRef(hoveredFindResultId);
+  const shortlistedFindResultIdsRef = useRef(new Set(shortlistedFindResultIds));
   const projectResultCallbackRef = useRef(onProjectMarkerSelect);
   function openProjectResult(id: string) {
     const guard = projectResultOpenGuardRef.current;
@@ -1269,17 +1287,20 @@ export function LiveObjectMap({
 
   useEffect(() => { finishDrawingCallbackRef.current = onCreateFinishDrawing; }, [onCreateFinishDrawing]);
   useEffect(() => { findResultCallbackRef.current = onFindResultSelect; }, [onFindResultSelect]);
+  useEffect(() => { findResultHoverCallbackRef.current = onFindResultHover; }, [onFindResultHover]);
   useEffect(() => { projectResultCallbackRef.current = onProjectMarkerSelect; }, [onProjectMarkerSelect]);
 
   useEffect(() => {
     findResultsRef.current = findResults;
     activeFindResultIdRef.current = activeFindResultId;
+    hoveredFindResultIdRef.current = hoveredFindResultId;
+    shortlistedFindResultIdsRef.current = new Set(shortlistedFindResultIds);
     const map = mapRef.current;
     if (!map) return;
     let disposed = false;
     const applyLatestFootprints = () => {
       if (disposed || !map.isStyleLoaded()) return false;
-      setFindFootprintLayers(map, findResults, activeFindResultId, interactionModeRef.current, viewModeRef.current);
+      setFindFootprintLayers(map, findResults, activeFindResultId, hoveredFindResultId, shortlistedFindResultIdsRef.current, interactionModeRef.current, viewModeRef.current);
       return true;
     };
     if (applyLatestFootprints()) return;
@@ -1294,7 +1315,7 @@ export function LiveObjectMap({
       disposed = true;
       map.off("idle", applyOnIdle);
     };
-  }, [activeFindResultId, markerDataSignature]);
+  }, [activeFindResultId, hoveredFindResultId, markerDataSignature, shortlistedFindResultIds.join("|")]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -1302,6 +1323,7 @@ export function LiveObjectMap({
     const isProjectOverview = projectMarkers.length > 0;
     const resultGroups = isProjectOverview ? groupExactPointObjectProjectResults(projectMarkers) : findResults.map(result => ({ key: result.id, results: [result] }));
     const activeId = isProjectOverview ? activeProjectMarkerId : activeFindResultId;
+    const shortlistIds = new Set(shortlistedFindResultIds);
     let disposed = false;
     const markers: import("maplibre-gl").Marker[] = [];
     void import("maplibre-gl").then(({ Marker }) => {
@@ -1310,8 +1332,9 @@ export function LiveObjectMap({
         const result = group.results[0];
         const grouped = isProjectOverview && group.results.length > 1;
         const active = group.results.some(result => result.id === activeId);
+        const hovered = !isProjectOverview && result.id === hoveredFindResultId;
+        const shortlisted = !isProjectOverview && shortlistIds.has(result.id);
         if (!Number.isFinite(result.longitude) || !Number.isFinite(result.latitude) || Math.abs(result.longitude) > 180 || Math.abs(result.latitude) > 85) continue;
-        if (!isProjectOverview && confirmedFindFootprint(result as LiveMapFindResult)) continue;
         const button = document.createElement("button");
         button.type = "button";
         button.disabled = isProjectOverview && projectResultOpening;
@@ -1321,13 +1344,17 @@ export function LiveObjectMap({
         else button.dataset.findResultMarker = result.id;
         if (grouped) button.dataset.projectResultGroup = group.key;
         button.dataset.active = String(active);
+        if (!isProjectOverview) {
+          button.dataset.hovered = String(hovered);
+          button.dataset.shortlisted = String(shortlisted);
+        }
         const label = grouped ? (locale === "ru" ? `${group.results.length} сохранённых результата в этой точке` : `${group.results.length} saved results at this location`) : `${number}. ${result.label}`;
         button.setAttribute("aria-label", label);
         if (grouped) { button.setAttribute("aria-haspopup", "dialog"); button.setAttribute("aria-expanded", "false"); }
         button.setAttribute("aria-pressed", String(active));
         button.title = label;
         button.textContent = String(grouped ? group.results.length : number);
-        button.className = `flex h-11 min-w-11 items-center justify-center rounded-full border-[3px] border-white px-2 text-sm font-bold shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087f8c] ${active ? "bg-[#07515a] text-white" : "bg-[#087f8c] text-white"}`;
+        button.className = `flex h-11 min-w-11 items-center justify-center rounded-full border-[3px] border-white px-2 text-sm font-bold shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087f8c] ${active ? "bg-[#07515a] text-white" : hovered ? "bg-[#0b6d78] text-white" : shortlisted ? "bg-[#087f70] text-white" : "bg-[#087f8c] text-white"}`;
         button.style.zIndex = active ? "2" : "1";
         button.addEventListener("click", (event) => {
           event.stopPropagation();
@@ -1342,18 +1369,24 @@ export function LiveObjectMap({
             findResultCallbackRef.current?.(result.id);
           }
         });
+        if (!isProjectOverview) {
+          button.addEventListener("mouseenter", () => findResultHoverCallbackRef.current?.(result.id));
+          button.addEventListener("mouseleave", () => findResultHoverCallbackRef.current?.(null));
+          button.addEventListener("focus", () => findResultHoverCallbackRef.current?.(result.id));
+          button.addEventListener("blur", () => findResultHoverCallbackRef.current?.(null));
+        }
         markers.push(new Marker({ element: button, anchor: "center" }).setLngLat([result.longitude, result.latitude]).addTo(map));
       }
     });
     return () => { disposed = true; for (const marker of markers) marker.remove(); };
-  }, [activeFindResultId, activeProjectMarkerId, markerDataSignature, interactionMode, isReady, retryVersion, locale, projectResultOpening]);
+  }, [activeFindResultId, activeProjectMarkerId, hoveredFindResultId, shortlistedFindResultIds.join("|"), markerDataSignature, interactionMode, isReady, retryVersion, locale, projectResultOpening]);
 
   useEffect(() => {
     interactionModeRef.current = interactionMode;
     const map = mapRef.current;
     if (!map) return;
     map.getCanvas().style.cursor = interactionMode === "create" && createDrawingRef.current ? "crosshair" : "";
-    if (map.isStyleLoaded()) setFindFootprintLayers(map, findResultsRef.current, activeFindResultIdRef.current, interactionMode, viewModeRef.current);
+    if (map.isStyleLoaded()) setFindFootprintLayers(map, findResultsRef.current, activeFindResultIdRef.current, hoveredFindResultIdRef.current, shortlistedFindResultIdsRef.current, interactionMode, viewModeRef.current);
     if (interactionMode !== "analyse" && map.isStyleLoaded()) {
       selectionRef.current = null;
       setHighlight(map, null, viewModeRef.current, showSelectedVolumeRef.current);
@@ -1635,7 +1668,7 @@ export function LiveObjectMap({
           buildingLayerReconciliationReady = false;
           resetBuildingFilterSnapshots(map);
           installGeoAiLayers(map, viewModeRef.current);
-          setFindFootprintLayers(map, findResultsRef.current, activeFindResultIdRef.current, interactionModeRef.current, viewModeRef.current);
+          setFindFootprintLayers(map, findResultsRef.current, activeFindResultIdRef.current, hoveredFindResultIdRef.current, shortlistedFindResultIdsRef.current, interactionModeRef.current, viewModeRef.current);
           // Camera state is independent of the style lifecycle. Reinstall only
           // mode-specific handlers and layer visibility here so a basemap load
           // cannot overwrite a user's rotation or a 2D/3D choice made mid-load.
@@ -1950,7 +1983,7 @@ export function LiveObjectMap({
     // Applying the mode immediately eliminates the style.load/toggle race.
     applyViewMode(map, nextMode, createAreaClearedRef.current);
     if (!map.isStyleLoaded()) return;
-    setFindFootprintLayers(map, findResultsRef.current, activeFindResultIdRef.current, interactionModeRef.current, nextMode);
+    setFindFootprintLayers(map, findResultsRef.current, activeFindResultIdRef.current, hoveredFindResultIdRef.current, shortlistedFindResultIdsRef.current, interactionModeRef.current, nextMode);
     setSelectedVolumeVisibility(map, selectionRef.current, nextMode, showSelectedVolumeRef.current);
     const replacementStatus = setCreateLayers(map, createDraftRef.current, createAoiRef.current, createAreaClearedRef.current, conceptMassingRef.current, nextMode);
     replacementStatusCallbackRef.current?.(replacementStatus);
