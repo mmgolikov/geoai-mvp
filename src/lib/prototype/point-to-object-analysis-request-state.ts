@@ -5,9 +5,14 @@ import type {
   PointObjectAnalysisGoal,
   PointObjectAnalysisHorizon,
   PointObjectAnalysisPerspective,
+  PointObjectLegacyAnalysisRequestReceipt,
   PointObjectAnalysisRequestReceipt
 } from "@/components/point-to-object/live-types";
-import type { ExploreRole, ExploreScenarioId } from "@/src/lib/explore/types";
+import {
+  parsePointObjectAnalysisRoleScenario,
+  type PointObjectAnalysisRole,
+  type PointObjectAnalysisScenario
+} from "@/src/lib/prototype/point-to-object-ai-provenance";
 import type { PointObjectLocale } from "@/src/lib/prototype/point-to-object-markets";
 
 export const POINT_OBJECT_ANALYSIS_METHOD = "grounded_open_evidence_v1" as const;
@@ -21,24 +26,12 @@ export const POINT_OBJECT_ANALYSIS_CLIENT_DEADLINE_MS = 120_000 + 10_000;
 const COMPLETED_IDENTITY_STORAGE_KEY = "geoai:point-to-object:analysis-request-identity:v1";
 const COMPLETED_IDENTITY_MAX_BYTES = 48 * 1024;
 
-const ROLES = new Set<string>([
-  "tourist", "resident_expat", "home_buyer", "renter", "investor_buyer", "family_relocation",
-  "developer", "real_estate_fund", "bank_lender", "insurer", "government_urban_authority",
-  "infrastructure_operator", "consultant_broker", "family_office", "asset_manager", "unspecified"
-]);
-const SCENARIOS = new Set<string>([
-  "b2c_point_context", "b2c_tourist_objects_route", "b2c_residential_context",
-  "b2c_new_residential_projects", "b2c_interest_routes", "b2b_redevelopment_selected_aoi",
-  "b2b_redevelopment_100ha", "b2b_lowrise_luxury_residential", "b2b_hotel_development",
-  "b2b_commercial_real_estate", "unspecified"
-]);
-
 export type PointObjectAnalysisRequestIdentity = {
   key: string;
   objectKey: string;
   evidenceKey: string;
-  role: ExploreRole | "unspecified";
-  scenario: ExploreScenarioId | "unspecified";
+  role: PointObjectAnalysisRole;
+  scenario: PointObjectAnalysisScenario;
   depth: PointObjectAnalysisDepth;
   goal: PointObjectAnalysisGoal;
   perspective: PointObjectAnalysisPerspective;
@@ -88,13 +81,15 @@ export function createPointObjectAnalysisRequestIdentity(
 }
 
 export function parsePointObjectAnalysisRequestIdentity(value: unknown): PointObjectAnalysisRequestIdentity | null {
+  const roleScenario = isRecord(value)
+    ? parsePointObjectAnalysisRoleScenario(value.role, value.scenario)
+    : null;
   if (!isRecord(value) || !hasExactKeys(value, [
     "key", "objectKey", "evidenceKey", "role", "scenario", "depth", "goal", "perspective",
     "horizon", "locale", "question", "method"
   ]) || typeof value.objectKey !== "string" || !value.objectKey || value.objectKey.length > 240 ||
       typeof value.evidenceKey !== "string" || !value.evidenceKey || value.evidenceKey.length > 32_000 ||
-      typeof value.role !== "string" || !ROLES.has(value.role) ||
-      typeof value.scenario !== "string" || !SCENARIOS.has(value.scenario) ||
+      !roleScenario ||
       (value.depth !== "quick" && value.depth !== "standard" && value.depth !== "deep") ||
       !["object_profile", "development_screening", "redevelopment", "due_diligence", "custom"].includes(String(value.goal)) ||
       (value.perspective !== "developer" && value.perspective !== "investor" && value.perspective !== "asset_owner") ||
@@ -105,8 +100,8 @@ export function parsePointObjectAnalysisRequestIdentity(value: unknown): PointOb
   const reconstructed = createPointObjectAnalysisRequestIdentity({
     objectKey: value.objectKey,
     evidenceKey: value.evidenceKey,
-    role: value.role as PointObjectAnalysisRequestIdentity["role"],
-    scenario: value.scenario as PointObjectAnalysisRequestIdentity["scenario"],
+    role: roleScenario.role,
+    scenario: roleScenario.scenario,
     depth: value.depth,
     goal: value.goal as PointObjectAnalysisGoal,
     perspective: value.perspective,
@@ -118,10 +113,16 @@ export function parsePointObjectAnalysisRequestIdentity(value: unknown): PointOb
 }
 
 export function pointObjectAnalysisReceiptMatches(
-  receipt: PointObjectAnalysisRequestReceipt,
+  receipt: PointObjectAnalysisRequestReceipt | PointObjectLegacyAnalysisRequestReceipt,
   request: PointObjectAnalysisRequestIdentity
 ): boolean {
-  return receipt.depth === request.depth &&
+  const receiptRoleScenario = parsePointObjectAnalysisRoleScenario(
+    "role" in receipt ? receipt.role : "unspecified",
+    "scenario" in receipt ? receipt.scenario : "unspecified"
+  );
+  return receiptRoleScenario?.role === request.role &&
+    receiptRoleScenario.scenario === request.scenario &&
+    receipt.depth === request.depth &&
     receipt.goal === request.goal &&
     receipt.perspective === request.perspective &&
     receipt.horizon === request.horizon &&

@@ -1,6 +1,10 @@
 import type { GeoJsonGeometry } from "@/src/lib/point-to-object/contracts";
 import { LIVE_POINT_CAVEAT } from "@/src/lib/point-to-object/contracts";
 import { isPointObjectLocale, isPointObjectMarketKey } from "@/src/lib/prototype/point-to-object-markets";
+import {
+  parsePointObjectAnalysisRoleScenario,
+  POINT_OBJECT_ANALYSIS_UNSPECIFIED
+} from "@/src/lib/prototype/point-to-object-ai-provenance";
 import type {
   PointObjectWikidataLinkedEntity,
   PointObjectWikidataPropertyId,
@@ -50,6 +54,7 @@ export const POINT_OBJECT_SESSION_KEYS = {
 const MAX_SELECTION_BYTES = 512 * 1024;
 const MAX_ANALYSIS_BYTES = 256 * 1024;
 const MAX_GEOMETRY_POSITIONS = 5_000;
+const POINT_OBJECT_ANALYSIS_PRE_DEPTH_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V8_2026_09_06" as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -886,8 +891,17 @@ function parseLegacyContent(value: unknown): Omit<PointObjectAiContent, "initial
   return { decisionBrief, signals, opportunities, risks, sourceFacts, locationContext, nextValidation, answerToQuestion, geoContext, caveat: LIVE_POINT_CAVEAT };
 }
 
-function parseRequestReceipt(value: unknown): PointObjectAnalysisRequestReceipt | null {
-  if (!isRecord(value) || !hasExactKeys(value, ["depth", "goal", "perspective", "horizon", "question", "focused", "locale"])) return null;
+export function parsePointObjectAnalysisRequestReceipt(value: unknown): PointObjectAnalysisRequestReceipt | null {
+  if (!isRecord(value)) return null;
+  const legacyKeys = ["depth", "goal", "perspective", "horizon", "question", "focused", "locale"] as const;
+  const currentKeys = ["role", "scenario", ...legacyKeys] as const;
+  const isLegacyReceipt = hasExactKeys(value, legacyKeys);
+  if (!isLegacyReceipt && !hasExactKeys(value, currentKeys)) return null;
+  const roleScenario = parsePointObjectAnalysisRoleScenario(
+    isLegacyReceipt ? POINT_OBJECT_ANALYSIS_UNSPECIFIED : value.role,
+    isLegacyReceipt ? POINT_OBJECT_ANALYSIS_UNSPECIFIED : value.scenario
+  );
+  if (!roleScenario) return null;
   const depth = value.depth === "quick" || value.depth === "standard" || value.depth === "deep" ? value.depth : null;
   const goal = value.goal === "object_profile" || value.goal === "development_screening" || value.goal === "redevelopment" ||
     value.goal === "due_diligence" || value.goal === "custom" ? value.goal : null;
@@ -901,7 +915,7 @@ function parseRequestReceipt(value: unknown): PointObjectAnalysisRequestReceipt 
   const focused = typeof value.focused === "boolean" ? value.focused : null;
   return depth && goal && perspective && horizon && isPointObjectLocale(value.locale) &&
     (value.question === null || question) && focused !== null && focused === (question !== null)
-    ? { depth, goal, perspective, horizon, question, focused, locale: value.locale }
+    ? { ...roleScenario, depth, goal, perspective, horizon, question, focused, locale: value.locale }
     : null;
 }
 
@@ -1035,7 +1049,8 @@ type ParsedPointObjectAiTelemetry = Extract<PointObjectAiResponse, { mode: "open
 function parsePointObjectAiTelemetryFor(
   value: unknown,
   expectedSchemaVersion: typeof POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION | typeof POINT_OBJECT_ANALYSIS_LEGACY_RESULT_SCHEMA_VERSION,
-  expectedPromptVersion: typeof POINT_OBJECT_ANALYSIS_PROMPT_VERSION | typeof POINT_OBJECT_ANALYSIS_PREVIOUS_PROMPT_VERSION | typeof POINT_OBJECT_ANALYSIS_LEGACY_PROMPT_VERSION
+  expectedPromptVersion: typeof POINT_OBJECT_ANALYSIS_PROMPT_VERSION | typeof POINT_OBJECT_ANALYSIS_PREVIOUS_PROMPT_VERSION |
+    typeof POINT_OBJECT_ANALYSIS_PRE_DEPTH_PROMPT_VERSION | typeof POINT_OBJECT_ANALYSIS_LEGACY_PROMPT_VERSION
 ): ParsedPointObjectAiTelemetry | null {
   if (!isRecord(value) || !hasExactKeys(value, [
     "provider", "schemaVersion", "model", "reasoningEffort", "depth", "promptVersion", "requestId", "latencyMs", "attempts", "attemptTrace",
@@ -1119,6 +1134,10 @@ export function parsePointObjectAiTelemetry(value: unknown): PointObjectAiTeleme
     value,
     POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION,
     POINT_OBJECT_ANALYSIS_PREVIOUS_PROMPT_VERSION
+  ) ?? parsePointObjectAiTelemetryFor(
+    value,
+    POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION,
+    POINT_OBJECT_ANALYSIS_PRE_DEPTH_PROMPT_VERSION
   )) as PointObjectAiTelemetry | null;
 }
 
@@ -1139,12 +1158,13 @@ export function parsePointObjectAiResponse(value: unknown): PointObjectAiRespons
   const evidencePackHash = typeof value.evidencePackHash === "string" && /^[a-f0-9]{64}$/.test(value.evidencePackHash)
     ? value.evidencePackHash
     : null;
-  const request = parseRequestReceipt(value.request);
+  const request = parsePointObjectAnalysisRequestReceipt(value.request);
   const content = parseContent(value.content);
   const subject = parseSubject(value.subject);
   const telemetry = parsePointObjectAiTelemetry(value.telemetry);
-  const currentDepthReview = telemetry?.promptVersion === POINT_OBJECT_ANALYSIS_PROMPT_VERSION;
-  const previousWithoutDepthReview = telemetry?.promptVersion === POINT_OBJECT_ANALYSIS_PREVIOUS_PROMPT_VERSION;
+  const currentDepthReview = telemetry?.promptVersion === POINT_OBJECT_ANALYSIS_PROMPT_VERSION ||
+    telemetry?.promptVersion === POINT_OBJECT_ANALYSIS_PREVIOUS_PROMPT_VERSION;
+  const previousWithoutDepthReview = telemetry?.promptVersion === POINT_OBJECT_ANALYSIS_PRE_DEPTH_PROMPT_VERSION;
   if (!generatedAt || !evidencePackId || !/^[A-Za-z0-9_.:-]+$/.test(evidencePackId) || !evidencePackHash ||
       !request || !content || !subject || !telemetry || telemetry.depth !== request.depth ||
       (currentDepthReview && (!content.depthReview || content.depthReview.depth !== request.depth)) ||
@@ -1174,7 +1194,7 @@ export function parseLegacyPointObjectAiResponse(value: unknown): Extract<PointO
   const generatedAt = isoTimestamp(value.generatedAt);
   const evidencePackId = nonEmptyText(value.evidencePackId, 160);
   const evidencePackHash = typeof value.evidencePackHash === "string" && /^[a-f0-9]{64}$/.test(value.evidencePackHash) ? value.evidencePackHash : null;
-  const request = parseRequestReceipt(value.request);
+  const request = parsePointObjectAnalysisRequestReceipt(value.request);
   const content = parseLegacyContent(value.content);
   const subject = parseLegacySubject(value.subject);
   const telemetry = parsePointObjectAiTelemetryFor(

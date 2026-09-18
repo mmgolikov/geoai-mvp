@@ -12,8 +12,10 @@ async function loadSession(): Promise<Record<string, any>> {
     `const LIVE_POINT_CAVEAT = ${JSON.stringify(CAVEAT)};\n`);
   source = source.replace(/import \{ isPointObjectLocale, isPointObjectMarketKey \} from "@\/src\/lib\/prototype\/point-to-object-markets";\n/,
     `const isPointObjectLocale = (value) => value === "en" || value === "ru";\nconst isPointObjectMarketKey = (value) => ["dubai", "abu_dhabi", "doha", "riyadh", "muscat", "kuala_lumpur", "singapore", "hong_kong", "moscow"].includes(value);\n`);
+  source = source.replace(/import \{\n  parsePointObjectAnalysisRoleScenario,\n  POINT_OBJECT_ANALYSIS_UNSPECIFIED\n\} from "@\/src\/lib\/prototype\/point-to-object-ai-provenance";\n/,
+    `const POINT_OBJECT_ANALYSIS_UNSPECIFIED = "unspecified";\nconst parsePointObjectAnalysisRoleScenario = (role, scenario) => role === "unspecified" && scenario === "unspecified" ? { role, scenario } : null;\n`);
   source = source.replace(/import \{[\s\S]*?POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION\n\} from "@\/components\/point-to-object\/live-types";\n/,
-    `const POINT_OBJECT_ANALYSIS_LEGACY_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V7_2026_09_04";\nconst POINT_OBJECT_ANALYSIS_LEGACY_RESULT_SCHEMA_VERSION = 5;\nconst POINT_OBJECT_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V8_2026_09_06";\nconst POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION = 6;\n`);
+    `const POINT_OBJECT_ANALYSIS_LEGACY_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V7_2026_09_04";\nconst POINT_OBJECT_ANALYSIS_LEGACY_RESULT_SCHEMA_VERSION = 5;\nconst POINT_OBJECT_ANALYSIS_PREVIOUS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V9_2026_09_12";\nconst POINT_OBJECT_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V10_2026_09_18";\nconst POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION = 6;\n`);
   const javascript = stripTypeScriptTypes(source, { mode: "transform", sourceMap: false });
   return await import(`data:text/javascript;base64,${Buffer.from(javascript).toString("base64")}`) as Record<string, any>;
 }

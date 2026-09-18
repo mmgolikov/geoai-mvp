@@ -1,8 +1,28 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { registerHooks } from "node:module";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
+
+const repositoryRoot = pathToFileURL(`${process.cwd()}/`);
+registerHooks({
+  resolve(specifier, context, nextResolve) {
+    if (specifier.startsWith("@/")) return nextResolve(new URL(`${specifier.slice(2)}.ts`, repositoryRoot).href, context);
+    if ((specifier.startsWith("./") || specifier.startsWith("../")) && !/\.[cm]?[jt]sx?$/.test(specifier)) {
+      try { return nextResolve(`${specifier}.ts`, context); } catch { /* Continue with canonical resolution. */ }
+    }
+    return nextResolve(specifier, context);
+  }
+});
 // @ts-expect-error -- the pinned Node strip-types runner requires explicit TypeScript extensions.
-import { POINT_OBJECT_ANALYSIS_CLIENT_DEADLINE_MS, createPointObjectAnalysisRequestIdentity, pointObjectAnalysisReceiptMatches, pointObjectAnalysisRequestChanged, pointObjectSelectionEvidenceKeys } from "../src/lib/prototype/point-to-object-analysis-request-state.ts";
+const analysisStateModule = await import("../src/lib/prototype/point-to-object-analysis-request-state.ts");
+const {
+  POINT_OBJECT_ANALYSIS_CLIENT_DEADLINE_MS,
+  createPointObjectAnalysisRequestIdentity,
+  pointObjectAnalysisReceiptMatches,
+  pointObjectAnalysisRequestChanged,
+  pointObjectSelectionEvidenceKeys
+} = analysisStateModule;
 
 const source = readFileSync(path.join(process.cwd(), "components/point-to-object/analysis-client.tsx"), "utf8");
 const i18n = readFileSync(path.join(process.cwd(), "src/lib/prototype/point-to-object-i18n.ts"), "utf8");
@@ -35,7 +55,7 @@ const keys = pointObjectSelectionEvidenceKeys({
 const base = {
   ...keys,
   role: "developer" as const,
-  scenario: "b2b_hotel_development" as const,
+  scenario: "b2b_redevelopment_selected_aoi" as const,
   goal: "development_screening" as const,
   perspective: "developer" as const,
   horizon: "one_to_three_years" as const,
@@ -47,6 +67,8 @@ for (const completedDepth of depths) {
   const completed = createPointObjectAnalysisRequestIdentity({ ...base, depth: completedDepth });
   assert.equal(pointObjectAnalysisRequestChanged(completed, completed), false);
   assert.equal(pointObjectAnalysisReceiptMatches({
+    role: completed.role,
+    scenario: completed.scenario,
     depth: completed.depth,
     goal: completed.goal,
     perspective: completed.perspective,
@@ -66,11 +88,11 @@ const custom = createPointObjectAnalysisRequestIdentity({ ...base, depth: "stand
 assert.equal(custom.question, "Check access");
 assert.equal(pointObjectAnalysisRequestChanged(custom, createPointObjectAnalysisRequestIdentity({ ...base, depth: "standard" })), true);
 assert.equal(pointObjectAnalysisRequestChanged(
-  createPointObjectAnalysisRequestIdentity({ ...base, depth: "standard", role: "investor_buyer" }),
+  createPointObjectAnalysisRequestIdentity({ ...base, depth: "standard", role: "consultant_broker" }),
   createPointObjectAnalysisRequestIdentity({ ...base, depth: "standard" })
 ), true, "Role is part of request identity.");
 assert.equal(pointObjectAnalysisRequestChanged(
-  createPointObjectAnalysisRequestIdentity({ ...base, depth: "standard", scenario: "b2b_redevelopment_selected_aoi" }),
+  createPointObjectAnalysisRequestIdentity({ ...base, depth: "standard", scenario: "b2b_lowrise_luxury_residential" }),
   createPointObjectAnalysisRequestIdentity({ ...base, depth: "standard" })
 ), true, "Scenario is part of request identity.");
 assert.equal(pointObjectAnalysisRequestChanged(

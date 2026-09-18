@@ -4,6 +4,10 @@ import type {
   PointObjectLocale,
   PointObjectMarketKey
 } from "@/src/lib/prototype/point-to-object-markets";
+import type {
+  PointObjectAnalysisRole,
+  PointObjectAnalysisScenario
+} from "@/src/lib/prototype/point-to-object-ai-provenance";
 import type { PointObjectWikidataLinkedEntity } from "@/src/lib/prototype/point-to-object-wikidata-contract";
 
 export type LiveMapLocationKey = PointObjectMarketKey;
@@ -144,8 +148,8 @@ export type PointObjectReasoningEffort = "low" | "medium" | "high" | "xhigh";
 export type PointObjectEvidenceClass = "observed" | "derived" | "hypothesis";
 export type PointObjectConfidence = "low" | "medium";
 
-export const POINT_OBJECT_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V9_2026_09_12" as const;
-export const POINT_OBJECT_ANALYSIS_PREVIOUS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V8_2026_09_06" as const;
+export const POINT_OBJECT_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V10_2026_09_18" as const;
+export const POINT_OBJECT_ANALYSIS_PREVIOUS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V9_2026_09_12" as const;
 export const POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION = 6 as const;
 export const POINT_OBJECT_ANALYSIS_LEGACY_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V7_2026_09_04" as const;
 export const POINT_OBJECT_ANALYSIS_LEGACY_RESULT_SCHEMA_VERSION = 5 as const;
@@ -165,6 +169,8 @@ export type PointObjectAiAttemptTrace = {
 };
 
 export type PointObjectAnalysisRequestReceipt = {
+  role: PointObjectAnalysisRole;
+  scenario: PointObjectAnalysisScenario;
   depth: PointObjectAnalysisDepth;
   goal: PointObjectAnalysisGoal;
   perspective: PointObjectAnalysisPerspective;
@@ -173,6 +179,9 @@ export type PointObjectAnalysisRequestReceipt = {
   focused: boolean;
   locale: LiveMapLocale;
 };
+
+/** Stored pre-provenance receipt shape; parsers normalize it to explicit `unspecified`. */
+export type PointObjectLegacyAnalysisRequestReceipt = Omit<PointObjectAnalysisRequestReceipt, "role" | "scenario">;
 
 export type PointObjectDecisionBrief = {
   headline: string;
@@ -310,7 +319,8 @@ export type PointObjectAiTelemetry = {
   model: string;
   reasoningEffort: PointObjectReasoningEffort;
   depth: PointObjectAnalysisDepth;
-  promptVersion: typeof POINT_OBJECT_ANALYSIS_PROMPT_VERSION | typeof POINT_OBJECT_ANALYSIS_PREVIOUS_PROMPT_VERSION;
+  promptVersion: typeof POINT_OBJECT_ANALYSIS_PROMPT_VERSION | typeof POINT_OBJECT_ANALYSIS_PREVIOUS_PROMPT_VERSION |
+    "POINT_OBJECT_AI_PROMPT_V8_2026_09_06";
   requestId: string | null;
   latencyMs: number;
   attempts: number;

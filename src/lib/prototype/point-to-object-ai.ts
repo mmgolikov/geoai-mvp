@@ -20,6 +20,7 @@ import {
   type PointObjectModelProfile
 } from "./point-to-object-ai-core";
 import type { GroundablePointObjectEvidencePack } from "./point-to-object-live-evidence";
+import { pointObjectAnalysisRoleScenarioOrUnspecified } from "./point-to-object-ai-provenance";
 
 const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 const GENERATION_BUDGET_MS = 108_000;
@@ -437,6 +438,10 @@ export async function generatePointObjectAiAnalysis(
   }
 
   const usageSummary = summarizePointObjectAiAttemptUsage(attemptUsages);
+  const roleScenario = pointObjectAnalysisRoleScenarioOrUnspecified(
+    analysisRequest.role,
+    analysisRequest.scenario
+  );
 
   return {
     mode: "openai",
@@ -445,6 +450,8 @@ export async function generatePointObjectAiAnalysis(
     evidencePackId: evidencePack.evidencePackId,
     evidencePackHash: evidencePack.evidencePackHash,
     request: {
+      role: roleScenario.role,
+      scenario: roleScenario.scenario,
       depth: analysisRequest.depth,
       goal: analysisRequest.goal,
       perspective: analysisRequest.perspective,

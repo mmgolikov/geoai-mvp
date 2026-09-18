@@ -21,6 +21,12 @@ import {
   LivePointEvidenceError
 } from "@/src/lib/prototype/point-to-object-live-evidence";
 import {
+  parsePointObjectAnalysisRoleScenario,
+  POINT_OBJECT_ANALYSIS_UNSPECIFIED,
+  type PointObjectAnalysisRole,
+  type PointObjectAnalysisScenario
+} from "@/src/lib/prototype/point-to-object-ai-provenance";
+import {
   coordinatesMatchPointObjectMarket,
   isPointObjectLocale,
   isPointObjectMarketKey,
@@ -184,17 +190,23 @@ function validBody(value: unknown): value is {
   goal: PointObjectAnalysisGoal;
   perspective: PointObjectAnalysisPerspective;
   horizon: PointObjectAnalysisHorizon;
+  role?: PointObjectAnalysisRole;
+  scenario?: PointObjectAnalysisScenario;
   question: string | null;
   expectedSourceFeatureId: string | null;
   consent: true;
   challenge: string;
 } {
   if (!isRecord(value) || Object.keys(value).some((key) =>
-    !["caseKey", "longitude", "latitude", "locale", "depth", "goal", "perspective", "horizon", "question", "expectedSourceFeatureId", "consent", "challenge"].includes(key))) return false;
+    !["caseKey", "longitude", "latitude", "locale", "role", "scenario", "depth", "goal", "perspective", "horizon", "question", "expectedSourceFeatureId", "consent", "challenge"].includes(key))) return false;
   const questionValid = value.question === null || (
     typeof value.question === "string" &&
     value.question.trim().length >= 1 &&
     value.question.trim().length <= 500
+  );
+  const roleScenario = parsePointObjectAnalysisRoleScenario(
+    value.role ?? POINT_OBJECT_ANALYSIS_UNSPECIFIED,
+    value.scenario ?? POINT_OBJECT_ANALYSIS_UNSPECIFIED
   );
   return isPointObjectMarketKey(value.caseKey) &&
     typeof value.longitude === "number" && Number.isFinite(value.longitude) && Math.abs(value.longitude) <= 180 &&
@@ -205,6 +217,7 @@ function validBody(value: unknown): value is {
     isAnalysisGoal(value.goal) &&
     isAnalysisPerspective(value.perspective) &&
     isAnalysisHorizon(value.horizon) &&
+    roleScenario !== null &&
     questionValid &&
     (value.goal !== "custom" || value.question !== null) &&
     (value.expectedSourceFeatureId === null || (typeof value.expectedSourceFeatureId === "string" && /^(?:node|way|relation)\/[1-9]\d{0,19}$/.test(value.expectedSourceFeatureId))) &&
@@ -261,6 +274,16 @@ export async function POST(request: Request) {
     });
   }
   const body = parsed.value;
+  const roleScenario = parsePointObjectAnalysisRoleScenario(
+    body.role ?? POINT_OBJECT_ANALYSIS_UNSPECIFIED,
+    body.scenario ?? POINT_OBJECT_ANALYSIS_UNSPECIFIED
+  );
+  if (!roleScenario) {
+    return NextResponse.json({ mode: "unavailable", code: "AI_REQUEST_INVALID", error: "The analysis role and scenario context is invalid." }, {
+      status: 400,
+      headers: clearChallengeHeader(request)
+    });
+  }
   if (!challengeIsValid(request, body.challenge)) {
     return NextResponse.json({ mode: "unavailable", code: "AI_CHALLENGE_INVALID", error: "The one-time browser challenge is missing or expired." }, {
       status: 403,
@@ -296,6 +319,8 @@ export async function POST(request: Request) {
       });
     }
     const analysisRequest: PointObjectAnalysisRequest = {
+      role: roleScenario.role,
+      scenario: roleScenario.scenario,
       depth: body.depth,
       goal: body.goal,
       perspective: body.perspective,

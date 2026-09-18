@@ -42,6 +42,7 @@ import {
   type PointObjectProjectIdentity
 } from "@/src/lib/prototype/point-object-projects";
 import { readPointObjectFindSession } from "@/src/lib/prototype/point-to-object-find-session";
+import { pointObjectAnalysisRoleScenarioOrUnspecified } from "@/src/lib/prototype/point-to-object-ai-provenance";
 import {
   createPointObjectAnalysisRequestIdentity,
   POINT_OBJECT_ANALYSIS_CLIENT_DEADLINE_MS,
@@ -227,18 +228,29 @@ export function PointToObjectAnalysis() {
   const questionScopeRef = useRef(questionScope);
   questionScopeRef.current = questionScope;
 
+  const roleScenarioContext = useCallback((activeSelection: LiveMapSelection) => {
+    const findSession = readPointObjectFindSession();
+    const selectedSourceFeatureId = activeSelection.resolvedObject?.sourceFeatureId ?? activeSelection.object.sourceFeatureId;
+    if (findSession?.analysisTargetSourceFeatureId === selectedSourceFeatureId) {
+      return pointObjectAnalysisRoleScenarioOrUnspecified(findSession.role, findSession.scenario);
+    }
+    return pointObjectAnalysisRoleScenarioOrUnspecified(
+      userRef.current?.profile.defaultRole ?? "unspecified",
+      "unspecified"
+    );
+  }, []);
+
   const requestIdentity = useCallback((
     activeSelection: LiveMapSelection,
     activeQuestion: string | null,
     settings: AnalysisSettings,
     requestLocale: "en" | "ru"
   ): PointObjectAnalysisRequestIdentity => {
-    const findSession = readPointObjectFindSession();
     const keys = pointObjectSelectionEvidenceKeys(activeSelection);
+    const roleScenario = roleScenarioContext(activeSelection);
     return createPointObjectAnalysisRequestIdentity({
       ...keys,
-      role: findSession?.role ?? userRef.current?.profile.defaultRole ?? "unspecified",
-      scenario: findSession?.scenario ?? "unspecified",
+      ...roleScenario,
       depth: settings.depth,
       goal: settings.goal,
       perspective: settings.perspective,
@@ -246,7 +258,7 @@ export function PointToObjectAnalysis() {
       locale: requestLocale,
       question: activeQuestion
     });
-  }, []);
+  }, [roleScenarioContext]);
 
   useEffect(() => {
     if (!selection || !isSessionResolved) return;
@@ -341,6 +353,8 @@ export function PointToObjectAnalysis() {
           longitude: activeSelection.longitude,
           latitude: activeSelection.latitude,
           locale: requestSnapshot.locale,
+          role: requestSnapshot.role,
+          scenario: requestSnapshot.scenario,
           question: requestSnapshot.question,
           depth: requestSnapshot.depth,
           goal: requestSnapshot.goal,
@@ -376,6 +390,12 @@ export function PointToObjectAnalysis() {
           else commitAnalysis({ mode: "unavailable", error: mismatch, retryable: true }, activeSelection, null);
           return;
         }
+        const latestRoleScenario = roleScenarioContext(activeSelection);
+        if (latestRoleScenario.role !== requestSnapshot.role || latestRoleScenario.scenario !== requestSnapshot.scenario) {
+          const mismatch = translationRef.current("analysis.unavailable.body");
+          setRequestError(mismatch);
+          return;
+        }
         commitAnalysis(normalized, activeSelection, requestSnapshot, initiatingIdentity && destination && projectIdentityRef.current === initiatingIdentity
           ? { identityKey: initiatingIdentity, destination }
           : null);
@@ -398,7 +418,7 @@ export function PointToObjectAnalysis() {
         setInFlightRequest(null);
       }
     }
-  }, [commitAnalysis]);
+  }, [commitAnalysis, roleScenarioContext]);
 
   useEffect(() => {
     // Capture the settled browser identity before restoring or starting analysis.
@@ -757,6 +777,8 @@ export function PointToObjectAnalysis() {
               data-draft-role={draftRequest?.role ?? "unknown"}
               data-draft-scenario={draftRequest?.scenario ?? "unknown"}
               data-in-flight-depth={inFlightRequest?.depth ?? "none"}
+              data-in-flight-role={inFlightRequest?.role ?? "none"}
+              data-in-flight-scenario={inFlightRequest?.scenario ?? "none"}
               data-completed-depth={completedDepth ?? "none"}
               data-completed-role={completedRequest?.role ?? "unknown"}
               data-completed-scenario={completedRequest?.scenario ?? "unknown"}
