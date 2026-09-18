@@ -87,7 +87,7 @@ Result: 4/4 PASS in 20.0 seconds. The dedicated config starts and automatically 
 - `NEXT_PUBLIC_AUTH_MODE=supabase_auth`
 - `NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321`
 - `NEXT_PUBLIC_GEOAI_ALLOW_LOCAL_SUPABASE=true`
-- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_synthetic_e2e_only_1234567890`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` is constructed at runtime from clearly synthetic fixture components in the localhost-only config; no account key is embedded.
 - `GEOAI_ACCESS_ENFORCEMENT_MODE=hard`
 - `GEOAI_ALLOW_DEMO_PUBLIC=false`
 
