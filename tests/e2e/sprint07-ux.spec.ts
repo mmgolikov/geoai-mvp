@@ -282,9 +282,31 @@ test("Sprint07: Find map marker focuses its numbered result rather than starting
   await expect(page.getByTestId("find-drawer")).toBeVisible();
   const marker = page.locator("[data-find-result-marker='way/701']");
   await expect(marker).toBeVisible();
+  const originalMarkerNode = await marker.elementHandle();
+  expect(originalMarkerNode).not.toBeNull();
+  const expectOriginalMarkerNode = async () => {
+    expect(await marker.evaluate((current, original) => current === original, originalMarkerNode!)).toBe(true);
+  };
   await marker.click();
   await expect(page.getByRole("tab", { name: "Find", exact: true })).toHaveAttribute("aria-selected", "true");
-  await expect(page.locator("#find-result-way\\/701")).toBeFocused();
+  const exactResult = page.locator("#find-result-way\\/701");
+  await expect(exactResult).toBeFocused();
+  await expect(marker).toHaveAttribute("data-active", "true");
+  await expectOriginalMarkerNode();
+  await marker.focus();
+  await expect(marker).toBeFocused();
+  await expect(marker).toHaveAttribute("data-hovered", "true");
+  await expectOriginalMarkerNode();
+  await page.keyboard.press("Enter");
+  await expect(exactResult).toBeFocused();
+  await expect(marker).toHaveAttribute("data-active", "true");
+  await expectOriginalMarkerNode();
+  await page.getByRole("button", { name: "Compare", exact: true }).click();
+  await expect(marker).toHaveAttribute("data-shortlisted", "true");
+  await expectOriginalMarkerNode();
+  await page.getByRole("button", { name: "Selected", exact: true }).click();
+  await expect(marker).toHaveAttribute("data-shortlisted", "false");
+  await expectOriginalMarkerNode();
   // Marker focus and Fit are passive camera inspection: neither action commits
   // new search criteria or makes the saved result stale.
   await expect(page.getByTestId("find-result-stale")).toHaveCount(0);

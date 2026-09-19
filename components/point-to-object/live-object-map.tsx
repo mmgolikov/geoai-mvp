@@ -160,6 +160,47 @@ export type LiveMapProjectResult = Omit<LiveMapFindResult, "number"> & {
   number?: number;
 };
 
+type ResultMarkerButton = {
+  button: HTMLButtonElement;
+  isProjectOverview: boolean;
+  primaryResultId: string;
+  resultIds: string[];
+};
+
+type RenderedResultMarker = ResultMarkerButton & {
+  marker: import("maplibre-gl").Marker;
+};
+
+type ResultMarkerPresentation = {
+  activeFindResultId: string | null;
+  activeProjectMarkerId: string | null;
+  hoveredFindResultId: string | null;
+  projectResultOpening: boolean;
+  shortlistedFindResultIds: Set<string>;
+};
+
+const RESULT_MARKER_BASE_CLASS = "flex h-11 min-w-11 items-center justify-center rounded-full border-[3px] border-white px-2 text-sm font-bold text-white shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087f8c]";
+const RESULT_MARKER_BACKGROUND_CLASSES = ["bg-[#07515a]", "bg-[#0b6d78]", "bg-[#087f70]", "bg-[#087f8c]"] as const;
+
+function applyResultMarkerPresentation(marker: ResultMarkerButton, presentation: ResultMarkerPresentation) {
+  const activeId = marker.isProjectOverview ? presentation.activeProjectMarkerId : presentation.activeFindResultId;
+  const active = activeId !== null && marker.resultIds.includes(activeId);
+  const hovered = !marker.isProjectOverview && marker.primaryResultId === presentation.hoveredFindResultId;
+  const shortlisted = !marker.isProjectOverview && presentation.shortlistedFindResultIds.has(marker.primaryResultId);
+  marker.button.dataset.active = String(active);
+  marker.button.setAttribute("aria-pressed", String(active));
+  marker.button.disabled = marker.isProjectOverview && presentation.projectResultOpening;
+  if (marker.isProjectOverview) {
+    marker.button.setAttribute("aria-busy", String(presentation.projectResultOpening));
+  } else {
+    marker.button.dataset.hovered = String(hovered);
+    marker.button.dataset.shortlisted = String(shortlisted);
+  }
+  marker.button.classList.remove(...RESULT_MARKER_BACKGROUND_CLASSES);
+  marker.button.classList.add(active ? "bg-[#07515a]" : hovered ? "bg-[#0b6d78]" : shortlisted ? "bg-[#087f70]" : "bg-[#087f8c]");
+  marker.button.style.zIndex = active ? "2" : "1";
+}
+
 export type LiveMapCreateAoiFitRequest = {
   requestId: string;
   bounds: [[number, number], [number, number]];
@@ -1221,6 +1262,21 @@ export function LiveObjectMap({
   const activeFindResultIdRef = useRef(activeFindResultId);
   const hoveredFindResultIdRef = useRef(hoveredFindResultId);
   const shortlistedFindResultIdsRef = useRef(new Set(shortlistedFindResultIds));
+  const renderedResultMarkersRef = useRef<RenderedResultMarker[]>([]);
+  const resultMarkerPresentationRef = useRef<ResultMarkerPresentation>({
+    activeFindResultId,
+    activeProjectMarkerId,
+    hoveredFindResultId,
+    projectResultOpening,
+    shortlistedFindResultIds: new Set(shortlistedFindResultIds)
+  });
+  resultMarkerPresentationRef.current = {
+    activeFindResultId,
+    activeProjectMarkerId,
+    hoveredFindResultId,
+    projectResultOpening,
+    shortlistedFindResultIds: new Set(shortlistedFindResultIds)
+  };
   const projectResultCallbackRef = useRef(onProjectMarkerSelect);
   function openProjectResult(id: string) {
     const guard = projectResultOpenGuardRef.current;
@@ -1251,6 +1307,10 @@ export function LiveObjectMap({
   const hasProjectOverview = projectMarkers.length > 0;
   const projectOverviewSignature = JSON.stringify(projectMarkers.map(({ id, longitude, latitude }) => [id, longitude, latitude]));
   const markerDataSignature = JSON.stringify([findResults, projectMarkers]);
+  const markerStructureSignature = JSON.stringify([
+    findResults.map(({ id, longitude, latitude, label, number }) => [id, longitude, latitude, label, number]),
+    projectMarkers.map(({ id, longitude, latitude, label, number, kind }) => [id, longitude, latitude, label, number, kind])
+  ]);
   useEffect(() => { setOpenProjectGroup(null); }, [projectOverviewSignature]);
 
   useEffect(() => {
@@ -1318,44 +1378,42 @@ export function LiveObjectMap({
   }, [activeFindResultId, hoveredFindResultId, markerDataSignature, shortlistedFindResultIds.join("|")]);
 
   useEffect(() => {
+    const presentation = resultMarkerPresentationRef.current;
+    for (const marker of renderedResultMarkersRef.current) applyResultMarkerPresentation(marker, presentation);
+  }, [activeFindResultId, activeProjectMarkerId, hoveredFindResultId, projectResultOpening, shortlistedFindResultIds.join("|")]);
+
+  useEffect(() => {
     const map = mapRef.current;
     if (!map || !isReady || (!projectMarkers.length && interactionMode !== "find")) return;
     const isProjectOverview = projectMarkers.length > 0;
     const resultGroups = isProjectOverview ? groupExactPointObjectProjectResults(projectMarkers) : findResults.map(result => ({ key: result.id, results: [result] }));
-    const activeId = isProjectOverview ? activeProjectMarkerId : activeFindResultId;
-    const shortlistIds = new Set(shortlistedFindResultIds);
     let disposed = false;
-    const markers: import("maplibre-gl").Marker[] = [];
+    const renderedMarkers: RenderedResultMarker[] = [];
     void import("maplibre-gl").then(({ Marker }) => {
       if (disposed) return;
       for (const [index, group] of resultGroups.entries()) {
         const result = group.results[0];
         const grouped = isProjectOverview && group.results.length > 1;
-        const active = group.results.some(result => result.id === activeId);
-        const hovered = !isProjectOverview && result.id === hoveredFindResultId;
-        const shortlisted = !isProjectOverview && shortlistIds.has(result.id);
         if (!Number.isFinite(result.longitude) || !Number.isFinite(result.latitude) || Math.abs(result.longitude) > 180 || Math.abs(result.latitude) > 85) continue;
         const button = document.createElement("button");
         button.type = "button";
-        button.disabled = isProjectOverview && projectResultOpening;
-        if (isProjectOverview) button.setAttribute("aria-busy", String(projectResultOpening));
         const number = result.number ?? index + 1;
         if (isProjectOverview) button.dataset.projectResultMarker = result.id;
         else button.dataset.findResultMarker = result.id;
         if (grouped) button.dataset.projectResultGroup = group.key;
-        button.dataset.active = String(active);
-        if (!isProjectOverview) {
-          button.dataset.hovered = String(hovered);
-          button.dataset.shortlisted = String(shortlisted);
-        }
         const label = grouped ? (locale === "ru" ? `${group.results.length} сохранённых результата в этой точке` : `${group.results.length} saved results at this location`) : `${number}. ${result.label}`;
         button.setAttribute("aria-label", label);
         if (grouped) { button.setAttribute("aria-haspopup", "dialog"); button.setAttribute("aria-expanded", "false"); }
-        button.setAttribute("aria-pressed", String(active));
         button.title = label;
         button.textContent = String(grouped ? group.results.length : number);
-        button.className = `flex h-11 min-w-11 items-center justify-center rounded-full border-[3px] border-white px-2 text-sm font-bold shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087f8c] ${active ? "bg-[#07515a] text-white" : hovered ? "bg-[#0b6d78] text-white" : shortlisted ? "bg-[#087f70] text-white" : "bg-[#087f8c] text-white"}`;
-        button.style.zIndex = active ? "2" : "1";
+        button.className = RESULT_MARKER_BASE_CLASS;
+        const markerButton: ResultMarkerButton = {
+          button,
+          isProjectOverview,
+          primaryResultId: result.id,
+          resultIds: group.results.map(({ id }) => id)
+        };
+        applyResultMarkerPresentation(markerButton, resultMarkerPresentationRef.current);
         button.addEventListener("click", (event) => {
           event.stopPropagation();
           if (isProjectOverview && projectResultOpenGuardRef.current.isPending()) return;
@@ -1375,11 +1433,23 @@ export function LiveObjectMap({
           button.addEventListener("focus", () => findResultHoverCallbackRef.current?.(result.id));
           button.addEventListener("blur", () => findResultHoverCallbackRef.current?.(null));
         }
-        markers.push(new Marker({ element: button, anchor: "center" }).setLngLat([result.longitude, result.latitude]).addTo(map));
+        const marker = new Marker({ element: button, anchor: "center" }).setLngLat([result.longitude, result.latitude]).addTo(map);
+        renderedMarkers.push({ ...markerButton, marker });
       }
+      if (disposed) {
+        for (const { marker } of renderedMarkers) marker.remove();
+        return;
+      }
+      renderedResultMarkersRef.current = renderedMarkers;
+      const latestPresentation = resultMarkerPresentationRef.current;
+      for (const marker of renderedMarkers) applyResultMarkerPresentation(marker, latestPresentation);
     });
-    return () => { disposed = true; for (const marker of markers) marker.remove(); };
-  }, [activeFindResultId, activeProjectMarkerId, hoveredFindResultId, shortlistedFindResultIds.join("|"), markerDataSignature, interactionMode, isReady, retryVersion, locale, projectResultOpening]);
+    return () => {
+      disposed = true;
+      if (renderedResultMarkersRef.current === renderedMarkers) renderedResultMarkersRef.current = [];
+      for (const { marker } of renderedMarkers) marker.remove();
+    };
+  }, [markerStructureSignature, interactionMode, isReady, retryVersion, locale]);
 
   useEffect(() => {
     interactionModeRef.current = interactionMode;
