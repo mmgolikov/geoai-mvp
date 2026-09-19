@@ -63,8 +63,20 @@ const analyseStages = [
   "analyse_source_suggest_query",
   "analyse_source_suggest_coordinates"
 ];
+const findUiStages = [
+  "find_source_ui_navigation",
+  "find_source_ui_tab",
+  "find_source_ui_default_2d",
+  "find_source_ui_initial_cta",
+  "find_source_ui_city_change",
+  "find_source_ui_city_pending",
+  "find_source_ui_city_ready",
+  "find_source_ui_role",
+  "find_source_ui_scenario",
+  "find_source_ui_group"
+];
 const findStages = [
-  "find_source_ui",
+  ...findUiStages,
   "find_source_camera",
   "find_source_cta",
   "find_source_pre_dispatch",
@@ -85,15 +97,75 @@ for (const stage of [...analyseStages, ...findStages]) {
   }).primaryStage, stage);
 }
 
+assert.deepEqual(findUiStages.map((stage) => LIVE_JOURNEY_STEPS.indexOf(stage)),
+  [...findUiStages].map((_, index) => LIVE_JOURNEY_STEPS.indexOf(findUiStages[0]) + index),
+  "the fixed Find UI diagnostic enum must remain contiguous and canonical");
+for (const unsafeStage of ["find_source_ui_raw_error", "find_source_ui_timeout_30000_secret"]) {
+  assert.throws(() => parseLiveJourneyDiagnostic({
+    schemaVersion: "geoai.sprint10.live-journey-diagnostic.v1",
+    primaryStatus: "failed",
+    primaryStage: unsafeStage,
+    cleanupStage: null,
+    completedSteps: []
+  }), /malformed/, "arbitrary or raw Find UI stages must remain outside safe receipts");
+}
+assert.throws(() => parseLiveJourneyDiagnostic({
+  schemaVersion: "geoai.sprint10.live-journey-diagnostic.v1",
+  primaryStatus: "failed",
+  primaryStage: "find_source_ui_navigation",
+  cleanupStage: null,
+  completedSteps: ["find_source_ui_navigation", "find_source_ui_raw_error"]
+}), /malformed/, "completed steps must reject arbitrary Find UI diagnostic text");
+assert.match(liveSpec, /test[.]use\(\{ trace: "off", screenshot: "off", video: "off", serviceWorkers: "block" \}\)/,
+  "the diagnostic refinement must not enable raw screenshots, traces or video");
+
 for (const functionName of ["runDubaiFind", "runSingaporeFind"]) {
   const nextMarker = functionName === "runDubaiFind" ? "\nasync function runSingaporeFind" : "\ntype LiveCreateCase";
   const body = liveSpec.split(`async function ${functionName}`)[1]?.split(nextMarker)[0] ?? "";
   assert.ok(body.length > 0, `${functionName} must remain present`);
   let previous = -1;
-  for (const stage of findStages) {
+  const expectedFindStages = functionName === "runDubaiFind"
+    ? [
+        "find_source_ui_navigation", "find_source_ui_tab", "find_source_ui_role",
+        "find_source_ui_scenario", "find_source_ui_group",
+        ...findStages.slice(findUiStages.length)
+      ]
+    : findStages;
+  assert.ok(body.indexOf('progress.start("find_source_ui")') < body.indexOf('progress.start("find_source_ui_navigation")'),
+    `${functionName} must replace the historical broad UI stage before any awaited UI action`);
+  assert.doesNotMatch(body, /progress[.]complete\("find_source_ui"\)/,
+    `${functionName} must not append the historical broad UI stage after granular completed steps`);
+  for (const stage of expectedFindStages) {
     const index = body.indexOf(`progress.start("${stage}")`);
     assert.ok(index > previous, `${functionName} must emit ${stage} in canonical order`);
     previous = index;
+  }
+  const uiChecks = functionName === "runDubaiFind"
+    ? [
+        ["find_source_ui_navigation", 'page.goto("/prototype/point-to-object")'],
+        ["find_source_ui_tab", 'getByRole("tab", { name: "Find", exact: true }).click()'],
+        ["find_source_ui_role", 'selectOption("consultant_broker")'],
+        ["find_source_ui_scenario", 'selectOption("b2b_hotel_development")'],
+        ["find_source_ui_group", 'toHaveValue("hospitality")']
+      ]
+    : [
+        ["find_source_ui_navigation", 'page.goto("/prototype/point-to-object")'],
+        ["find_source_ui_tab", 'getByRole("tab", { name: "Find", exact: true }).click()'],
+        ["find_source_ui_default_2d", 'toHaveAttribute("aria-pressed", "true")'],
+        ["find_source_ui_initial_cta", "toBeEnabled({ timeout: 30_000 })"],
+        ["find_source_ui_city_change", 'selectOption("singapore")'],
+        ["find_source_ui_city_pending", "toBeDisabled()"],
+        ["find_source_ui_city_ready", "toBeEnabled({ timeout: 30_000 })"],
+        ["find_source_ui_role", 'selectOption("consultant_broker")'],
+        ["find_source_ui_scenario", 'selectOption("b2b_commercial_real_estate")'],
+        ["find_source_ui_group", 'toHaveValue("commercial_office")']
+      ];
+  for (const [stage, check] of uiChecks) {
+    const start = body.indexOf(`progress.start("${stage}")`);
+    const assertion = body.indexOf(check, start);
+    const complete = body.indexOf(`progress.complete("${stage}")`, assertion);
+    assert.ok(start >= 0 && assertion > start && complete > assertion,
+      `${functionName} must bind ${stage} around its exact existing UI action/assertion`);
   }
   assert.match(body, /boundedLiveJourneyResponseJson\(response, 10_000\)/,
     `${functionName} must use the existing bounded response-body reader`);

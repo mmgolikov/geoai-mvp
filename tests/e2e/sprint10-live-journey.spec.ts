@@ -1283,13 +1283,22 @@ class InconclusiveLiveCoverageError extends Error {
 
 async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy: NetworkPolicy, budget: ReturnType<typeof installBudgetGate>, progress: LiveProgress) {
   progress.start("find_source_ui");
+  progress.start("find_source_ui_navigation");
   await page.goto("/prototype/point-to-object");
   await page.getByTestId("point-object-city-select").selectOption("dubai");
+  progress.complete("find_source_ui_navigation");
+  progress.start("find_source_ui_tab");
   await page.getByRole("tab", { name: "Find", exact: true }).click();
+  progress.complete("find_source_ui_tab");
+  progress.start("find_source_ui_role");
   await page.getByTestId("point-object-find-role-select").selectOption("consultant_broker");
+  progress.complete("find_source_ui_role");
+  progress.start("find_source_ui_scenario");
   await page.getByTestId("point-object-find-scenario-select").selectOption("b2b_hotel_development");
+  progress.complete("find_source_ui_scenario");
+  progress.start("find_source_ui_group");
   await expect(page.getByTestId("point-object-find-group-select")).toHaveValue("hospitality");
-  progress.complete("find_source_ui");
+  progress.complete("find_source_ui_group");
   progress.start("find_source_camera");
   const zoomOut = page.getByRole("button", { name: "Zoom out" });
   if (await zoomOut.isVisible().catch(() => false)) {
@@ -1376,19 +1385,38 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
 
 async function runSingaporeFind(page: Page, configuration: LiveConfiguration, policy: NetworkPolicy, budget: ReturnType<typeof installBudgetGate>, progress: LiveProgress) {
   progress.start("find_source_ui");
+  progress.start("find_source_ui_navigation");
   await page.goto("/prototype/point-to-object");
+  progress.complete("find_source_ui_navigation");
+  progress.start("find_source_ui_tab");
   await page.getByRole("tab", { name: "Find", exact: true }).click();
+  progress.complete("find_source_ui_tab");
   const findCta = page.getByTestId("find-search-cta");
   const twoDimensionalControl = page.getByTestId("map-dimension-control").getByRole("button", { name: "2d", exact: true });
+  progress.start("find_source_ui_default_2d");
   await expect(twoDimensionalControl).toHaveAttribute("aria-pressed", "true");
+  progress.complete("find_source_ui_default_2d");
+  progress.start("find_source_ui_initial_cta");
   await expect(findCta).toBeEnabled({ timeout: 30_000 });
+  progress.complete("find_source_ui_initial_cta");
+  progress.start("find_source_ui_city_change");
   await page.getByTestId("point-object-city-select").selectOption("singapore");
+  progress.complete("find_source_ui_city_change");
+  progress.start("find_source_ui_city_pending");
   await expect(findCta).toBeDisabled();
+  progress.complete("find_source_ui_city_pending");
+  progress.start("find_source_ui_city_ready");
   await expect(findCta).toBeEnabled({ timeout: 30_000 });
+  progress.complete("find_source_ui_city_ready");
+  progress.start("find_source_ui_role");
   await page.getByTestId("point-object-find-role-select").selectOption("consultant_broker");
+  progress.complete("find_source_ui_role");
+  progress.start("find_source_ui_scenario");
   await page.getByTestId("point-object-find-scenario-select").selectOption("b2b_commercial_real_estate");
+  progress.complete("find_source_ui_scenario");
+  progress.start("find_source_ui_group");
   await expect(page.getByTestId("point-object-find-group-select")).toHaveValue("commercial_office");
-  progress.complete("find_source_ui");
+  progress.complete("find_source_ui_group");
   progress.start("find_source_camera");
   const zoomIn = page.getByRole("button", { name: "Zoom in", exact: true });
   await expect(zoomIn).toBeVisible({ timeout: 30_000 });
