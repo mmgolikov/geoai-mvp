@@ -9,7 +9,7 @@ delete commonUse.channel;
 
 export default defineConfig({
   ...base,
-  testMatch: "point-object-cloud-sync.spec.ts",
+  testMatch: ["point-object-cloud-sync.spec.ts", "point-object-project-restoration-auth.spec.ts"],
   metadata: { cloudAuthE2E: true },
   retries: 0,
   workers: 1,
