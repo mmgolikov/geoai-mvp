@@ -3,9 +3,9 @@
   "lastVerified": "2026-09-18",
   "authority": "docs/DOCUMENTATION_INDEX.md",
   "counts": {
-    "markdownDocuments": 220,
+    "markdownDocuments": 221,
     "activeAuthorities": 12,
-    "nonActiveDocuments": 208
+    "nonActiveDocuments": 209
   },
   "documents": {
     "AGENTS.md": {
@@ -1209,6 +1209,12 @@
       "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
     },
     "docs/sprint10/HOSTED_AUTH_PROBE_HANDOFF.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/sprint10/INTEGRATED_ACCEPTANCE_CHECKPOINT_20260919.md": {
       "lifecycle": "historical_or_scoped_reference",
       "currentAuthority": false,
       "successor": "docs/DOCUMENTATION_INDEX.md",
