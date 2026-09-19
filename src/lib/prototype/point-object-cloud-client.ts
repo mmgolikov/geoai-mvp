@@ -191,7 +191,7 @@ export async function putPointObjectCloudArtifact(input: {
         value.ok !== true || value.persisted !== true || value.storageMode !== "authenticated_supabase_preview" ||
         !(value.outcome === "created" || value.outcome === "replayed" || value.outcome === "updated") ||
         !Number.isSafeInteger(value.cloudRevision) || Number(value.cloudRevision) < 1 ||
-        typeof value.payloadHash !== "string" || !hashPattern.test(value.payloadHash) ||
+        typeof value.payloadHash !== "string" || !hashPattern.test(value.payloadHash) || value.payloadHash !== input.artifact.payloadHash ||
         typeof value.immutableHash !== "string" || !hashPattern.test(value.immutableHash)) {
       return { status: "failed" };
     }
@@ -213,6 +213,7 @@ export function createPointObjectCloudSyncSession(input: PointObjectCloudSyncSes
   let status: PointObjectCloudSyncStatus = "syncing";
   let started: Promise<PointObjectCloudAvailability | "conflict"> | null = null;
   let uploadQueue: Promise<void> = Promise.resolve();
+  let writesBlocked = false;
 
   const setStatus = (next: PointObjectCloudSyncStatus) => {
     if (closed) return;
@@ -224,27 +225,36 @@ export function createPointObjectCloudSyncSession(input: PointObjectCloudSyncSes
     if (started) return started;
     setStatus("syncing");
     started = (async () => {
-      const listed = await listPointObjectCloudArtifacts({ signal: controller.signal, fetcher: input.fetcher });
-      if (closed) return "aborted" as const;
-      if (listed.status !== "ready") {
-        setStatus(listed.status);
-        return listed.status;
-      }
-      for (const item of listed.items) revisions.set(item.artifact.artifactId, item.cloudRevision);
-      let hasConflict = false;
-      // Server pages are newest-first. Additive local imports prepend, so
-      // replay oldest-first to retain newest-first local artifact ordering.
-      const ordered = [...listed.items].sort((left, right) =>
-        left.artifact.completedAt.localeCompare(right.artifact.completedAt) ||
-        left.artifact.artifactId.localeCompare(right.artifact.artifactId));
-      for (const item of ordered) {
+      try {
+        const listed = await listPointObjectCloudArtifacts({ signal: controller.signal, fetcher: input.fetcher });
         if (closed) return "aborted" as const;
-        const imported = await input.importArtifact(input.identityKey, item.localProject, item.artifact);
-        if (closed) return "aborted" as const;
-        if (imported.status === "conflict" || imported.status === "capacity" || imported.status === "failed") hasConflict = true;
+        if (listed.status !== "ready") {
+          writesBlocked = true;
+          setStatus(listed.status);
+          return listed.status;
+        }
+        for (const item of listed.items) revisions.set(item.artifact.artifactId, item.cloudRevision);
+        let hasConflict = false;
+        // Server pages are newest-first. Additive local imports prepend, so
+        // replay oldest-first to retain newest-first local artifact ordering.
+        const ordered = [...listed.items].sort((left, right) =>
+          left.artifact.completedAt.localeCompare(right.artifact.completedAt) ||
+          left.artifact.artifactId.localeCompare(right.artifact.artifactId));
+        for (const item of ordered) {
+          if (closed) return "aborted" as const;
+          const imported = await input.importArtifact(input.identityKey, item.localProject, item.artifact);
+          if (closed) return "aborted" as const;
+          if (imported.status === "conflict" || imported.status === "capacity" || imported.status === "failed") hasConflict = true;
+        }
+        writesBlocked = hasConflict;
+        setStatus(hasConflict ? "conflict" : "ready");
+        return hasConflict ? "conflict" as const : "ready" as const;
+      } catch (error) {
+        if (closed || controller.signal.aborted || (error instanceof DOMException && error.name === "AbortError")) return "aborted" as const;
+        writesBlocked = true;
+        setStatus("failed");
+        return "failed" as const;
       }
-      setStatus(hasConflict ? "conflict" : "ready");
-      return hasConflict ? "conflict" as const : "ready" as const;
     })();
     return started;
   };
@@ -252,7 +262,7 @@ export function createPointObjectCloudSyncSession(input: PointObjectCloudSyncSes
   const persist = (localProject: PointObjectCloudClientProject, artifact: SavedPointObjectArtifact): Promise<PointObjectCloudPutResult | { status: "skipped" }> => {
     const operation = uploadQueue.catch(() => undefined).then(async (): Promise<PointObjectCloudPutResult | { status: "skipped" }> => {
       const availability = await start();
-      if (closed || availability !== "ready") return { status: "skipped" };
+      if (closed || availability !== "ready" || writesBlocked || status !== "ready") return { status: "skipped" };
       const result = await putPointObjectCloudArtifact({
         localProject,
         artifact,
@@ -265,9 +275,10 @@ export function createPointObjectCloudSyncSession(input: PointObjectCloudSyncSes
         revisions.set(artifact.artifactId, result.cloudRevision);
         setStatus("ready");
       } else if (result.status === "conflict") {
-        if (result.cloudRevision !== null) revisions.set(artifact.artifactId, result.cloudRevision);
+        writesBlocked = true;
         setStatus("conflict");
       } else {
+        writesBlocked = true;
         setStatus(result.status);
       }
       return result;

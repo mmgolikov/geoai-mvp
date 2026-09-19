@@ -83,7 +83,7 @@ const okPage = (items: unknown[], nextCursor: string | null) => new Response(JSO
 }), { status: 200, headers: { "Content-Type": "application/json" } });
 const okPut = (outcome: "created" | "replayed" | "updated", cloudRevision: number) => new Response(JSON.stringify({
   ok: true, persisted: true, storageMode: "authenticated_supabase_preview", outcome, cloudRevision,
-  payloadHash: "a".repeat(64), immutableHash: "b".repeat(64)
+  payloadHash, immutableHash: "b".repeat(64)
 }), { status: outcome === "created" ? 201 : 200, headers: { "Content-Type": "application/json" } });
 
 const pageOne = [
@@ -152,6 +152,18 @@ const renameConflict = await cloud.putPointObjectCloudArtifact({
 assert.deepEqual(renameConflict, { status: "conflict", reason: "local_project_identity", cloudRevision: 2 },
   "A renamed local project must expose the immutable project-origin conflict to UI without changing local bytes.");
 
+const mismatchedPutHash = await cloud.putPointObjectCloudArtifact({
+  localProject,
+  artifact: artifact(1, "2026-09-18T10:01:00.000Z"),
+  expectedCloudRevision: null,
+  signal: new AbortController().signal,
+  fetcher: async () => new Response(JSON.stringify({
+    ok: true, persisted: true, storageMode: "authenticated_supabase_preview", outcome: "created", cloudRevision: 1,
+    payloadHash: "a".repeat(64), immutableHash: "b".repeat(64)
+  }), { status: 201, headers: { "Content-Type": "application/json" } })
+});
+assert.equal(mismatchedPutHash.status, "failed", "A well-formed receipt for different client bytes must fail closed.");
+
 const imported: string[] = [];
 const putExpectedRevisions: Array<number | null> = [];
 const sessionMethods: string[] = [];
@@ -206,6 +218,71 @@ assert.equal((await conflictSession.persist(localProject, artifact(1, "2026-09-1
 assert.equal(conflictCalls, 1, "A local/cloud byte conflict must block cloud mutation.");
 conflictSession.close();
 
+let rejectedImportCalls = 0;
+const rejectedImportStatuses: string[] = [];
+const rejectedImportSession = cloud.createPointObjectCloudSyncSession({
+  identityKey: "user:rejected-import",
+  importArtifact: async () => { throw new Error("simulated local storage failure"); },
+  onStatus: (status: string) => rejectedImportStatuses.push(status),
+  fetcher: async (_url: RequestInfo | URL, init?: RequestInit) => {
+    rejectedImportCalls += 1;
+    assert.equal(init?.method, "GET");
+    return okPage([item(artifact(1, "2026-09-18T10:01:00.000Z"), 2)], null);
+  }
+});
+assert.equal(await rejectedImportSession.start(), "failed", "A rejected additive import must resolve to a terminal failed state.");
+assert.equal(rejectedImportSession.getStatus(), "failed");
+assert.deepEqual(rejectedImportStatuses, ["syncing", "failed"]);
+assert.equal((await rejectedImportSession.persist(localProject, artifact(1, "2026-09-18T10:01:00.000Z"))).status, "skipped");
+assert.equal(rejectedImportCalls, 1, "A failed local import must fail closed without any cloud write.");
+rejectedImportSession.close();
+
+let conflictPutCalls = 0;
+const writeConflictSession = cloud.createPointObjectCloudSyncSession({
+  identityKey: "user:write-conflict",
+  importArtifact: async () => ({ status: "replayed" as const }),
+  fetcher: async (_url: RequestInfo | URL, init?: RequestInit) => {
+    if (init?.method === "GET") return okPage([item(artifact(1, "2026-09-18T10:01:00.000Z"), 2)], null);
+    conflictPutCalls += 1;
+    return new Response(JSON.stringify({
+      ok: false,
+      persisted: false,
+      conflict: true,
+      reason: "stale_cloud_revision",
+      message: "The cloud artifact changed.",
+      current: { cloudRevision: 9, payloadHash: "a".repeat(64), immutableHash: "b".repeat(64) }
+    }), { status: 409, headers: { "Content-Type": "application/json" } });
+  }
+});
+assert.equal(await writeConflictSession.start(), "ready");
+const queuedConflictWrite = writeConflictSession.persist(localProject, artifact(1, "2026-09-18T10:01:00.000Z"));
+const queuedWriteAfterConflict = writeConflictSession.persist(localProject, artifact(2, "2026-09-18T10:02:00.000Z"));
+assert.equal((await queuedConflictWrite).status, "conflict");
+assert.equal((await queuedWriteAfterConflict).status, "skipped", "Queued writes must stop after the first cloud conflict.");
+assert.equal(conflictPutCalls, 1);
+assert.equal(writeConflictSession.getStatus(), "conflict");
+assert.equal(writeConflictSession.getExpectedRevision("artifact-cloud-1"), 2,
+  "A 409 receipt must not advance the locally trusted CAS revision.");
+writeConflictSession.close();
+
+let failedPutCalls = 0;
+const writeFailureSession = cloud.createPointObjectCloudSyncSession({
+  identityKey: "user:write-failure",
+  importArtifact: async () => ({ status: "replayed" as const }),
+  fetcher: async (_url: RequestInfo | URL, init?: RequestInit) => {
+    if (init?.method === "GET") return okPage([], null);
+    failedPutCalls += 1;
+    return new Response(JSON.stringify({ ok: false }), { status: 503, headers: { "Content-Type": "application/json" } });
+  }
+});
+assert.equal(await writeFailureSession.start(), "ready");
+const queuedFailedWrite = writeFailureSession.persist(localProject, artifact(1, "2026-09-18T10:01:00.000Z"));
+const queuedWriteAfterFailure = writeFailureSession.persist(localProject, artifact(2, "2026-09-18T10:02:00.000Z"));
+assert.equal((await queuedFailedWrite).status, "failed");
+assert.equal((await queuedWriteAfterFailure).status, "skipped", "Queued writes must stop after the first cloud error.");
+assert.equal(failedPutCalls, 1);
+writeFailureSession.close();
+
 let importsAfterClose = 0;
 const delayedSession = cloud.createPointObjectCloudSyncSession({
   identityKey: "user:first-session",
@@ -222,4 +299,26 @@ delayedSession.close();
 assert.equal(await delayedStart, "aborted");
 assert.equal(importsAfterClose, 0, "A closed identity session must never import into its former namespace.");
 
-console.log("Point-object cloud client checks passed (strict pages/origins, additive order, CAS serialization, disabled/conflict gates, identity abort).");
+const stalePutDeferred: { resolve?: (response: Response) => void } = {};
+let staleStatusUpdates = 0;
+const staleWriteSession = cloud.createPointObjectCloudSyncSession({
+  identityKey: "user:old-account",
+  importArtifact: async () => ({ status: "imported" as const }),
+  onStatus: () => { staleStatusUpdates += 1; },
+  fetcher: async (_url: RequestInfo | URL, init?: RequestInit) => {
+    if (init?.method === "GET") return okPage([], null);
+    return new Promise<Response>((resolve) => { stalePutDeferred.resolve = resolve; });
+  }
+});
+assert.equal(await staleWriteSession.start(), "ready");
+const staleWrite = staleWriteSession.persist(localProject, artifact(1, "2026-09-18T10:01:00.000Z"));
+await new Promise((resolve) => setTimeout(resolve, 0));
+assert.ok(stalePutDeferred.resolve, "The old identity write must be in flight before the account switch.");
+staleWriteSession.close();
+const staleUpdatesBeforeCompletion = staleStatusUpdates;
+stalePutDeferred.resolve(okPut("created", 1));
+assert.equal((await staleWrite).status, "skipped", "A stale completion must not be accepted after an account switch.");
+assert.equal(staleWriteSession.getExpectedRevision("artifact-cloud-1"), null);
+assert.equal(staleStatusUpdates, staleUpdatesBeforeCompletion, "A stale completion must not update UI state.");
+
+console.log("Point-object cloud client checks passed (strict pages/origins, additive order, CAS serialization, fail-closed conflicts/errors, identity abort).");
