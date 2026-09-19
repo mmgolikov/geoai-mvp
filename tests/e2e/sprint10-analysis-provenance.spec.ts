@@ -240,7 +240,7 @@ test("S1 provenance discards an in-flight result after the validated role/scenar
   }, findSession({ role: "consultant_broker", scenario: "b2b_hotel_development" }));
   api.release();
 
-  await expect(page.getByRole("alert")).toBeVisible();
+  await expect(page.locator("main").getByRole("alert").filter({ hasText: /^Please try again shortly\.$/ })).toBeVisible();
   await expect(page.getByTestId("ai-success")).toHaveCount(0);
   await expect(page.getByTestId("analysis-request-state")).toHaveAttribute("data-completed-role", "unknown");
   expect(api.posts[0]).toMatchObject({ role: "developer", scenario: "b2b_redevelopment_selected_aoi" });
