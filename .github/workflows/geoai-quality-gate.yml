@@ -395,6 +395,11 @@ jobs:
         run: |
           set -euo pipefail
           node scripts/point-object-cloud-persistence-check.mjs | tee artifacts/sprint10-cloud-contract.txt
+          node --experimental-transform-types scripts/point-object-cloud-import-check.ts | tee artifacts/sprint10-cloud-import-contract.txt
+          node --experimental-transform-types scripts/point-object-cloud-client-check.ts | tee artifacts/sprint10-cloud-client-contract.txt
+          node scripts/sprint10-cloud-concurrency-check.mjs | tee artifacts/sprint10-cloud-race-static-contract.txt
+          node --experimental-transform-types scripts/sprint10-cloud-live-acceptance-check.mjs | tee artifacts/sprint10-cloud-live-static-contract.txt
+          node --experimental-transform-types scripts/point-object-source-middleware-auth-deadline-check.mjs | tee artifacts/source-middleware-deadline-contract.txt
           npm run test:self-host-runtime | tee artifacts/sprint10-self-host-contract.txt
           node scripts/sprint10-portable-readiness-load-check.mjs | tee artifacts/sprint10-portable-load-contract.txt
           node --experimental-transform-types scripts/sprint10-analysis-result-evidence-check.ts | tee artifacts/sprint10-analysis-evidence-contract.txt
@@ -451,6 +456,13 @@ jobs:
           google-chrome --version | tee artifacts/google-chrome-version.txt
           PLAYWRIGHT_JUNIT_OUTPUT_FILE=artifacts/point-to-object-product-e2e-junit.xml npm run test:e2e:point-to-object-v5:demo -- --retries=0 --output=artifacts/playwright-point-to-object | tee artifacts/point-to-object-v5-demo-e2e.txt
           npm run test:e2e:auth-session:demo -- --retries=0 | tee artifacts/auth-session-demo-e2e.txt
+          npx playwright test tests/e2e/point-object-cloud-sync.spec.ts --grep='demo/anonymous' --workers=1 --retries=0 --fail-on-flaky-tests | tee artifacts/cloud-demo-isolation-e2e.txt
+
+      - name: Browser explicit cloud persistence isolation (mocked provider)
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx playwright test --config=playwright.cloud-projects.config.ts --workers=1 --retries=0 --fail-on-flaky-tests | tee artifacts/cloud-projects-e2e.txt
 
       - name: Build
         shell: bash
