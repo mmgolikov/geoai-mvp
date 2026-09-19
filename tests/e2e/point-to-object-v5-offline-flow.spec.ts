@@ -1869,12 +1869,29 @@ async function source11UploadArea(page: Page, name: string, coordinates: [[numbe
   });
 }
 
-test("SOURCE11 Find preserves last-good data on exact deadline response and ignores a superseded criteria response", async ({ page }) => {
+async function source11FinishBoundaryEdit(page: Page, change: "none" | "remove-last" | "add-map-point") {
+  await page.getByTestId("create-edit-area").click();
+  const tools = page.getByTestId("create-map-drawing-tools");
+  await expect(tools).toBeVisible();
+  if (change === "remove-last") await tools.getByRole("button", { name: "Undo", exact: true }).click();
+  if (change === "add-map-point") {
+    const canvas = page.locator(".maplibregl-canvas");
+    const box = await canvas.boundingBox();
+    expect(box).not.toBeNull();
+    await canvas.click({ position: { x: Math.round(box!.width * 0.25), y: Math.round(box!.height * 0.25) } });
+  }
+  await tools.getByRole("button", { name: "Finish area", exact: true }).click();
+  await expect(tools).toHaveCount(0);
+}
+
+test("SOURCE11 Find preserves last-good data on exact deadline response and ignores a superseded criteria response", async ({ page }, testInfo) => {
   const unexpectedExternal = await installOfflineRoutes(page);
   const requests: Record<string, unknown>[] = [];
   let releaseSuperseded!: () => void;
   let markSupersededStarted!: () => void;
+  let markSupersededCompleted!: () => void;
   const supersededStarted = new Promise<void>((resolve) => { markSupersededStarted = resolve; });
+  const supersededCompleted = new Promise<void>((resolve) => { markSupersededCompleted = resolve; });
   const release = new Promise<void>((resolve) => { releaseSuperseded = resolve; });
   await page.route("**/api/prototype/point-to-object/find", async (route) => {
     const request = route.request().postDataJSON() as Record<string, unknown>;
@@ -1884,6 +1901,7 @@ test("SOURCE11 Find preserves last-good data on exact deadline response and igno
       markSupersededStarted();
       await release;
       await json(route, source11FindResult(request, "Superseded levels candidate", "4114")).catch(() => undefined);
+      markSupersededCompleted();
       return;
     }
     const label = requests.length === 1 ? "SOURCE11 baseline candidate" : requests.length === 3 ? "SOURCE11 same-criteria recovery" : "SOURCE11 current criteria";
@@ -1900,6 +1918,7 @@ test("SOURCE11 Find preserves last-good data on exact deadline response and igno
   await cta.click();
   await expect(page.getByTestId("find-footer-status")).toContainText("The source did not respond in time. Your criteria are preserved.");
   await expect(page.getByText("SOURCE11 baseline candidate", { exact: true })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("source11-find-route-timeout-retains-last-good.png") });
   expect(requests).toHaveLength(2);
   await cta.click();
   await expect(page.getByText("SOURCE11 same-criteria recovery", { exact: true })).toBeVisible();
@@ -1913,6 +1932,7 @@ test("SOURCE11 Find preserves last-good data on exact deadline response and igno
   await expect(cta).toHaveText("Searching…");
   await minimumLevels.fill("11");
   releaseSuperseded();
+  await supersededCompleted;
   await expect(page.getByText("Superseded levels candidate", { exact: true })).toHaveCount(0);
   await expect(page.getByText("SOURCE11 same-criteria recovery", { exact: true })).toBeVisible();
   await expect(page.getByTestId("find-result-stale")).toBeVisible();
@@ -1923,7 +1943,7 @@ test("SOURCE11 Find preserves last-good data on exact deadline response and igno
   expect(unexpectedExternal).toEqual([]);
 });
 
-test("SOURCE11 Find exits a real browser deadline without automatic retry and keeps the last-good result", async ({ page }) => {
+test("SOURCE11 Find exits a real browser deadline without automatic retry and keeps the last-good result", async ({ page }, testInfo) => {
   test.setTimeout(90_000);
   const unexpectedExternal = await installOfflineRoutes(page);
   const requests: Record<string, unknown>[] = [];
@@ -1951,6 +1971,7 @@ test("SOURCE11 Find exits a real browser deadline without automatic retry and ke
   await expect(cta).toHaveText("Searching…");
   await expect(page.getByTestId("find-footer-status")).toContainText("The source did not respond in time.", { timeout: 60_000 });
   await expect(page.getByText("SOURCE11 browser baseline", { exact: true })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("source11-find-browser-timeout-retains-last-good.png") });
   expect(requests).toHaveLength(2);
   await completed;
   await expect(page.getByText("Too-late browser candidate", { exact: true })).toHaveCount(0);
@@ -1961,12 +1982,14 @@ test("SOURCE11 Find exits a real browser deadline without automatic retry and ke
   expect(unexpectedExternal).toEqual([]);
 });
 
-test("SOURCE11 Create preserves same-AOI context through timeout and drops it for a changed AOI", async ({ page }) => {
+test("SOURCE11 Create preserves same-AOI context through timeout and drops it for a changed AOI", async ({ page }, testInfo) => {
   const unexpectedExternal = await installOfflineRoutes(page);
   const requests: Array<{ marketKey: "dubai"; locale: "en" | "ru"; aoiCoordinates: [[number, number][]] }> = [];
   let releaseSuperseded!: () => void;
   let markSupersededStarted!: () => void;
+  let markSupersededCompleted!: () => void;
   const supersededStarted = new Promise<void>((resolve) => { markSupersededStarted = resolve; });
+  const supersededCompleted = new Promise<void>((resolve) => { markSupersededCompleted = resolve; });
   const release = new Promise<void>((resolve) => { releaseSuperseded = resolve; });
   await page.route("**/api/prototype/point-to-object/area-context", async (route) => {
     const request = route.request().postDataJSON() as { marketKey: "dubai"; locale: "en" | "ru"; aoiCoordinates: [[number, number][]] };
@@ -1976,6 +1999,7 @@ test("SOURCE11 Create preserves same-AOI context through timeout and drops it fo
       markSupersededStarted();
       await release;
       await json(route, source11AreaContext(request, 14)).catch(() => undefined);
+      markSupersededCompleted();
       return;
     }
     const median = requests.length === 1 ? 7 : requests.length === 3 ? 9 : 3;
@@ -1985,15 +2009,6 @@ test("SOURCE11 Create preserves same-AOI context through timeout and drops it fo
     [55.27015, 25.20515], [55.27065, 25.20515], [55.27065, 25.20565],
     [55.27015, 25.20565], [55.27015, 25.20515]
   ]] as [[number, number][]];
-  const areaB = [[
-    [55.27115, 25.20615], [55.27165, 25.20615], [55.27165, 25.20665],
-    [55.27115, 25.20665], [55.27115, 25.20615]
-  ]] as [[number, number][]];
-  const areaC = [[
-    [55.27215, 25.20715], [55.27265, 25.20715], [55.27265, 25.20765],
-    [55.27215, 25.20765], [55.27215, 25.20715]
-  ]] as [[number, number][]];
-
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto("/prototype/point-to-object");
   await page.getByRole("tab", { name: "Create", exact: true }).click();
@@ -2001,24 +2016,27 @@ test("SOURCE11 Create preserves same-AOI context through timeout and drops it fo
   const contextSection = page.getByTestId("create-area-context-heading").locator("xpath=ancestor::section[1]");
   await expect(contextSection.getByText("7", { exact: true })).toBeVisible();
 
-  await source11UploadArea(page, "source11-a-again.geojson", areaA);
+  await source11FinishBoundaryEdit(page, "none");
   await expect(contextSection.getByRole("alert")).toContainText("The source did not respond in time.");
   await expect(contextSection.getByText("7", { exact: true })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("source11-create-timeout-retains-same-aoi.png") });
   expect(requests).toHaveLength(2);
   await contextSection.getByRole("button", { name: "Retry", exact: true }).click();
   await expect(contextSection.getByText("9", { exact: true })).toBeVisible();
   expect(requests[2]).toEqual(requests[1]);
 
-  await source11UploadArea(page, "source11-b.geojson", areaB);
+  await source11FinishBoundaryEdit(page, "remove-last");
   await supersededStarted;
   await expect(contextSection.getByText("9", { exact: true })).toHaveCount(0);
   await expect(contextSection.getByText("Reading open-map objects…", { exact: true })).toBeVisible();
-  await source11UploadArea(page, "source11-c.geojson", areaC);
+  await source11FinishBoundaryEdit(page, "add-map-point");
   await expect(contextSection.getByText("3", { exact: true })).toBeVisible();
   releaseSuperseded();
+  await supersededCompleted;
   await expect(contextSection.getByText("14", { exact: true })).toHaveCount(0);
   await expect(contextSection.getByText("3", { exact: true })).toBeVisible();
-  expect(requests[3].aoiCoordinates).toEqual(areaB);
-  expect(requests[4].aoiCoordinates).toEqual(areaC);
+  expect(requests[1]).toEqual(requests[0]);
+  expect(requests[3].aoiCoordinates).not.toEqual(requests[2].aoiCoordinates);
+  expect(requests[4].aoiCoordinates).not.toEqual(requests[3].aoiCoordinates);
   expect(unexpectedExternal).toEqual([]);
 });
