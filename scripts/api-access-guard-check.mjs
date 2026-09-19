@@ -156,7 +156,7 @@ for (const file of await collectRouteFiles(apiRoot)) {
 
       if (policy.action === "prototype.find.open_map" && handler.method === "POST") {
         const originIndex = handler.body.indexOf("if (!sameOrigin(request))");
-        const bodyIndex = handler.body.indexOf("await readBoundedJson(request, 2_048)");
+        const bodyIndex = handler.body.indexOf("await readBoundedJson(request, 2_048, signal)");
         const parseIndex = handler.body.indexOf("parsePointObjectFindRequest(", bodyIndex);
         const rateIndex = handler.body.indexOf("consumeRateLimit(request)", parseIndex);
         const findIndex = handler.body.indexOf("findPointObjects(", rateIndex);
@@ -176,7 +176,7 @@ for (const file of await collectRouteFiles(apiRoot)) {
 
       if (policy.action === "prototype.area_context.open_map" && handler.method === "POST") {
         const originIndex = handler.body.indexOf("if (!sameOrigin(request))");
-        const bodyIndex = handler.body.indexOf("await readBoundedJson(request, 20 * 1024)");
+        const bodyIndex = handler.body.indexOf("await readBoundedJson(request, 20 * 1024, signal)");
         const parseIndex = handler.body.indexOf("parsePointObjectAreaContextRequest(", bodyIndex);
         const rateIndex = handler.body.indexOf("consumeRateLimit(request)", parseIndex);
         const contextIndex = handler.body.indexOf("resolvePointObjectAreaContext(", rateIndex);
