@@ -18,10 +18,15 @@ const config = {
 };
 const receipts = [{ id: 1, route: "ai", depth: "standard", state: "settled", estimatedUsd: 0.041167 }];
 const runnerSource = readFileSync(new URL("./sprint10-live-journey-run.mjs", import.meta.url), "utf8");
+const liveSpecSource = readFileSync(new URL("../tests/e2e/sprint10-live-journey.spec.ts", import.meta.url), "utf8");
 const classifierSource = /export function classifyLiveJourneyReport[\s\S]*?\n}\n\nfunction run\(\)/.exec(runnerSource)?.[0] ?? "";
 assert.ok(classifierSource.length > 0);
 assert.doesNotMatch(classifierSource, /spawnSync|reserveSprint10Spend|dispatchSprint10PaidRequest|fetch\(/,
   "diagnostic classification must be incapable of dispatching or retrying a paid request");
+assert.match(liveSpecSource, /fetch\("\/api\/auth\/session", \{[\s\S]*?signal: AbortSignal[.]timeout\(10_000\)/,
+  "logout session reads must be bounded inside the browser callback");
+assert.match(liveSpecSource, /boundedResponseJson\(response, 10_000\)/,
+  "logout response-body reads must be bounded and mapped to a fixed cleanup stage");
 const completedSteps = [
   "anonymous_protection",
   "exact_preview",

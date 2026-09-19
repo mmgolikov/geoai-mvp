@@ -468,7 +468,12 @@ async function login(page: Page, configuration: LiveConfiguration) {
 async function browserSessionState(page: Page, expectedUserId: string) {
   return page.evaluate(async (userId) => {
     try {
-      const response = await fetch("/api/auth/session", { method: "GET", credentials: "same-origin", cache: "no-store" });
+      const response = await fetch("/api/auth/session", {
+        method: "GET",
+        credentials: "same-origin",
+        cache: "no-store",
+        signal: AbortSignal.timeout(10_000)
+      });
       const body = await response.json().catch(() => null) as {
         isAuthenticated?: unknown;
         supabaseAuthenticated?: unknown;
@@ -485,6 +490,20 @@ async function browserSessionState(page: Page, expectedUserId: string) {
       return "unavailable";
     }
   }, expectedUserId);
+}
+
+async function boundedResponseJson(response: Response, timeoutMs: number): Promise<unknown> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      response.json(),
+      new Promise<never>((_resolve, reject) => {
+        timeout = setTimeout(() => reject(new Error("Bounded response-body read expired.")), timeoutMs);
+      })
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
 }
 
 async function logoutVerified(page: Page, expectedUserId: string) {
@@ -505,7 +524,9 @@ async function logoutVerified(page: Page, expectedUserId: string) {
   } catch {
     throw new Error("LIVE_JOURNEY_CLEANUP_FAILED: logout_response");
   }
-  const payload: unknown = await response.json().catch(() => null);
+  let payload: unknown;
+  try { payload = await boundedResponseJson(response, 10_000); }
+  catch { throw new Error("LIVE_JOURNEY_CLEANUP_FAILED: logout_response"); }
   if (response.status() !== 200 || !record(payload) || payload.ok !== true || payload.status !== "signed_out") {
     throw new Error("LIVE_JOURNEY_CLEANUP_FAILED: logout_response");
   }
