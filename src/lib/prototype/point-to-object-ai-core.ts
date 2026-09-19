@@ -2412,18 +2412,51 @@ function renderDepthCriterion(
 ): PointObjectDepthReview["analyticChecks"][number] {
   const signal = renderSignal(code, support, request.locale);
   const lens = decisionLensLabel(request);
+  const deepChallenge: Record<PointObjectSignalCode, [string, string]> = {
+    object_identity: [
+      "If authority- or client-validated identity does not match this mapped object, invalidate the subject-specific findings and restart the screen from the confirmed subject; a match advances only to the next evidence gate.",
+      "Если подтверждённая органом власти или клиентом идентичность не совпадает с этим картированным объектом, выводы по объекту становятся недействительными и скрининг нужно начать заново от подтверждённого объекта; совпадение позволяет перейти только к следующему доказательному условию."
+    ],
+    use_classification: [
+      "If official or client records differ from the mapped class, redirect the screen and do not carry the mapped-use hypothesis forward; corroboration advances only to the next evidence gate.",
+      "Если официальные или клиентские данные расходятся с картированным классом, скрининг нужно перенаправить и не переносить гипотезу о назначении дальше; подтверждение позволяет перейти только к следующему доказательному условию."
+    ],
+    building_form: support.hasBuildingGeometry
+      ? [
+          "If an authority- or client-validated boundary or surveyed form differs from the mapped geometry, recalculate affected geometry-derived metrics and hold reuse or replacement judgement until the technical baseline is reconciled.",
+          "Если подтверждённая органом власти или клиентом граница либо обследованная форма расходится с картированной геометрией, пересчитайте затронутые производные метрики и приостановите вывод о повторном использовании или замене до согласования технического базиса."
+        ]
+      : [
+          "If verified building-form records differ from the mapped attributes, discard the affected form assumptions and hold reuse or replacement judgement until the technical baseline is reconciled.",
+          "Если проверенные данные о форме здания расходятся с картированными атрибутами, исключите затронутые предположения о форме и приостановите вывод о повторном использовании или замене до согласования технического базиса."
+        ],
+    lifecycle_marker: [
+      "If verified construction or refurbishment history does not corroborate the mapped lifecycle marker, drop the lifecycle-capital hypothesis and redirect the evidence request; corroboration still requires a current condition review.",
+      "Если проверенная история строительства или реконструкции не подтверждает картированную временную отметку, исключите гипотезу о капитальном цикле и перенаправьте запрос данных; даже подтверждение требует актуальной проверки состояния."
+    ],
+    source_limit: [
+      "If an authoritative or client-approved source contradicts the open-map record, replace the mapped premise and rerun the screen; corroboration advances only to the next domain-specific gate.",
+      "Если авторитетный или одобренный клиентом источник противоречит записи открытой карты, замените картированную предпосылку и повторите скрининг; подтверждение позволяет перейти только к следующему профильному условию."
+    ],
+    address_context: [
+      "If validated location or address association differs from the mapped context, re-resolve the subject and rebuild the affected context before using it in the decision sequence.",
+      "Если подтверждённая привязка локации или адреса расходится с картированным контекстом, повторно определите объект и перестройте затронутый контекст до его использования в последовательности решения."
+    ]
+  };
   return {
     ...signal,
     implication: request.depth === "quick"
       ? signal.implication
-      : localized(request.locale, `${lens}: ${signal.implication}`, `${lens}: ${signal.implication}`)
+      : request.depth === "deep"
+        ? `${lens}: ${signal.implication} ${deepChallenge[code][request.locale === "ru" ? 1 : 0]}`
+        : localized(request.locale, `${lens}: ${signal.implication}`, `${lens}: ${signal.implication}`)
   };
 }
 
 function renderDepthAlternative(
   path: PointObjectDecisionPath,
   support: PointObjectEvidenceSupport,
-  locale: PointObjectLocale
+  request: PointObjectAnalysisRequest
 ): PointObjectDepthReview["alternatives"][number] {
   const copy: Record<PointObjectDecisionPath, { title: string; rationale: string; refs: string[] }> = {
     existing_asset_screen: {
@@ -2459,9 +2492,35 @@ function renderDepthAlternative(
     technical_baseline_first: { title: "Альтернатива: сначала технический базис", rationale: "Использовать картированную форму здания для целевой проверки состояния, мощности и систем до анализа повторного использования или репозиционирования." },
     insufficient_open_context: { title: "Альтернатива: пауза до получения данных", rationale: "Сохранить результат как ограниченную привязку локации и открытых данных, пока не добавлен источник, непосредственно поддерживающий решение." }
   };
+  const deepCopy: Record<PointObjectDecisionPath, [string, string]> = {
+    existing_asset_screen: [
+      "If official or client evidence corroborates the mapped use or form, advance the existing-asset screen only to its next validation gate; if it conflicts, drop this path and redirect the screen without assuming reuse or repositioning.",
+      "Если официальные или клиентские данные подтверждают картированное назначение или форму, продвигайте скрининг существующего актива только к следующему условию проверки; при расхождении исключите этот путь и перенаправьте скрининг, не предполагая повторное использование или репозиционирование."
+    ],
+    identity_first_due_diligence: [
+      "If authority- or client-validated identity or parcel association does not match the mapped subject, invalidate the subject-specific screen and restart from the confirmed record; if it matches, advance only to rights and planning validation.",
+      "Если подтверждённая органом власти или клиентом идентичность либо связь с участком не совпадает с картированным объектом, признайте скрининг по объекту недействительным и начните заново от подтверждённой записи; при совпадении переходите только к проверке прав и планирования."
+    ],
+    planning_first_due_diligence: [
+      "If authoritative parcel or planning evidence differs from the mapped premise, hold the development hypothesis, recalculate affected geometry-derived metrics where they exist and redirect the screen; corroboration advances only to technical and market validation.",
+      "Если авторитетные данные об участке или планировании расходятся с картированной предпосылкой, приостановите гипотезу развития, пересчитайте затронутые производные от геометрии метрики там, где они существуют, и перенаправьте скрининг; подтверждение позволяет перейти только к технической и рыночной проверке."
+    ],
+    technical_baseline_first: [
+      "If verified condition, capacity or systems do not support the reuse premise, hold the reuse or replacement judgement and redirect the technical scope; only corroborating evidence can advance reuse evaluation to its next gate.",
+      "Если проверенные состояние, мощности или системы не поддерживают предпосылку повторного использования, приостановите вывод о повторном использовании или замене и перенаправьте технический объём; только подтверждающие данные позволяют перевести оценку повторного использования к следующему условию."
+    ],
+    insufficient_open_context: [
+      "Hold the requested conclusion until decision-specific evidence is added. If that evidence contradicts the mapped premise, restart or redirect the screen; if it supports it, advance only to the next validation gate.",
+      "Приостановите запрошенный вывод до добавления данных, относящихся к решению. Если они противоречат картированной предпосылке, начните скрининг заново или перенаправьте его; если подтверждают — переходите только к следующему условию проверки."
+    ]
+  };
   const selected = copy[path];
+  const locale = request.locale;
   return {
     ...(locale === "ru" ? ruCopy[path] : { title: selected.title, rationale: selected.rationale }),
+    ...(request.depth === "deep"
+      ? { rationale: deepCopy[path][locale === "ru" ? 1 : 0] }
+      : {}),
     evidenceClass: "hypothesis",
     evidenceRefs: selected.refs
   };
@@ -2480,14 +2539,38 @@ function renderDepthDecisionTrigger(
     source_evidence_only: ["Evidence-boundary gate", "Граница доказательств"],
     insufficient_for_requested_conclusion: ["Decision-evidence gate", "Доказательства для решения"]
   };
+  const deepDecisionImpact: Record<PointObjectAnswerCode, [string, string]> = {
+    identity_rights_planning_first: [
+      "If validated identity or parcel association does not match the mapped subject, invalidate the subject-specific findings and restart from the confirmed record; if it matches, advance only to the next rights or planning gate.",
+      "Если подтверждённая идентичность или связь с участком не совпадает с картированным объектом, выводы по объекту становятся недействительными и проверку нужно начать заново от подтверждённой записи; при совпадении переходите только к следующему условию по правам или планированию."
+    ],
+    technical_baseline_first: [
+      "If verified condition, capacity or systems contradict the reuse or repositioning premise, hold the reuse or replacement judgement and redirect the technical scope; corroboration advances only to the next evidence gate.",
+      "Если проверенные состояние, мощности или системы противоречат предпосылке повторного использования или репозиционирования, приостановите вывод о повторном использовании или замене и перенаправьте технический объём; подтверждение позволяет перейти только к следующему доказательному условию."
+    ],
+    market_financial_after_gates: [
+      "Until licensed market, transaction, cost and financial evidence is added, hold commercial and financial conclusions. Contradictory evidence redirects or stops the screen; supportive evidence advances only to a feasibility review, not approval.",
+      "До добавления лицензированных рыночных данных, сделок, затрат и финансовых показателей приостановите коммерческие и финансовые выводы. Противоречащие данные перенаправляют или останавливают скрининг; подтверждающие позволяют перейти только к оценке осуществимости, а не к одобрению."
+    ],
+    source_evidence_only: [
+      "If an authoritative or client-approved source contradicts the mapped record, replace the premise and rerun the screen; corroboration advances only to the next domain-specific gate.",
+      "Если авторитетный или одобренный клиентом источник противоречит картированной записи, замените предпосылку и повторите скрининг; подтверждение позволяет перейти только к следующему профильному условию."
+    ],
+    insufficient_for_requested_conclusion: [
+      "Hold the requested conclusion. If decision-specific evidence is added, rerun the screen: contradictory evidence stops or redirects the path, while supportive evidence advances only to the next validation gate.",
+      "Приостановите запрошенный вывод. После добавления данных, относящихся к решению, повторите скрининг: противоречащие данные останавливают или перенаправляют путь, а подтверждающие позволяют перейти только к следующему условию проверки."
+    ]
+  };
   return {
     title: titles[code][request.locale === "ru" ? 1 : 0],
     action: answer.statement,
-    decisionImpact: localized(
-      request.locale,
-      `Reassess the ${decisionLensLabel(request)} decision only after this evidence gate changes.`,
-      `Повторно оцените решение (${decisionLensLabel(request)}) только после изменения этого доказательного условия.`
-    ),
+    decisionImpact: request.depth === "deep"
+      ? deepDecisionImpact[code][request.locale === "ru" ? 1 : 0]
+      : localized(
+          request.locale,
+          `Reassess the ${decisionLensLabel(request)} decision only after this evidence gate changes.`,
+          `Повторно оцените решение (${decisionLensLabel(request)}) только после изменения этого доказательного условия.`
+        ),
     evidenceRefs: answer.evidenceRefs
   };
 }
@@ -2501,13 +2584,13 @@ function renderDepthReview(
   const contract = pointObjectAnalysisDepthContract(request.depth);
   const supportedCriteria = depthCriteriaDefaults(request).filter((code) => signalRefs(code, support).length > 0);
   const supportedAlternatives = POINT_OBJECT_DECISION_PATHS.filter((path) =>
-    path !== primaryPath && pathSupported(path, support) && renderDepthAlternative(path, support, request.locale).evidenceRefs.length > 0
+    path !== primaryPath && pathSupported(path, support) && renderDepthAlternative(path, support, request).evidenceRefs.length > 0
   );
   const supportedCounters = POINT_OBJECT_RISK_CODES.filter((code) => riskRefs(code, support).length > 0);
   const supportedTriggers = POINT_OBJECT_ANSWER_CODES.filter((code) => answerRefs(code, support).length > 0);
   const criteria = normalizedCodes(plan.criteriaSignalCodes, [], contract.reviewCounts.criteria, (code) => signalRefs(code, support));
   const alternatives = normalizedCodes(plan.alternativePaths, [], contract.reviewCounts.alternatives, (path) =>
-    path === primaryPath || !pathSupported(path, support) ? [] : renderDepthAlternative(path, support, request.locale).evidenceRefs
+    path === primaryPath || !pathSupported(path, support) ? [] : renderDepthAlternative(path, support, request).evidenceRefs
   );
   const counters = normalizedCodes(plan.counterEvidenceRiskCodes, [], contract.reviewCounts.counterEvidence, (code) => riskRefs(code, support));
   const triggers = normalizedCodes(plan.decisionTriggerCodes, [], contract.reviewCounts.decisionTriggers, (code) => answerRefs(code, support));
@@ -2529,7 +2612,7 @@ function renderDepthReview(
     basis: "structured_review_of_existing_evidence",
     purpose: contract.purpose,
     analyticChecks: criteria.map((code) => renderDepthCriterion(code, support, request)),
-    alternatives: alternatives.map((path) => renderDepthAlternative(path, support, request.locale)),
+    alternatives: alternatives.map((path) => renderDepthAlternative(path, support, request)),
     uncertainties: counters.map((code) => {
       const risk = renderRisk(rawRiskMap.get(code) ?? { code, ...RISK_DEFAULT_RATINGS[code] }, support, request.locale);
       return { title: risk.title, statement: risk.statement, decisionImpact: risk.decisionImpact, evidenceRefs: risk.evidenceRefs };

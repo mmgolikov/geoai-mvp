@@ -1947,6 +1947,207 @@ async function assertCandidateAiSafety(): Promise<void> {
   const currentValidation = validateContentDetailed(currentRawPlan, evidencePack, focusedAnalysisRequest);
   assert.equal(currentValidation.ok, true,
     `Current Deep plan must produce a bounded structured review: ${JSON.stringify(currentValidation)}`);
+  assert.equal(currentValidation.ok && currentValidation.content.depthReview instanceof Object, true);
+  const deepReview = (currentValidation as { ok: true; content: any }).content.depthReview as any;
+  assert.match(deepReview.analyticChecks.find((item: any) => item.title === "Mapped use classification")?.implication ?? "",
+    /If official or client records differ[\s\S]*redirect the screen[\s\S]*next evidence gate/,
+    "Deep criteria must state a conditional redirect without claiming that validation already occurred.");
+  assert.match(deepReview.analyticChecks.find((item: any) => item.title === "Mapped lifecycle marker")?.implication ?? "",
+    /If verified construction or refurbishment history does not corroborate[\s\S]*drop the lifecycle-capital hypothesis/,
+    "Deep lifecycle review must identify the evidence condition that would remove its hypothesis.");
+  assert.match(deepReview.alternatives.find((item: any) => item.title === "Alternative: identity-first review")?.rationale ?? "",
+    /If authority- or client-validated identity or parcel association does not match[\s\S]*restart from the confirmed record/,
+    "Deep identity alternatives must invalidate and restart a subject-specific screen on a future mismatch.");
+  assert.match(deepReview.decisionTriggers.find((item: any) => item.title === "Technical-baseline gate")?.decisionImpact ?? "",
+    /If verified condition, capacity or systems contradict[\s\S]*hold the reuse or replacement judgement[\s\S]*next evidence gate/,
+    "Deep technical triggers must conditionally hold the judgement, not prescribe replacement.");
+  assert.match(deepReview.decisionTriggers.find((item: any) => item.title === "Market and financial gate")?.decisionImpact ?? "",
+    /Until licensed market, transaction, cost and financial evidence is added[\s\S]*supportive evidence advances only to a feasibility review, not approval/,
+    "Deep market triggers must keep financial conclusions on hold and make any advance conditional.");
+
+  const identityPrimaryDeepValidation = validateContentDetailed(
+    {
+      ...currentRawPlan,
+      decision: { ...currentRawPlan.decision, path: "identity_first_due_diligence" },
+      depthPlan: {
+        ...currentRawPlan.depthPlan,
+        alternativePaths: ["existing_asset_screen", "technical_baseline_first"]
+      }
+    },
+    evidencePack,
+    focusedAnalysisRequest
+  );
+  assert.equal(identityPrimaryDeepValidation.ok, true,
+    `Identity-first Deep plan must produce conditional alternatives: ${JSON.stringify(identityPrimaryDeepValidation)}`);
+  const identityPrimaryAlternatives = (identityPrimaryDeepValidation as { ok: true; content: any })
+    .content.depthReview.alternatives as any[];
+  assert.match(identityPrimaryAlternatives.find((item) => item.title === "Alternative: existing-asset screen")?.rationale ?? "",
+    /If official or client evidence corroborates[\s\S]*if it conflicts, drop this path and redirect/,
+    "A Deep existing-asset alternative must expose both advance and redirect conditions.");
+  assert.match(identityPrimaryAlternatives.find((item) => item.title === "Alternative: technical-baseline review")?.rationale ?? "",
+    /If verified condition, capacity or systems do not support[\s\S]*hold the reuse or replacement judgement/,
+    "A Deep technical alternative must hold the judgement without treating replacement as proven.");
+
+  const standardDepthPlan = {
+    criteriaSignalCodes: ["use_classification", "lifecycle_marker", "source_limit"],
+    alternativePaths: ["identity_first_due_diligence"],
+    counterEvidenceRiskCodes: ["non_official_source", "identity_uncertainty"],
+    decisionTriggerCodes: ["identity_rights_planning_first", "technical_baseline_first"]
+  };
+  const standardValidation = validateContentDetailed(
+    { ...rawPlan, depthPlan: standardDepthPlan },
+    evidencePack,
+    { ...focusedAnalysisRequest, depth: "standard" }
+  );
+  assert.equal(standardValidation.ok, true,
+    `Standard control must remain renderable: ${JSON.stringify(standardValidation)}`);
+  const standardReview = (standardValidation as { ok: true; content: any }).content.depthReview as any;
+  assert.equal(sha256(JSON.stringify(standardReview)),
+    "e33250cb1739dfe122a077a07ea95bf3331b184bdd9085fda73472f31a124725",
+    "The complete Standard depth review must remain byte-for-byte at its pre-change deterministic snapshot.");
+  assert.equal(
+    standardReview.analyticChecks.find((item: any) => item.title === "Mapped use classification")?.implication,
+    "investor · development screening · long-term horizon: Use the classification to choose the first screening workflow, not as proof of legal or permitted use.",
+    "Standard criteria copy must remain byte-for-byte unchanged by the Deep-only challenge renderer."
+  );
+  assert.equal(
+    standardReview.alternatives[0]?.rationale,
+    "Use the open-map record only to locate the candidate, then make authority- or client-validated object and parcel identity the next gate.",
+    "Standard alternative copy must remain byte-for-byte unchanged by the Deep-only challenge renderer."
+  );
+  assert.equal(
+    standardReview.decisionTriggers[0]?.decisionImpact,
+    "Reassess the investor · development screening · long-term horizon decision only after this evidence gate changes.",
+    "Standard trigger copy must remain byte-for-byte unchanged by the Deep-only conditional consequence."
+  );
+
+  const quickValidation = validateContentDetailed(
+    {
+      ...rawPlan,
+      depthPlan: {
+        criteriaSignalCodes: ["object_identity", "source_limit"],
+        alternativePaths: [],
+        counterEvidenceRiskCodes: ["non_official_source"],
+        decisionTriggerCodes: ["identity_rights_planning_first"]
+      }
+    },
+    evidencePack,
+    { ...focusedAnalysisRequest, depth: "quick" }
+  );
+  assert.equal(quickValidation.ok, true,
+    `Quick control must remain renderable: ${JSON.stringify(quickValidation)}`);
+  const quickReview = (quickValidation as { ok: true; content: any }).content.depthReview as any;
+  assert.equal(sha256(JSON.stringify(quickReview)),
+    "dbc25c1efca3ea6b62618afc64e3f5d14e5b2152f2829a6c6a73878b2a85e746",
+    "The complete Quick depth review must remain byte-for-byte at its pre-change deterministic snapshot.");
+  assert.equal(
+    quickReview.analyticChecks.find((item: any) => item.title === "Resolved open-map object")?.implication,
+    "Use this record as a screening anchor and verify its match to the intended asset and an authority- or client-validated parcel record.",
+    "Quick criteria copy must remain byte-for-byte unchanged."
+  );
+  assert.equal(
+    quickReview.decisionTriggers[0]?.decisionImpact,
+    "Reassess the investor · development screening · long-term horizon decision only after this evidence gate changes.",
+    "Quick trigger copy must remain byte-for-byte unchanged."
+  );
+
+  const russianDeepValidation = validateContentDetailed(
+    currentRawPlan,
+    evidencePack,
+    { ...focusedAnalysisRequest, locale: "ru" }
+  );
+  assert.equal(russianDeepValidation.ok, true,
+    `Russian Deep challenge must remain renderable: ${JSON.stringify(russianDeepValidation)}`);
+  const russianDeepReview = (russianDeepValidation as { ok: true; content: any }).content.depthReview as any;
+  assert.match(russianDeepReview.alternatives[0]?.rationale ?? "", /Если[\s\S]*недействительным[\s\S]*начните заново/,
+    "Russian Deep alternatives must carry the same conditional invalidation semantics.");
+  assert.match(russianDeepReview.decisionTriggers.find((item: any) => item.title === "Технический базис")?.decisionImpact ?? "",
+    /Если проверенные состояние, мощности или системы противоречат[\s\S]*приостановите вывод/,
+    "Russian Deep triggers must carry the same conditional hold semantics.");
+
+  const evidencePackWithoutAttributes = structuredClone(evidencePack) as any;
+  delete evidencePackWithoutAttributes.selectedObject.tags["tag.building"];
+  delete evidencePackWithoutAttributes.selectedObject.tags["tag.building:levels"];
+  delete evidencePackWithoutAttributes.selectedObject.tags["tag.height"];
+  delete evidencePackWithoutAttributes.selectedObject.tags["tag.start_date"];
+  evidencePackWithoutAttributes.evidence = evidencePackWithoutAttributes.evidence
+    .filter((item: any) => item.id !== "EVD-ALLOWED-FIELDS");
+  const noAttributesValidation = validateContentDetailed(
+    {
+      ...rawPlan,
+      answerCode: null,
+      focusedAnswer: null,
+      depthPlan: {
+        criteriaSignalCodes: ["building_form", "use_classification", "source_limit", "object_identity"],
+        alternativePaths: ["planning_first_due_diligence", "identity_first_due_diligence"],
+        counterEvidenceRiskCodes: ["non_official_source", "identity_uncertainty", "geometry_not_parcel"],
+        decisionTriggerCodes: ["identity_rights_planning_first", "technical_baseline_first", "source_evidence_only"]
+      }
+    },
+    evidencePackWithoutAttributes,
+    { ...initialAnalysisRequest, depth: "deep" }
+  );
+  assert.equal(noAttributesValidation.ok, true,
+    `Deep challenge must degrade honestly without mapped attributes: ${JSON.stringify(noAttributesValidation)}`);
+  const noAttributesReview = (noAttributesValidation as { ok: true; content: any }).content.depthReview as any;
+  const noAttributesForm = noAttributesReview.analyticChecks.find((item: any) => item.title === "Mapped physical form");
+  assert.deepEqual(noAttributesForm?.evidenceRefs, ["EVD-GEOMETRY"]);
+  assert.match(noAttributesForm?.implication ?? "", /validated boundary or surveyed form differs from the mapped geometry/);
+  assert.doesNotMatch(noAttributesForm?.implication ?? "", /mapped attributes/,
+    "A geometry-only Deep challenge must not claim that mapped building attributes were observed.");
+
+  const evidencePackWithoutGeometry = structuredClone(evidencePack) as any;
+  evidencePackWithoutGeometry.selectedObject.geometryType = null;
+  evidencePackWithoutGeometry.selectedObject.geometryHash = null;
+  evidencePackWithoutGeometry.selectedObject.metrics = null;
+  evidencePackWithoutGeometry.evidence = evidencePackWithoutGeometry.evidence
+    .filter((item: any) => !["EVD-GEOMETRY", "EVD-OBJECT-METRICS"].includes(item.id));
+  const noGeometryValidation = validateContentDetailed(
+    {
+      ...rawPlan,
+      answerCode: null,
+      focusedAnswer: null,
+      depthPlan: {
+        criteriaSignalCodes: ["building_form", "use_classification", "lifecycle_marker", "source_limit"],
+        alternativePaths: ["technical_baseline_first", "identity_first_due_diligence"],
+        counterEvidenceRiskCodes: ["non_official_source", "identity_uncertainty", "geometry_not_parcel"],
+        decisionTriggerCodes: ["identity_rights_planning_first", "technical_baseline_first", "source_evidence_only"]
+      }
+    },
+    evidencePackWithoutGeometry,
+    { ...initialAnalysisRequest, depth: "deep" }
+  );
+  assert.equal(noGeometryValidation.ok, true,
+    `Deep challenge must degrade honestly without mapped geometry: ${JSON.stringify(noGeometryValidation)}`);
+  const noGeometryContent = (noGeometryValidation as { ok: true; content: any }).content as any;
+  const noGeometryForm = noGeometryContent.depthReview.analyticChecks
+    .find((item: any) => item.title === "Mapped physical form");
+  assert.deepEqual(noGeometryForm?.evidenceRefs, ["EVD-ALLOWED-FIELDS"]);
+  assert.match(noGeometryForm?.implication ?? "", /verified building-form records differ from the mapped attributes/);
+  assert.doesNotMatch(noGeometryForm?.implication ?? "", /mapped geometry|validated boundary|surveyed form/,
+    "An attribute-only Deep challenge must not claim that mapped geometry was observed.");
+  assert.equal(JSON.stringify(noGeometryContent).includes("Geometry is not a parcel"), false,
+    "A no-geometry evidence pack must not render the geometry-specific uncertainty.");
+
+  const deepRenderedText = JSON.stringify({
+    en: deepReview,
+    ru: russianDeepReview,
+    noAttributes: noAttributesReview,
+    noGeometry: noGeometryContent.depthReview
+  });
+  for (const unsupportedConclusion of [
+    /zoning allows/i,
+    /planning approval (?:is )?confirmed/i,
+    /guaranteed return/i,
+    /verified profit/i,
+    /must (?:be )?replace(?:d)?/i,
+    /требует замены/i,
+    /разрешено зонированием/i,
+    /гарантированн(?:ая|ый|ое) доход/i
+  ]) {
+    assert.equal(unsupportedConclusion.test(deepRenderedText), false,
+      `Deep conditional copy must not fabricate planning, financial or replacement outcomes: ${unsupportedConclusion}.`);
+  }
   const currentClientResponse = {
     ...fullClientResponse,
     content: currentValidation.ok ? currentValidation.content : fullClientResponse.content,
