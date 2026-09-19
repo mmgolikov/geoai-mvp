@@ -202,14 +202,18 @@ test("writer saves, clean context reopens, outsider is denied", async ({ browser
     const imported = await second.page.evaluate((key) => localStorage.getItem(key), storageKey(personaA.userId));
     guard(imported !== null, "Clean A context did not import the artifact.");
     expect(JSON.parse(imported).projects[0].artifacts[0]).toEqual(fixtureArtifact());
-    progress("writer_map");
+    progress("writer_map_navigation");
     await Promise.all([
       second.page.waitForURL((url) => url.pathname === "/prototype/point-to-object"),
       second.page.getByRole("button", { name: "Show on map", exact: true }).click()
     ]);
+    progress("writer_map_canvas");
     await expect(second.page.getByTestId("live-map-canvas")).toBeVisible();
-    await expect(second.page.getByText("Live map ready for object selection.", { exact: true })).toBeAttached();
+    progress("writer_map_ready");
+    await expect(second.page.getByText("Live map ready. Set criteria and search the visible area.", { exact: true })).toBeAttached();
+    progress("writer_map_no_put");
     expect(secondPuts).toBe(0);
+    progress("writer_map_network_clean");
     second.assertNetworkClean();
 
     const outsider = await newContext(browser); contexts.push(outsider.context);

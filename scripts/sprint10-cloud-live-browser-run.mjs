@@ -11,7 +11,8 @@ const phases = new Set(["writer_outsider", "viewer_denial"]);
 export const browserProgressStages = Object.freeze({
   writer_outsider: Object.freeze([
     "writer_login", "writer_cloud_read", "writer_save", "writer_save_201",
-    "writer_clean_reopen", "writer_map", "outsider_login", "outsider_assertion"
+    "writer_clean_reopen", "writer_map_navigation", "writer_map_canvas", "writer_map_ready",
+    "writer_map_no_put", "writer_map_network_clean", "outsider_login", "outsider_assertion"
   ]),
   viewer_denial: Object.freeze(["viewer_login", "viewer_cloud_read", "viewer_save", "viewer_assertion"])
 });

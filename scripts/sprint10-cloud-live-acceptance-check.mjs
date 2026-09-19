@@ -25,6 +25,9 @@ const root = resolve(new URL("..", import.meta.url).pathname);
 const harness = readFileSync(join(root, "scripts/sprint10-cloud-live-acceptance.mjs"), "utf8");
 const runner = readFileSync(join(root, "scripts/sprint10-cloud-live-browser-run.mjs"), "utf8");
 const spec = readFileSync(join(root, "tests/e2e/sprint10-cloud-live-acceptance.spec.ts"), "utf8");
+const prototypeClient = readFileSync(join(root, "components/point-to-object/prototype-client-v5.tsx"), "utf8");
+const liveMap = readFileSync(join(root, "components/point-to-object/live-object-map.tsx"), "utf8");
+const pointObjectI18n = readFileSync(join(root, "src/lib/prototype/point-to-object-i18n.ts"), "utf8");
 const target = {
   organizationId: "99100000-0000-4000-8000-000000000001",
   projectId: "99200000-0000-4000-8000-000000000001",
@@ -413,6 +416,11 @@ assert.match(spec, /viewer cannot save/);
 for (const stage of [...browserProgressStages.writer_outsider, ...browserProgressStages.viewer_denial]) {
   assert.match(spec, new RegExp(`progress\\("${stage}"\\)`));
 }
+assert.match(prototypeClient, /if \(artifact\.kind === "find"\)[\s\S]*?setMode\("find"\)/);
+assert.match(liveMap, /interactionMode === "find"\s*\? "map\.ready\.find"/);
+assert.match(pointObjectI18n, /"map\.ready\.find": "Live map ready\. Set criteria and search the visible area\."/);
+assert.match(spec, /getByText\("Live map ready\. Set criteria and search the visible area\."/);
+assert.doesNotMatch(spec, /progress\("writer_map"\)/);
 assert.match(spec, /localStorage\.getItem\(key\)[\s\S]*toBe\(originalBytes\)/);
 assert.match(spec, /expect\(\(await put\)\.status\(\)\)\.toBe\(403\)/);
 assert.doesNotMatch(`${harness}\n${runner}\n${spec}`, /console\.(?:log|error)\([^\n]*(?:PASSWORD|BYPASS|ADMIN_SECRET|PUBLISHABLE)/);
