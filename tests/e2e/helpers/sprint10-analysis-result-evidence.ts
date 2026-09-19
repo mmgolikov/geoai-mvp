@@ -52,7 +52,7 @@ const SCENARIO_VALUES = new Set([
   "b2b_commercial_real_estate"
 ]);
 const CONTEXT_GROUPS = new Set([
-  "hospitality", "commercial", "residential", "daily_needs", "education", "healthcare", "civic_culture",
+  "hospitality", "commercial", "residential", "retail_daily_needs", "education", "healthcare", "civic_culture",
   "transport", "access", "open_space", "industrial", "construction", "other_built"
 ]);
 const DISTRICT_CODES = new Set([

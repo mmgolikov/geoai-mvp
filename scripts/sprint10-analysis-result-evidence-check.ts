@@ -10,6 +10,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { PointObjectContextGroup } from "../components/point-to-object/live-types";
 
 // @ts-expect-error The Node transform-types offline runner requires the explicit TypeScript extension.
 import { sprint10AnalysisResponse } from "../tests/e2e/helpers/sprint10-analysis-fixture.ts";
@@ -231,6 +232,30 @@ try {
   mismatchedSource.subject.sourceFeatureId = "way/91011";
   rejects(() => buildSprint10AnalysisResultEvidence(input(mismatchedSource)), /source identity changed/);
 
+  // Exhaustive against the application type: adding or renaming a category
+  // requires a capture check, rather than silently drifting to an old enum.
+  const canonicalGroups: Record<PointObjectContextGroup, true> = {
+    residential: true, commercial: true, hospitality: true, retail_daily_needs: true,
+    education: true, healthcare: true, civic_culture: true, transport: true,
+    access: true, open_space: true, industrial: true, construction: true, other_built: true
+  };
+  for (const group of Object.keys(canonicalGroups)) {
+    const grouped = syntheticResponse();
+    grouped.content.geoContext.groups[0].group = group;
+    const groupedCapture = buildSprint10AnalysisResultEvidence(input(grouped));
+    assert.equal((groupedCapture.content.geoContext as any).groups[0].group, group);
+    const driven = syntheticResponse();
+    driven.content.geoContext.districtCharacter.driverGroups = [group];
+    const drivenCapture = buildSprint10AnalysisResultEvidence(input(driven));
+    assert.deepEqual((drivenCapture.content.geoContext as any).districtCharacter.driverGroups, [group]);
+  }
+  const obsoleteGroup = syntheticResponse();
+  obsoleteGroup.content.geoContext.groups[0].group = "daily_needs";
+  rejects(() => buildSprint10AnalysisResultEvidence(input(obsoleteGroup)), /group is not accepted/);
+  const obsoleteDriver = syntheticResponse();
+  obsoleteDriver.content.geoContext.districtCharacter.driverGroups = ["daily_needs"];
+  rejects(() => buildSprint10AnalysisResultEvidence(input(obsoleteDriver)), /driverGroups is not accepted/);
+
   const extraContent = syntheticResponse();
   Object.assign(extraContent.content, { rawNetworkDump: "not accepted" });
   rejects(() => buildSprint10AnalysisResultEvidence(input(extraContent)), /content has an unexpected shape/);
@@ -280,6 +305,7 @@ try {
       coordinateClaimExclusion: 1,
       privacyFieldExclusions: 15,
       telemetryRequestIdExcluded: 1,
+      canonicalGroupCases: Object.keys(canonicalGroups).length * 2,
       negativeCases,
       networkCalls: 0,
       providerCalls: 0,
