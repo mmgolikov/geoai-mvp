@@ -1790,3 +1790,235 @@ test("Saved Projects exposes recoverable storage failure at every supported widt
   expect(findPostRequests).toHaveLength(1);
   expect(unexpectedExternal).toEqual([]);
 });
+
+function source11FindResult(request: Record<string, unknown>, label: string, id: string) {
+  const resultCandidate = {
+    ...candidate("way", id, label, 55.2704, 25.2054, 12),
+    group: request.group,
+    matchedTag: { key: "building", value: "yes" }
+  };
+  return {
+    protocol: "POINT_TO_OBJECT_001_FIND_OPEN_MAP_V1",
+    mode: "results",
+    criteria: request,
+    candidates: [resultCandidate],
+    ordering: "source_identity_ascending_not_ranked",
+    coverage: {
+      kind: "bounded_open_map_sample",
+      approximateAreaSqKm: 1.25,
+      upstreamElementCount: 1,
+      normalizedCandidateCount: 1,
+      returnedCandidateCount: 1,
+      upstreamQueryLimit: 80,
+      capReached: false,
+      completeInventory: false,
+      mappedLevelsPolicy: request.mappedMinimumLevels === null && request.mappedMaximumLevels === null
+        ? "not_requested"
+        : "strict_explicit_building_levels_tag_only"
+    },
+    source: {
+      name: "OpenStreetMap",
+      service: "Overpass API",
+      sourceResponseHash: sha256,
+      observedAt: null,
+      acquiredAt,
+      freshness: "runtime_response_feature_time_unavailable",
+      licenceId: "ODbL-1.0",
+      attribution: "© OpenStreetMap contributors",
+      licenceUrl: "https://www.openstreetmap.org/copyright",
+      usagePolicyUrl: "https://dev.overpass-api.de/overpass-doc/en/preface/commons.html",
+      officialStatus: "open_context_not_official",
+      runtimeNetworkUsed: true,
+      persistenceUsed: false
+    },
+    limitations: ["Bounded SOURCE11 browser fixture."],
+    caveat: "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+  };
+}
+
+function source11AreaContext(request: { marketKey: "dubai"; locale: "en" | "ru"; aoiCoordinates: [[number, number][]] }, medianLevels: number) {
+  const features = [1, 2].map((index) => ({
+    sourceFeatureId: `way/${medianLevels}${index}`,
+    longitude: request.aoiCoordinates[0][0][0],
+    latitude: request.aoiCoordinates[0][0][1],
+    label: `SOURCE11 mapped building ${index}`,
+    group: "residential",
+    mappedBuildingLevels: medianLevels,
+    observedTags: { building: "residential" },
+    inclusionMethod: "returned_center_inside_aoi"
+  }));
+  return {
+    protocol: "POINT_TO_OBJECT_001_AREA_CONTEXT_V1",
+    mode: "results",
+    request,
+    area: { areaSqM: 2_500, perimeterM: 200, centroid: { longitude: 55.27035, latitude: 25.20535 } },
+    features,
+    summary: { sampleSize: 2, namedFeatureCount: 2, mappedBuildingCount: 2, mappedLevelsKnownCount: 2, medianMappedLevels: medianLevels, nearestTransitM: null, nearestMajorRoadM: null, groups: [{ group: "residential", count: 2, sharePct: 100 }] },
+    coverage: { kind: "bounded_open_map_polygon_sample", inclusionMethod: "returned_center_inside_aoi", geometryCoverage: "centroid_proxy_not_complete_intersection", upstreamElementCount: 2, normalizedInsideCount: 2, returnedFeatureCount: 2, upstreamQueryLimit: 300, featureReturnLimit: 80, capReached: false, completeInventory: false },
+    source: { name: "OpenStreetMap", service: "Overpass API", sourceResponseHash: sha256, observedAt: null, acquiredAt, licenceId: "ODbL-1.0", attribution: "© OpenStreetMap contributors", licenceUrl: "https://www.openstreetmap.org/copyright", officialStatus: "open_context_not_official", runtimeNetworkUsed: true, persistenceUsed: false },
+    limitations: ["Bounded SOURCE11 area fixture."],
+    caveat: "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+  };
+}
+
+async function source11UploadArea(page: Page, name: string, coordinates: [[number, number][]]) {
+  await page.getByLabel("Upload GeoJSON").setInputFiles({
+    name,
+    mimeType: "application/geo+json",
+    buffer: Buffer.from(JSON.stringify({ type: "Polygon", coordinates }))
+  });
+}
+
+test("SOURCE11 Find preserves last-good data on exact deadline response and ignores a superseded criteria response", async ({ page }) => {
+  const unexpectedExternal = await installOfflineRoutes(page);
+  const requests: Record<string, unknown>[] = [];
+  let releaseSuperseded!: () => void;
+  let markSupersededStarted!: () => void;
+  const supersededStarted = new Promise<void>((resolve) => { markSupersededStarted = resolve; });
+  const release = new Promise<void>((resolve) => { releaseSuperseded = resolve; });
+  await page.route("**/api/prototype/point-to-object/find", async (route) => {
+    const request = route.request().postDataJSON() as Record<string, unknown>;
+    requests.push(request);
+    if (requests.length === 2) return json(route, { mode: "unavailable", code: "SOURCE_REQUEST_TIMEOUT", error: "bounded fixture deadline", retryable: true }, 504);
+    if (requests.length === 4) {
+      markSupersededStarted();
+      await release;
+      await json(route, source11FindResult(request, "Superseded levels candidate", "4114")).catch(() => undefined);
+      return;
+    }
+    const label = requests.length === 1 ? "SOURCE11 baseline candidate" : requests.length === 3 ? "SOURCE11 same-criteria recovery" : "SOURCE11 current criteria";
+    await json(route, source11FindResult(request, label, `411${requests.length}`));
+  });
+
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/prototype/point-to-object");
+  await page.getByRole("tab", { name: "Find", exact: true }).click();
+  const cta = page.getByTestId("find-search-cta");
+  await cta.click();
+  await expect(page.getByText("SOURCE11 baseline candidate", { exact: true })).toBeVisible();
+
+  await cta.click();
+  await expect(page.getByTestId("find-footer-status")).toContainText("The source did not respond in time. Your criteria are preserved.");
+  await expect(page.getByText("SOURCE11 baseline candidate", { exact: true })).toBeVisible();
+  expect(requests).toHaveLength(2);
+  await cta.click();
+  await expect(page.getByText("SOURCE11 same-criteria recovery", { exact: true })).toBeVisible();
+  expect(requests[2]).toEqual(requests[1]);
+
+  const minimumLevels = page.getByLabel("Levels from", { exact: true });
+  await minimumLevels.fill("10");
+  await expect(page.getByTestId("find-result-stale")).toBeVisible();
+  await cta.click();
+  await supersededStarted;
+  await expect(cta).toHaveText("Searching…");
+  await minimumLevels.fill("11");
+  releaseSuperseded();
+  await expect(page.getByText("Superseded levels candidate", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("SOURCE11 same-criteria recovery", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("find-result-stale")).toBeVisible();
+  await cta.click();
+  await expect(page.getByText("SOURCE11 current criteria", { exact: true })).toBeVisible();
+  expect(requests[3].mappedMinimumLevels).toBe(10);
+  expect(requests[4].mappedMinimumLevels).toBe(11);
+  expect(unexpectedExternal).toEqual([]);
+});
+
+test("SOURCE11 Find exits a real browser deadline without automatic retry and keeps the last-good result", async ({ page }) => {
+  test.setTimeout(90_000);
+  const unexpectedExternal = await installOfflineRoutes(page);
+  const requests: Record<string, unknown>[] = [];
+  let delayedCompleted!: () => void;
+  const completed = new Promise<void>((resolve) => { delayedCompleted = resolve; });
+  await page.route("**/api/prototype/point-to-object/find", async (route) => {
+    const request = route.request().postDataJSON() as Record<string, unknown>;
+    requests.push(request);
+    if (requests.length === 2) {
+      await new Promise((resolve) => setTimeout(resolve, 55_000));
+      await json(route, source11FindResult(request, "Too-late browser candidate", "4122")).catch(() => undefined);
+      delayedCompleted();
+      return;
+    }
+    await json(route, source11FindResult(request, requests.length === 1 ? "SOURCE11 browser baseline" : "SOURCE11 browser retry", `412${requests.length}`));
+  });
+
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/prototype/point-to-object");
+  await page.getByRole("tab", { name: "Find", exact: true }).click();
+  const cta = page.getByTestId("find-search-cta");
+  await cta.click();
+  await expect(page.getByText("SOURCE11 browser baseline", { exact: true })).toBeVisible();
+  await cta.click();
+  await expect(cta).toHaveText("Searching…");
+  await expect(page.getByTestId("find-footer-status")).toContainText("The source did not respond in time.", { timeout: 60_000 });
+  await expect(page.getByText("SOURCE11 browser baseline", { exact: true })).toBeVisible();
+  expect(requests).toHaveLength(2);
+  await completed;
+  await expect(page.getByText("Too-late browser candidate", { exact: true })).toHaveCount(0);
+  expect(requests).toHaveLength(2);
+  await cta.click();
+  await expect(page.getByText("SOURCE11 browser retry", { exact: true })).toBeVisible();
+  expect(requests).toHaveLength(3);
+  expect(unexpectedExternal).toEqual([]);
+});
+
+test("SOURCE11 Create preserves same-AOI context through timeout and drops it for a changed AOI", async ({ page }) => {
+  const unexpectedExternal = await installOfflineRoutes(page);
+  const requests: Array<{ marketKey: "dubai"; locale: "en" | "ru"; aoiCoordinates: [[number, number][]] }> = [];
+  let releaseSuperseded!: () => void;
+  let markSupersededStarted!: () => void;
+  const supersededStarted = new Promise<void>((resolve) => { markSupersededStarted = resolve; });
+  const release = new Promise<void>((resolve) => { releaseSuperseded = resolve; });
+  await page.route("**/api/prototype/point-to-object/area-context", async (route) => {
+    const request = route.request().postDataJSON() as { marketKey: "dubai"; locale: "en" | "ru"; aoiCoordinates: [[number, number][]] };
+    requests.push(request);
+    if (requests.length === 2) return json(route, { mode: "unavailable", code: "SOURCE_REQUEST_TIMEOUT", error: "bounded fixture deadline", retryable: true }, 504);
+    if (requests.length === 4) {
+      markSupersededStarted();
+      await release;
+      await json(route, source11AreaContext(request, 14)).catch(() => undefined);
+      return;
+    }
+    const median = requests.length === 1 ? 7 : requests.length === 3 ? 9 : 3;
+    await json(route, source11AreaContext(request, median));
+  });
+  const areaA = [[
+    [55.27015, 25.20515], [55.27065, 25.20515], [55.27065, 25.20565],
+    [55.27015, 25.20565], [55.27015, 25.20515]
+  ]] as [[number, number][]];
+  const areaB = [[
+    [55.27115, 25.20615], [55.27165, 25.20615], [55.27165, 25.20665],
+    [55.27115, 25.20665], [55.27115, 25.20615]
+  ]] as [[number, number][]];
+  const areaC = [[
+    [55.27215, 25.20715], [55.27265, 25.20715], [55.27265, 25.20765],
+    [55.27215, 25.20765], [55.27215, 25.20715]
+  ]] as [[number, number][]];
+
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/prototype/point-to-object");
+  await page.getByRole("tab", { name: "Create", exact: true }).click();
+  await source11UploadArea(page, "source11-a.geojson", areaA);
+  const contextSection = page.getByTestId("create-area-context-heading").locator("xpath=ancestor::section[1]");
+  await expect(contextSection.getByText("7", { exact: true })).toBeVisible();
+
+  await source11UploadArea(page, "source11-a-again.geojson", areaA);
+  await expect(contextSection.getByRole("alert")).toContainText("The source did not respond in time.");
+  await expect(contextSection.getByText("7", { exact: true })).toBeVisible();
+  expect(requests).toHaveLength(2);
+  await contextSection.getByRole("button", { name: "Retry", exact: true }).click();
+  await expect(contextSection.getByText("9", { exact: true })).toBeVisible();
+  expect(requests[2]).toEqual(requests[1]);
+
+  await source11UploadArea(page, "source11-b.geojson", areaB);
+  await supersededStarted;
+  await expect(contextSection.getByText("9", { exact: true })).toHaveCount(0);
+  await expect(contextSection.getByText("Reading open-map objects…", { exact: true })).toBeVisible();
+  await source11UploadArea(page, "source11-c.geojson", areaC);
+  await expect(contextSection.getByText("3", { exact: true })).toBeVisible();
+  releaseSuperseded();
+  await expect(contextSection.getByText("14", { exact: true })).toHaveCount(0);
+  await expect(contextSection.getByText("3", { exact: true })).toBeVisible();
+  expect(requests[3].aoiCoordinates).toEqual(areaB);
+  expect(requests[4].aoiCoordinates).toEqual(areaC);
+  expect(unexpectedExternal).toEqual([]);
+});
