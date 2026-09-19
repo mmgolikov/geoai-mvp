@@ -89,24 +89,39 @@ async function installNetworkPolicy(page: Page) {
   const previewOrigin = new URL(previewUrl).origin;
   const authOrigin = `https://${projectRef}.supabase.co`;
   let unexpected = 0;
+  const allowedApplicationReads = new Set([
+    "/", "/api/health", "/api/auth/session", "/api/prototype/point-to-object/ai", "/login", "/profile",
+    "/projects", "/prototype/point-to-object", "/brand/geoai-identity-symbol-32.svg", "/favicon.svg"
+  ]);
   await page.route("**/*", async (route: Route) => {
     const request = route.request();
     const url = new URL(request.url());
     const method = request.method().toUpperCase();
     if (!["http:", "https:"].includes(url.protocol)) return route.continue();
     if (url.origin === previewOrigin) {
-      const safeRead = method === "GET" || method === "HEAD";
+      const safeRead = (method === "GET" || method === "HEAD") &&
+        (allowedApplicationReads.has(url.pathname) || url.pathname.startsWith("/_next/"));
+      const cloudRead = method === "GET" && url.pathname === cloudPath && url.searchParams.get("limit") === "4" &&
+        [...url.searchParams.keys()].every((key) => key === "limit" || key === "cursor") &&
+        (!url.searchParams.has("cursor") || /^[A-Za-z0-9_-]{1,256}$/.test(url.searchParams.get("cursor") ?? ""));
       const cloudWrite = method === "PUT" && url.pathname === cloudPath && !url.search;
-      if (!safeRead && !cloudWrite) { unexpected += 1; return route.abort("blockedbyclient"); }
+      if (!safeRead && !cloudRead && !cloudWrite) { unexpected += 1; return route.abort("blockedbyclient"); }
       return route.continue({ headers: { ...request.headers(), "x-vercel-protection-bypass": previewBypass } });
     }
     if (url.origin === authOrigin) {
-      const allowed = method === "OPTIONS" ||
-        (method === "POST" && url.pathname === "/auth/v1/token" && ["password", "refresh_token"].includes(url.searchParams.get("grant_type") ?? "")) ||
-        (method === "GET" && url.pathname === "/auth/v1/user");
+      const authPreflight = method === "OPTIONS" && ["/auth/v1/token", "/auth/v1/user", "/auth/v1/logout"].includes(url.pathname);
+      const passwordOrRefresh = method === "POST" && url.pathname === "/auth/v1/token" &&
+        ["password", "refresh_token"].includes(url.searchParams.get("grant_type") ?? "") &&
+        [...url.searchParams.keys()].every((key) => key === "grant_type");
+      const readUser = method === "GET" && url.pathname === "/auth/v1/user" && !url.search;
+      const logout = method === "POST" && url.pathname === "/auth/v1/logout" &&
+        [...url.searchParams.keys()].every((key) => key === "scope") &&
+        (!url.searchParams.has("scope") || ["local", "global", "others"].includes(url.searchParams.get("scope") ?? ""));
+      const allowed = authPreflight || passwordOrRefresh || readUser || logout;
       if (!allowed) { unexpected += 1; return route.abort("blockedbyclient"); }
       return route.continue();
     }
+    if (url.origin === "https://tiles.openfreemap.org" && (method === "GET" || method === "HEAD")) return route.continue();
     unexpected += 1;
     return route.abort("blockedbyclient");
   });
@@ -182,6 +197,8 @@ test("writer saves, clean context reopens, outsider is denied", async ({ browser
       second.page.waitForURL((url) => url.pathname === "/prototype/point-to-object"),
       second.page.getByRole("button", { name: "Show on map", exact: true }).click()
     ]);
+    await expect(second.page.getByTestId("live-map-canvas")).toBeVisible();
+    await expect(second.page.getByText("Live map ready for object selection.", { exact: true })).toBeAttached();
     expect(secondPuts).toBe(0);
     second.assertNetworkClean();
 

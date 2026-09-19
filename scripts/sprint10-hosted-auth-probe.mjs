@@ -1278,6 +1278,7 @@ export async function runHostedProbe(options = {}) {
   };
   const emitReceipt = options.emitReceipt ?? ((receipt) => console.log(JSON.stringify(receipt)));
   const setExitCode = options.setExitCode ?? ((code) => { process.exitCode = code; });
+  const onTerminalResult = options.onTerminalResult ?? (() => {});
   const recoveryEmails = new Set(personas.map((persona) => persona.email));
   const adminFetch = createBoundedFetch("admin", { recoveryEmails });
   const admin = createClient(config.supabaseUrl, config.adminSecretKey, clientOptions(adminFetch));
@@ -1399,11 +1400,18 @@ export async function runHostedProbe(options = {}) {
   }
 
   if (cleanupFailures.length > 0 && !config.liveJourney) {
-    console.error(JSON.stringify({
+    const terminalResult = {
+      schemaVersion: "geoai.sprint10.hosted-auth-probe-terminal-result.v1",
       status: "FAIL_ACTION_REQUIRED",
       projectRef: exactProjectRef,
-      cleanupFailures
-    }));
+      gitHead: config.expectedCommitSha,
+      personas: personas.map(terminalPersonaEvidence),
+      retirement: successfulRetirement(personas),
+      cleanupFailures: sanitizedCleanupFailures(cleanupFailures),
+      secretMaterialEmitted: false
+    };
+    onTerminalResult(terminalResult);
+    console.error(JSON.stringify({ status: "FAIL_ACTION_REQUIRED", projectRef: exactProjectRef, cleanupFailures }));
     fail("Terminal credential retirement was not proven for every potentially created synthetic user.", "retirement_unproven");
   }
   if (config.liveJourney) {
@@ -1447,9 +1455,20 @@ export async function runHostedProbe(options = {}) {
     setExitCode(1);
     return;
   }
-  if (executionError) throw executionError;
+  if (executionError) {
+    onTerminalResult({
+      schemaVersion: "geoai.sprint10.hosted-auth-probe-terminal-result.v1",
+      status: "FAIL",
+      projectRef: exactProjectRef,
+      gitHead: config.expectedCommitSha,
+      personas: personas.map(terminalPersonaEvidence),
+      retirement: successfulRetirement(personas),
+      secretMaterialEmitted: false
+    });
+    throw executionError;
+  }
 
-  console.log(JSON.stringify({
+  const receipt = {
     schemaVersion: "geoai.sprint10.hosted-auth-probe-receipt.v2",
     status: "PASS",
     projectRef: exactProjectRef,
@@ -1482,7 +1501,8 @@ export async function runHostedProbe(options = {}) {
       profileRowsPreservedByDesignNotBroadReadBack: 2
     },
     secretMaterialEmitted: false
-  }));
+  };
+  emitReceipt(receipt);
 }
 
 const isDirectRun = process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href;

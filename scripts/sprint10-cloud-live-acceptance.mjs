@@ -9,6 +9,7 @@ import { spawnSync } from "node:child_process";
 const PROJECT_REF = "pphdqkurxneyagvnnjdt";
 const MIGRATION_VERSION = "20260918203424";
 const EXPLICIT_RUN = "root-only-cloud-live-acceptance-v1";
+const MAX_BACKUP_AGE_MS = 30 * 60 * 1_000;
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const projectKeyPattern = /^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$/;
@@ -54,10 +55,13 @@ function privateReceipt(pathValue) {
   const keys = ["schemaVersion", "projectRef", "migrationVersion", "createdAt", "expiresAt", "backupKind", "scopeWasDisabled"];
   const createdAt = Date.parse(receipt?.createdAt ?? "");
   const expiresAt = Date.parse(receipt?.expiresAt ?? "");
+  const now = Date.now();
   if (!exactKeys(receipt, keys) || receipt.schemaVersion !== "geoai.sprint10.cloud-live-backup-receipt.v1" ||
       receipt.projectRef !== PROJECT_REF || receipt.migrationVersion !== MIGRATION_VERSION ||
       receipt.backupKind !== "root-verified-restorable" || receipt.scopeWasDisabled !== true ||
-      !Number.isFinite(createdAt) || createdAt > Date.now() || !Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+      !Number.isFinite(createdAt) || createdAt > now || createdAt < now - MAX_BACKUP_AGE_MS ||
+      !Number.isFinite(expiresAt) || expiresAt <= now || expiresAt <= createdAt ||
+      expiresAt - createdAt > MAX_BACKUP_AGE_MS) {
     fail("Fresh root backup receipt does not match the exact cloud-live target.", "backup_receipt");
   }
   return { createdAt: receipt.createdAt, expiresAt: receipt.expiresAt };
@@ -303,7 +307,6 @@ export async function main(options = {}) {
   let authReceipt = null;
   let cloudEvidence = null;
   let target = null;
-  let capturedExitCode = 0;
   let failureStage = "preflight";
   try {
     await hostedProbe({
@@ -318,9 +321,9 @@ export async function main(options = {}) {
         }
       },
       emitReceipt(receipt) { authReceipt = receipt; },
-      setExitCode(code) { capturedExitCode = code; }
+      onTerminalResult(receipt) { authReceipt = receipt; }
     });
-    if (capturedExitCode !== 0 || authReceipt?.status !== "PASS" || !cloudEvidence || !target) fail("Combined Auth/cloud acceptance did not reach PASS.", "combined_receipt");
+    if (authReceipt?.status !== "PASS" || !cloudEvidence || !target) fail("Combined Auth/cloud acceptance did not reach PASS.", "combined_receipt");
     console.log(JSON.stringify({
       schemaVersion: "geoai.sprint10.cloud-live-acceptance-receipt.v1",
       status: "PASS",
@@ -343,9 +346,10 @@ export async function main(options = {}) {
     process.exitCode = 0;
   } catch (error) {
     const code = typeof error?.code === "string" && /^[a-z0-9_]{1,80}$/.test(error.code) ? error.code : failureStage;
+    const actionRequired = code === "operator_cleanup_unconfirmed" || authReceipt?.status === "FAIL_ACTION_REQUIRED";
     console.error(JSON.stringify({
       schemaVersion: "geoai.sprint10.cloud-live-acceptance-receipt.v1",
-      status: code === "operator_cleanup_unconfirmed" ? "FAIL_ACTION_REQUIRED" : "FAIL",
+      status: actionRequired ? "FAIL_ACTION_REQUIRED" : "FAIL",
       stage: code,
       cloudCleanup: cloudEvidence?.cleanup ?? "not_reached",
       authRetirement: authReceipt?.retirement ?? "handled_by_existing_hosted_probe_lifecycle",

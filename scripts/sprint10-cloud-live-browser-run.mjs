@@ -3,7 +3,7 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 
 const PROJECT_REF = "pphdqkurxneyagvnnjdt";
@@ -45,10 +45,27 @@ function preflight() {
   return phase;
 }
 
-function countTests(suites) {
-  return (Array.isArray(suites) ? suites : []).reduce((total, suite) => total +
-    (Array.isArray(suite.specs) ? suite.specs.reduce((sum, spec) => sum +
-      (Array.isArray(spec.tests) ? spec.tests.length : 0), 0) : 0) + countTests(suite.suites), 0);
+function collectSpecs(suites) {
+  return (Array.isArray(suites) ? suites : []).flatMap((suite) => [
+    ...(Array.isArray(suite.specs) ? suite.specs : []),
+    ...collectSpecs(suite.suites)
+  ]);
+}
+
+export function validateBrowserReport(report, expectedTitle) {
+  const projects = report?.config?.projects;
+  const specs = collectSpecs(report?.suites);
+  const tests = specs.flatMap((spec) => Array.isArray(spec.tests) ? spec.tests.map((test) => ({ spec, test })) : []);
+  const stats = report?.stats;
+  if (!Array.isArray(projects) || projects.length !== 1 || projects[0]?.name !== "sprint10-cloud-live" ||
+      tests.length !== 1 || tests[0].spec?.title !== expectedTitle || tests[0].test?.projectName !== "sprint10-cloud-live" ||
+      tests[0].test?.expectedStatus !== "passed" || !Array.isArray(tests[0].test?.results) ||
+      tests[0].test.results.length !== 1 || tests[0].test.results[0]?.status !== "passed" || tests[0].test.results[0]?.retry !== 0 ||
+      stats?.expected !== 1 || stats?.skipped !== 0 || stats?.flaky !== 0 || stats?.unexpected !== 0 ||
+      !Array.isArray(report?.errors) || report.errors.length !== 0) {
+    throw new Error("Browser JSON report did not prove one exact non-skipped passing test.");
+  }
+  return 1;
 }
 
 function main() {
@@ -78,9 +95,8 @@ module.exports = defineConfig({
     ], { cwd: root, env: process.env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 390_000, maxBuffer: 16 * 1024 * 1024 });
     let report;
     try { report = JSON.parse(result.stdout || ""); } catch { report = null; }
-    const tests = countTests(report?.suites);
-    const errors = Array.isArray(report?.errors) ? report.errors.length : 1;
-    if (result.error || result.signal || result.status !== 0 || tests !== 1 || errors !== 0) throw new Error("Browser phase failed.");
+    if (result.error || result.signal || result.status !== 0) throw new Error("Browser phase failed.");
+    const tests = validateBrowserReport(report, title);
     console.log(JSON.stringify({
       schemaVersion: "geoai.sprint10.cloud-live-browser-receipt.v1",
       status: "PASS", phase, tests, secretMaterialEmitted: false
@@ -96,4 +112,5 @@ module.exports = defineConfig({
   }
 }
 
-main();
+const isDirectRun = process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
+if (isDirectRun) main();

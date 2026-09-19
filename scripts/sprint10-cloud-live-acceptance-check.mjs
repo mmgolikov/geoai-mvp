@@ -10,6 +10,8 @@ import {
   runCloudAcceptance,
   validateCloudLiveConfig
 } from "./sprint10-cloud-live-acceptance.mjs";
+import { validateBrowserReport } from "./sprint10-cloud-live-browser-run.mjs";
+import { runHostedProbe } from "./sprint10-hosted-auth-probe.mjs";
 
 const root = resolve(new URL("..", import.meta.url).pathname);
 const harness = readFileSync(join(root, "scripts/sprint10-cloud-live-acceptance.mjs"), "utf8");
@@ -87,9 +89,120 @@ try {
   };
   assert.equal(validateCloudLiveConfig(env, authConfig).projectKey, target.projectKey);
   assert.throws(() => validateCloudLiveConfig({ ...env, GEOAI_CLOUD_LIVE_PROJECT_KEY: "private-project" }, authConfig));
+  const writeBackup = (createdAt, expiresAt) => writeFileSync(backupPath, JSON.stringify({
+    schemaVersion: "geoai.sprint10.cloud-live-backup-receipt.v1",
+    projectRef: "pphdqkurxneyagvnnjdt",
+    migrationVersion: "20260918203424",
+    createdAt: new Date(createdAt).toISOString(),
+    expiresAt: new Date(expiresAt).toISOString(),
+    backupKind: "root-verified-restorable",
+    scopeWasDisabled: true
+  }), { mode: 0o600 });
+  const now = Date.now();
+  writeBackup(now - 30 * 60 * 1_000 - 1_000, now + 60_000);
+  assert.throws(() => validateCloudLiveConfig(env, authConfig), /Fresh root backup receipt/);
+  writeBackup(now - 1_000, now - 1_000 + 30 * 60 * 1_000 + 1_000);
+  assert.throws(() => validateCloudLiveConfig(env, authConfig), /Fresh root backup receipt/);
+  writeBackup(now - 1_000, now - 1_000 + 30 * 60 * 1_000);
+  assert.equal(validateCloudLiveConfig(env, authConfig).projectKey, target.projectKey);
 } finally {
   rmSync(privateRoot, { recursive: true, force: true });
 }
+
+const reportTitle = "writer saves, clean context reopens, outsider is denied";
+const passingReport = {
+  config: { projects: [{ name: "sprint10-cloud-live" }] },
+  suites: [{ specs: [{ title: reportTitle, tests: [{
+    projectName: "sprint10-cloud-live", expectedStatus: "passed",
+    results: [{ status: "passed", retry: 0 }]
+  }] }] }],
+  stats: { expected: 1, skipped: 0, flaky: 0, unexpected: 0 }, errors: []
+};
+assert.equal(validateBrowserReport(passingReport, reportTitle), 1);
+assert.throws(() => validateBrowserReport({
+  ...passingReport,
+  suites: [{ specs: [{ title: reportTitle, tests: [{
+    projectName: "sprint10-cloud-live", expectedStatus: "skipped", results: []
+  }] }] }],
+  stats: { expected: 0, skipped: 1, flaky: 0, unexpected: 0 }
+}, reportTitle), /non-skipped passing test/);
+
+function callbackPersona(lane, ordinal) {
+  return {
+    lane, runId: "offline", email: `offline-${lane.toLowerCase()}@example.invalid`, password: "offline-password",
+    userId: null, profileId: null, sessions: [], createAttempted: false, createOutcomeUnknown: false,
+    createAbsenceProven: false, provisioningState: "not_attempted", credentialsCleared: false,
+    auth: { primaryPasswordLogin: false, getClaims: false, getUser: false, currentProfile: false, secondaryPasswordLogin: false },
+    cleanup: { serverGlobalRevokeConfirmed: false, refreshTokensRejected: 0, banned: false, passwordRejected: false, currentProfileEmpty: false, finalBanReadback: false },
+    offlineOrdinal: ordinal
+  };
+}
+
+async function callbackFixture({ previewFails = false, cleanupFails = false } = {}) {
+  const results = [];
+  const personasFixture = [callbackPersona("A", 1), callbackPersona("B", 2)];
+  const originalLog = console.log;
+  const originalError = console.error;
+  console.log = () => {};
+  console.error = () => {};
+  let thrown = null;
+  try {
+    await runHostedProbe({
+      config: {
+        projectRef: "pphdqkurxneyagvnnjdt", expectedCommitSha: "a".repeat(40),
+        supabaseUrl: "https://pphdqkurxneyagvnnjdt.supabase.co", adminSecretKey: "offline", previewSeam: "disabled", liveJourney: null
+      },
+      gitHead: "a".repeat(40), personas: personasFixture, createClient: () => ({}),
+      emitReceipt: (result) => results.push(result),
+      onTerminalResult: (result) => results.push(result),
+      operations: {
+        async createPersona(_admin, _config, _fetch, persona) {
+          persona.userId = `99300000-0000-4000-8000-00000000000${persona.offlineOrdinal}`;
+          persona.profileId = `99400000-0000-4000-8000-00000000000${persona.offlineOrdinal}`;
+        },
+        async authenticatePersona(_createClient, _config, persona) {
+          Object.keys(persona.auth).forEach((key) => { persona.auth[key] = true; });
+        },
+        async verifyAnonymousDenial() {},
+        runExistingPreviewHarness() {
+          if (previewFails) throw new Error("offline preview failure");
+          return "passed_existing_reviewed_runner";
+        },
+        async retirePersona(_createClient, _admin, _fetch, _config, persona) {
+          persona.credentialsCleared = true;
+          persona.password = null;
+          if (cleanupFails && persona.lane === "A") return [{ userId: persona.userId, stage: "offline", error: "offline/fault" }];
+          Object.assign(persona.cleanup, {
+            serverGlobalRevokeConfirmed: true, refreshTokensRejected: 2, banned: true,
+            passwordRejected: true, currentProfileEmpty: true, finalBanReadback: true
+          });
+          return [];
+        }
+      }
+    });
+  } catch (error) {
+    thrown = error;
+  } finally {
+    console.log = originalLog;
+    console.error = originalError;
+  }
+  return { result: results[0], thrown };
+}
+
+const callbackPass = await callbackFixture();
+assert.equal(callbackPass.thrown, null);
+assert.equal(callbackPass.result.status, "PASS");
+assert.equal(callbackPass.result.retirement.finalFutureBanReadback, 2);
+const callbackFailure = await callbackFixture({ previewFails: true });
+assert(callbackFailure.thrown);
+assert.equal(callbackFailure.result.status, "FAIL");
+assert.equal(callbackFailure.result.retirement.finalFutureBanReadback, 2);
+const callbackCleanupFailure = await callbackFixture({ cleanupFails: true });
+assert(callbackCleanupFailure.thrown);
+assert.equal(callbackCleanupFailure.result.status, "FAIL_ACTION_REQUIRED");
+assert.equal(callbackCleanupFailure.result.personas[0].retirementProven, false);
+assert.equal(callbackCleanupFailure.result.retirement.finalFutureBanReadback, 1);
+assert.equal(callbackCleanupFailure.result.cleanupFailures.length, 1);
 
 assert.match(harness, /await import\("\.\/sprint10-hosted-auth-probe\.mjs"\)/);
 assert.match(harness, /STATIC_ONLY_NO_HOSTED_OR_LOCAL_CALLS[\s\S]*--run-live/);
