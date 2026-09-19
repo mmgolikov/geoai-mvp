@@ -19,9 +19,13 @@ import {
   sprint10LedgerLockPath
 } from "../tests/e2e/helpers/sprint10-live-budget.ts";
 import {
+  SPRINT10_ANALYSIS_EVIDENCE_CAPTURE_OPT_IN
+} from "../tests/e2e/helpers/sprint10-analysis-result-evidence.ts";
+import {
   acquireRunLease,
   releaseRunLease,
   runtimeEnvironment,
+  validateAnalysisEvidenceCaptureEnvironment,
   validateLedger,
   validateLiveLedgerPostRun,
   validateLiveLedgerPreflight,
@@ -53,15 +57,77 @@ function identity(requestKey) {
 }
 
 try {
+  const evidencePath = join(root, "analysis-evidence.json");
   const scrubbed = runtimeEnvironment({
     PATH: "/safe/bin",
     HOME: "/safe/home",
     LANG: "C",
     NODE_OPTIONS: "--require=/tmp/not-allowed.cjs",
     GEOAI_SPRINT10_LIVE_PASSWORD: "must-not-propagate",
+    GEOAI_SPRINT10_ANALYSIS_EVIDENCE_CAPTURE: "must-not-propagate-unvalidated",
+    GEOAI_SPRINT10_ANALYSIS_EVIDENCE_PATH: "/must/not/propagate.json",
     OPENAI_API_KEY: "must-not-propagate"
   });
   assert.deepEqual(scrubbed, { PATH: "/safe/bin", HOME: "/safe/home", LANG: "C" });
+
+  assert.deepEqual(validateAnalysisEvidenceCaptureEnvironment({}, "journey"), {},
+    "evidence capture must remain off when both optional fields are absent");
+  for (const source of [
+    { GEOAI_SPRINT10_ANALYSIS_EVIDENCE_CAPTURE: SPRINT10_ANALYSIS_EVIDENCE_CAPTURE_OPT_IN },
+    { GEOAI_SPRINT10_ANALYSIS_EVIDENCE_PATH: evidencePath },
+    {
+      GEOAI_SPRINT10_ANALYSIS_EVIDENCE_CAPTURE: "write-analysis-response",
+      GEOAI_SPRINT10_ANALYSIS_EVIDENCE_PATH: evidencePath
+    },
+    { GEOAI_SPRINT10_ANALYSIS_EVIDENCE_CAPTURE: "", GEOAI_SPRINT10_ANALYSIS_EVIDENCE_PATH: "" }
+  ]) {
+    assert.throws(() => validateAnalysisEvidenceCaptureEnvironment(source, "journey"), /exact opt-in/);
+  }
+  const requestedEvidence = {
+    GEOAI_SPRINT10_ANALYSIS_EVIDENCE_CAPTURE: SPRINT10_ANALYSIS_EVIDENCE_CAPTURE_OPT_IN,
+    GEOAI_SPRINT10_ANALYSIS_EVIDENCE_PATH: evidencePath,
+    GEOAI_SPRINT10_LIVE_PASSWORD: "must-not-propagate",
+    OPENAI_API_KEY: "must-not-propagate"
+  };
+  for (const scope of ["dubai-find", "singapore-create"]) {
+    assert.throws(() => validateAnalysisEvidenceCaptureEnvironment(requestedEvidence, scope), /available only/);
+  }
+  assert.deepEqual(validateAnalysisEvidenceCaptureEnvironment(requestedEvidence, "journey"), {
+    GEOAI_SPRINT10_ANALYSIS_EVIDENCE_CAPTURE: SPRINT10_ANALYSIS_EVIDENCE_CAPTURE_OPT_IN,
+    GEOAI_SPRINT10_ANALYSIS_EVIDENCE_PATH: evidencePath
+  });
+  assert.deepEqual(validateAnalysisEvidenceCaptureEnvironment(requestedEvidence, "dubai-analyse"), {
+    GEOAI_SPRINT10_ANALYSIS_EVIDENCE_CAPTURE: SPRINT10_ANALYSIS_EVIDENCE_CAPTURE_OPT_IN,
+    GEOAI_SPRINT10_ANALYSIS_EVIDENCE_PATH: evidencePath
+  });
+  const forwardedEvidence = {
+    ...runtimeEnvironment({ PATH: "/safe/bin", OPENAI_API_KEY: "must-not-propagate" }),
+    ...validateAnalysisEvidenceCaptureEnvironment(requestedEvidence, "journey")
+  };
+  assert.deepEqual(Object.keys(forwardedEvidence).sort(), [
+    "GEOAI_SPRINT10_ANALYSIS_EVIDENCE_CAPTURE",
+    "GEOAI_SPRINT10_ANALYSIS_EVIDENCE_PATH",
+    "PATH"
+  ]);
+  assert.equal(JSON.stringify(forwardedEvidence).includes("must-not-propagate"), false);
+
+  assert.throws(() => validateAnalysisEvidenceCaptureEnvironment({
+    ...requestedEvidence,
+    GEOAI_SPRINT10_ANALYSIS_EVIDENCE_PATH: "relative-evidence.json"
+  }, "journey"), /absolute file path/);
+  writeFileSync(evidencePath, "{}\n", { mode: 0o600 });
+  assert.throws(() => validateAnalysisEvidenceCaptureEnvironment(requestedEvidence, "journey"), /already exists/);
+  unlinkSync(evidencePath);
+  const unsafeRoot = realpathSync(mkdtempSync(join(tmpdir(), "geoai-sprint10-evidence-unsafe-")));
+  chmodSync(unsafeRoot, 0o755);
+  try {
+    assert.throws(() => validateAnalysisEvidenceCaptureEnvironment({
+      ...requestedEvidence,
+      GEOAI_SPRINT10_ANALYSIS_EVIDENCE_PATH: join(unsafeRoot, "analysis-evidence.json")
+    }, "journey"), /private 0700 real directory/);
+  } finally {
+    rmSync(unsafeRoot, { recursive: true, force: true });
+  }
 
   const empty = createSprint10SpendLedger(createdAt, ledgerId);
   writeLedger(empty);
@@ -158,7 +224,13 @@ try {
       raceAfterPreflight: 1,
       postRunNoFreshHeadroom: 2,
       pathModeSymlink: 2,
-      environmentScrub: 1
+      environmentScrub: 2,
+      evidenceCaptureOff: 1,
+      evidencePairRejections: 4,
+      evidenceScopeRejections: 2,
+      evidenceScopeAcceptances: 2,
+      evidencePathRejections: 3,
+      evidenceForwarding: 1
     }
   }));
 } finally {

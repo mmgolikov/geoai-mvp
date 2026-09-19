@@ -23,6 +23,10 @@ import {
   readSprint10SpendLedgerFile,
   sprint10LedgerLockPath
 } from "../tests/e2e/helpers/sprint10-live-budget.ts";
+import {
+  SPRINT10_ANALYSIS_EVIDENCE_CAPTURE_OPT_IN,
+  validateSprint10AnalysisEvidencePath
+} from "../tests/e2e/helpers/sprint10-analysis-result-evidence.ts";
 
 const exactDevelopmentProjectRef = "pphdqkurxneyagvnnjdt";
 const exactLedgerId = "5aa405b3-bbda-48aa-aeea-ca3357be4042";
@@ -138,6 +142,23 @@ function runtimeEnvironment(source = process.env) {
   return Object.fromEntries(allowed.flatMap((key) => typeof source[key] === "string" ? [[key, source[key]]] : []));
 }
 
+export function validateAnalysisEvidenceCaptureEnvironment(source, scope) {
+  const capture = source.GEOAI_SPRINT10_ANALYSIS_EVIDENCE_CAPTURE;
+  const path = source.GEOAI_SPRINT10_ANALYSIS_EVIDENCE_PATH;
+  if (capture === undefined && path === undefined) return Object.freeze({});
+  if (capture !== SPRINT10_ANALYSIS_EVIDENCE_CAPTURE_OPT_IN || typeof path !== "string" || path.length === 0) {
+    fail("Analysis evidence capture requires its exact opt-in and one explicit output path.");
+  }
+  if (scope !== "journey" && scope !== "dubai-analyse") {
+    fail("Analysis evidence capture is available only for a scope containing the bounded Dubai Analyse scenario.");
+  }
+  const validatedPath = validateSprint10AnalysisEvidencePath(path);
+  return Object.freeze({
+    GEOAI_SPRINT10_ANALYSIS_EVIDENCE_CAPTURE: SPRINT10_ANALYSIS_EVIDENCE_CAPTURE_OPT_IN,
+    GEOAI_SPRINT10_ANALYSIS_EVIDENCE_PATH: validatedPath
+  });
+}
+
 function commandOutput(command, args, repositoryRoot, label) {
   const result = spawnSync(command, args, {
     cwd: repositoryRoot,
@@ -237,6 +258,7 @@ function preflight(repositoryRoot) {
   }
   const scope = required("GEOAI_SPRINT10_LIVE_SCOPE");
   if (!acceptedScopes.has(scope)) fail("The selected bounded live scope is not accepted.");
+  const analysisEvidenceEnvironment = validateAnalysisEvidenceCaptureEnvironment(process.env, scope);
   const previewUrl = canonicalOrigin(required("GEOAI_SPRINT10_LIVE_PREVIEW_URL"));
   const baseUrl = canonicalOrigin(required("GEOAI_E2E_BASE_URL"));
   if (!previewUrl || baseUrl !== previewUrl) fail("The base URL and Preview URL must be the same exact origin.");
@@ -266,7 +288,16 @@ function preflight(repositoryRoot) {
   if (approval !== `paid-live-journey:${exactLedgerId}:${target.hostname}:${commit}:${scope}`) {
     fail("The root run approval is not bound to this exact ledger, host, commit and scope.");
   }
-  return { scope, previewUrl, host: target.hostname, commit, ledgerRoot, ledgerPath, baselineReceiptCount: ledger.receipts.length };
+  return {
+    scope,
+    previewUrl,
+    host: target.hostname,
+    commit,
+    ledgerRoot,
+    ledgerPath,
+    baselineReceiptCount: ledger.receipts.length,
+    analysisEvidenceEnvironment
+  };
 }
 
 function parseJsonReport(result, phase) {
@@ -386,6 +417,7 @@ module.exports = defineConfig({
   const liveEnvironment = {
     ...runtimeEnvironment(),
     ...Object.fromEntries(liveKeys.map((key) => [key, required(key)])),
+    ...config.analysisEvidenceEnvironment,
     GEOAI_SPRINT10_LIVE_RUNNER_ACTIVE: "1"
   };
   const commonArguments = [
