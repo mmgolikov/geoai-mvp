@@ -205,11 +205,63 @@ assert.match(sourceObserver, /setTimeout\(\(\) => finish\(\{ kind: "timeout" \}\
 const createBody = liveSpec.split("async function runMarketCreate")[1]?.split("\nasync function runDubaiCreate")[0] ?? "";
 assert.equal((createBody.match(/SOURCE_REQUEST_HARNESS_TIMEOUT_MS/g) ?? []).length, 2,
   "area-context request and response observation must both use the shared 60-second source envelope");
-assert.match(createBody, /finally \{[\s\S]*?if \(!contextRequestObserved\) contextResponseObservation[.]cancel\(\)/,
-  "a failed Create upload or request wait must remove its response observers");
+assert.match(createBody, /page[.]goto\("\/prototype\/point-to-object"\);[\s\S]*?main\[data-project-restoration="ready"\][\s\S]*?point-object-city-select[\s\S]*?Upload GeoJSON/,
+  "Create must wait for project restoration readiness before city selection and upload");
+assert.match(createBody, /const contextResponseDeadlineAt = Date[.]now\(\) \+ SOURCE_REQUEST_HARNESS_TIMEOUT_MS;[\s\S]*?waitForRequest\([\s\S]*?timeout: SOURCE_REQUEST_HARNESS_TIMEOUT_MS[\s\S]*?observeExactSourceRequestResponse\(contextRequest, contextResponseDeadlineAt\)/,
+  "Create must spend only the remainder of one shared 60-second request/response envelope on the exact request");
+assert.doesNotMatch(createBody, /observeSourcePostResponse\(/,
+  "Create must not let a stale area-context response or failure settle its current exact-request observation");
+
+const exactSourceResponseHelperBody = liveSpec.split("async function observeExactSourceRequestResponse")[1]
+  ?.split("\nfunction requireFindSourceResponse")[0];
+assert.ok(exactSourceResponseHelperBody, "the exact source request response helper must remain present");
+const exactSourceResponseHelperSource = stripTypeScriptTypes(
+  `async function observeExactSourceRequestResponse${exactSourceResponseHelperBody}\nexport { observeExactSourceRequestResponse };`,
+  { mode: "transform", sourceMap: false }
+);
+const { observeExactSourceRequestResponse } = await import(
+  `data:text/javascript;base64,${Buffer.from(exactSourceResponseHelperSource).toString("base64")}`
+);
+
+let resolveStaleResponse;
+let resolveCurrentResponse;
+const currentResponse = Object.freeze({ requestIdentity: "current" });
+const staleRequest = {
+  response: () => new Promise((resolve) => { resolveStaleResponse = resolve; }),
+  failure: () => ({ errorText: "net::ERR_ABORTED" })
+};
+const currentRequest = {
+  response: () => new Promise((resolve) => { resolveCurrentResponse = resolve; }),
+  failure: () => null
+};
+const staleObservation = observeExactSourceRequestResponse(staleRequest, Date.now() + 1_000);
+let currentSettled = false;
+const currentObservation = observeExactSourceRequestResponse(currentRequest, Date.now() + 1_000)
+  .then((observation) => {
+    currentSettled = true;
+    return observation;
+  });
+resolveStaleResponse(null);
+assert.deepEqual(await staleObservation, { kind: "aborted" });
+await Promise.resolve();
+assert.equal(currentSettled, false, "an overlapping stale abort must not settle the current exact request");
+resolveCurrentResponse(currentResponse);
+assert.deepEqual(await currentObservation, { kind: "response", response: currentResponse });
+assert.deepEqual(await observeExactSourceRequestResponse({
+  response: async () => null,
+  failure: () => ({ errorText: "net::ERR_CONNECTION_RESET" })
+}, Date.now() + 100), { kind: "network_failed" },
+"a null exact response must classify its own non-abort request failure");
+assert.deepEqual(await observeExactSourceRequestResponse({
+  response: () => new Promise(() => undefined),
+  failure: () => null
+}, Date.now() + 10), { kind: "timeout" },
+"an exact response that never settles must retain the bounded deadline");
 const suggestBody = liveSpec.split("async function runAnalyseSourceSuggest")[1]?.split("\nasync function logoutVerified")[0] ?? "";
 assert.doesNotMatch(suggestBody, /SOURCE_REQUEST_HARNESS_TIMEOUT_MS/,
   "the regional source deadline alignment must not alter suggestion waits");
+assert.match(suggestBody, /page[.]goto\("\/prototype\/point-to-object"\);[\s\S]*?main\[data-project-restoration="ready"\][\s\S]*?point-object-city-select[\s\S]*?Search address or place/,
+  "Analyse must wait for project restoration readiness before market selection and public query entry");
 assert.match(liveSpec, /const ANALYSE_SUGGESTION_RESPONSE_TIMEOUT_MS = 30_000;/,
   "suggestion request and response observation must retain one 30-second envelope");
 assert.match(suggestBody, /const responseDeadlineAt = Date[.]now\(\) \+ ANALYSE_SUGGESTION_RESPONSE_TIMEOUT_MS;[\s\S]*?waitForRequest\([\s\S]*?timeout: ANALYSE_SUGGESTION_RESPONSE_TIMEOUT_MS[\s\S]*?waitForExactSuggestionResponse\(request, responseDeadlineAt\)/,
@@ -276,6 +328,8 @@ console.log(JSON.stringify({
     exactResponsePairing: 2,
     exactResponseNull: 1,
     exactResponseTimeout: 1,
+    createExactResponsePairing: 2,
+    createExactResponseFailureKinds: 3,
     findFlows: 2,
     fixedStages: analyseStages.length + findStages.length,
     historicalStagesRetained: 2,

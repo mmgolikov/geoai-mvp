@@ -175,6 +175,29 @@ function observeSourcePostResponse(page: Page, pathname: string, timeoutMs: numb
   return { result, cancel: cleanup };
 }
 
+async function observeExactSourceRequestResponse(
+  request: { response(): Promise<Response | null>; failure(): { errorText: string } | null },
+  deadlineAt: number
+): Promise<SourceResponseObservation> {
+  const remainingMs = Math.max(0, deadlineAt - Date.now());
+  if (remainingMs === 0) return { kind: "timeout" };
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const response = await Promise.race([
+      request.response(),
+      new Promise<"timeout">((resolve) => {
+        timeout = setTimeout(() => resolve("timeout"), remainingMs);
+      })
+    ]);
+    if (response === "timeout") return { kind: "timeout" };
+    if (response) return { kind: "response", response };
+    const errorText = request.failure()?.errorText ?? "";
+    return { kind: /aborted/i.test(errorText) ? "aborted" : "network_failed" };
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
+
 function requireFindSourceResponse(observation: SourceResponseObservation, progress: LiveProgress): Response {
   if (observation.kind === "response") return observation.response;
   if (observation.kind === "aborted") progress.start("find_source_response_wait_aborted");
@@ -715,6 +738,7 @@ async function runAnalyseSourceSuggest(
 ): Promise<LiveAnalyseSuggestion> {
   progress.start("analyse_source_suggest_ui");
   await page.goto("/prototype/point-to-object");
+  await expect(page.locator('main[data-project-restoration="ready"]')).toBeVisible({ timeout: 30_000 });
   await page.getByTestId("point-object-city-select").selectOption(input.marketKey);
   const search = page.getByRole("combobox", { name: "Search address or place" });
   await expect(search).toBeVisible();
@@ -1540,6 +1564,7 @@ async function runMarketCreate(
 ) {
   progress.start("create_source_context_ui");
   await page.goto("/prototype/point-to-object");
+  await expect(page.locator('main[data-project-restoration="ready"]')).toBeVisible({ timeout: 30_000 });
   await page.getByTestId("point-object-city-select").selectOption(input.marketKey);
   await page.getByRole("tab", { name: "Create", exact: true }).click();
   const upload = page.getByLabel("Upload GeoJSON", { exact: true });
@@ -1547,31 +1572,23 @@ async function runMarketCreate(
   progress.complete("create_source_context_ui");
 
   progress.start("create_source_context_request");
+  const contextResponseDeadlineAt = Date.now() + SOURCE_REQUEST_HARNESS_TIMEOUT_MS;
   const contextRequestPromise = page.waitForRequest((request) =>
     request.method() === "POST" && new URL(request.url()).pathname === "/api/prototype/point-to-object/area-context", { timeout: SOURCE_REQUEST_HARNESS_TIMEOUT_MS });
-  const contextResponseObservation = observeSourcePostResponse(
-    page,
-    "/api/prototype/point-to-object/area-context",
-    SOURCE_REQUEST_HARNESS_TIMEOUT_MS
-  );
-  let contextRequest!: Request;
-  let contextRequestObserved = false;
-  try {
-    await upload.setInputFiles({
-      name: input.fileName,
-      mimeType: "application/geo+json",
-      buffer: Buffer.from(JSON.stringify({ type: "Polygon", coordinates: input.coordinates }))
-    });
-    contextRequest = await contextRequestPromise;
-    contextRequestObserved = true;
-  } finally {
-    if (!contextRequestObserved) contextResponseObservation.cancel();
-  }
+  await upload.setInputFiles({
+    name: input.fileName,
+    mimeType: "application/geo+json",
+    buffer: Buffer.from(JSON.stringify({ type: "Polygon", coordinates: input.coordinates }))
+  });
+  const contextRequest = await contextRequestPromise;
   const submittedContext: unknown = contextRequest.postDataJSON();
   progress.complete("create_source_context_request");
 
   progress.start("create_source_context_response");
-  const contextResponse = requireCreateContextResponse(await contextResponseObservation.result, progress);
+  const contextResponse = requireCreateContextResponse(
+    await observeExactSourceRequestResponse(contextRequest, contextResponseDeadlineAt),
+    progress
+  );
   progress.complete("create_source_context_response");
 
   progress.start("create_source_context_http");
