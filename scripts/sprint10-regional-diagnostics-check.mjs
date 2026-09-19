@@ -10,6 +10,8 @@ import {
 } from "./sprint10-live-journey-diagnostics.mjs";
 
 const liveSpec = readFileSync(new URL("../tests/e2e/sprint10-live-journey.spec.ts", import.meta.url), "utf8");
+assert.match(liveSpec, /const SOURCE_REQUEST_HARNESS_TIMEOUT_MS = 60_000;/,
+  "the regional source request/response envelope must remain exactly 60 seconds");
 const exactBody = Object.freeze({ locale: "en", marketKey: "singapore", query: "Marina Bay Sands Tower 1" });
 const sharedRequest = {};
 
@@ -90,11 +92,23 @@ for (const functionName of ["runDubaiFind", "runSingaporeFind"]) {
   }
   assert.match(body, /boundedLiveJourneyResponseJson\(response, 10_000\)/,
     `${functionName} must use the existing bounded response-body reader`);
+  assert.match(body, /waitForResponse\([\s\S]*?timeout: SOURCE_REQUEST_HARNESS_TIMEOUT_MS/,
+    `${functionName} must use the shared 60-second source response envelope`);
   assert.doesNotMatch(body, /await response[.]json\(\)/,
     `${functionName} must not restore an unbounded body read`);
   assert.ok(body.indexOf("installFindPreDispatchGate") < body.indexOf('getByTestId("find-search-cta").click()'),
     `${functionName} must install its fail-closed request gate before dispatch`);
 }
+
+const findGate = liveSpec.split("async function installFindPreDispatchGate")[1]?.split("\n}\n\nfunction acceptedFindResponse")[0] ?? "";
+assert.match(findGate, /setTimeout\([\s\S]*?SOURCE_REQUEST_HARNESS_TIMEOUT_MS\)/,
+  "the fail-closed Find pre-dispatch request gate must use the same bounded source envelope");
+const createBody = liveSpec.split("async function runMarketCreate")[1]?.split("\nasync function runDubaiCreate")[0] ?? "";
+assert.equal((createBody.match(/timeout: SOURCE_REQUEST_HARNESS_TIMEOUT_MS/g) ?? []).length, 2,
+  "area-context request and response waits must both use the shared 60-second source envelope");
+const suggestBody = liveSpec.split("async function runAnalyseSourceSuggest")[1]?.split("\nasync function logoutVerified")[0] ?? "";
+assert.doesNotMatch(suggestBody, /SOURCE_REQUEST_HARNESS_TIMEOUT_MS/,
+  "the regional source deadline alignment must not alter suggestion waits");
 
 assert.match(liveSpec, /allCoordinatesInMarket: resultRecords[.]every[\s\S]*?coordinatesMatchPointObjectMarket/,
   "all returned candidates must remain inside the selected market");

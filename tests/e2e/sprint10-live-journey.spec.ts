@@ -64,6 +64,8 @@ const LIVE_SCOPES = [
   "singapore-analyse", "singapore-find", "dubai-create", "dubai-depth-cycle"
 ] as const;
 const SINGAPORE_MARINA_BAY_REFERENCE_BOUNDS = [103.855, 1.278, 103.868, 1.289] as const;
+// Root binds this literal to SOURCE_REQUEST_HARNESS_TIMEOUT_MS after the shared source-deadline change is integrated.
+const SOURCE_REQUEST_HARNESS_TIMEOUT_MS = 60_000;
 type LiveScope = Sprint10LiveScope;
 
 const runnerActive = process.env.GEOAI_SPRINT10_LIVE_RUNNER_ACTIVE === "1";
@@ -172,6 +174,10 @@ async function installFindPreDispatchGate(
     resolveRequest = resolve;
     rejectRequest = reject;
   });
+  const requestTimeout = setTimeout(() => {
+    rejectRequest(new Error(`The ${label} Find request did not dispatch inside the bounded source-request window.`));
+  }, SOURCE_REQUEST_HARNESS_TIMEOUT_MS);
+  void request.finally(() => clearTimeout(requestTimeout)).catch(() => undefined);
   await page.route("**/api/prototype/point-to-object/find", async (route) => {
     let submitted: unknown;
     try { submitted = route.request().postDataJSON(); }
@@ -1212,7 +1218,7 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
   progress.complete("find_source_cta");
   progress.start("find_source_pre_dispatch");
   const preDispatch = await installFindPreDispatchGate(page, acceptedDubaiFindRequest, "Dubai");
-  const responsePromise = page.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/point-to-object/find"), { timeout: 45_000 });
+  const responsePromise = page.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/point-to-object/find"), { timeout: SOURCE_REQUEST_HARNESS_TIMEOUT_MS });
   void responsePromise.catch(() => undefined);
   await page.getByTestId("find-search-cta").click();
   const submitted = await preDispatch.request;
@@ -1299,7 +1305,7 @@ async function runSingaporeFind(page: Page, configuration: LiveConfiguration, po
   progress.complete("find_source_cta");
   progress.start("find_source_pre_dispatch");
   const preDispatch = await installFindPreDispatchGate(page, acceptedSingaporeFindRequest, "Singapore");
-  const responsePromise = page.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/point-to-object/find"), { timeout: 45_000 });
+  const responsePromise = page.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/point-to-object/find"), { timeout: SOURCE_REQUEST_HARNESS_TIMEOUT_MS });
   void responsePromise.catch(() => undefined);
   await page.getByTestId("find-search-cta").click();
   const submitted = await preDispatch.request;
@@ -1389,9 +1395,9 @@ async function runMarketCreate(
 
   progress.start("create_source_context_request");
   const contextRequestPromise = page.waitForRequest((request) =>
-    request.method() === "POST" && new URL(request.url()).pathname === "/api/prototype/point-to-object/area-context", { timeout: 45_000 });
+    request.method() === "POST" && new URL(request.url()).pathname === "/api/prototype/point-to-object/area-context", { timeout: SOURCE_REQUEST_HARNESS_TIMEOUT_MS });
   const contextResponsePromise = page.waitForResponse((response) =>
-    response.request().method() === "POST" && new URL(response.url()).pathname === "/api/prototype/point-to-object/area-context", { timeout: 45_000 });
+    response.request().method() === "POST" && new URL(response.url()).pathname === "/api/prototype/point-to-object/area-context", { timeout: SOURCE_REQUEST_HARNESS_TIMEOUT_MS });
   void contextResponsePromise.catch(() => undefined);
   await upload.setInputFiles({
     name: input.fileName,
