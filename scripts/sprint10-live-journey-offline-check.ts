@@ -95,6 +95,7 @@ function validPayload(target: Sprint10RequestIdentity, withRepair = false) {
 
 async function run() {
   const liveSpec = readFileSync(new URL("../tests/e2e/sprint10-live-journey.spec.ts", import.meta.url), "utf8");
+  const marketSource = readFileSync(new URL("../src/lib/prototype/point-to-object-markets.ts", import.meta.url), "utf8");
   assert.deepEqual(SPRINT10_LIVE_PAID_SCOPE_MATRIX, {
     journey: { ai: 1, create: 1 },
     "dubai-analyse": { ai: 1, create: 0 },
@@ -124,6 +125,32 @@ async function run() {
     "Singapore Find must remain bounded to the reviewed public reference envelope");
   assert.match(liveSpec, /selectOption\("b2b_commercial_real_estate"\)/,
     "Singapore Find must keep its exact product role/scenario path");
+  assert.match(marketSource, /key: "singapore",[\s\S]*?center: \[103[.]8605263, 1[.]2827539\],[\s\S]*?zoom: 16[.]6,/,
+    "the offline camera proof must remain bound to the actual Singapore market camera");
+  const singaporeFindBody = /async function runSingaporeFind[\s\S]*?\n}\n\ntype LiveCreateCase/.exec(liveSpec)?.[0] ?? "";
+  const twoDimensionalIndex = singaporeFindBody.indexOf('name: "2d"');
+  const zoomInIndex = singaporeFindBody.indexOf('name: "Zoom in"');
+  const preDispatchGuardIndex = singaporeFindBody.indexOf("acceptedSingaporeFindRequest(submitted)");
+  const transportContinuationIndex = singaporeFindBody.indexOf("await route.fallback()");
+  const searchClickIndex = singaporeFindBody.indexOf('getByTestId("find-search-cta").click()');
+  assert.ok(twoDimensionalIndex >= 0 && zoomInIndex > twoDimensionalIndex && preDispatchGuardIndex > zoomInIndex &&
+    transportContinuationIndex > preDispatchGuardIndex && searchClickIndex > transportContinuationIndex,
+  "Singapore Find must use real 2D/zoom UI and validate its actual bounded request before transport continuation and CTA dispatch.");
+  const worldSize = 512 * (2 ** 17.6);
+  const center = [103.8605263, 1.2827539] as const;
+  const centerPixel = [
+    ((center[0] + 180) / 360) * worldSize,
+    ((1 - Math.asinh(Math.tan(center[1] * Math.PI / 180)) / Math.PI) / 2) * worldSize
+  ] as const;
+  const unproject = (x: number, y: number) => [
+    (x / worldSize) * 360 - 180,
+    Math.atan(Math.sinh(Math.PI * (1 - 2 * y / worldSize))) * 180 / Math.PI
+  ] as const;
+  const conservativeSouthWest = unproject(centerPixel[0] - 1440 / 2, centerPixel[1] + 1000 / 2);
+  const conservativeNorthEast = unproject(centerPixel[0] + 1440 / 2, centerPixel[1] - 1000 / 2);
+  assert.ok(conservativeSouthWest[0] >= 103.855 && conservativeSouthWest[1] >= 1.278 &&
+    conservativeNorthEast[0] <= 103.868 && conservativeNorthEast[1] <= 1.289,
+  "one real zoom-in at 2D must fit even a conservative full 1440x1000 canvas inside the frozen Marina Bay envelope");
   assert.match(liveSpec, /\[55[.]27015, 25[.]20515\][\s\S]*\[55[.]27065, 25[.]20565\]/,
     "Dubai Create must keep its exact reviewed fixture AOI");
   assert.match(liveSpec, /if \(configuration[.]scope === "singapore-analyse"\)/);

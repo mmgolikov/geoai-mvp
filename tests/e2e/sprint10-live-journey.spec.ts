@@ -119,6 +119,17 @@ function isoTimestamp(value: unknown): value is string {
   return typeof value === "string" && Number.isFinite(Date.parse(value));
 }
 
+function acceptedSingaporeFindRequest(value: unknown): value is Record<string, unknown> & { bounds: number[] } {
+  if (!record(value) || !Array.isArray(value.bounds) || value.bounds.length !== 4 ||
+      value.bounds.some((item) => typeof item !== "number" || !Number.isFinite(item))) return false;
+  return value.marketKey === "singapore" && value.locale === "en" && value.group === "commercial_office" &&
+    value.mappedMinimumLevels === null && value.mappedMaximumLevels === null && value.limit === 12 &&
+    value.bounds[0] >= SINGAPORE_MARINA_BAY_REFERENCE_BOUNDS[0] &&
+    value.bounds[1] >= SINGAPORE_MARINA_BAY_REFERENCE_BOUNDS[1] &&
+    value.bounds[2] <= SINGAPORE_MARINA_BAY_REFERENCE_BOUNDS[2] &&
+    value.bounds[3] <= SINGAPORE_MARINA_BAY_REFERENCE_BOUNDS[3];
+}
+
 function loadConfiguration(baseURL: string | undefined): LiveConfiguration {
   guard(runnerActive, "The live journey must be started by its root-owned runner.");
   guard(selectedScope && LIVE_SCOPES.includes(selectedScope), "The live journey scope is not accepted.");
@@ -887,19 +898,37 @@ async function runSingaporeFind(page: Page, configuration: LiveConfiguration, po
   await page.getByTestId("point-object-find-role-select").selectOption("consultant_broker");
   await page.getByTestId("point-object-find-scenario-select").selectOption("b2b_commercial_real_estate");
   await expect(page.getByTestId("point-object-find-group-select")).toHaveValue("commercial_office");
+  const twoDimensionalControl = page.getByTestId("map-dimension-control").getByRole("button", { name: "2d", exact: true });
+  await twoDimensionalControl.click();
+  await expect(twoDimensionalControl).toHaveAttribute("aria-pressed", "true");
+  const zoomIn = page.getByRole("button", { name: "Zoom in", exact: true });
+  await expect(zoomIn).toBeVisible({ timeout: 30_000 });
+  await zoomIn.click();
+  let resolvePreDispatch!: (value: Record<string, unknown> & { bounds: number[] }) => void;
+  let rejectPreDispatch!: (reason: Error) => void;
+  const preDispatchRequest = new Promise<Record<string, unknown> & { bounds: number[] }>((resolve, reject) => {
+    resolvePreDispatch = resolve;
+    rejectPreDispatch = reject;
+  });
+  await page.route("**/api/prototype/point-to-object/find", async (route) => {
+    let submitted: unknown;
+    try { submitted = route.request().postDataJSON(); }
+    catch { submitted = null; }
+    if (route.request().method() !== "POST" || !acceptedSingaporeFindRequest(submitted)) {
+      rejectPreDispatch(new Error("The Singapore Find request failed its bounded pre-dispatch contract."));
+      await route.abort("blockedbyclient");
+      return;
+    }
+    resolvePreDispatch(submitted);
+    await route.fallback();
+  }, { times: 1 });
   const responsePromise = page.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/point-to-object/find"), { timeout: 45_000 });
   await expect(page.getByTestId("find-search-cta")).toBeEnabled({ timeout: 30_000 });
+  const responseTransaction = Promise.all([responsePromise, preDispatchRequest]);
   await page.getByTestId("find-search-cta").click();
-  const response = await responsePromise;
+  const [response, submitted] = await responseTransaction;
   const payload: unknown = await response.json();
-  const submitted: unknown = response.request().postDataJSON();
-  const submittedBounds = record(submitted) && Array.isArray(submitted.bounds) ? submitted.bounds : null;
-  guard(record(submitted) && submitted.marketKey === "singapore" && submitted.locale === "en" &&
-    submitted.group === "commercial_office" && submitted.mappedMinimumLevels === null && submitted.mappedMaximumLevels === null &&
-    submitted.limit === 12 && submittedBounds?.length === 4 && submittedBounds.every((value) => typeof value === "number" && Number.isFinite(value)) &&
-    submittedBounds[0] >= SINGAPORE_MARINA_BAY_REFERENCE_BOUNDS[0] && submittedBounds[1] >= SINGAPORE_MARINA_BAY_REFERENCE_BOUNDS[1] &&
-    submittedBounds[2] <= SINGAPORE_MARINA_BAY_REFERENCE_BOUNDS[2] && submittedBounds[3] <= SINGAPORE_MARINA_BAY_REFERENCE_BOUNDS[3],
-  "The Singapore Find request did not use the bounded Marina Bay reference envelope and exact product criteria.");
+  const submittedBounds = submitted.bounds;
   guard(response.status() === 200 && record(payload) && payload.protocol === "POINT_TO_OBJECT_001_FIND_OPEN_MAP_V1" &&
     (payload.mode === "results" || payload.mode === "empty") && Array.isArray(payload.candidates) && record(payload.criteria) &&
     payload.criteria.marketKey === "singapore" && payload.criteria.group === "commercial_office" &&
