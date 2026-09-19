@@ -7,6 +7,7 @@ import { requirePilotIdentity, requirePilotMutationOrigin } from "@/src/lib/auth
 import { readBoundedJson } from "@/src/lib/http/bounded-json";
 import { resolvePointObjectAreaContext, PointObjectAreaContextError } from "@/src/lib/prototype/point-to-object-area-context";
 import { parsePointObjectAreaContextRequest } from "@/src/lib/prototype/point-to-object-area-context-contract";
+import { createSourceRequestTrace } from "@/src/lib/prototype/source-request-trace";
 import {
   createPointObjectSourceRequestDeadline,
   isPointObjectSourceDeadlineError,
@@ -58,11 +59,13 @@ function consumeRateLimit(request: Request): { allowed: true } | { allowed: fals
 }
 
 export async function POST(incomingRequest: Request) {
+  const trace = createSourceRequestTrace("area-context");
   const sourceDeadline = createPointObjectSourceRequestDeadline(undefined, incomingRequest.signal);
   try {
     const request = withPointObjectSourceRequestDeadline(incomingRequest, sourceDeadline.signal);
     const identity = await sourceDeadline.run(async () => await requirePilotIdentity(request));
     if (!identity.allowed) return identity.response;
+    trace.stage("authenticated");
     const mutationOrigin = requirePilotMutationOrigin(request);
     if (mutationOrigin) return mutationOrigin;
     if (!runtimeAllowed()) {
@@ -80,16 +83,21 @@ export async function POST(incomingRequest: Request) {
       return NextResponse.json({ mode: "unavailable", error: parsedRequest.error }, { status: 400, headers: noStoreHeaders() });
     }
     const rate = consumeRateLimit(request);
+    trace.stage("body_validated");
     if (!rate.allowed) {
       return NextResponse.json({ mode: "unavailable", code: "APPLICATION_RATE_LIMITED", error: "Open-map area context is temporarily rate limited.", retryable: true }, {
         status: 429,
         headers: noStoreHeaders({ "Retry-After": String(rate.retryAfterSeconds) })
       });
     }
-    return NextResponse.json(await sourceDeadline.run(async (signal) =>
+    trace.stage("source_started");
+    const result = await sourceDeadline.run(async (signal) =>
       await resolvePointObjectAreaContext(parsedRequest.value, undefined, signal)
-    ), { headers: noStoreHeaders() });
+    );
+    trace.stage("source_completed");
+    return NextResponse.json(result, { headers: noStoreHeaders() });
   } catch (error) {
+    trace.failed(isPointObjectSourceDeadlineError(error) ? "deadline" : error instanceof PointObjectAreaContextError ? "upstream" : "internal");
     if (isPointObjectSourceDeadlineError(error)) {
       return NextResponse.json({ mode: "unavailable", code: "SOURCE_REQUEST_TIMEOUT", error: "Open-map area context did not complete in time.", retryable: true }, { status: 504, headers: noStoreHeaders() });
     }
@@ -99,5 +107,6 @@ export async function POST(incomingRequest: Request) {
     return NextResponse.json({ mode: "unavailable", error: "Open-map area context could not be completed.", retryable: true }, { status: 502, headers: noStoreHeaders() });
   } finally {
     sourceDeadline.dispose();
+    trace.stage("finished");
   }
 }
