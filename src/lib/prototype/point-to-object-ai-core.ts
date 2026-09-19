@@ -1248,11 +1248,12 @@ const IMPLICATION_GROUP_LABELS: Record<PointObjectContextGroup, { en: string; ru
   other_built: { en: "other buildings", ru: "прочих зданий" }
 };
 
-function rawOpenMapHeightTag(value: string, locale: PointObjectLocale): string {
+function openMapHeightTagValue(value: string, locale: PointObjectLocale): string {
+  const unit = /ft$/i.test(value) ? "ft" : /m$/i.test(value) ? "m" : null;
   return localized(
     locale,
-    `raw OpenStreetMap height tag: ${value} (unit and accuracy not independently verified)`,
-    `исходный тег высоты OpenStreetMap: ${value} (единица измерения и точность не проверены независимо)`
+    `OpenStreetMap height tag value: ${value} (${unit ? `unit stated in tag: ${unit}` : "unit not stated in tag"}; accuracy not independently verified)`,
+    `Значение тега высоты OpenStreetMap: ${value} (${unit ? `единица указана в теге: ${unit}` : "единица в теге не указана"}; точность не проверена независимо)`
   );
 }
 
@@ -1346,7 +1347,7 @@ function deterministicEvidenceContent(
     const values = Object.entries(labels).flatMap(([key, label]) => {
       const value = stringValue(tags[key], 80);
       if (!value) return [];
-      return [key === "tag.height" ? rawOpenMapHeightTag(value, locale) : `${label[locale]}: ${value}`];
+      return [key === "tag.height" ? openMapHeightTagValue(value, locale) : `${label[locale]}: ${value}`];
     }).slice(0, 6);
     if (values.length) sourceFacts.push({
       statement: localized(locale, `Mapped attributes — ${values.join("; ")}.`, `Картированные атрибуты — ${values.join("; ")}.`),
@@ -1675,8 +1676,8 @@ export function renderInitialSemanticBrief(
   const groupPieces = meaningfulGroups.map((group) => group.group === "residential"
     ? localized(
       locale,
-      `${group.count} mapped residential features in the returned sample`,
-      `${group.count} картографических объектов жилого назначения в полученной выборке`
+      `mapped residential features in the returned sample — ${group.count}`,
+      `картографические объекты жилого назначения в полученной выборке — ${group.count}`
     )
     : `${GEO_CONTEXT_GROUP_LABELS[group.group][locale]} — ${group.count}`);
   const describeNearby = (item: (typeof nearby)[number]) => localized(
@@ -2049,7 +2050,7 @@ function mappedFormLabel(support: PointObjectEvidenceSupport, locale: PointObjec
   const parts = [
     support.hasBuildingAttributes && tags["tag.building"] ? localized(locale, `building ${tags["tag.building"]}`, `тип здания ${tags["tag.building"]}`) : null,
     support.hasBuildingAttributes && tags["tag.building:levels"] ? localized(locale, `${tags["tag.building:levels"]} mapped levels`, `картированная этажность: ${tags["tag.building:levels"]}`) : null,
-    support.hasBuildingAttributes && tags["tag.height"] ? rawOpenMapHeightTag(tags["tag.height"], locale) : null,
+    support.hasBuildingAttributes && tags["tag.height"] ? openMapHeightTagValue(tags["tag.height"], locale) : null,
     support.hasBuildingGeometry && support.geometryRef && support.projection.selectedObject.geometryType
       ? localized(locale, `${support.projection.selectedObject.geometryType} geometry`, `геометрия ${support.projection.selectedObject.geometryType}`) : null
   ].filter((value): value is string => Boolean(value));
@@ -2778,11 +2779,7 @@ function validateFocusedAnswer(
         horizon: request.horizon,
         confidence: "low",
         statement: directAttribute.key === "tag.height"
-          ? localized(
-            request.locale,
-            `Raw OpenStreetMap height tag: ${directAttribute.value}. Its unit and accuracy have not been independently verified.`,
-            `Исходный тег высоты OpenStreetMap: ${directAttribute.value}. Единица измерения и точность не проверены независимо.`
-          )
+          ? `${openMapHeightTagValue(directAttribute.value, request.locale)}.`
           : russian
             ? `Атрибут OpenStreetMap «${label.ru}»: ${directAttribute.value}. Значение из открытой карты не проверено независимо.`
             : `Mapped OpenStreetMap ${label.en} attribute: ${directAttribute.value}. This open-map value has not been independently verified.`,

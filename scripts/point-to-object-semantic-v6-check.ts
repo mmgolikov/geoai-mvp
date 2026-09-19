@@ -310,30 +310,33 @@ assert.match(outputs[0].implication.statement, /hotel\/business programme.*permi
 assert.match(outputs[1].implication.statement, /Longer-term view:.*investment review.*income history.*comparable transactions/);
 assert.match(outputs[2].implication.statement, /1–3 year view:.*reuse choices.*condition.*refurbishment phasing/);
 
-const residentialPack = evidencePack();
-residentialPack.geoContext.groups = [
-  { group: "residential", count: 12, sharePct: 60, nearestDistanceM: 40 },
-  { group: "retail_daily_needs", count: 8, sharePct: 40, nearestDistanceM: 55 }
-];
-residentialPack.geoContext.districtCharacter = {
-  code: "residential",
-  confidence: "medium",
-  ruleVersion: "POINT_OBJECT_DISTRICT_RULE_V1",
-  driverGroups: ["residential", "retail_daily_needs"]
-};
-syncGeoContextReceipts(residentialPack);
-for (const locale of ["en", "ru"] as const) {
-  const result = validate(rawPlan(), residentialPack, { ...requests[0], locale });
-  assert.equal(result.ok, true, result.detail);
-  const brief = result.content.initialSemanticBrief;
-  assert.match(
-    brief.context.statement,
-    locale === "en"
-      ? /12 mapped residential features in the returned sample/
-      : /12 картографических объектов жилого назначения в полученной выборке/,
-    "Residential group counts must name returned mapped features, not homes or dwelling units."
-  );
-  assert.doesNotMatch(JSON.stringify(brief), /\bhomes\b|\bdwellings?\b|жиль(?:ё|я)/iu);
+for (const residentialCount of [1, 2, 5, 12, 21]) {
+  const residentialPack = evidencePack();
+  residentialPack.geoContext.sampleSize = residentialCount;
+  residentialPack.geoContext.groups = [
+    { group: "residential", count: residentialCount, sharePct: 100, nearestDistanceM: 40 }
+  ];
+  residentialPack.geoContext.mappedBuildingCount = residentialCount;
+  residentialPack.geoContext.mappedLevelsKnownCount = 0;
+  residentialPack.geoContext.medianMappedLevels = null;
+  residentialPack.geoContext.districtCharacter = {
+    code: "residential",
+    confidence: "medium",
+    ruleVersion: "POINT_OBJECT_DISTRICT_RULE_V1",
+    driverGroups: ["residential"]
+  };
+  syncGeoContextReceipts(residentialPack);
+  for (const locale of ["en", "ru"] as const) {
+    const result = validate(rawPlan(), residentialPack, { ...requests[0], locale });
+    assert.equal(result.ok, true, result.detail);
+    const brief = result.content.initialSemanticBrief;
+    const expected = locale === "en"
+      ? `mapped residential features in the returned sample — ${residentialCount}`
+      : `картографические объекты жилого назначения в полученной выборке — ${residentialCount}`;
+    assert.ok(brief.context.statement.includes(expected),
+      "Residential counts must follow a stable label and never require number-dependent declension.");
+    assert.doesNotMatch(JSON.stringify(brief), /\bhomes\b|\bdwellings?\b|жиль(?:ё|я)/iu);
+  }
 }
 
 for (const residentialCount of [0, null] as const) {
@@ -347,21 +350,22 @@ for (const residentialCount of [0, null] as const) {
     "A zero or absent residential group must not invent a visible residential count.");
 }
 
-for (const rawHeight of ["200", "200 m", "650 ft"] as const) {
+for (const sanitizedHeight of ["200", "200m", "650ft"] as const) {
   const candidate = evidencePack();
-  candidate.selectedObject.tags["tag.height"] = rawHeight;
+  candidate.selectedObject.tags["tag.height"] = sanitizedHeight;
   syncAllowedFieldsReceipt(candidate);
   for (const locale of ["en", "ru"] as const) {
     const result = validate(rawPlan(), candidate, { ...requests[0], locale });
     assert.equal(result.ok, true, result.detail);
     const rendered = JSON.stringify(result.content);
+    const unit = sanitizedHeight.endsWith("ft") ? "ft" : sanitizedHeight.endsWith("m") ? "m" : null;
     const expected = locale === "en"
-      ? `raw OpenStreetMap height tag: ${rawHeight} (unit and accuracy not independently verified)`
-      : `исходный тег высоты OpenStreetMap: ${rawHeight} (единица измерения и точность не проверены независимо)`;
-    assert.ok(rendered.includes(expected), `The exact raw source height value must remain visible in ${locale}: ${rawHeight}`);
-    assert.doesNotMatch(rendered, /mapped height\s|картированная высота\s/i);
-    assert.doesNotMatch(rendered, /200 m m|650 ft (?:m|metres?|meters?|м)/i,
-      "Height rendering must not duplicate a unit or silently convert the source value.");
+      ? `OpenStreetMap height tag value: ${sanitizedHeight} (${unit ? `unit stated in tag: ${unit}` : "unit not stated in tag"}; accuracy not independently verified)`
+      : `Значение тега высоты OpenStreetMap: ${sanitizedHeight} (${unit ? `единица указана в теге: ${unit}` : "единица в теге не указана"}; точность не проверена независимо)`;
+    assert.ok(rendered.includes(expected), `The sanitized tag value must remain visible in ${locale}: ${sanitizedHeight}`);
+    assert.doesNotMatch(rendered, /raw OpenStreetMap|исходный тег|mapped height\s|картированная высота\s/i);
+    assert.doesNotMatch(rendered, /200m(?:m|ft)|650ft(?:m|ft)/i,
+      "Height rendering must not append or convert a unit for display.");
   }
 }
 
@@ -370,7 +374,7 @@ delete missingHeightPack.selectedObject.tags["tag.height"];
 syncAllowedFieldsReceipt(missingHeightPack);
 const missingHeight = validate(rawPlan(), missingHeightPack, requests[0]);
 assert.equal(missingHeight.ok, true, missingHeight.detail);
-assert.doesNotMatch(JSON.stringify(missingHeight.content), /raw OpenStreetMap height tag|mapped height\s/i,
+assert.doesNotMatch(JSON.stringify(missingHeight.content), /OpenStreetMap height tag value|mapped height\s/i,
   "A missing height tag must stay absent rather than acquire a default value.");
 
 // Two provider samples have different radii. A 759 m place must never be

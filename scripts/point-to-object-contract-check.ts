@@ -2304,7 +2304,7 @@ async function assertCandidateAiSafety(): Promise<void> {
     "Address fields without EVD-ADDRESS must not reach rendered content.");
   assert.equal(sparseRendered.includes("43 mapped levels"), false,
     "Mapped-level tags without EVD-ALLOWED-FIELDS must not reach rendered content.");
-  assert.equal(sparseRendered.includes("raw OpenStreetMap height tag: 200"), false,
+  assert.equal(sparseRendered.includes("OpenStreetMap height tag value: 200"), false,
     "Mapped-height tags without EVD-ALLOWED-FIELDS must not reach rendered content.");
   assert.equal(sparseRendered.includes("start-date field is 2003"), false,
     "Lifecycle tags without EVD-ALLOWED-FIELDS must not reach rendered content.");
@@ -2639,6 +2639,17 @@ async function assertCandidateAiSafety(): Promise<void> {
     ...focusedAnalysisRequest,
     question: "How tall is the building?"
   };
+  const evidencePackWithHeight = (height: string) => {
+    const candidate = clone(evidencePack);
+    candidate.selectedObject.tags["tag.height"] = height;
+    const receipt = candidate.evidence.find((item) => item.id === "EVD-ALLOWED-FIELDS");
+    if (!receipt) throw new Error("Synthetic height fixture requires EVD-ALLOWED-FIELDS.");
+    receipt.value = JSON.stringify({
+      sourceFeatureId: candidate.selectedObject.sourceFeatureId,
+      tags: candidate.selectedObject.tags
+    });
+    return candidate;
+  };
   const heightWithInventedVisualClaims = validateContentDetailed({
     ...rawPlan,
     focusedAnswer: {
@@ -2671,7 +2682,7 @@ async function assertCandidateAiSafety(): Promise<void> {
     }
   }, evidencePack, heightQuestion) as any;
   assert.equal(normalizedHeight?.answerToQuestion?.statement,
-    "Raw OpenStreetMap height tag: 200. Its unit and accuracy have not been independently verified.",
+    "OpenStreetMap height tag value: 200 (unit not stated in tag; accuracy not independently verified).",
     "Supported direct attributes must be rendered from the canonical field rather than raw model prose.");
   assert.deepEqual(normalizedHeight?.answerToQuestion?.evidenceRefs, ["EVD-ALLOWED-FIELDS"],
     "A direct-attribute answer must expose only its canonical attribute receipt.");
@@ -2693,10 +2704,43 @@ async function assertCandidateAiSafety(): Promise<void> {
     }
   }, evidencePack, heightQuestion) as any;
   assert.equal(conciseHeight?.answerToQuestion?.statement,
-    "Raw OpenStreetMap height tag: 200. Its unit and accuracy have not been independently verified.",
+    "OpenStreetMap height tag value: 200 (unit not stated in tag; accuracy not independently verified).",
     "A concise exact-field model result must still resolve through canonical server rendering without a manual retry.");
   assert.deepEqual(conciseHeight?.answerToQuestion?.missingEvidence, [],
     "Model-selected generic gaps must not dilute a canonical direct-attribute answer.");
+
+  for (const explicitUnitCase of [
+    {
+      locale: "en",
+      question: "How tall is the building?",
+      value: "200m",
+      expected: "OpenStreetMap height tag value: 200m (unit stated in tag: m; accuracy not independently verified)."
+    },
+    {
+      locale: "ru",
+      question: "Какова высота здания?",
+      value: "650ft",
+      expected: "Значение тега высоты OpenStreetMap: 650ft (единица указана в теге: ft; точность не проверена независимо)."
+    }
+  ] as const) {
+    const candidate = evidencePackWithHeight(explicitUnitCase.value);
+    const answer = validateContent({
+      ...rawPlan,
+      focusedAnswer: {
+        status: "answered",
+        scope: "mapped_form",
+        perspective: "investor",
+        horizon: "long_term",
+        statement: `Height: ${explicitUnitCase.value}.`,
+        evidenceRefs: ["EVD-ALLOWED-FIELDS"],
+        confidence: "medium",
+        missingEvidenceCodes: [],
+        unsupportedReasonCode: null
+      }
+    }, candidate, { ...heightQuestion, locale: explicitUnitCase.locale, question: explicitUnitCase.question }) as any;
+    assert.equal(answer?.answerToQuestion?.statement, explicitUnitCase.expected,
+      `Focused ${explicitUnitCase.locale} height answers must state the explicit source-tag unit without conversion.`);
+  }
 
   const embeddedHeightValue = validateContentDetailed({
     ...rawPlan,
@@ -2860,7 +2904,8 @@ async function assertLiveOverpassContext(): Promise<void> {
     [
       /import \{\n  matchPointObjectTrustedIdentityAnchor,[\s\S]*?\n\} from "\.\/point-to-object-trusted-identity";\n/,
       `import { matchPointObjectTrustedIdentityAnchor, pointObjectIdentityEvidenceDescriptor, pointObjectLookupAssociation } from ${JSON.stringify(trustedIdentityModuleUrl)};\n`
-    ]
+    ],
+    [/function cleanStructuredTagValue\(/, "export function cleanStructuredTagValue("]
   ]);
   const buildQuery = liveEvidence.buildOverpassNearbyQuery as (point: [number, number]) => string;
   const buildFabricQuery = liveEvidence.buildOverpassUrbanFabricQuery as (point: [number, number]) => string;
@@ -2881,7 +2926,19 @@ async function assertLiveOverpassContext(): Promise<void> {
     point: [number, number]
   ) => JsonObject;
   const calculateGeometryMetrics = liveEvidence.geometryMetrics as (geometry: unknown) => JsonObject | null;
+  const cleanStructuredTagValue = liveEvidence.cleanStructuredTagValue as (key: string, value: string) => string | null;
   const overpassExecutionMemoryMaxBytes = liveEvidence.POINT_OBJECT_OVERPASS_EXECUTION_MEMORY_MAX_BYTES as number;
+
+  assert.equal(cleanStructuredTagValue("height", "200 m"), "200m",
+    "The live source boundary must compact a supported height unit before evidence projection.");
+  assert.equal(cleanStructuredTagValue("height", "650 ft"), "650ft",
+    "The live source boundary must preserve the supported ft suffix without conversion.");
+  assert.equal(cleanStructuredTagValue("height", "200m"), "200m",
+    "A canonical height tag must remain stable at the source boundary.");
+  assert.equal(cleanStructuredTagValue("height", "about 200 m"), null,
+    "Unsupported descriptive height text must fail closed.");
+  assert.equal(cleanStructuredTagValue("height", "200 metres"), null,
+    "Unsupported unit words must not be rewritten into a numeric tag value.");
 
   const point: [number, number] = [55.271928, 25.20811];
   const query = buildQuery(point);
