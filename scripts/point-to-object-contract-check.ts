@@ -1256,7 +1256,8 @@ function assertStaticBoundaries(): void {
     "components/point-to-object/prototype-client.tsx",
     "components/point-to-object/prototype-header.tsx",
     "components/point-to-object/reliable-select.tsx",
-    "components/point-to-object/use-modal-shell.ts"
+    "components/point-to-object/use-modal-shell.ts",
+    "components/point-to-object/use-point-object-cloud-sync.ts"
   ]);
   const candidateSurfaceFiles = [
     ...collectFiles(path.join(ROOT, "app/prototype/point-to-object")),

@@ -82,9 +82,15 @@ function negativeStatuses(classification, method, requestSizeLimitBytes) {
 }
 
 function explicitBodyLimit(source) {
-  const match = source.match(/readBoundedJson\(request,\s*([0-9_]+)(?:\s*\*\s*([0-9_]+))?\s*\)/);
+  const match = source.match(/readBoundedJson\(request,\s*([0-9_]+)(?:\s*\*\s*([0-9_]+))?(?:,\s*[A-Za-z_$][\w$]*)?\s*\)/);
   if (!match) return null;
   return Number(match[1].replaceAll("_", "")) * Number((match[2] ?? "1").replaceAll("_", ""));
+}
+
+if (explicitBodyLimit("readBoundedJson(request, 2_048, signal)") !== 2_048 ||
+    explicitBodyLimit("readBoundedJson(request, 20 * 1_024, signal)") !== 20_480 ||
+    explicitBodyLimit("readBoundedJson(request, 2_048, signal, extra)") !== null) {
+  throw new Error("bounded body-limit parser no longer recognizes only the supported optional cancellation signal shape");
 }
 
 function declaredCacheDirectives(source) {
