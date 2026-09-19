@@ -331,7 +331,7 @@ if (browserStepStart === -1 || buildStepStart === -1) {
     "NEXT_PUBLIC_AUTH_MODE: demo_public",
     'GEOAI_ACCESS_ENFORCEMENT_MODE: soft',
     'GEOAI_ALLOW_DEMO_PUBLIC: "true"',
-    "npm run test:e2e:auth-session:demo",
+    "npm run test:e2e:auth-session:demo -- --retries=0",
     "npm run test:e2e:point-to-object-v5:demo"
   ]) requireText(browserStep, marker, `Browser CI step is missing ${marker}`);
   // The subsequent Auth suite cleans its own output directory and rewrites its
@@ -346,6 +346,27 @@ if (browserStepStart === -1 || buildStepStart === -1) {
   if (browserStep.includes("secrets.")) failures.push("Browser CI must not read a real GitHub secret");
 }
 const protectedStep = workflow.slice(workflow.indexOf("  protected-browser:"), workflow.indexOf("  database-replay:"));
+const productHttpsStart = workflow.indexOf("- name: Optimized HTTPS product WebKit");
+const productHttpsEnd = workflow.indexOf("- name: Preserve application log", productHttpsStart);
+if (productHttpsStart === -1 || productHttpsEnd === -1) {
+  failures.push("Quality Gate must retain a separate optimized loopback HTTPS product WebKit lane");
+} else {
+  const productHttpsStep = workflow.slice(productHttpsStart, productHttpsEnd);
+  for (const marker of [
+    "NODE_ENV=production node scripts/sprint10-local-https.mjs",
+    "https://127.0.0.1:3443/api/health",
+    "trap cleanup EXIT",
+    'kill "$PRODUCT_HTTPS_PID"',
+    "PLAYWRIGHT_JUNIT_OUTPUT_FILE=artifacts/point-to-object-webkit-product-junit.xml",
+    "--config playwright.product-https.config.ts --workers=1 --retries=0",
+    "--output=artifacts/playwright-point-to-object-webkit",
+    "artifacts/product-https-runtime.log"
+  ]) requireText(productHttpsStep, marker, `Optimized product HTTPS lane is missing ${marker}`);
+  if (productHttpsStep.includes("secrets.") || productHttpsStep.includes(".supabase.co")) {
+    failures.push("Product HTTPS fixtures must not use hosted credentials or Supabase projects");
+  }
+}
+requireText(workflow, "node --experimental-strip-types scripts/product-https-harness-check.mjs", "CI must test the product HTTPS loopback guard before browser execution");
 for (const marker of [
   "NEXT_PUBLIC_AUTH_MODE: supabase_auth",
   "NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321",

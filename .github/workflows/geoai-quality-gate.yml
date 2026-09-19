@@ -407,6 +407,7 @@ jobs:
           node scripts/sprint10-real-password-auth-check.mjs | tee artifacts/sprint10-password-auth-contract.txt
           node --experimental-transform-types scripts/sprint10-hosted-auth-probe-check.mjs | tee artifacts/sprint10-hosted-auth-contract.txt
           node --experimental-transform-types scripts/sprint10-hosted-auth-live-check.mjs | tee artifacts/sprint10-combined-auth-contract.txt
+          node --experimental-strip-types scripts/product-https-harness-check.mjs | tee artifacts/product-https-harness-contract.txt
 
       - name: Browser demo-public product flow
         shell: bash
@@ -446,7 +447,7 @@ jobs:
 
           google-chrome --version | tee artifacts/google-chrome-version.txt
           PLAYWRIGHT_JUNIT_OUTPUT_FILE=artifacts/point-to-object-product-e2e-junit.xml npm run test:e2e:point-to-object-v5:demo -- --retries=0 --output=artifacts/playwright-point-to-object | tee artifacts/point-to-object-v5-demo-e2e.txt
-          npm run test:e2e:auth-session:demo | tee artifacts/auth-session-demo-e2e.txt
+          npm run test:e2e:auth-session:demo -- --retries=0 | tee artifacts/auth-session-demo-e2e.txt
 
       - name: Build
         shell: bash
@@ -490,15 +491,6 @@ jobs:
           GEOAI_TEST_BASE_URL=http://127.0.0.1:3000 npm run test:api-contract | tee artifacts/api-contract-check.txt
           GEOAI_TEST_BASE_URL=http://127.0.0.1:3000 npm run test:security-headers | tee artifacts/security-header-check.txt
           GEOAI_TEST_BASE_URL=http://127.0.0.1:3000 npm run test:api-route-inventory | tee artifacts/api-route-inventory-runtime-check.txt
-
-          # Use the optimized build so dev hot reload cannot interrupt navigation.
-          # Fixtures block external services; the existing loopback-only WebKit
-          # helper handles HTTP transport. Protected HTTPS is tested separately.
-          NEXT_PUBLIC_AUTH_MODE=demo_public GEOAI_ACCESS_ENFORCEMENT_MODE=soft GEOAI_ALLOW_DEMO_PUBLIC=true \
-            GEOAI_E2E_BASE_URL=http://127.0.0.1:3000 \
-            PLAYWRIGHT_JUNIT_OUTPUT_FILE=artifacts/point-to-object-webkit-product-junit.xml \
-            npm run test:e2e:point-to-object-v5:demo -- --config playwright.webkit.config.ts --retries=0 \
-            --output=artifacts/playwright-point-to-object-webkit | tee artifacts/point-to-object-webkit-product.txt
 
           : > artifacts/route-smoke.txt
           routes=(
@@ -611,6 +603,46 @@ jobs:
           GEOAI_PDF_BASE_URL=http://127.0.0.1:3000 npm run evidence:pdf-print | tee artifacts/pdf-print-check.txt
           cp /tmp/geoai-next.log artifacts/pdf-print-evidence/next-application.log
           npm run test:system-stabilization-audit | tee artifacts/system-stabilization-audit-check.txt
+
+      - name: Optimized HTTPS product WebKit
+        shell: bash
+        env:
+          NEXT_PUBLIC_AUTH_MODE: demo_public
+          GEOAI_ACCESS_ENFORCEMENT_MODE: soft
+          GEOAI_ALLOW_DEMO_PUBLIC: "true"
+        run: |
+          set -euo pipefail
+          # Full product assertions over loopback HTTPS with the unchanged CSP;
+          # no Node-side navigation replay or external service requests.
+          NODE_ENV=production node scripts/sprint10-local-https.mjs > /tmp/geoai-product-https.log 2>&1 &
+          PRODUCT_HTTPS_PID=$!
+          cleanup() {
+            kill "$PRODUCT_HTTPS_PID" 2>/dev/null || true
+            wait "$PRODUCT_HTTPS_PID" 2>/dev/null || true
+            cp /tmp/geoai-product-https.log artifacts/product-https-runtime.log 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          READY=0
+          for attempt in $(seq 1 60); do
+            if ! kill -0 "$PRODUCT_HTTPS_PID" 2>/dev/null; then
+              cat /tmp/geoai-product-https.log
+              exit 1
+            fi
+            if curl --insecure --fail --silent --show-error --max-time 2 https://127.0.0.1:3443/api/health > /dev/null; then
+              kill -0 "$PRODUCT_HTTPS_PID"
+              READY=1
+              break
+            fi
+            sleep 1
+          done
+          if [ "$READY" -ne 1 ]; then
+            cat /tmp/geoai-product-https.log
+            echo "Optimized loopback HTTPS app did not become ready within the bounded readiness check." >&2
+            exit 1
+          fi
+          PLAYWRIGHT_JUNIT_OUTPUT_FILE=artifacts/point-to-object-webkit-product-junit.xml \
+            npm run test:e2e:point-to-object-v5:demo -- --config playwright.product-https.config.ts --workers=1 --retries=0 \
+            --output=artifacts/playwright-point-to-object-webkit | tee artifacts/point-to-object-webkit-product.txt
 
       - name: Preserve application log
         if: always()
