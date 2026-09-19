@@ -5,7 +5,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select extensions.plan(59);
+select extensions.plan(62);
 
 select extensions.has_table('public', 'point_object_project_artifacts', 'artifact table exists');
 select extensions.has_table('geoai_private', 'point_object_artifact_scope_config', 'private rollout scope table exists');
@@ -263,36 +263,53 @@ select extensions.is(
 );
 select extensions.is(
   (api.put_point_object_project_artifact('artifact-persona-project', pg_temp.local_project(),
-    pg_temp.artifact('find', 'artifact-f', 'idem-f', 1,
+    pg_temp.artifact('find', 'artifact-f', 'idem-f', 2,
       '{"session":{"locale":"en","marketKey":"dubai","result":{"fixed":true},"shortlist":[{"id":"one"}],"comparisonOpen":true,"comparisonView":"mini","analysisTargetSourceFeatureId":"node/1","updatedAt":"2026-09-18T20:00:02Z"}}', repeat('f', 64)), 1)->>'status'),
-  'updated', 'Find view-only state changes pass CAS'
+  'updated', 'Find explicit save accepts two local view changes from revision zero to two'
 );
 select extensions.is(
   (api.put_point_object_project_artifact('artifact-persona-project', pg_temp.local_project(),
     pg_temp.artifact('find', 'artifact-f', 'idem-f', 2,
-      '{"session":{"locale":"en","marketKey":"dubai","result":{"fixed":true},"shortlist":[],"comparisonOpen":false,"comparisonView":"results","analysisTargetSourceFeatureId":null,"updatedAt":"2026-09-18T20:00:03Z"}}', repeat('1', 64)), 1)->>'status'),
+      '{"session":{"locale":"en","marketKey":"dubai","result":{"fixed":true},"shortlist":[],"comparisonOpen":false,"comparisonView":"results","analysisTargetSourceFeatureId":null,"updatedAt":"2026-09-18T20:00:03Z"}}', repeat('1', 64)), 2)->>'conflictReason'),
+  'stale_view_revision', 'equal Find revision with divergent mutable bytes fails closed'
+);
+select extensions.is(
+  (api.put_point_object_project_artifact('artifact-persona-project', pg_temp.local_project(),
+    pg_temp.artifact('find', 'artifact-f', 'idem-f', 3,
+      '{"session":{"locale":"en","marketKey":"dubai","result":{"fixed":true},"shortlist":[],"comparisonOpen":false,"comparisonView":"results","analysisTargetSourceFeatureId":null,"updatedAt":"2026-09-18T20:00:04Z"}}', repeat('1', 64)), 1)->>'status'),
   'conflict', 'stale expected revision fails closed'
 );
 select extensions.is(
   (api.put_point_object_project_artifact('artifact-persona-project', pg_temp.local_project(),
-    pg_temp.artifact('find', 'artifact-f', 'idem-f', 2,
-      '{"session":{"locale":"en","marketKey":"dubai","result":{"fixed":false},"shortlist":[],"comparisonOpen":false,"comparisonView":"results","analysisTargetSourceFeatureId":null,"updatedAt":"2026-09-18T20:00:03Z"}}', repeat('7', 64)), 2)->>'status'),
+    pg_temp.artifact('find', 'artifact-f', 'idem-f', 3,
+      '{"session":{"locale":"en","marketKey":"dubai","result":{"fixed":true},"shortlist":[],"comparisonOpen":false,"comparisonView":"results","analysisTargetSourceFeatureId":null,"updatedAt":"2026-09-18T20:00:04Z"}}', repeat('1', 64)), 1)->>'conflictReason'),
+  'stale_cloud_revision', 'monotonic Find updates still require the exact cloud CAS base'
+);
+select extensions.is(
+  (api.put_point_object_project_artifact('artifact-persona-project', pg_temp.local_project(),
+    pg_temp.artifact('find', 'artifact-f', 'idem-f', 3,
+      '{"session":{"locale":"en","marketKey":"dubai","result":{"fixed":false},"shortlist":[],"comparisonOpen":false,"comparisonView":"results","analysisTargetSourceFeatureId":null,"updatedAt":"2026-09-18T20:00:04Z"}}', repeat('7', 64)), 2)->>'status'),
   'conflict', 'Find completed result mutation is detected inside SQL'
 );
 
 select extensions.is(
   (api.put_point_object_project_artifact('artifact-persona-project', pg_temp.local_project(),
-    pg_temp.artifact('create', 'artifact-c', 'idem-c', 0, '{"aoi":{"id":"aoi-1"},"editorSnapshot":null,"generated":{"fixed":true},"generatedLocale":"en","activeAlternativeId":"A","areaContext":null}', repeat('2', 64)), null)->>'status'),
-  'created', 'analyst creates a Create artifact'
+    pg_temp.artifact('create', 'artifact-c', 'idem-c', 1, '{"aoi":{"id":"aoi-1"},"editorSnapshot":null,"generated":{"fixed":true},"generatedLocale":"en","activeAlternativeId":"B","areaContext":null}', repeat('2', 64)), null)->>'status'),
+  'created', 'analyst creates a revision-one Create artifact'
 );
 select extensions.is(
   (api.put_point_object_project_artifact('artifact-persona-project', pg_temp.local_project(),
-    pg_temp.artifact('create', 'artifact-c', 'idem-c', 1, '{"aoi":{"id":"aoi-1"},"editorSnapshot":null,"generated":{"fixed":true},"generatedLocale":"en","activeAlternativeId":"B","areaContext":null}', repeat('3', 64)), 1)->>'status'),
-  'updated', 'Create active alternative is the only mutable result field'
+    pg_temp.artifact('create', 'artifact-c', 'idem-c', 3, '{"aoi":{"id":"aoi-1"},"editorSnapshot":null,"generated":{"fixed":true},"generatedLocale":"en","activeAlternativeId":"A","areaContext":null}', repeat('3', 64)), 1)->>'status'),
+  'updated', 'Create explicit save accepts two local view changes from revision one to three'
 );
 select extensions.is(
   (api.put_point_object_project_artifact('artifact-persona-project', pg_temp.local_project(),
-    pg_temp.artifact('create', 'artifact-c', 'idem-c', 2, '{"aoi":{"id":"aoi-1"},"editorSnapshot":null,"generated":{"fixed":false},"generatedLocale":"en","activeAlternativeId":"A","areaContext":null}', repeat('4', 64)), 2)->>'status'),
+    pg_temp.artifact('create', 'artifact-c', 'idem-c', 3, '{"aoi":{"id":"aoi-1"},"editorSnapshot":null,"generated":{"fixed":true},"generatedLocale":"en","activeAlternativeId":"B","areaContext":null}', repeat('5', 64)), 2)->>'conflictReason'),
+  'stale_view_revision', 'equal Create revision with divergent mutable bytes fails closed'
+);
+select extensions.is(
+  (api.put_point_object_project_artifact('artifact-persona-project', pg_temp.local_project(),
+    pg_temp.artifact('create', 'artifact-c', 'idem-c', 4, '{"aoi":{"id":"aoi-1"},"editorSnapshot":null,"generated":{"fixed":false},"generatedLocale":"en","activeAlternativeId":"A","areaContext":null}', repeat('4', 64)), 2)->>'status'),
   'conflict', 'Create generated result mutation is detected inside SQL'
 );
 select extensions.is(

@@ -66,8 +66,8 @@ requirePattern("migration", /function geoai_private\.put_point_object_project_ar
 requirePattern("migration", /point_object_artifact_projections\(target_artifact jsonb\)[\s\S]*fixed_payload[\s\S]*immutable_json := jsonb_set/,
   "SQL does not derive the immutable projection from artifact JSON");
 requirePattern("migration", /saved\.immutable_json <> incoming_immutable/, "CAS does not compare server-derived immutable JSON directly");
-requirePattern("migration", /target_expected_cloud_revision is distinct from saved\.cloud_revision[\s\S]*incoming_view_revision = saved\.view_revision \+ 1/,
-  "CAS revision checks are incomplete");
+requirePattern("migration", /target_expected_cloud_revision is distinct from saved\.cloud_revision[\s\S]*incoming_view_revision > saved\.view_revision/,
+  "CAS does not require the exact expected cloud revision and a monotonic view successor");
 requirePattern("migration", /saved\.payload_hash = incoming_payload_hash[\s\S]*saved\.artifact_json = target_artifact_json[\s\S]*saved\.local_project = target_local_project[\s\S]*outcome := 'replayed'/,
   "exact/lost-response replay path is missing");
 requirePattern("migration", /point-object-actor-quota:[\s\S]*point-object-artifact:[\s\S]*point-object-idempotency:/,
@@ -86,7 +86,7 @@ requirePattern("migration", /revoke all on table public\.point_object_project_ar
 rejectPattern("migration", /target_immutable_hash|target_payload_hash/, "RPC trusts a caller-supplied invariant hash");
 rejectPattern("migration", /delete\s+from\s+public\.|truncate\s+(?:table\s+)?public\./i, "migration contains destructive existing-data SQL");
 
-requirePattern("personas", /select extensions\.plan\(59\)/, "pgTAP plan drifted");
+requirePattern("personas", /select extensions\.plan\(62\)/, "pgTAP plan drifted");
 requirePattern("personas", /second creator may reuse browser-local keys without collision/, "two-creator collision coverage is missing");
 requirePattern("personas", /Analyse completed result is immutable/, "Analyse immutable-result negative is missing");
 requirePattern("personas", /Find completed result mutation is detected inside SQL/, "Find immutable-result negative is missing");

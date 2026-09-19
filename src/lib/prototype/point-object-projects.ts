@@ -239,8 +239,8 @@ function enqueueIdentityOperation<T>(identityKey: PointObjectProjectIdentity, op
 /**
  * Adds one integrity-verified cloud artifact to its original browser-local
  * project. Existing bytes are never replaced: identical receipts replay, a
- * verified same-immutable local view one revision ahead stays eligible for an
- * explicit CAS save, and every other difference remains a conflict.
+ * verified same-immutable local view ahead of the cloud copy stays eligible
+ * for an explicit CAS save, and every other difference remains a conflict.
  */
 export function importPointObjectCloudArtifact(
   identityKey: PointObjectProjectIdentity,
@@ -278,7 +278,7 @@ export function importPointObjectCloudArtifact(
           const exact = sameIdentity && pointObjectCloudLocalArtifactEqual(match.artifact, parsedArtifact);
           if (exact) return { status: "replayed", project: match.project, artifact: match.artifact };
           const validLocalSuccessor = sameIdentity && (match.artifact.kind === "find" || match.artifact.kind === "create") &&
-            match.artifact.kind === parsedArtifact.kind && match.artifact.viewRevision === parsedArtifact.viewRevision + 1 &&
+            match.artifact.kind === parsedArtifact.kind && match.artifact.viewRevision > parsedArtifact.viewRevision &&
             pointObjectCloudLocalImmutableEqual(match.artifact, parsedArtifact);
           return validLocalSuccessor
             ? { status: "local_newer", project: match.project, artifact: match.artifact }

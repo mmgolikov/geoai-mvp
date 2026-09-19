@@ -73,6 +73,21 @@ function fixtureArtifact(index = 1, label = "Cloud alpha result") {
   };
 }
 
+function fixtureLocalAheadArtifact(index = 1, label = "Cloud alpha result") {
+  const artifact = structuredClone(fixtureArtifact(index, label));
+  (artifact.payload.session.shortlist as unknown[]).push(...artifact.payload.session.result.candidates.slice(0, 1));
+  artifact.payload.session.updatedAt = "2026-09-18T10:10:00.000Z";
+  artifact.viewRevision = 2;
+  artifact.updatedAt = "2026-09-18T10:10:00.000Z";
+  artifact.payloadHash = createHash("sha256").update(canonical({
+    kind: artifact.kind,
+    locale: artifact.locale,
+    marketKey: artifact.marketKey,
+    payload: artifact.payload
+  })).digest("hex");
+  return artifact;
+}
+
 function fixtureProject(name = "Selected cloud project") {
   return {
     schemaVersion: 1,
@@ -277,7 +292,7 @@ test("explicit Save to cloud is the only PUT and a clean second context imports 
   });
   await firstPage.goto("/projects");
   await expect(firstPage.getByRole("heading", { name: "Project Hub", exact: true })).toBeVisible();
-  await expect(firstPage.getByText("Cloud projects are synced to this device.", { exact: true })).toBeVisible();
+  await expect(firstPage.getByText("Cloud projects are available on this device.", { exact: true })).toBeVisible();
   expect(methods.filter((method) => method === "PUT")).toHaveLength(0);
   await firstPage.getByLabel("Search", { exact: true }).fill("Cloud alpha");
   await expect(firstPage.getByTestId("saved-result-card")).toHaveCount(1);
@@ -310,6 +325,53 @@ test("explicit Save to cloud is the only PUT and a clean second context imports 
   await firstContext.close();
 });
 
+test("an older cloud view is shown as unsaved local changes until explicit Save", async ({ browser }, testInfo) => {
+  test.skip(!isAuthenticatedRun(testInfo), "Requires the local authenticated cloud harness.");
+  const baseURL = String(testInfo.project.use.baseURL);
+  const context = await browser.newContext({ baseURL });
+  await installAuthenticatedCookie(context, baseURL, primaryUserId);
+  const page = await context.newPage();
+  const localProject = { ...fixtureProject(), artifacts: [fixtureLocalAheadArtifact()] };
+  const localStore = {
+    schemaVersion: 1,
+    identityKey: `user:${primaryUserId}`,
+    activeProjectId: localProject.projectId,
+    projects: [localProject]
+  };
+  await page.addInitScript(({ storageKey, raw }) => localStorage.setItem(storageKey, raw), {
+    storageKey: projectStorageKey(primaryUserId),
+    raw: JSON.stringify(localStore)
+  });
+  let putCalls = 0;
+  await page.route(`**${cloudPath}**`, async (route) => {
+    if (route.request().method() === "GET") {
+      return fulfillCloudList(route, [{
+        cloudRevision: 4,
+        localProject: { projectId: localProject.projectId, name: localProject.name, createdAt: localProject.createdAt },
+        artifact: fixtureArtifact()
+      }]);
+    }
+    putCalls += 1;
+    const body = route.request().postDataJSON() as {
+      artifact: { viewRevision: number; payloadHash: string };
+      expectedCloudRevision: number | null;
+    };
+    expect(body.artifact.viewRevision).toBe(2);
+    expect(body.expectedCloudRevision).toBe(4);
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
+      ok: true, persisted: true, storageMode: "authenticated_supabase_preview", outcome: "updated", cloudRevision: 5,
+      payloadHash: body.artifact.payloadHash, immutableHash: "b".repeat(64)
+    }) });
+  });
+  await page.goto("/projects");
+  await expect(page.getByText("This device has local changes that have not been saved to cloud yet.", { exact: true })).toBeVisible();
+  expect(putCalls).toBe(0);
+  await page.getByRole("button", { name: "Save to cloud", exact: true }).click();
+  await expect(page.getByText("Cloud projects are available on this device.", { exact: true })).toBeVisible();
+  expect(putCalls).toBe(1);
+  await context.close();
+});
+
 test("cloud conflict and error preserve the selected local project bytes", async ({ browser }, testInfo) => {
   test.skip(!isAuthenticatedRun(testInfo), "Requires the local authenticated cloud harness.");
   const baseURL = String(testInfo.project.use.baseURL);
@@ -332,7 +394,7 @@ test("cloud conflict and error preserve the selected local project bytes", async
       }) });
     });
     await page.goto("/projects");
-    await expect(page.getByText("Cloud projects are synced to this device.", { exact: true })).toBeVisible();
+    await expect(page.getByText("Cloud projects are available on this device.", { exact: true })).toBeVisible();
     const before = await page.evaluate((storageKey) => localStorage.getItem(storageKey), projectStorageKey(primaryUserId));
     await page.getByRole("button", { name: "Save to cloud", exact: true }).click();
     await expect(page.getByTestId("point-object-projects-page").getByRole("alert")).toContainText(scenario === "conflict"

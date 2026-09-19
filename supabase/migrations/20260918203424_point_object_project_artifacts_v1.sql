@@ -501,7 +501,7 @@ begin
       conflict_reason := 'stale_cloud_revision';
     elsif not (
       (saved.artifact_json = target_artifact_json and incoming_view_revision = saved.view_revision)
-      or (saved.artifact_kind in ('find', 'create') and incoming_view_revision = saved.view_revision + 1)
+      or (saved.artifact_kind in ('find', 'create') and incoming_view_revision > saved.view_revision)
     ) then
       outcome := 'conflict';
       conflict_reason := 'stale_view_revision';

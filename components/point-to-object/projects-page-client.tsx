@@ -115,22 +115,25 @@ export function PointObjectProjectsPageClient() {
   // Never render a previous identity's results while its successor is loading.
   const visibleStore = store?.identityKey === identityKey ? store : null;
   const unavailable = readStatus === "damaged" || readStatus === "inaccessible";
+  const cloudCanSave = cloudSync.status === "ready" || cloudSync.status === "local_ahead";
   const cloudMessage = user?.isDemoUser === false
     ? cloudSync.status === "syncing"
       ? (locale === "ru" ? "Синхронизируем облачные проекты…" : "Syncing cloud projects…")
       : cloudSync.status === "ready"
-        ? (locale === "ru" ? "Облачные проекты синхронизированы с этим устройством." : "Cloud projects are synced to this device.")
-        : cloudSync.status === "conflict"
-          ? (locale === "ru" ? "Облачная версия отличается; локальная запись сохранена без изменений." : "The cloud copy differs; existing local bytes were preserved.")
-          : cloudSync.status === "capacity"
-            ? (locale === "ru" ? "На этом устройстве достигнут лимит локальных проектов. Освободите место и перезагрузите страницу; исходные данные сохранены." : "This device reached its local project limit. Free space and reload; existing bytes were preserved.")
-          : cloudSync.status === "failed"
-            ? (locale === "ru" ? "Облачная синхронизация временно недоступна; локальная запись сохранена." : "Cloud sync is temporarily unavailable; the local copy is preserved.")
-            : cloudSync.status === "denied"
-              ? (locale === "ru" ? "Для этого проекта нет доступа к облачной синхронизации." : "Cloud sync is not authorized for this project.")
-              : cloudSync.status === "unavailable"
-                ? (locale === "ru" ? "Облачная синхронизация не включена в этой среде; локальная копия сохранена на устройстве." : "Cloud sync is not enabled in this environment; the local copy remains on this device.")
-                : null
+        ? (locale === "ru" ? "Облачные проекты доступны на этом устройстве." : "Cloud projects are available on this device.")
+        : cloudSync.status === "local_ahead"
+          ? (locale === "ru" ? "На этом устройстве есть локальные изменения, ещё не сохранённые в облаке." : "This device has local changes that have not been saved to cloud yet.")
+          : cloudSync.status === "conflict"
+            ? (locale === "ru" ? "Облачная версия отличается; локальная запись сохранена без изменений." : "The cloud copy differs; existing local bytes were preserved.")
+            : cloudSync.status === "capacity"
+              ? (locale === "ru" ? "На этом устройстве достигнут лимит локальных проектов. Освободите место и перезагрузите страницу; исходные данные сохранены." : "This device reached its local project limit. Free space and reload; existing bytes were preserved.")
+              : cloudSync.status === "failed"
+                ? (locale === "ru" ? "Облачная синхронизация временно недоступна; локальная запись сохранена." : "Cloud sync is temporarily unavailable; the local copy is preserved.")
+                : cloudSync.status === "denied"
+                  ? (locale === "ru" ? "Для этого проекта нет доступа к облачной синхронизации." : "Cloud sync is not authorized for this project.")
+                  : cloudSync.status === "unavailable"
+                    ? (locale === "ru" ? "Облачная синхронизация не включена в этой среде; локальная копия сохранена на устройстве." : "Cloud sync is not enabled in this environment; the local copy remains on this device.")
+                    : null
     : null;
   const counts = { analyse: 0, find: 0, create: 0 };
   for (const project of visibleStore?.projects ?? []) {
@@ -187,7 +190,7 @@ export function PointObjectProjectsPageClient() {
 
   async function saveSelectedProjectToCloud(projectId: string) {
     if (!identityKey || identityRef.current !== identityKey || user?.isDemoUser !== false ||
-        visibleStore?.activeProjectId !== projectId || cloudSync.status !== "ready" || cloudSavingProjectId) return;
+        visibleStore?.activeProjectId !== projectId || !cloudCanSave || cloudSavingProjectId) return;
     const initiatingIdentity = identityKey;
     setCloudSavingProjectId(projectId);
     setCloudActionMessage(null);
@@ -369,7 +372,7 @@ export function PointObjectProjectsPageClient() {
                 </form> : <div className="flex flex-wrap items-center gap-x-3 gap-y-1"><h3 className="break-words text-lg font-bold">{project.name}</h3><button type="button" disabled={renamePending} aria-label={locale === "ru" ? `Переименовать ${project.name}` : `Rename ${project.name}`} onClick={() => { setError(null); setRenaming({ projectId: project.projectId, originalName: project.name, name: project.name }); }} className="min-h-11 shrink-0 rounded-lg px-2 text-xs font-semibold text-[#087f8c] hover:bg-[#eefaf8] focus-visible:ring-2 focus-visible:ring-[#087f8c]">{locale === "ru" ? "Переименовать" : "Rename"}</button></div>}
                 <p className="mt-1 text-xs text-muted">{locale === "ru" ? "Показано результатов" : "Results shown"}: {project.artifacts.length}</p>
               </div>
-              {visibleStore?.activeProjectId === project.projectId ? <div className="flex flex-wrap items-center justify-end gap-2"><span className="rounded-full bg-[#e8f7f2] px-3 py-1 text-[11px] font-bold text-[#176548]">{locale === "ru" ? "Активный" : "Active"}</span>{user?.isDemoUser === false ? <button type="button" onClick={() => void saveSelectedProjectToCloud(project.projectId)} disabled={!(visibleStore.projects.find((candidate) => candidate.projectId === project.projectId)?.artifacts.length) || cloudSavingProjectId !== null || cloudSync.status !== "ready"} className={`${CONTROL} text-xs font-bold disabled:cursor-wait disabled:opacity-60`}>{cloudSavingProjectId === project.projectId ? (locale === "ru" ? "Сохраняем в облаке…" : "Saving to cloud…") : (locale === "ru" ? "Сохранить в облаке" : "Save to cloud")}</button> : null}</div> : <button type="button" onClick={() => { if (identityKey) void selectPointObjectProject(identityKey, project.projectId).then(() => refresh()).catch((caught) => setError(caught instanceof Error ? caught.message : "Project selection failed.")); }} className={`${CONTROL} text-xs font-bold`}>{locale === "ru" ? "Выбрать" : "Select"}</button>}
+              {visibleStore?.activeProjectId === project.projectId ? <div className="flex flex-wrap items-center justify-end gap-2"><span className="rounded-full bg-[#e8f7f2] px-3 py-1 text-[11px] font-bold text-[#176548]">{locale === "ru" ? "Активный" : "Active"}</span>{user?.isDemoUser === false ? <button type="button" onClick={() => void saveSelectedProjectToCloud(project.projectId)} disabled={!(visibleStore.projects.find((candidate) => candidate.projectId === project.projectId)?.artifacts.length) || cloudSavingProjectId !== null || !cloudCanSave} className={`${CONTROL} text-xs font-bold disabled:cursor-wait disabled:opacity-60`}>{cloudSavingProjectId === project.projectId ? (locale === "ru" ? "Сохраняем в облаке…" : "Saving to cloud…") : (locale === "ru" ? "Сохранить в облаке" : "Save to cloud")}</button> : null}</div> : <button type="button" onClick={() => { if (identityKey) void selectPointObjectProject(identityKey, project.projectId).then(() => refresh()).catch((caught) => setError(caught instanceof Error ? caught.message : "Project selection failed.")); }} className={`${CONTROL} text-xs font-bold`}>{locale === "ru" ? "Выбрать" : "Select"}</button>}
             </div>
             {project.artifacts.length ? <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{project.artifacts.map((artifact) => (
               <article key={artifact.artifactId} data-testid="saved-result-card" className="flex min-w-0 flex-col rounded-xl border border-line bg-[#fbfcfd] p-4">

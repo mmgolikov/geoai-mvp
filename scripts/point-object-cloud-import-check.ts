@@ -96,23 +96,31 @@ const replayed = await projects.importPointObjectCloudArtifact(targetIdentity, c
 assert.equal(replayed.status, "replayed");
 assert.equal(localStorage.getItem(targetKey), importedBytes, "An exact cloud replay must not rewrite local bytes.");
 
-const localFindUpdate = await projects.updatePointObjectFindViewState(targetIdentity, cloudArtifact.artifactId, {
+const firstLocalFindUpdate = await projects.updatePointObjectFindViewState(targetIdentity, cloudArtifact.artifactId, {
   shortlist: cloudArtifact.kind === "find" ? cloudArtifact.payload.session.result.candidates.slice(0, 1) : [],
+  comparisonOpen: false,
+  comparisonView: "results",
+  analysisTargetSourceFeatureId: null
+});
+assert.equal(firstLocalFindUpdate.status, "saved");
+const localFindUpdate = await projects.updatePointObjectFindViewState(targetIdentity, cloudArtifact.artifactId, {
+  shortlist: [],
   comparisonOpen: false,
   comparisonView: "results",
   analysisTargetSourceFeatureId: null
 });
 assert.equal(localFindUpdate.status, "saved");
 if (localFindUpdate.status !== "saved") throw new Error("Expected a valid local Find view successor.");
+assert.equal(localFindUpdate.artifact.viewRevision, cloudArtifact.viewRevision + 2);
 const localFindBytes = localStorage.getItem(targetKey);
 const olderCloudAfterLocalUpdate = await projects.importPointObjectCloudArtifact(targetIdentity, cloudProject, cloudArtifact);
 assert.equal(olderCloudAfterLocalUpdate.status, "local_newer",
-  "A verified local Find view exactly one revision ahead of the same immutable cloud result must remain eligible for explicit CAS save.");
+  "A verified local Find view two revisions ahead of the same immutable cloud result must remain eligible for explicit CAS save.");
 assert.equal(localStorage.getItem(targetKey), localFindBytes, "Recognizing a local successor must not rewrite its bytes.");
 
 const equalRevisionDifferentView = structuredClone(localFindUpdate.artifact);
 if (equalRevisionDifferentView.kind !== "find") throw new Error("Expected a Find successor.");
-equalRevisionDifferentView.payload.session.shortlist = [];
+equalRevisionDifferentView.payload.session.shortlist = equalRevisionDifferentView.payload.session.result.candidates.slice(0, 1);
 equalRevisionDifferentView.payload.session.comparisonOpen = false;
 equalRevisionDifferentView.payload.session.analysisTargetSourceFeatureId = null;
 equalRevisionDifferentView.payloadHash = await projects.hashPointObjectOperation(equalRevisionDifferentView);

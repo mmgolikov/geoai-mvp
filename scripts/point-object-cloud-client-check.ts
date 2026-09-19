@@ -440,17 +440,35 @@ async function exerciseRealLocalSuccessor(input: PointObjectProjectOperationInpu
   const saved = await projects.savePointObjectOperation(identityKey, input, `operation-cloud-local-${label}`);
   assert.equal(saved.status, "saved");
   if (saved.status !== "saved") throw new Error(`Expected a saved ${label} cloud fixture.`);
-  const remoteArtifact = structuredClone(saved.artifact);
-  const updated = label === "find" && saved.artifact.kind === "find"
-    ? await projects.updatePointObjectFindViewState(identityKey, saved.artifact.artifactId, {
+  let remoteArtifact = structuredClone(saved.artifact);
+  let updated;
+  if (label === "find" && saved.artifact.kind === "find") {
+    const firstUpdate = await projects.updatePointObjectFindViewState(identityKey, saved.artifact.artifactId, {
         shortlist: saved.artifact.payload.session.result.candidates.slice(0, 1),
         comparisonOpen: false,
         comparisonView: "results",
         analysisTargetSourceFeatureId: null
-      })
-    : await projects.updatePointObjectCreateViewState(identityKey, saved.artifact.artifactId, "B");
+    });
+    assert.equal(firstUpdate.status, "saved");
+    updated = await projects.updatePointObjectFindViewState(identityKey, saved.artifact.artifactId, {
+      shortlist: [],
+      comparisonOpen: false,
+      comparisonView: "results",
+      analysisTargetSourceFeatureId: null
+    });
+  } else {
+    const firstUpdate = await projects.updatePointObjectCreateViewState(identityKey, saved.artifact.artifactId, "B");
+    assert.equal(firstUpdate.status, "saved");
+    if (firstUpdate.status !== "saved") throw new Error("Expected the Create revision-one cloud base.");
+    remoteArtifact = structuredClone(firstUpdate.artifact);
+    const secondUpdate = await projects.updatePointObjectCreateViewState(identityKey, saved.artifact.artifactId, "A");
+    assert.equal(secondUpdate.status, "saved");
+    updated = await projects.updatePointObjectCreateViewState(identityKey, saved.artifact.artifactId, "B");
+  }
   assert.equal(updated.status, "saved");
   if (updated.status !== "saved") throw new Error(`Expected a local ${label} successor.`);
+  assert.equal(updated.artifact.viewRevision, remoteArtifact.viewRevision + 2,
+    `The ${label} fixture must exercise two real local view changes after the cloud snapshot.`);
   assert.deepEqual(
     localIntegrity.pointObjectCloudLocalImmutableProjection(updated.artifact),
     cloudContract.pointObjectCloudImmutableProjection(updated.artifact),
@@ -477,9 +495,11 @@ async function exerciseRealLocalSuccessor(input: PointObjectProjectOperationInpu
   assert.equal(browserLocalStorage.getItem(storageKey), localBytesBeforeGet,
     `Rejected ${label} remote candidates must preserve every local byte.`);
   let putCount = 0;
+  const successorStatuses: string[] = [];
   const successorSession = cloud.createPointObjectCloudSyncSession({
     identityKey,
     importArtifact: projects.importPointObjectCloudArtifact,
+    onStatus: (status: string) => successorStatuses.push(status),
     fetcher: async (_url: RequestInfo | URL, init?: RequestInit) => {
       if (init?.method === "GET") return okPage([{
         cloudRevision: 7,
@@ -494,7 +514,7 @@ async function exerciseRealLocalSuccessor(input: PointObjectProjectOperationInpu
       };
       assert.equal(body.localProject.projectId, project.projectId);
       assert.equal(body.artifact.artifactId, updated.artifact.artifactId);
-      assert.equal(body.artifact.viewRevision, remoteArtifact.viewRevision + 1);
+      assert.equal(body.artifact.viewRevision, remoteArtifact.viewRevision + 2);
       assert.equal(body.expectedCloudRevision, 7, "The GET cloud revision must remain the CAS base for the explicit update.");
       return new Response(JSON.stringify({
         ok: true,
@@ -508,6 +528,8 @@ async function exerciseRealLocalSuccessor(input: PointObjectProjectOperationInpu
     }
   });
   assert.equal(await successorSession.start(), "ready", `An older same-immutable ${label} cloud view must allow explicit save.`);
+  assert.equal(successorSession.getStatus(), "local_ahead", `An unsaved local ${label} successor must not be presented as fully synced.`);
+  assert.deepEqual(successorStatuses, ["syncing", "local_ahead"]);
   assert.equal(browserLocalStorage.getItem(storageKey), localBytesBeforeGet, "GET must preserve the newer local bytes exactly.");
   const currentProject = (await projects.readVerifiedPointObjectProjects(identityKey)).store?.projects.find(
     (candidate: { projectId: string }) => candidate.projectId === project.projectId
@@ -520,6 +542,7 @@ async function exerciseRealLocalSuccessor(input: PointObjectProjectOperationInpu
     currentArtifact
   );
   assert.equal(result.status, "saved");
+  assert.equal(successorSession.getStatus(), "ready", `A successful explicit ${label} snapshot should clear local-ahead status.`);
   assert.equal(putCount, 1);
   assert.equal(browserLocalStorage.getItem(storageKey), localBytesBeforeGet, "Explicit cloud save must not rewrite local project bytes.");
   successorSession.close();

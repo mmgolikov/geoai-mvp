@@ -44,7 +44,7 @@ export type PointObjectCloudPutResult =
 
 export type PointObjectCloudImportOutcome = "imported" | "replayed" | "local_newer" | "conflict" | "capacity" | "failed";
 
-export type PointObjectCloudSyncStatus = PointObjectCloudAvailability | "idle" | "syncing" | "conflict" | "capacity";
+export type PointObjectCloudSyncStatus = PointObjectCloudAvailability | "idle" | "syncing" | "local_ahead" | "conflict" | "capacity";
 
 type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
@@ -209,6 +209,7 @@ export async function putPointObjectCloudArtifact(input: {
 export function createPointObjectCloudSyncSession(input: PointObjectCloudSyncSessionInput) {
   const controller = new AbortController();
   const revisions = new Map<string, number>();
+  const localAheadArtifactIds = new Set<string>();
   let closed = false;
   let status: PointObjectCloudSyncStatus = "syncing";
   let started: Promise<PointObjectCloudAvailability | "conflict" | "capacity"> | null = null;
@@ -247,11 +248,12 @@ export function createPointObjectCloudSyncSession(input: PointObjectCloudSyncSes
           if (imported.status === "failed") importFailure = "failed";
           else if (imported.status === "capacity" && importFailure !== "failed") importFailure = "capacity";
           else if (imported.status === "conflict" && importFailure === null) importFailure = "conflict";
+          else if (imported.status === "local_newer") localAheadArtifactIds.add(item.artifact.artifactId);
         }
         writesBlocked = importFailure !== null;
-        const importStatus: "ready" | "conflict" | "capacity" | "failed" = importFailure ?? "ready";
+        const importStatus: PointObjectCloudSyncStatus = importFailure ?? (localAheadArtifactIds.size > 0 ? "local_ahead" : "ready");
         setStatus(importStatus);
-        return importStatus;
+        return importFailure ?? "ready";
       } catch (error) {
         if (closed || controller.signal.aborted || (error instanceof DOMException && error.name === "AbortError")) return "aborted" as const;
         writesBlocked = true;
@@ -265,7 +267,7 @@ export function createPointObjectCloudSyncSession(input: PointObjectCloudSyncSes
   const persist = (localProject: PointObjectCloudClientProject, artifact: SavedPointObjectArtifact): Promise<PointObjectCloudPutResult | { status: "skipped" }> => {
     const operation = uploadQueue.catch(() => undefined).then(async (): Promise<PointObjectCloudPutResult | { status: "skipped" }> => {
       const availability = await start();
-      if (closed || availability !== "ready" || writesBlocked || status !== "ready") return { status: "skipped" };
+      if (closed || availability !== "ready" || writesBlocked || (status !== "ready" && status !== "local_ahead")) return { status: "skipped" };
       const result = await putPointObjectCloudArtifact({
         localProject,
         artifact,
@@ -276,7 +278,8 @@ export function createPointObjectCloudSyncSession(input: PointObjectCloudSyncSes
       if (closed) return { status: "skipped" };
       if (result.status === "saved") {
         revisions.set(artifact.artifactId, result.cloudRevision);
-        setStatus("ready");
+        localAheadArtifactIds.delete(artifact.artifactId);
+        setStatus(localAheadArtifactIds.size > 0 ? "local_ahead" : "ready");
       } else if (result.status === "conflict") {
         writesBlocked = true;
         setStatus("conflict");
