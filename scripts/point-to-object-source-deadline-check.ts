@@ -257,7 +257,7 @@ assert.equal(pointObjectSourceResponseIsCurrent(6, 7, currentController.signal),
 currentController.abort();
 assert.equal(pointObjectSourceResponseIsCurrent(7, 7, currentController.signal), false);
 
-const { resolvePointObjectAreaContext, PointObjectAreaContextError } = await import("../src/lib/prototype/point-to-object-area-context");
+const { resolvePointObjectAreaContext } = await import("../src/lib/prototype/point-to-object-area-context");
 const { findPointObjects, PointObjectFindError } = await import("../src/lib/prototype/point-to-object-find");
 const areaRequest = {
   marketKey: "dubai",
@@ -295,10 +295,10 @@ try {
   await new Promise((resolve) => setTimeout(resolve, 0));
   headerController.abort(new PointObjectSourceDeadlineError());
   await assert.rejects(headerPromise, (error: unknown) =>
-    error instanceof PointObjectAreaContextError && error.httpStatus === 504
+    error instanceof PointObjectSourceDeadlineError
   );
   assert.equal(upstreamCalls, 1);
-  assert.equal(headerWaitCancelled, true, "The shared route signal must cancel a source waiting for response headers.");
+  assert.equal(headerWaitCancelled, true, "The shared route signal must cancel a source waiting for response headers without relabelling caller cancellation as upstream failure.");
 
   const bodyController = new AbortController();
   globalThis.fetch = async (_input, init) => {

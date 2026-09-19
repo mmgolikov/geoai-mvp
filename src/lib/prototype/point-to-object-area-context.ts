@@ -112,6 +112,9 @@ async function fetchAreaContext(query: string, routeSignal?: AbortSignal): Promi
       cache: "no-store"
     }), signal);
   } catch (error) {
+    // Preserve the route-owned cancellation so the route trace cannot
+    // misclassify a disconnected/expired caller as an upstream failure.
+    if (routeSignal?.aborted) throw routeSignal.reason ?? error;
     if (isPointObjectSourceDeadlineError(error) || (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError"))) {
       throw new PointObjectAreaContextError(504, "The open-map area lookup timed out.", true);
     }
@@ -129,6 +132,7 @@ async function fetchAreaContext(query: string, routeSignal?: AbortSignal): Promi
     return payload;
   } catch (error) {
     if (error instanceof PointObjectAreaContextError) throw error;
+    if (routeSignal?.aborted) throw routeSignal.reason ?? error;
     if (isPointObjectSourceDeadlineError(error) || (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError"))) throw new PointObjectAreaContextError(504, "The open-map area lookup timed out.", true);
     if (error instanceof PointObjectAreaContextPayloadError) throw mapPayloadError(error);
     throw new PointObjectAreaContextError(502, "The open-map area lookup returned invalid data.", true);
