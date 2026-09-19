@@ -14,7 +14,10 @@ export const browserProgressStages = Object.freeze({
     "writer_clean_reopen", "writer_map_navigation", "writer_map_canvas", "writer_map_ready",
     "writer_map_no_put", "writer_map_network_clean", "outsider_login", "outsider_assertion"
   ]),
-  viewer_denial: Object.freeze(["viewer_login", "viewer_cloud_read", "viewer_save", "viewer_assertion"])
+  viewer_denial: Object.freeze([
+    "viewer_login", "viewer_cloud_read", "viewer_save", "viewer_assertion",
+    "viewer_http_denial", "viewer_message", "viewer_original", "viewer_network"
+  ])
 });
 const browserRunnerStages = new Set([
   "browser_preflight", "browser_process_unconfirmed", "invalid_report_identity", "invalid_result_schema",

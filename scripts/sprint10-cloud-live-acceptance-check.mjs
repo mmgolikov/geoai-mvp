@@ -423,6 +423,8 @@ assert.match(spec, /getByText\("Live map ready\. Set criteria and search the vis
 assert.doesNotMatch(spec, /progress\("writer_map"\)/);
 assert.match(spec, /localStorage\.getItem\(key\)[\s\S]*toBe\(originalBytes\)/);
 assert.match(spec, /expect\(\(await put\)\.status\(\)\)\.toBe\(403\)/);
+assert.match(spec, /toBe\(403\);\s*progress\("viewer_http_denial"\);[\s\S]*?toContainText\("not saved completely"\);\s*progress\("viewer_message"\);[\s\S]*?toBe\(originalBytes\);\s*progress\("viewer_original"\);[\s\S]*?assertNetworkClean\(\);\s*progress\("viewer_network"\);/,
+  "viewer denial diagnostics must distinguish HTTP denial, safe UI copy, original bytes and network policy without exposing raw output");
 assert.doesNotMatch(`${harness}\n${runner}\n${spec}`, /console\.(?:log|error)\([^\n]*(?:PASSWORD|BYPASS|ADMIN_SECRET|PUBLISHABLE)/);
 
 console.log(JSON.stringify({ status: "PASS", playwrightReporterParity: reporterParitySummary,

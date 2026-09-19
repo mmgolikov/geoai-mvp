@@ -251,9 +251,13 @@ test("viewer cannot save", async ({ browser }) => {
     await button.click();
     progress("viewer_assertion");
     expect((await put).status()).toBe(403);
+    progress("viewer_http_denial");
     await expect(viewer.page.getByRole("alert")).toContainText("not saved completely");
+    progress("viewer_message");
     expect(await viewer.page.evaluate((key) => localStorage.getItem(key), storageKey(personaB.userId))).toBe(originalBytes);
+    progress("viewer_original");
     viewer.assertNetworkClean();
+    progress("viewer_network");
   } finally {
     await close(contexts);
   }
