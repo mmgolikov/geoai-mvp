@@ -435,6 +435,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
   const previousLocaleRef = useRef(locale);
   const projectRestoreAppliedRef = useRef<PointObjectProjectIdentity | null | undefined>(undefined);
   const projectRestorationGenerationRef = useRef(0);
+  const projectRestorationReadyRef = useRef(false);
   const suppressRestoredAreaContextRequestRef = useRef(false);
   const projectIdentityRef = useRef<PointObjectProjectIdentity | null>(projectIdentity);
   const createSaveContextRef = useRef<CreateSaveContext | null>(null);
@@ -461,6 +462,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
   findResultRef.current = findResult;
   const projectRestorationReady = projectRestorationSettled && sessionReady && isSessionResolved &&
     projectRestoreAppliedRef.current === projectIdentity;
+  projectRestorationReadyRef.current = projectRestorationReady;
 
   const findRoles = useMemo(() => getExecutableFindRoles(findAudience), [findAudience]);
   const findScenarios = useMemo(() => getExecutableFindScenarios(findAudience, findRole), [findAudience, findRole]);
@@ -1627,21 +1629,28 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
   }
 
   async function uploadCreateArea(event: React.ChangeEvent<HTMLInputElement>) {
+    const uploadIdentity = projectIdentityRef.current;
+    const uploadRestorationGeneration = projectRestorationGenerationRef.current;
+    const uploadIsCurrent = () => projectRestorationReadyRef.current &&
+      projectIdentityRef.current === uploadIdentity &&
+      projectRestorationGenerationRef.current === uploadRestorationGeneration;
     const file = event.target.files?.[0];
     event.target.value = "";
-    if (!file || !projectRestorationReady) return;
+    if (!file || !uploadIsCurrent()) return;
     if (file.size > 1_000_000) {
-      setCreateError(t("create.uploadError"));
+      if (uploadIsCurrent()) setCreateError(t("create.uploadError"));
       return;
     }
     try {
       const parsed: unknown = JSON.parse(await file.text());
+      if (!uploadIsCurrent()) return;
       const vertices = extractSinglePolygon(parsed);
       if (!vertices) throw new Error("invalid");
+      if (!uploadIsCurrent()) return;
       setDraftCoordinates(vertices);
       closeCreateArea(vertices, true);
     } catch {
-      setCreateError(t("create.uploadError"));
+      if (uploadIsCurrent()) setCreateError(t("create.uploadError"));
     }
   }
 
