@@ -7,8 +7,14 @@ import { requirePilotIdentity, requirePilotMutationOrigin } from "@/src/lib/auth
 import { readBoundedJson } from "@/src/lib/http/bounded-json";
 import { resolvePointObjectAreaContext, PointObjectAreaContextError } from "@/src/lib/prototype/point-to-object-area-context";
 import { parsePointObjectAreaContextRequest } from "@/src/lib/prototype/point-to-object-area-context-contract";
+import {
+  createPointObjectSourceRequestDeadline,
+  isPointObjectSourceDeadlineError,
+  withPointObjectSourceRequestDeadline
+} from "@/src/lib/prototype/source-request-deadline";
 
 export const runtime = "nodejs";
+export const maxDuration = 45;
 
 const RATE_WINDOW_MS = 10 * 60 * 1000;
 const RATE_MAX_REQUESTS = 6;
@@ -51,38 +57,47 @@ function consumeRateLimit(request: Request): { allowed: true } | { allowed: fals
   return { allowed: true };
 }
 
-export async function POST(request: Request) {
-  const identity = await requirePilotIdentity(request);
-  if (!identity.allowed) return identity.response;
-  const mutationOrigin = requirePilotMutationOrigin(request);
-  if (mutationOrigin) return mutationOrigin;
-  if (!runtimeAllowed()) {
-    return NextResponse.json({ mode: "unavailable", error: "Open-map area context is not available in this environment." }, { status: 403, headers: noStoreHeaders() });
-  }
-  if (!sameOrigin(request)) {
-    return NextResponse.json({ mode: "unavailable", error: "The area-context request must originate from this application." }, { status: 403, headers: noStoreHeaders() });
-  }
-  const parsedBody = await readBoundedJson(request, 20 * 1024);
-  if (!parsedBody.ok) {
-    return NextResponse.json({ mode: "unavailable", error: "A valid bounded polygon request is required." }, { status: parsedBody.status, headers: noStoreHeaders() });
-  }
-  const parsedRequest = parsePointObjectAreaContextRequest(parsedBody.value);
-  if (!parsedRequest.ok) {
-    return NextResponse.json({ mode: "unavailable", error: parsedRequest.error }, { status: 400, headers: noStoreHeaders() });
-  }
-  const rate = consumeRateLimit(request);
-  if (!rate.allowed) {
-    return NextResponse.json({ mode: "unavailable", code: "APPLICATION_RATE_LIMITED", error: "Open-map area context is temporarily rate limited.", retryable: true }, {
-      status: 429,
-      headers: noStoreHeaders({ "Retry-After": String(rate.retryAfterSeconds) })
-    });
-  }
+export async function POST(incomingRequest: Request) {
+  const sourceDeadline = createPointObjectSourceRequestDeadline(undefined, incomingRequest.signal);
   try {
-    return NextResponse.json(await resolvePointObjectAreaContext(parsedRequest.value), { headers: noStoreHeaders() });
+    const request = withPointObjectSourceRequestDeadline(incomingRequest, sourceDeadline.signal);
+    const identity = await sourceDeadline.run(async () => await requirePilotIdentity(request));
+    if (!identity.allowed) return identity.response;
+    const mutationOrigin = requirePilotMutationOrigin(request);
+    if (mutationOrigin) return mutationOrigin;
+    if (!runtimeAllowed()) {
+      return NextResponse.json({ mode: "unavailable", error: "Open-map area context is not available in this environment." }, { status: 403, headers: noStoreHeaders() });
+    }
+    if (!sameOrigin(request)) {
+      return NextResponse.json({ mode: "unavailable", error: "The area-context request must originate from this application." }, { status: 403, headers: noStoreHeaders() });
+    }
+    const parsedBody = await sourceDeadline.run(async () => await readBoundedJson(request, 20 * 1024));
+    if (!parsedBody.ok) {
+      return NextResponse.json({ mode: "unavailable", error: "A valid bounded polygon request is required." }, { status: parsedBody.status, headers: noStoreHeaders() });
+    }
+    const parsedRequest = parsePointObjectAreaContextRequest(parsedBody.value);
+    if (!parsedRequest.ok) {
+      return NextResponse.json({ mode: "unavailable", error: parsedRequest.error }, { status: 400, headers: noStoreHeaders() });
+    }
+    const rate = consumeRateLimit(request);
+    if (!rate.allowed) {
+      return NextResponse.json({ mode: "unavailable", code: "APPLICATION_RATE_LIMITED", error: "Open-map area context is temporarily rate limited.", retryable: true }, {
+        status: 429,
+        headers: noStoreHeaders({ "Retry-After": String(rate.retryAfterSeconds) })
+      });
+    }
+    return NextResponse.json(await sourceDeadline.run(async (signal) =>
+      await resolvePointObjectAreaContext(parsedRequest.value, undefined, signal)
+    ), { headers: noStoreHeaders() });
   } catch (error) {
+    if (isPointObjectSourceDeadlineError(error)) {
+      return NextResponse.json({ mode: "unavailable", code: "SOURCE_REQUEST_TIMEOUT", error: "Open-map area context did not complete in time.", retryable: true }, { status: 504, headers: noStoreHeaders() });
+    }
     if (error instanceof PointObjectAreaContextError) {
       return NextResponse.json({ mode: "unavailable", code: error.httpStatus === 429 ? "OVERPASS_RATE_LIMITED" : error.httpStatus === 504 ? "OVERPASS_TIMEOUT" : "OVERPASS_UNAVAILABLE", error: error.message, retryable: error.retryable }, { status: error.httpStatus, headers: noStoreHeaders(error.httpStatus === 429 ? { "Retry-After": String(error.retryAfterSeconds ?? 15) } : {}) });
     }
     return NextResponse.json({ mode: "unavailable", error: "Open-map area context could not be completed.", retryable: true }, { status: 502, headers: noStoreHeaders() });
+  } finally {
+    sourceDeadline.dispose();
   }
 }

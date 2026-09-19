@@ -2,6 +2,13 @@ import "server-only";
 
 import { unstable_cache } from "next/cache";
 import { sourceRetryAfterSeconds, waitForSourceAdmission } from "./point-to-object-source-recovery";
+import {
+  isPointObjectSourceDeadlineError,
+  POINT_OBJECT_SOURCE_UPSTREAM_TIMEOUT_MS,
+  pointObjectSourceCanUseSharedCache,
+  pointObjectSourceOperationSignal,
+  waitForPointObjectSourceOperation
+} from "./source-request-deadline";
 
 import { semanticHash } from "@/src/lib/point-to-object/hash";
 import {
@@ -18,7 +25,7 @@ import {
 
 const OVERPASS_ENDPOINT = "https://overpass-api.de/api/interpreter";
 // Public Overpass admission can queue for 15s before the unchanged 5s query budget.
-const OVERPASS_TIMEOUT_MS = 24_000;
+const OVERPASS_TIMEOUT_MS = POINT_OBJECT_SOURCE_UPSTREAM_TIMEOUT_MS;
 const OVERPASS_RESPONSE_MAX_BYTES = 512 * 1024;
 const OVERPASS_REVALIDATE_SECONDS = 15 * 60;
 const OVERPASS_MIN_INTERVAL_MS = 1_200;
@@ -69,10 +76,11 @@ async function waitForOverpassSlot(signal: AbortSignal): Promise<void> {
 }
 
 function timeoutError(error: unknown): boolean {
-  return error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
+  return isPointObjectSourceDeadlineError(error) ||
+    (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError"));
 }
 
-async function readBoundedText(response: Response): Promise<string> {
+async function readBoundedText(response: Response, signal: AbortSignal): Promise<string> {
   const declaredLength = Number(response.headers.get("content-length"));
   if (Number.isFinite(declaredLength) && declaredLength > OVERPASS_RESPONSE_MAX_BYTES) {
     await response.body?.cancel().catch(() => undefined);
@@ -85,27 +93,32 @@ async function readBoundedText(response: Response): Promise<string> {
   const decoder = new TextDecoder();
   let byteCount = 0;
   let text = "";
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    byteCount += value.byteLength;
-    if (byteCount > OVERPASS_RESPONSE_MAX_BYTES) {
-      await reader.cancel().catch(() => undefined);
-      throw new PointObjectFindError("OVERPASS_RESPONSE_TOO_LARGE", 502, "Open-map Find coverage exceeded the response cap.", true);
+  try {
+    while (true) {
+      const { done, value } = await waitForPointObjectSourceOperation(reader.read(), signal);
+      if (done) break;
+      byteCount += value.byteLength;
+      if (byteCount > OVERPASS_RESPONSE_MAX_BYTES) {
+        await reader.cancel().catch(() => undefined);
+        throw new PointObjectFindError("OVERPASS_RESPONSE_TOO_LARGE", 502, "Open-map Find coverage exceeded the response cap.", true);
+      }
+      text += decoder.decode(value, { stream: true });
     }
-    text += decoder.decode(value, { stream: true });
+  } catch (error) {
+    void reader.cancel(error).catch(() => undefined);
+    throw error;
   }
   return text + decoder.decode();
 }
 
-async function fetchOverpassPayload(query: string): Promise<PointObjectFindUpstreamReceipt> {
-  const signal = AbortSignal.timeout(OVERPASS_TIMEOUT_MS);
+async function fetchOverpassPayload(query: string, routeSignal?: AbortSignal): Promise<PointObjectFindUpstreamReceipt> {
+  const signal = pointObjectSourceOperationSignal(routeSignal, OVERPASS_TIMEOUT_MS);
   const url = new URL(OVERPASS_ENDPOINT);
   url.searchParams.set("data", query);
   let response: Response;
   try {
     await waitForSourceAdmission(waitForOverpassSlot(signal), signal);
-    response = await fetch(url, {
+    response = await waitForPointObjectSourceOperation(fetch(url, {
       method: "GET",
       redirect: "error",
       signal,
@@ -113,7 +126,7 @@ async function fetchOverpassPayload(query: string): Promise<PointObjectFindUpstr
       // Cache only after payload validation. Overpass can return an HTTP 200
       // runtime-error remark, which must never become a cached empty result.
       cache: "no-store"
-    });
+    }), signal);
   } catch (error) {
     if (timeoutError(error)) {
       throw new PointObjectFindError("OVERPASS_TIMEOUT", 504, "Open-map Find timed out. Zoom in or retry later.", true);
@@ -133,7 +146,7 @@ async function fetchOverpassPayload(query: string): Promise<PointObjectFindUpstr
     );
   }
   try {
-    const text = await readBoundedText(response);
+    const text = await readBoundedText(response, signal);
     const payload = JSON.parse(text) as unknown;
     assertUsablePointObjectFindPayload(payload);
     return { payload, acquiredAt: new Date().toISOString() };
@@ -162,12 +175,16 @@ const fetchCachedOverpassPayload = unstable_cache(
 
 export async function findPointObjects(
   request: PointObjectFindRequest,
-  loader?: (query: string) => Promise<unknown>
+  loader?: (query: string, signal?: AbortSignal) => Promise<unknown>,
+  signal?: AbortSignal
 ): Promise<PointObjectFindResult> {
   const query = buildPointObjectFindOverpassQuery(request);
-  const receipt = loader
-    ? { payload: await loader(query), acquiredAt: new Date().toISOString() }
-    : await fetchCachedOverpassPayload(query);
+  const load = loader
+    ? async () => ({ payload: await loader(query, signal), acquiredAt: new Date().toISOString() })
+    : pointObjectSourceCanUseSharedCache(signal)
+      ? () => fetchCachedOverpassPayload(query)
+      : () => fetchOverpassPayload(query, signal);
+  const receipt = await load();
   const { payload, acquiredAt } = receipt;
   try {
     assertUsablePointObjectFindPayload(payload);

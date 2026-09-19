@@ -43,6 +43,27 @@ type ProfileRow = {
   identity_kind: string;
 };
 
+const REQUEST_AUTH_DEADLINE_SIGNAL = Symbol.for("geoai.point-object.request-auth-deadline-signal");
+
+type DeadlineAwareRequest = Request & {
+  [REQUEST_AUTH_DEADLINE_SIGNAL]?: AbortSignal;
+};
+
+async function waitForRequestAuthOperation<T>(operation: PromiseLike<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return operation;
+  signal.throwIfAborted();
+  let onAbort: (() => void) | undefined;
+  const aborted = new Promise<never>((_resolve, reject) => {
+    onAbort = () => reject(signal.reason ?? new DOMException("Request cancelled.", "AbortError"));
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+  try {
+    return await Promise.race([Promise.resolve(operation), aborted]);
+  } finally {
+    if (onAbort) signal.removeEventListener("abort", onAbort);
+  }
+}
+
 function result(
   requestId: string,
   status: RequestAuthStatus,
@@ -62,6 +83,9 @@ function result(
 
 export async function createRequestAuthContext(request?: Request): Promise<RequestAuthContext> {
   const requestId = crypto.randomUUID();
+  // Only the two bounded source routes attach this opt-in signal. Ordinary
+  // Auth callers keep their previous behavior and signatures unchanged.
+  const deadlineSignal = request ? (request as DeadlineAwareRequest)[REQUEST_AUTH_DEADLINE_SIGNAL] : undefined;
 
   if (getEffectiveAuthMode() !== "supabase_auth") {
     return result(requestId, "auth_mode_disabled", null);
@@ -73,17 +97,19 @@ export async function createRequestAuthContext(request?: Request): Promise<Reque
     return result(requestId, "unsupported_bearer_transport", null);
   }
 
-  const supabase = await createRequestScopedSupabaseClient();
+  const supabase = deadlineSignal
+    ? await waitForRequestAuthOperation(createRequestScopedSupabaseClient(deadlineSignal), deadlineSignal)
+    : await createRequestScopedSupabaseClient();
   if (!supabase) return result(requestId, "public_config_missing", null);
 
   try {
-    const claimsResponse = await supabase.auth.getClaims();
+    const claimsResponse = await waitForRequestAuthOperation(supabase.auth.getClaims(), deadlineSignal);
     const claims = claimsResponse.data?.claims;
     if (claimsResponse.error || !claims) {
       return result(requestId, "claims_unverified", supabase);
     }
 
-    const userResponse = await supabase.auth.getUser();
+    const userResponse = await waitForRequestAuthOperation(supabase.auth.getUser(), deadlineSignal);
     const user = userResponse.data.user;
     if (userResponse.error || !user) {
       return result(requestId, "user_unverified", supabase);
@@ -103,10 +129,11 @@ export async function createRequestAuthContext(request?: Request): Promise<Reque
       return result(requestId, identityEvidence.status, supabase);
     }
 
-    const profileResponse = await supabase
+    let profileQuery = supabase
       .schema("api")
-      .rpc("current_profile")
-      .maybeSingle<ProfileRow>();
+      .rpc("current_profile");
+    if (deadlineSignal) profileQuery = profileQuery.abortSignal(deadlineSignal);
+    const profileResponse = await waitForRequestAuthOperation(profileQuery.maybeSingle<ProfileRow>(), deadlineSignal);
 
     if (profileResponse.error) {
       return result(requestId, "dependency_unavailable", supabase, user);
@@ -127,7 +154,8 @@ export async function createRequestAuthContext(request?: Request): Promise<Reque
       status: "active",
       identityKind: "user"
     });
-  } catch {
+  } catch (error) {
+    if (deadlineSignal?.aborted) throw deadlineSignal.reason ?? error;
     return result(requestId, "dependency_unavailable", supabase);
   }
 }

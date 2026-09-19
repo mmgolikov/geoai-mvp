@@ -75,6 +75,11 @@ import {
 import { pointObjectFindCapability } from "@/src/lib/prototype/point-to-object-find-capabilities";
 import { pointObjectSourceFailure, sourceFailureMessage, sourceRetryAfterSeconds, type PointObjectSourceFailure } from "@/src/lib/prototype/point-to-object-source-recovery";
 import {
+  POINT_OBJECT_SOURCE_BROWSER_TIMEOUT_MS,
+  pointObjectSourceResponseIsCurrent,
+  samePointObjectAreaRequest
+} from "@/src/lib/prototype/source-request-deadline";
+import {
   isPointObjectFindResult,
   clearPointObjectFindSession,
   pointObjectFindSessionForProfileAudience,
@@ -385,6 +390,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
   const [areaContextRetryVersion, setAreaContextRetryVersion] = useState(0);
   const [areaContextRetryAfterSeconds, setAreaContextRetryAfterSeconds] = useState(0);
   const areaContextCooldownRef = useRef(0);
+  const areaContextRequestIdRef = useRef(0);
   const [areaContextFailure, setAreaContextFailure] = useState<PointObjectSourceFailure>("unavailable");
   const [visibleBounds, setVisibleBounds] = useState<PointObjectFindBounds | null>(null);
   const [findExplicitSearchBounds, setFindExplicitSearchBounds] = useState<PointObjectFindBounds | null>(null);
@@ -986,6 +992,8 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
   }, []);
 
   useEffect(() => {
+    areaContextRequestIdRef.current += 1;
+    const requestId = areaContextRequestIdRef.current;
     if (!createAoi) {
       setAreaContext(null);
       setAreaContextStatus("idle");
@@ -998,16 +1006,17 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
       setAreaContextRetryAfterSeconds(0);
       return;
     }
+    const areaRequest = { marketKey: locationKey, locale, aoiCoordinates: createAoi.coordinates };
     if (areaContextCooldownRef.current > Date.now()) {
-      setAreaContext(null);
+      setAreaContext((current) => current && samePointObjectAreaRequest(current.request, areaRequest) ? current : null);
       setAreaContextStatus("rate");
       setAreaContextRetryAfterSeconds(Math.ceil((areaContextCooldownRef.current - Date.now()) / 1_000));
       return;
     }
     const controller = new AbortController();
-    const timeoutSignal = AbortSignal.timeout(30_000);
+    const timeoutSignal = AbortSignal.timeout(POINT_OBJECT_SOURCE_BROWSER_TIMEOUT_MS);
     const onDeadline = () => {
-      if (controller.signal.aborted) return;
+      if (!pointObjectSourceResponseIsCurrent(requestId, areaContextRequestIdRef.current, controller.signal)) return;
       setAreaContextFailure("timeout");
       setAreaContextStatus("error");
       controller.abort(timeoutSignal.reason);
@@ -1015,15 +1024,15 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     timeoutSignal.addEventListener("abort", onDeadline, { once: true });
     setAreaContextStatus("loading");
     setAreaContextRetryAfterSeconds(0);
-    setAreaContext(null);
+    setAreaContext((current) => current && samePointObjectAreaRequest(current.request, areaRequest) ? current : null);
     void fetch("/api/prototype/point-to-object/area-context", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ marketKey: locationKey, locale, aoiCoordinates: createAoi.coordinates }),
+      body: JSON.stringify(areaRequest),
       signal: controller.signal
     }).then(async (response) => {
       const payload: unknown = await response.json();
-      if (controller.signal.aborted) return;
+      if (!pointObjectSourceResponseIsCurrent(requestId, areaContextRequestIdRef.current, controller.signal)) return;
       if (response.status === 429) {
         const seconds = sourceRetryAfterSeconds(response.headers.get("retry-after"));
         areaContextCooldownRef.current = Date.now() + seconds * 1_000;
@@ -1042,7 +1051,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     }).catch((error: unknown) => {
       // Only the local cleanup cancel is silent. Deadline aborts remain
       // actionable rather than leaving the Create panel in Loading forever.
-      if (controller.signal.aborted) return;
+      if (!pointObjectSourceResponseIsCurrent(requestId, areaContextRequestIdRef.current, controller.signal)) return;
       setAreaContextFailure(timeoutSignal.aborted || (error instanceof Error && error.name === "TimeoutError") ? "timeout" : "unavailable");
       setAreaContextStatus("error");
     }).finally(() => timeoutSignal.removeEventListener("abort", onDeadline));
@@ -1383,6 +1392,15 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     const destination = initiatingIdentity ? capturePointObjectProjectDestination(initiatingIdentity, { label: locale === "ru" ? "Поиск объектов" : "Find places" }) : null;
     findRequestIdRef.current = requestId;
     findRequestRef.current = controller;
+    const timeoutSignal = AbortSignal.timeout(POINT_OBJECT_SOURCE_BROWSER_TIMEOUT_MS);
+    let sourceResponseFinished = false;
+    const onDeadline = () => {
+      if (sourceResponseFinished || !pointObjectSourceResponseIsCurrent(requestId, findRequestIdRef.current, controller.signal)) return;
+      setFindFailure("timeout");
+      setFindStatus("error");
+      controller.abort(timeoutSignal.reason);
+    };
+    timeoutSignal.addEventListener("abort", onDeadline, { once: true });
     setFindStatus("loading");
     try {
       const mappedMinimumLevels = findMinimumLevels.trim() ? Number(findMinimumLevels) : null;
@@ -1390,11 +1408,12 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
       const response = await fetch("/api/prototype/point-to-object/find", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(28_000)]),
+        signal: controller.signal,
         body: JSON.stringify({ marketKey: locationKey, locale, bounds: requestBounds, group: findGroup, mappedMinimumLevels, mappedMaximumLevels, limit: 12 })
       });
       const payload: unknown = await response.json();
-      if (controller.signal.aborted || requestId !== findRequestIdRef.current) return;
+      sourceResponseFinished = true;
+      if (!pointObjectSourceResponseIsCurrent(requestId, findRequestIdRef.current, controller.signal)) return;
       if (response.ok && isPointObjectFindResult(payload)) {
         findFootprintRequestRef.current?.controller.abort();
         findFootprintRequestRef.current = null;
@@ -1425,11 +1444,12 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
         setFindStatus("error");
       }
     } catch (error) {
-      if (requestId === findRequestIdRef.current && !controller.signal.aborted) {
-        setFindFailure(error instanceof Error && error.name === "TimeoutError" ? "timeout" : "unavailable");
+      if (requestId === findRequestIdRef.current && (timeoutSignal.aborted || !controller.signal.aborted)) {
+        setFindFailure(timeoutSignal.aborted || (error instanceof Error && error.name === "TimeoutError") ? "timeout" : "unavailable");
         setFindStatus("error");
       }
     } finally {
+      timeoutSignal.removeEventListener("abort", onDeadline);
       if (findRequestRef.current === controller) findRequestRef.current = null;
     }
   }

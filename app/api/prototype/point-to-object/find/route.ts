@@ -7,8 +7,14 @@ import { requirePilotIdentity, requirePilotMutationOrigin } from "@/src/lib/auth
 import { readBoundedJson } from "@/src/lib/http/bounded-json";
 import { parsePointObjectFindRequest } from "@/src/lib/prototype/point-to-object-find-contract";
 import { findPointObjects, PointObjectFindError } from "@/src/lib/prototype/point-to-object-find";
+import {
+  createPointObjectSourceRequestDeadline,
+  isPointObjectSourceDeadlineError,
+  withPointObjectSourceRequestDeadline
+} from "@/src/lib/prototype/source-request-deadline";
 
 export const runtime = "nodejs";
+export const maxDuration = 45;
 
 const RATE_WINDOW_MS = 10 * 60 * 1000;
 const RATE_MAX_REQUESTS = 10;
@@ -65,47 +71,57 @@ function consumeRateLimit(request: Request): { allowed: true } | { allowed: fals
   return client.allowed ? consumeBucket("global", GLOBAL_RATE_MAX_REQUESTS) : client;
 }
 
-export async function POST(request: Request) {
-  const identity = await requirePilotIdentity(request);
-  if (!identity.allowed) return identity.response;
-  const mutationOrigin = requirePilotMutationOrigin(request);
-  if (mutationOrigin) return mutationOrigin;
-  if (!runtimeAllowed()) {
-    return NextResponse.json({ mode: "unavailable", error: "Open-map Find is not available in this environment." }, {
-      status: 403,
-      headers: noStoreHeaders()
-    });
-  }
-  if (!sameOrigin(request)) {
-    return NextResponse.json({ mode: "unavailable", error: "The Find request must originate from this application." }, {
-      status: 403,
-      headers: noStoreHeaders()
-    });
-  }
-  const parsedBody = await readBoundedJson(request, 2_048);
-  if (!parsedBody.ok) {
-    return NextResponse.json({ mode: "unavailable", error: "A valid bounded Find request is required." }, {
-      status: parsedBody.status,
-      headers: noStoreHeaders()
-    });
-  }
-  const parsedRequest = parsePointObjectFindRequest(parsedBody.value);
-  if (!parsedRequest.ok) {
-    return NextResponse.json({ mode: "unavailable", error: parsedRequest.error }, {
-      status: 400,
-      headers: noStoreHeaders()
-    });
-  }
-  const rate = consumeRateLimit(request);
-  if (!rate.allowed) {
-    return NextResponse.json({ mode: "unavailable", code: "APPLICATION_RATE_LIMITED", error: "Open-map Find is temporarily rate limited.", retryable: true }, {
-      status: 429,
-      headers: noStoreHeaders({ "Retry-After": String(rate.retryAfterSeconds) })
-    });
-  }
+export async function POST(incomingRequest: Request) {
+  const sourceDeadline = createPointObjectSourceRequestDeadline(undefined, incomingRequest.signal);
   try {
-    return NextResponse.json(await findPointObjects(parsedRequest.value), { headers: noStoreHeaders() });
+    const request = withPointObjectSourceRequestDeadline(incomingRequest, sourceDeadline.signal);
+    const identity = await sourceDeadline.run(async () => await requirePilotIdentity(request));
+    if (!identity.allowed) return identity.response;
+    const mutationOrigin = requirePilotMutationOrigin(request);
+    if (mutationOrigin) return mutationOrigin;
+    if (!runtimeAllowed()) {
+      return NextResponse.json({ mode: "unavailable", error: "Open-map Find is not available in this environment." }, {
+        status: 403,
+        headers: noStoreHeaders()
+      });
+    }
+    if (!sameOrigin(request)) {
+      return NextResponse.json({ mode: "unavailable", error: "The Find request must originate from this application." }, {
+        status: 403,
+        headers: noStoreHeaders()
+      });
+    }
+    const parsedBody = await sourceDeadline.run(async () => await readBoundedJson(request, 2_048));
+    if (!parsedBody.ok) {
+      return NextResponse.json({ mode: "unavailable", error: "A valid bounded Find request is required." }, {
+        status: parsedBody.status,
+        headers: noStoreHeaders()
+      });
+    }
+    const parsedRequest = parsePointObjectFindRequest(parsedBody.value);
+    if (!parsedRequest.ok) {
+      return NextResponse.json({ mode: "unavailable", error: parsedRequest.error }, {
+        status: 400,
+        headers: noStoreHeaders()
+      });
+    }
+    const rate = consumeRateLimit(request);
+    if (!rate.allowed) {
+      return NextResponse.json({ mode: "unavailable", code: "APPLICATION_RATE_LIMITED", error: "Open-map Find is temporarily rate limited.", retryable: true }, {
+        status: 429,
+        headers: noStoreHeaders({ "Retry-After": String(rate.retryAfterSeconds) })
+      });
+    }
+    return NextResponse.json(await sourceDeadline.run(async (signal) =>
+      await findPointObjects(parsedRequest.value, undefined, signal)
+    ), { headers: noStoreHeaders() });
   } catch (error) {
+    if (isPointObjectSourceDeadlineError(error)) {
+      return NextResponse.json({ mode: "unavailable", code: "SOURCE_REQUEST_TIMEOUT", error: "Open-map Find did not complete in time.", retryable: true }, {
+        status: 504,
+        headers: noStoreHeaders()
+      });
+    }
     if (error instanceof PointObjectFindError) {
       return NextResponse.json({ mode: "unavailable", code: error.code, error: error.message, retryable: error.retryable }, {
         status: error.httpStatus,
@@ -116,5 +132,7 @@ export async function POST(request: Request) {
       status: 502,
       headers: noStoreHeaders()
     });
+  } finally {
+    sourceDeadline.dispose();
   }
 }
