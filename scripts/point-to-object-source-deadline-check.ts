@@ -68,6 +68,7 @@ const {
   waitForPointObjectSourceOperation,
   withPointObjectSourceRequestDeadline
 } = await import("../src/lib/prototype/source-request-deadline");
+const { POINT_OBJECT_AREA_QUERY_TIMEOUT_SECONDS } = await import("../src/lib/prototype/point-to-object-area-context-contract");
 
 type SupabaseFactoryFixture = {
   url: string;
@@ -95,6 +96,9 @@ supabaseFixtures.__geoaiDeadlineCookieStore = {
 };
 
 assert.equal(POINT_OBJECT_SOURCE_UPSTREAM_TIMEOUT_MS, 24_000, "The existing valid upstream budget must remain unchanged.");
+assert.equal(POINT_OBJECT_AREA_QUERY_TIMEOUT_SECONDS, 12, "Area Context must retain the bounded 12-second provider execution budget.");
+assert.ok(POINT_OBJECT_AREA_QUERY_TIMEOUT_SECONDS * 1_000 < POINT_OBJECT_SOURCE_UPSTREAM_TIMEOUT_MS,
+  "The provider-declared Area Context timeout must remain strictly inside physical upstream cancellation.");
 assert.ok(POINT_OBJECT_SOURCE_UPSTREAM_TIMEOUT_MS < POINT_OBJECT_SOURCE_ROUTE_DEADLINE_MS);
 assert.ok(POINT_OBJECT_SOURCE_ROUTE_DEADLINE_MS < POINT_OBJECT_SOURCE_PLATFORM_MAX_DURATION_SECONDS * 1_000);
 assert.ok(POINT_OBJECT_SOURCE_PLATFORM_MAX_DURATION_SECONDS * 1_000 < POINT_OBJECT_SOURCE_BROWSER_TIMEOUT_MS);

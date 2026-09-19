@@ -37,6 +37,7 @@ const {
   buildPointObjectAreaContextOverpassQuery,
   normalizePointObjectAreaContext,
   parsePointObjectAreaContextRequest,
+  POINT_OBJECT_AREA_QUERY_TIMEOUT_SECONDS,
   POINT_OBJECT_AREA_UPSTREAM_MEMORY_MAX_BYTES,
   PointObjectAreaContextPayloadError
 } = await import("../src/lib/prototype/point-to-object-area-context-contract");
@@ -64,8 +65,13 @@ assert.equal(request.ok, true);
 const query = buildPointObjectAreaContextOverpassQuery(request.value);
 assert.match(query, /poly:"25\.205000 55\.270000/);
 assert.match(query, /\["building"\]/);
+assert.equal(POINT_OBJECT_AREA_QUERY_TIMEOUT_SECONDS, 12);
+assert.match(query, /\[timeout:12\]/);
+assert.doesNotMatch(query, /\[timeout:6\]/);
 assert.match(query, new RegExp(`\\[maxsize:${POINT_OBJECT_AREA_UPSTREAM_MEMORY_MAX_BYTES}\\]`));
 assert.equal(query.includes("maxsize:524288"), false, "Overpass execution memory must not reuse the 512 KiB HTTP response cap.");
+assert.equal(query.split("\n").filter((line) => /^(?:nwr|node|way)\(poly:/.test(line)).length, 12,
+  "The timeout resilience change must not broaden the bounded selector count.");
 assert.match(query, /out tags center 301/);
 
 const result = normalizePointObjectAreaContext({
@@ -182,14 +188,19 @@ await assert.rejects(
   "An HTTP 200 Overpass runtime failure must become a retryable upstream error, never empty coverage."
 );
 
+let runtimeTimeoutCalls = 0;
 await assert.rejects(
-  resolvePointObjectAreaContext(request.value, async () => ({
-    elements: [],
-    remark: "runtime error: Query timed out in query at line 1 after 7 seconds."
-  })),
+  resolvePointObjectAreaContext(request.value, async () => {
+    runtimeTimeoutCalls += 1;
+    return {
+      elements: [],
+      remark: "runtime error: Query timed out in query at line 1 after 7 seconds."
+    };
+  }),
   (error: unknown) => error instanceof PointObjectAreaContextError && error.httpStatus === 504 && error.retryable,
   "An HTTP 200 Overpass timeout remark must retain timeout semantics."
 );
+assert.equal(runtimeTimeoutCalls, 1, "A retryable Overpass runtime timeout must remain one upstream attempt.");
 
 const originalFetch = globalThis.fetch;
 let upstreamFetchCount = 0;

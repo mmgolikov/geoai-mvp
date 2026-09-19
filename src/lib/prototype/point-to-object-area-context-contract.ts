@@ -100,6 +100,7 @@ export const POINT_OBJECT_AREA_UPSTREAM_LIMIT = 300;
 export const POINT_OBJECT_AREA_FEATURE_LIMIT = 80;
 export const POINT_OBJECT_AREA_MAX_SQ_M = 1_000_000;
 export const POINT_OBJECT_AREA_MAX_VERTICES = 25;
+export const POINT_OBJECT_AREA_QUERY_TIMEOUT_SECONDS = 12;
 // Overpass maxsize is an execution-memory budget, not an HTTP response-size cap.
 // Keep enough bounded working memory for the union query while the server wrapper
 // independently limits the response body to 512 KiB.
@@ -191,7 +192,7 @@ export function buildPointObjectAreaContextOverpassQuery(request: PointObjectAre
     .join(" ");
   const poly = `(poly:"${polygon}")`;
   return [
-    `[out:json][timeout:6][maxsize:${POINT_OBJECT_AREA_UPSTREAM_MEMORY_MAX_BYTES}];`,
+    `[out:json][timeout:${POINT_OBJECT_AREA_QUERY_TIMEOUT_SECONDS}][maxsize:${POINT_OBJECT_AREA_UPSTREAM_MEMORY_MAX_BYTES}];`,
     "(",
     `nwr${poly}["building"];`,
     `nwr${poly}["landuse"~"^(residential|commercial|retail|industrial|construction|brownfield|recreation_ground|forest)$"];`,
