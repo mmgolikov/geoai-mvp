@@ -116,8 +116,32 @@ const originalRequest = new Request("https://geoai.example.test/api/prototype/po
 });
 const boundController = new AbortController();
 const boundRequest = withPointObjectSourceRequestDeadline(originalRequest, boundController.signal);
+assert.equal(boundRequest, originalRequest, "The framework-owned request identity must not be reconstructed across runtimes.");
 assert.equal(pointObjectRequestAuthDeadlineSignal(boundRequest), boundController.signal);
 assert.deepEqual(await boundRequest.json(), { bounded: true }, "The deadline-bound request must preserve the exact body.");
+
+const { readBoundedJson } = await import("../src/lib/http/bounded-json");
+let bodyReadCancelled = false;
+const stalledBodyRequest = new Request("https://geoai.example.test/api/prototype/point-to-object/find", {
+  method: "POST",
+  body: new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode('{"bounded":'));
+    },
+    cancel() {
+      bodyReadCancelled = true;
+    }
+  }),
+  duplex: "half"
+} as RequestInit & { duplex: "half" });
+const bodyReadDeadline = createPointObjectSourceRequestDeadline(15);
+await assert.rejects(
+  bodyReadDeadline.run(async (signal) => await readBoundedJson(stalledBodyRequest, 2_048, signal)),
+  isPointObjectSourceDeadlineError,
+  "The route deadline must terminate a stalled inbound body read."
+);
+bodyReadDeadline.dispose();
+assert.equal(bodyReadCancelled, true, "A stalled inbound body reader must be physically cancelled at deadline.");
 
 const { createRequestScopedSupabaseClient } = await import("../src/lib/supabase/ssr-server");
 await createRequestScopedSupabaseClient();
@@ -329,7 +353,7 @@ const NextResponse = {
 };`;
 const authFaultStub = `
 const requirePilotIdentity = async (request) => await new Promise((resolve) => {
-  request.signal.addEventListener("abort", () => {
+  pointObjectRequestAuthDeadlineSignal(request).addEventListener("abort", () => {
     globalThis.__geoaiDeadlineAuthAbortObserved += 1;
   }, { once: true });
   setTimeout(() => resolve({ allowed: true, mode: "demo_public", context: null }), 30);
@@ -348,6 +372,7 @@ async function loadAuthRoute(source: string, kind: "area" | "find", authStub: st
     .replace('import { getPointObjectSurfaceStatus } from "@/src/lib/ai/openai-upstream-gate";',
       'const getPointObjectSurfaceStatus = () => ({ enabled: true });')
     .replace('import { requirePilotIdentity, requirePilotMutationOrigin } from "@/src/lib/auth/require-pilot-identity";', authStub)
+    .replace("isPointObjectSourceDeadlineError,\n  withPointObjectSourceRequestDeadline", "isPointObjectSourceDeadlineError,\n  pointObjectRequestAuthDeadlineSignal,\n  withPointObjectSourceRequestDeadline")
     .replace("createPointObjectSourceRequestDeadline(undefined, incomingRequest.signal)",
       `createPointObjectSourceRequestDeadline(${timeoutMs}, incomingRequest.signal)`);
   transformed = kind === "area"

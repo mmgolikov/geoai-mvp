@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { createRequire } from "node:module";
 
 import {
   createPointObjectSourceMiddlewareAuthDeadline,
@@ -8,6 +9,7 @@ import {
 } from "../src/lib/supabase/point-object-source-middleware-auth-deadline.ts";
 
 const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+const require = createRequire(import.meta.url);
 
 async function rejectsWithDeadline(operation) {
   await assert.rejects(operation, (error) => isPointObjectSourceMiddlewareAuthDeadlineError(error));
@@ -45,6 +47,37 @@ await rejectsWithDeadline(stalledBodyDeadline.run((async () => {
 })()));
 assert.equal(bodySignal?.aborted, true, "the same total deadline must cover response-body consumption");
 stalledBodyDeadline.terminate();
+
+const edgePrimitives = require("next/dist/compiled/@edge-runtime/primitives");
+const nativeAbortController = globalThis.AbortController;
+const nativeAbortSignal = globalThis.AbortSignal;
+const nativeRequest = globalThis.Request;
+try {
+  globalThis.AbortController = edgePrimitives.AbortController;
+  globalThis.AbortSignal = edgePrimitives.AbortSignal;
+  globalThis.Request = edgePrimitives.Request;
+  assert.equal(typeof globalThis.AbortSignal.any, "undefined", "the actual Next Edge AbortSignal fixture must lack AbortSignal.any");
+  let edgeCombinedSignal;
+  const edgeDeadline = createPointObjectSourceMiddlewareAuthDeadline("find", {
+    timeoutMs: 100,
+    emit: () => undefined,
+    fetch: (_input, init) => new Promise((_resolve, reject) => {
+      edgeCombinedSignal = init?.signal;
+      init?.signal?.addEventListener("abort", () => reject(init.signal.reason), { once: true });
+    })
+  });
+  const callerAbort = new globalThis.AbortController();
+  const edgeFetch = edgeDeadline.fetch("https://invalid.test/auth", { signal: callerAbort.signal });
+  callerAbort.abort(new DOMException("caller stopped", "AbortError"));
+  await assert.rejects(edgeFetch, { name: "AbortError" });
+  assert.equal(edgeCombinedSignal instanceof edgePrimitives.AbortSignal, true,
+    "the combined fetch signal must be constructed by the actual Next Edge runtime");
+  edgeDeadline.terminate();
+} finally {
+  globalThis.AbortController = nativeAbortController;
+  globalThis.AbortSignal = nativeAbortSignal;
+  globalThis.Request = nativeRequest;
+}
 
 let lateCookieMutations = 0;
 let finishLateOperation;

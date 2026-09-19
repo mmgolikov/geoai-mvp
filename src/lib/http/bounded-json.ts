@@ -2,7 +2,8 @@ export type BoundedJsonResult =
   | { ok: true; value: unknown }
   | { ok: false; status: 400 | 413; message: string };
 
-export async function readBoundedJson(request: Request, maxBytes: number): Promise<BoundedJsonResult> {
+export async function readBoundedJson(request: Request, maxBytes: number, signal?: AbortSignal): Promise<BoundedJsonResult> {
+  signal?.throwIfAborted();
   const declaredLength = Number(request.headers.get("content-length") ?? "0");
   if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
     return { ok: false, status: 413, message: `Request body exceeds the ${maxBytes}-byte limit.` };
@@ -13,11 +14,14 @@ export async function readBoundedJson(request: Request, maxBytes: number): Promi
   }
 
   const reader = request.body.getReader();
+  const cancelOnAbort = () => { void reader.cancel(signal?.reason).catch(() => undefined); };
+  signal?.addEventListener("abort", cancelOnAbort, { once: true });
   const chunks: Uint8Array[] = [];
   let receivedBytes = 0;
   try {
     while (true) {
       const { done, value } = await reader.read();
+      signal?.throwIfAborted();
       if (done) break;
       receivedBytes += value.byteLength;
       if (receivedBytes > maxBytes) {
@@ -26,8 +30,11 @@ export async function readBoundedJson(request: Request, maxBytes: number): Promi
       }
       chunks.push(value);
     }
-  } catch {
+  } catch (error) {
+    if (signal?.aborted) throw signal.reason ?? error;
     return { ok: false, status: 400, message: "Unable to read request body." };
+  } finally {
+    signal?.removeEventListener("abort", cancelOnAbort);
   }
 
   const bytes = new Uint8Array(receivedBytes);

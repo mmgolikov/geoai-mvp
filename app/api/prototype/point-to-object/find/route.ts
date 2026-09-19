@@ -94,7 +94,7 @@ export async function POST(incomingRequest: Request) {
         headers: noStoreHeaders()
       });
     }
-    const parsedBody = await sourceDeadline.run(async () => await readBoundedJson(request, 2_048));
+    const parsedBody = await sourceDeadline.run(async (signal) => await readBoundedJson(request, 2_048, signal));
     if (!parsedBody.ok) {
       return NextResponse.json({ mode: "unavailable", error: "A valid bounded Find request is required." }, {
         status: parsedBody.status,

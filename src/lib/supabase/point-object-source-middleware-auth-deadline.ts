@@ -32,6 +32,30 @@ export function isPointObjectSourceMiddlewareAuthDeadlineError(
   );
 }
 
+function combinedAbortSignal(signals: AbortSignal[]): AbortSignal {
+  if (signals.length === 1) return signals[0];
+  const controller = new AbortController();
+  const listeners: Array<{ signal: AbortSignal; abort: () => void }> = [];
+  const cleanup = () => {
+    for (const listener of listeners) listener.signal.removeEventListener("abort", listener.abort);
+    listeners.length = 0;
+  };
+  for (const signal of signals) {
+    if (signal.aborted) {
+      controller.abort(signal.reason);
+      cleanup();
+      break;
+    }
+    const abort = () => {
+      if (!controller.signal.aborted) controller.abort(signal.reason);
+      cleanup();
+    };
+    listeners.push({ signal, abort });
+    signal.addEventListener("abort", abort, { once: true });
+  }
+  return controller.signal;
+}
+
 export function createPointObjectSourceMiddlewareAuthDeadline(
   route: PointObjectSourceMiddlewareRoute,
   options: {
@@ -72,9 +96,12 @@ export function createPointObjectSourceMiddlewareAuthDeadline(
 
   const boundedFetch: typeof fetch = (input, init) => {
     const signals = [controller.signal];
-    if (input instanceof Request) signals.push(input.signal);
+    const inputSignal = typeof input === "object" && input !== null && "signal" in input
+      ? (input as Request).signal
+      : undefined;
+    if (inputSignal) signals.push(inputSignal);
     if (init?.signal) signals.push(init.signal);
-    return fetchImplementation(input, { ...init, signal: AbortSignal.any(signals) });
+    return fetchImplementation(input, { ...init, signal: combinedAbortSignal(signals) });
   };
 
   return {

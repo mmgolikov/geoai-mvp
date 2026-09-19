@@ -5,12 +5,8 @@ export const POINT_OBJECT_SOURCE_HARNESS_RESPONSE_TIMEOUT_MS = 60_000;
 export const POINT_OBJECT_SOURCE_UPSTREAM_TIMEOUT_MS = 24_000;
 export const POINT_OBJECT_SOURCE_CACHE_COMPLETION_MARGIN_MS = 1_000;
 
-const REQUEST_AUTH_DEADLINE_SIGNAL = Symbol.for("geoai.point-object.request-auth-deadline-signal");
 const deadlineExpiryBySignal = new WeakMap<AbortSignal, number>();
-
-type DeadlineAwareRequest = Request & {
-  [REQUEST_AUTH_DEADLINE_SIGNAL]?: AbortSignal;
-};
+const authDeadlineByRequest = new WeakMap<Request, AbortSignal>();
 
 export class PointObjectSourceDeadlineError extends Error {
   readonly code = "POINT_OBJECT_SOURCE_DEADLINE";
@@ -29,22 +25,17 @@ export type PointObjectSourceRequestDeadline = {
 };
 
 export function pointObjectRequestAuthDeadlineSignal(request?: Request): AbortSignal | undefined {
-  return request ? (request as DeadlineAwareRequest)[REQUEST_AUTH_DEADLINE_SIGNAL] : undefined;
+  return request ? authDeadlineByRequest.get(request) : undefined;
 }
 
 /**
- * Preserve the complete inbound request while attaching the route-owned
- * deadline to body reads and, by an opt-in symbol, to request Auth work.
+ * Keep the framework-owned request identity intact while attaching the
+ * route-owned deadline to opt-in Auth work. Reconstructing a NextRequest with
+ * the native Request constructor crosses incompatible private runtimes.
  */
 export function withPointObjectSourceRequestDeadline(request: Request, signal: AbortSignal): Request {
-  const deadlineRequest = new Request(request, { signal }) as DeadlineAwareRequest;
-  Object.defineProperty(deadlineRequest, REQUEST_AUTH_DEADLINE_SIGNAL, {
-    configurable: false,
-    enumerable: false,
-    value: signal,
-    writable: false
-  });
-  return deadlineRequest;
+  authDeadlineByRequest.set(request, signal);
+  return request;
 }
 
 export function isPointObjectSourceDeadlineError(error: unknown): error is PointObjectSourceDeadlineError {

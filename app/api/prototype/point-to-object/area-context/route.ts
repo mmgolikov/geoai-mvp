@@ -74,7 +74,7 @@ export async function POST(incomingRequest: Request) {
     if (!sameOrigin(request)) {
       return NextResponse.json({ mode: "unavailable", error: "The area-context request must originate from this application." }, { status: 403, headers: noStoreHeaders() });
     }
-    const parsedBody = await sourceDeadline.run(async () => await readBoundedJson(request, 20 * 1024));
+    const parsedBody = await sourceDeadline.run(async (signal) => await readBoundedJson(request, 20 * 1024, signal));
     if (!parsedBody.ok) {
       return NextResponse.json({ mode: "unavailable", error: "A valid bounded polygon request is required." }, { status: parsedBody.status, headers: noStoreHeaders() });
     }
