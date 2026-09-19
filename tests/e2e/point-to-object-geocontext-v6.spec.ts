@@ -518,6 +518,23 @@ async function installAnalysisRoutes(page: Page) {
 
 async function signInDemo(page: Page, nextPath: string) {
   const loginNextPath = nextPath.startsWith("/prototype/point-to-object") ? "/workspace" : nextPath;
+  // The authenticated header can mount before Workspace's passive bootstrap
+  // effects. Complete those real reads before this helper's hard navigation;
+  // otherwise WebKit can report requests from the departing document as errors.
+  const workspaceBootstrap = loginNextPath === "/workspace" ? Promise.all([
+    "/api/projects",
+    "/api/analysis-runs?limit=10&projectKey=dubai-investment-screening-demo",
+    "/api/db/health"
+  ].map(async (path) => {
+    const expected = new URL(path, test.info().project.use.baseURL);
+    expected.searchParams.sort();
+    const response = await page.waitForResponse((candidate) => {
+      const actual = new URL(candidate.url());
+      actual.searchParams.sort();
+      return candidate.request().method() === "GET" && actual.href === expected.href;
+    });
+    return { path, status: response.status(), completionError: await response.finished() };
+  })).then((responses) => ({ responses }), (error: unknown) => ({ error })) : null;
   await page.goto(`/login?next=${encodeURIComponent(loginNextPath)}&intent=demo`);
   const demoAccess = page.getByRole("button", { name: "Open demo access" });
   await expect.poll(async () => {
@@ -539,6 +556,14 @@ async function signInDemo(page: Page, nextPath: string) {
   }
   if (loginNextPath === nextPath) return;
   await expect(page.getByRole("link", { name: "Open demo profile" })).toHaveAttribute("data-authenticated", "true");
+  if (workspaceBootstrap) {
+    const bootstrap = await workspaceBootstrap;
+    if ("error" in bootstrap) throw bootstrap.error;
+    for (const response of bootstrap.responses) {
+      expect(response.status, `${response.path} bootstrap status`).toBe(200);
+      expect(response.completionError, `${response.path} bootstrap completion`).toBeNull();
+    }
+  }
   await page.goto(nextPath);
 }
 
