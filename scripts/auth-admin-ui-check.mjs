@@ -80,7 +80,7 @@ assert(!routeGate.includes("getSession(") && !routeGate.includes("user_metadata"
 for (const [name, page] of [["Workspace", workspacePage], ["Projects", projectsPage], ["Profile", profilePage]]) {
   assert(page.includes("AuthenticatedRouteGate") && page.includes("<AuthenticatedRouteGate>"), `${name} route is not wrapped in the resolved-session gate`);
 }
-assert(explorePage.includes('redirect("/workspace")'), "Explore compatibility entry must redirect to canonical Workspace");
+assert(explorePage.includes('redirect("/prototype/point-to-object")'), "Explore compatibility entry must redirect to current Analyse/Find/Create");
 assert(!explorePage.includes("WorkspaceShell") && !explorePage.includes("AuthenticatedRouteGate"), "Explore compatibility entry must not render a duplicate Product screen or auth shell");
 assert(redirectPath.includes('"/explore"') && redirectPath.includes('"/profile"'), "Explore compatibility and Profile must remain valid bounded post-login destinations");
 assert(adminRoute.includes("privateNoStoreJson") && onboardingRoute.includes("privateNoStoreJson"), "Authenticated Admin APIs must be private no-store");

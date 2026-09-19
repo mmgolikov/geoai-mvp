@@ -63,8 +63,8 @@ requireCondition(
   "Landing must render the accepted component, enter Point-to-Object and local Projects, and must not advertise Explore as a separate Product."
 );
 requireCondition(
-  exploreCompatibility.includes('redirect("/workspace")'),
-  "The legacy /explore entry must forward to canonical Workspace."
+  exploreCompatibility.includes('redirect("/prototype/point-to-object")'),
+  "The legacy /explore entry must forward to current Analyse/Find/Create."
 );
 requireCondition(
   !exploreCompatibility.includes("WorkspaceShell") &&
@@ -125,7 +125,7 @@ const evidence = {
   canonicalProductRoute: "/prototype/point-to-object",
   canonicalProductDestinations: ["Workspace", "Projects"],
   compatibilityRoute: "/explore",
-  compatibilityDestination: "/workspace",
+  compatibilityDestination: "/prototype/point-to-object",
   criteriaFirstPreserved: true,
   checkedFiles: activeSourceFiles.length + 6,
   findings,

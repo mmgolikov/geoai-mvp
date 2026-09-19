@@ -202,7 +202,7 @@ export function RequestAccessPanel() {
                   Copy request brief
                 </button>
                 <Link
-                  href={authStatus.effectiveMode === "demo_public" ? "/demo" : "/login?next=/workspace"}
+                  href={authStatus.effectiveMode === "demo_public" ? "/demo" : "/login"}
                   className="inline-flex min-h-12 items-center justify-center rounded-control border border-brand bg-white px-5 text-sm font-semibold text-brand transition hover:bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
                 >
                   {authStatus.effectiveMode === "demo_public" ? "Open demo instead" : "Sign in instead"}

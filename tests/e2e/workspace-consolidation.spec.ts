@@ -41,7 +41,10 @@ test("uses Workspace as the only visible Product destination and preserves crite
   await expect(page.locator("section[data-dashboard-comparison-id]")).toBeVisible();
 
   await page.goto("/explore");
-  await expect(page).toHaveURL((url) => url.pathname === "/workspace");
+  await expect(page).toHaveURL((url) => url.pathname === "/prototype/point-to-object");
+  await expect(page.getByRole("tab", { name: "Analyse", exact: true })).toBeVisible();
+  // Explicit legacy links still preserve the original saved-work shell.
+  await page.goto("/workspace");
   await expect(page.getByRole("heading", { level: 1, name: "Workspace location screening" })).toBeVisible();
 
   await page.setViewportSize({ width: 390, height: 844 });
@@ -57,7 +60,7 @@ test("uses Workspace as the only visible Product destination and preserves crite
     canonicalProductRoute: "/prototype/point-to-object",
     directlyTestedLegacyRoute: "/workspace",
     compatibilityRoute: "/explore",
-    compatibilityDestination: "/workspace",
+    compatibilityDestination: "/prototype/point-to-object",
     visibleProductDestinations: ["Workspace", "Projects"],
     criteriaFirstPreserved: true,
     comparisonPreserved: true,

@@ -15,7 +15,7 @@ export async function requirePilotPageIdentity(nextPath: string): Promise<void> 
   if (mode === "demo_public" && context.status === "auth_mode_disabled") return;
   if (mode === "supabase_auth" && context.verified) return;
 
-  const next = getSafeAuthRedirectPath(nextPath, "/workspace");
+  const next = getSafeAuthRedirectPath(nextPath);
   const params = new URLSearchParams({ next });
   if (getRequestedAuthMode() === "supabase_auth" && mode !== "supabase_auth") {
     params.set("auth_error", "configuration_unavailable");

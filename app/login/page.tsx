@@ -13,8 +13,7 @@ export default async function LoginPage({
   if (intent === "request") redirect("/request-access");
   const requestedNext = resolvedSearchParams?.next;
   const destination = getSafeAuthRedirectPath(
-    typeof requestedNext === "string" ? requestedNext : undefined,
-    "/workspace"
+    typeof requestedNext === "string" ? requestedNext : undefined
   );
 
   return (

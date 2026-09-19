@@ -130,7 +130,7 @@ export function OnboardingPanel({ initialInvitationStaged = false }: { initialIn
                       ? "Use the ready browser-local demonstration."
                       : "Sign in with an existing approved account to continue."}
               </p>
-              <Link href={isAuthenticated ? "/workspace" : "/login"} className="mt-4 inline-flex h-10 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50]">
+              <Link href={isAuthenticated ? "/prototype/point-to-object" : "/login"} className="mt-4 inline-flex h-10 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50]">
                 {isAuthenticated ? "Open workspace" : "Sign in"}
               </Link>
             </div>

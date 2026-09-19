@@ -67,7 +67,7 @@ export function RegisterPanel() {
           <Link href="/login" className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-brand">
             Back to sign in
           </Link>
-          <Link href="/workspace" className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-muted transition hover:border-brand hover:text-ink">
+          <Link href="/prototype/point-to-object" className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-muted transition hover:border-brand hover:text-ink">
             Public workspace
           </Link>
         </div>

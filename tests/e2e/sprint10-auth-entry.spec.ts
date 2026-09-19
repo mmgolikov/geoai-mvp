@@ -21,6 +21,21 @@ test.beforeEach(async ({ page, request }, testInfo) => {
 
 const entries = [
   {
+    name: "ordinary login opens current product",
+    entry: "/login",
+    destination: "/prototype/point-to-object"
+  },
+  {
+    name: "demo entry opens current product",
+    entry: "/demo",
+    destination: "/prototype/point-to-object"
+  },
+  {
+    name: "explore entry opens current product",
+    entry: "/explore",
+    destination: "/prototype/point-to-object"
+  },
+  {
     name: "map Find continuation",
     entry: "/prototype/point-to-object?mode=find",
     destination: "/prototype/point-to-object?mode=find"
@@ -33,7 +48,7 @@ const entries = [
   {
     name: "hostile login destination",
     entry: "/login?next=https%3A%2F%2Fexample.invalid%2Fprivate",
-    destination: "/workspace"
+    destination: "/prototype/point-to-object"
   }
 ] as const;
 

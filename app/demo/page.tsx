@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function DemoPage() {
-  redirect("/workspace");
+  redirect("/prototype/point-to-object");
 }

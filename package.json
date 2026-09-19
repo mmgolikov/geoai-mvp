@@ -38,7 +38,7 @@
     "audit:verify": "node scripts/verify-audit.mjs",
     "test:access-decision": "node scripts/access-decision-check.mjs",
     "test:auth-ssr-transport": "node scripts/auth-ssr-transport-check.mjs",
-    "test:auth-admin-ui": "node scripts/auth-admin-ui-check.mjs",
+    "test:auth-admin-ui": "node scripts/auth-admin-ui-check.mjs && node --experimental-strip-types scripts/auth-redirect-path-check.mjs",
     "test:auth-session-e2e-contract": "node scripts/auth-session-e2e-contract-check.mjs && node scripts/workspace-consolidation-source-check.mjs && node scripts/founder-ux-runtime-correction-check.mjs",
     "test:workspace-consolidation-source": "node scripts/workspace-consolidation-source-check.mjs",
     "test:e2e:auth-session:demo": "playwright test tests/e2e/auth-responsive-flow.spec.ts tests/e2e/public-request-flow.spec.ts tests/e2e/accessibility-workspace-flow.spec.ts tests/e2e/accessibility-project-comparison-flow.spec.ts tests/e2e/mobile-product-flow.spec.ts tests/e2e/mobile-global-navigation.spec.ts tests/e2e/commercial-alignment-visual.spec.ts tests/e2e/system-resilience-flow.spec.ts tests/e2e/design-foundation-shell.spec.ts tests/e2e/primitive-state-evidence.spec.tsx tests/e2e/route-body-invariance.spec.ts tests/e2e/workspace-consolidation.spec.ts",

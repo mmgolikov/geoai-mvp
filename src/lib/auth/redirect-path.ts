@@ -9,7 +9,9 @@ const approvedAuthDestinations = new Set([
   "/workspace"
 ]);
 
-export function getSafeAuthRedirectPath(value: string | null | undefined, fallback = "/workspace") {
+export const DEFAULT_AUTH_DESTINATION = "/prototype/point-to-object";
+
+export function getSafeAuthRedirectPath(value: string | null | undefined, fallback = DEFAULT_AUTH_DESTINATION) {
   const candidate = value?.trim();
   if (!candidate || !candidate.startsWith("/") || candidate.startsWith("//") || candidate.includes("\\")) {
     return fallback;

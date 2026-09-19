@@ -14,7 +14,7 @@ export function AuthenticatedRouteGate({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!requiresSession || !isSessionResolved || isAuthenticated) return;
     const requestedPath = `${window.location.pathname}${window.location.search}`;
-    const next = getSafeAuthRedirectPath(requestedPath, "/workspace");
+    const next = getSafeAuthRedirectPath(requestedPath);
     router.replace(`/login?next=${encodeURIComponent(next)}`);
   }, [isAuthenticated, isSessionResolved, requiresSession, router]);
 
