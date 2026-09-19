@@ -253,6 +253,33 @@ const validate = core.validatePointObjectAiContentDetailed as Function;
 const projectionFor = core.buildModelEvidenceProjection as Function;
 const profile = { model: "gpt-5.6-sol", reasoningEffort: "high", verbosity: "medium", maxOutputTokens: 4_000 };
 const pack = evidencePack();
+
+function syncAllowedFieldsReceipt(candidate: any): void {
+  const receipt = candidate.evidence.find((item: any) => item.id === "EVD-ALLOWED-FIELDS");
+  receipt.value = JSON.stringify({ sourceFeatureId: candidate.selectedObject.sourceFeatureId, tags: candidate.selectedObject.tags });
+}
+
+function syncGeoContextReceipts(candidate: any): void {
+  const context = candidate.geoContext;
+  const summary = {
+    radiusM: context.radiusM,
+    coverage: context.coverage,
+    sampleSize: context.sampleSize,
+    capReached: context.capReached,
+    groups: context.groups,
+    mappedBuildingCount: context.mappedBuildingCount,
+    mappedLevelsKnownCount: context.mappedLevelsKnownCount,
+    medianMappedLevels: context.medianMappedLevels,
+    nearestTransitM: context.nearestTransitM,
+    nearestMajorRoadM: context.nearestMajorRoadM
+  };
+  candidate.evidence.find((item: any) => item.id === "EVD-CONTEXT-SUMMARY").value = JSON.stringify(summary);
+  candidate.evidence.find((item: any) => item.id === "EVD-DISTRICT-PROFILE").value = JSON.stringify({
+    summaryHash: semanticHash(summary),
+    districtCharacter: context.districtCharacter
+  });
+}
+
 const projection = projectionFor(pack);
 const indexIds = projection.evidenceIndex.map((item: any) => item.id);
 for (const mandatory of ["EVD-OSM-OBJECT", "EVD-CLASSIFICATION", "EVD-GEOMETRY", "EVD-CONTEXT-SUMMARY", "EVD-DISTRICT-PROFILE", "EVD-CONTEXT-1"]) {
@@ -282,6 +309,69 @@ assert.match(outputs[0].context.statement, /business and office uses — 3.*hote
 assert.match(outputs[0].implication.statement, /hotel\/business programme.*permitted use.*access capacity/);
 assert.match(outputs[1].implication.statement, /Longer-term view:.*investment review.*income history.*comparable transactions/);
 assert.match(outputs[2].implication.statement, /1–3 year view:.*reuse choices.*condition.*refurbishment phasing/);
+
+const residentialPack = evidencePack();
+residentialPack.geoContext.groups = [
+  { group: "residential", count: 12, sharePct: 60, nearestDistanceM: 40 },
+  { group: "retail_daily_needs", count: 8, sharePct: 40, nearestDistanceM: 55 }
+];
+residentialPack.geoContext.districtCharacter = {
+  code: "residential",
+  confidence: "medium",
+  ruleVersion: "POINT_OBJECT_DISTRICT_RULE_V1",
+  driverGroups: ["residential", "retail_daily_needs"]
+};
+syncGeoContextReceipts(residentialPack);
+for (const locale of ["en", "ru"] as const) {
+  const result = validate(rawPlan(), residentialPack, { ...requests[0], locale });
+  assert.equal(result.ok, true, result.detail);
+  const brief = result.content.initialSemanticBrief;
+  assert.match(
+    brief.context.statement,
+    locale === "en"
+      ? /12 mapped residential features in the returned sample/
+      : /12 картографических объектов жилого назначения в полученной выборке/,
+    "Residential group counts must name returned mapped features, not homes or dwelling units."
+  );
+  assert.doesNotMatch(JSON.stringify(brief), /\bhomes\b|\bdwellings?\b|жиль(?:ё|я)/iu);
+}
+
+for (const residentialCount of [0, null] as const) {
+  const candidate = evidencePack();
+  candidate.geoContext.groups = candidate.geoContext.groups.filter((group: any) => group.group !== "residential");
+  if (residentialCount === 0) candidate.geoContext.groups.push({ group: "residential", count: 0, sharePct: 0, nearestDistanceM: null });
+  syncGeoContextReceipts(candidate);
+  const result = validate(rawPlan(), candidate, requests[0]);
+  assert.equal(result.ok, true, result.detail);
+  assert.doesNotMatch(result.content.initialSemanticBrief.context.statement, /mapped residential features|residential features.*0|— 0/i,
+    "A zero or absent residential group must not invent a visible residential count.");
+}
+
+for (const rawHeight of ["200", "200 m", "650 ft"] as const) {
+  const candidate = evidencePack();
+  candidate.selectedObject.tags["tag.height"] = rawHeight;
+  syncAllowedFieldsReceipt(candidate);
+  for (const locale of ["en", "ru"] as const) {
+    const result = validate(rawPlan(), candidate, { ...requests[0], locale });
+    assert.equal(result.ok, true, result.detail);
+    const rendered = JSON.stringify(result.content);
+    const expected = locale === "en"
+      ? `raw OpenStreetMap height tag: ${rawHeight} (unit and accuracy not independently verified)`
+      : `исходный тег высоты OpenStreetMap: ${rawHeight} (единица измерения и точность не проверены независимо)`;
+    assert.ok(rendered.includes(expected), `The exact raw source height value must remain visible in ${locale}: ${rawHeight}`);
+    assert.doesNotMatch(rendered, /mapped height\s|картированная высота\s/i);
+    assert.doesNotMatch(rendered, /200 m m|650 ft (?:m|metres?|meters?|м)/i,
+      "Height rendering must not duplicate a unit or silently convert the source value.");
+  }
+}
+
+const missingHeightPack = evidencePack();
+delete missingHeightPack.selectedObject.tags["tag.height"];
+syncAllowedFieldsReceipt(missingHeightPack);
+const missingHeight = validate(rawPlan(), missingHeightPack, requests[0]);
+assert.equal(missingHeight.ok, true, missingHeight.detail);
+assert.doesNotMatch(JSON.stringify(missingHeight.content), /raw OpenStreetMap height tag|mapped height\s/i,
+  "A missing height tag must stay absent rather than acquire a default value.");
 
 // Two provider samples have different radii. A 759 m place must never be
 // narrated as inside the 400 m urban-fabric sample (founder regression).

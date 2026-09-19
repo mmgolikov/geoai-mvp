@@ -2304,7 +2304,7 @@ async function assertCandidateAiSafety(): Promise<void> {
     "Address fields without EVD-ADDRESS must not reach rendered content.");
   assert.equal(sparseRendered.includes("43 mapped levels"), false,
     "Mapped-level tags without EVD-ALLOWED-FIELDS must not reach rendered content.");
-  assert.equal(sparseRendered.includes("mapped height 200"), false,
+  assert.equal(sparseRendered.includes("raw OpenStreetMap height tag: 200"), false,
     "Mapped-height tags without EVD-ALLOWED-FIELDS must not reach rendered content.");
   assert.equal(sparseRendered.includes("start-date field is 2003"), false,
     "Lifecycle tags without EVD-ALLOWED-FIELDS must not reach rendered content.");
@@ -2671,7 +2671,7 @@ async function assertCandidateAiSafety(): Promise<void> {
     }
   }, evidencePack, heightQuestion) as any;
   assert.equal(normalizedHeight?.answerToQuestion?.statement,
-    "Mapped OpenStreetMap height attribute: 200. This open-map value has not been independently verified.",
+    "Raw OpenStreetMap height tag: 200. Its unit and accuracy have not been independently verified.",
     "Supported direct attributes must be rendered from the canonical field rather than raw model prose.");
   assert.deepEqual(normalizedHeight?.answerToQuestion?.evidenceRefs, ["EVD-ALLOWED-FIELDS"],
     "A direct-attribute answer must expose only its canonical attribute receipt.");
@@ -2693,7 +2693,7 @@ async function assertCandidateAiSafety(): Promise<void> {
     }
   }, evidencePack, heightQuestion) as any;
   assert.equal(conciseHeight?.answerToQuestion?.statement,
-    "Mapped OpenStreetMap height attribute: 200. This open-map value has not been independently verified.",
+    "Raw OpenStreetMap height tag: 200. Its unit and accuracy have not been independently verified.",
     "A concise exact-field model result must still resolve through canonical server rendering without a manual retry.");
   assert.deepEqual(conciseHeight?.answerToQuestion?.missingEvidence, [],
     "Model-selected generic gaps must not dilute a canonical direct-attribute answer.");

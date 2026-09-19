@@ -1206,7 +1206,7 @@ function quantitiesEquivalent(
 }
 
 const GEO_CONTEXT_GROUP_LABELS: Record<PointObjectContextGroup, { en: string; ru: string }> = {
-  residential: { en: "homes", ru: "жильё" },
+  residential: { en: "mapped residential features", ru: "картографические объекты жилого назначения" },
   commercial: { en: "business and office uses", ru: "деловые объекты" },
   hospitality: { en: "hotels and visitor accommodation", ru: "гостиницы" },
   retail_daily_needs: { en: "retail and daily needs", ru: "ритейл и повседневные услуги" },
@@ -1233,7 +1233,7 @@ const DISTRICT_LABELS: Record<PointObjectDistrictCharacter, { en: string; ru: st
 };
 
 const IMPLICATION_GROUP_LABELS: Record<PointObjectContextGroup, { en: string; ru: string }> = {
-  residential: { en: "homes", ru: "жилых объектов" },
+  residential: { en: "mapped residential features", ru: "картографических объектов жилого назначения" },
   commercial: { en: "business and office uses", ru: "деловых объектов" },
   hospitality: { en: "hotels", ru: "гостиниц" },
   retail_daily_needs: { en: "retail and daily services", ru: "торговли и повседневных сервисов" },
@@ -1247,6 +1247,14 @@ const IMPLICATION_GROUP_LABELS: Record<PointObjectContextGroup, { en: string; ru
   construction: { en: "active construction", ru: "строящихся объектов" },
   other_built: { en: "other buildings", ru: "прочих зданий" }
 };
+
+function rawOpenMapHeightTag(value: string, locale: PointObjectLocale): string {
+  return localized(
+    locale,
+    `raw OpenStreetMap height tag: ${value} (unit and accuracy not independently verified)`,
+    `исходный тег высоты OpenStreetMap: ${value} (единица измерения и точность не проверены независимо)`
+  );
+}
 
 const FRIENDLY_FEATURE_LABELS: Record<string, { en: string; ru: string }> = {
   "tourism:hotel": { en: "hotel", ru: "отель" },
@@ -1337,7 +1345,8 @@ function deterministicEvidenceContent(
     };
     const values = Object.entries(labels).flatMap(([key, label]) => {
       const value = stringValue(tags[key], 80);
-      return value ? [`${label[locale]}: ${value}`] : [];
+      if (!value) return [];
+      return [key === "tag.height" ? rawOpenMapHeightTag(value, locale) : `${label[locale]}: ${value}`];
     }).slice(0, 6);
     if (values.length) sourceFacts.push({
       statement: localized(locale, `Mapped attributes — ${values.join("; ")}.`, `Картированные атрибуты — ${values.join("; ")}.`),
@@ -1663,7 +1672,13 @@ export function renderInitialSemanticBrief(
   const nearby = support.projection.nearbyContext.filter((item, index, items) => (
     items.findIndex((candidate) => friendlyFeatureLabel(candidate.featureClass, locale) === friendlyFeatureLabel(item.featureClass, locale)) === index
   )).slice(0, 3);
-  const groupPieces = meaningfulGroups.map((group) => `${GEO_CONTEXT_GROUP_LABELS[group.group][locale]} — ${group.count}`);
+  const groupPieces = meaningfulGroups.map((group) => group.group === "residential"
+    ? localized(
+      locale,
+      `${group.count} mapped residential features in the returned sample`,
+      `${group.count} картографических объектов жилого назначения в полученной выборке`
+    )
+    : `${GEO_CONTEXT_GROUP_LABELS[group.group][locale]} — ${group.count}`);
   const describeNearby = (item: (typeof nearby)[number]) => localized(
     locale,
     `${item.name} — ${friendlyFeatureLabel(item.featureClass, locale)}, about ${item.distanceM} m straight-line`,
@@ -2034,7 +2049,7 @@ function mappedFormLabel(support: PointObjectEvidenceSupport, locale: PointObjec
   const parts = [
     support.hasBuildingAttributes && tags["tag.building"] ? localized(locale, `building ${tags["tag.building"]}`, `тип здания ${tags["tag.building"]}`) : null,
     support.hasBuildingAttributes && tags["tag.building:levels"] ? localized(locale, `${tags["tag.building:levels"]} mapped levels`, `картированная этажность: ${tags["tag.building:levels"]}`) : null,
-    support.hasBuildingAttributes && tags["tag.height"] ? localized(locale, `mapped height ${tags["tag.height"]}`, `картированная высота ${tags["tag.height"]}`) : null,
+    support.hasBuildingAttributes && tags["tag.height"] ? rawOpenMapHeightTag(tags["tag.height"], locale) : null,
     support.hasBuildingGeometry && support.geometryRef && support.projection.selectedObject.geometryType
       ? localized(locale, `${support.projection.selectedObject.geometryType} geometry`, `геометрия ${support.projection.selectedObject.geometryType}`) : null
   ].filter((value): value is string => Boolean(value));
@@ -2762,9 +2777,15 @@ function validateFocusedAnswer(
         perspective: request.perspective,
         horizon: request.horizon,
         confidence: "low",
-        statement: russian
-          ? `Атрибут OpenStreetMap «${label.ru}»: ${directAttribute.value}. Значение из открытой карты не проверено независимо.`
-          : `Mapped OpenStreetMap ${label.en} attribute: ${directAttribute.value}. This open-map value has not been independently verified.`,
+        statement: directAttribute.key === "tag.height"
+          ? localized(
+            request.locale,
+            `Raw OpenStreetMap height tag: ${directAttribute.value}. Its unit and accuracy have not been independently verified.`,
+            `Исходный тег высоты OpenStreetMap: ${directAttribute.value}. Единица измерения и точность не проверены независимо.`
+          )
+          : russian
+            ? `Атрибут OpenStreetMap «${label.ru}»: ${directAttribute.value}. Значение из открытой карты не проверено независимо.`
+            : `Mapped OpenStreetMap ${label.en} attribute: ${directAttribute.value}. This open-map value has not been independently verified.`,
         evidenceRefs: [directAttribute.evidenceRef],
         missingEvidence: []
       }
