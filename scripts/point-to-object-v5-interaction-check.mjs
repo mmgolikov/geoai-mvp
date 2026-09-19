@@ -111,9 +111,21 @@ assert.match(client, /const persistedIntent = findResult && findResultIntent/);
 assert.match(client, /const restoredIntentWasNormalized = restoredRole !== restoredFind\.role \|\|[\s\S]*restoredScenario !== restoredFind\.scenario \|\| restoredGroup !== restoredFind\.group/);
 assert.match(client, /setFindResult\(restoredIntentWasNormalized \? null : restoredFind\.result\)/, "A normalized restored intent must not relabel prior results");
 assert.match(client, /setFindShortlist\(restoredIntentWasNormalized \? \[\] : restoredFind\.shortlist\)/);
-assert.match(client, /const requestIntent = \{ audience: findAudience, role: findRole, scenario: findScenario \}/);
-assert.match(client, /controller\.signal\.aborted \|\| requestId !== findRequestIdRef\.current/, "A late Find response must not inherit a newer profile audience");
-assert.match(client, /findRequestIdRef\.current \+= 1;[\s\S]*findRequestRef\.current\?\.abort\(\);[\s\S]*setFindResult\(null\);[\s\S]*setFindShortlist\(\[\]\)/, "An incompatible profile audience must invalidate pending and persisted Find outcomes");
+const findInViewStart = client.indexOf("async function findInView()");
+const findInViewEnd = client.indexOf("async function hydrateFindFootprint", findInViewStart);
+assert.ok(findInViewStart >= 0 && findInViewEnd > findInViewStart, "Find request handler must be addressable");
+const findInView = client.slice(findInViewStart, findInViewEnd);
+assert.match(findInView, /const requestIntent = \{ audience: findAudience, role: findRole, scenario: findScenario \}/);
+assert.match(findInView, /sourceResponseFinished = true;\s*if \(!pointObjectSourceResponseIsCurrent\(requestId, findRequestIdRef\.current, controller\.signal\)\) return;[\s\S]*setFindResult\(payload\);[\s\S]*setFindResultIntent\(requestIntent\)/,
+  "A late Find response must be rejected before it can inherit a newer profile audience");
+const profileAudienceMarker = client.indexOf('const profileAudience = user?.profile.defaultAudience ?? "b2b";');
+const profileAudienceEffectStart = client.lastIndexOf("useEffect(() => {", profileAudienceMarker);
+const profileAudienceEffectEnd = client.indexOf("}, [isSessionResolved, sessionReady, user]);", profileAudienceMarker);
+assert.ok(profileAudienceMarker >= 0 && profileAudienceEffectStart >= 0 && profileAudienceEffectEnd > profileAudienceMarker,
+  "Profile audience reconciliation effect must be addressable");
+const profileAudienceEffect = client.slice(profileAudienceEffectStart, profileAudienceEffectEnd);
+assert.match(profileAudienceEffect, /findRequestIdRef\.current \+= 1;[\s\S]*findRequestRef\.current\?\.abort\(\);[\s\S]*setFindResult\(null\);[\s\S]*setFindShortlist\(\[\]\)/,
+  "An incompatible profile audience must invalidate pending and persisted Find outcomes");
 assert.match(client, /marketKey: findResult\?\.criteria\.marketKey \?\? locationKey/);
 assert.match(client, /result: findResult,/);
 assert.match(client, /shortlist: findResult \? findShortlist : \[\]/);
