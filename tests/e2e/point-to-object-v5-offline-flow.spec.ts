@@ -516,16 +516,18 @@ test("Singapore Find waits for its real 2D zoom before dispatching the frozen Ma
   const findCallsBefore = findPostRequests.length;
 
   await page.goto("/prototype/point-to-object");
-  await page.getByTestId("point-object-city-select").selectOption("singapore");
   await page.getByRole("tab", { name: "Find", exact: true }).click();
-  await page.getByTestId("point-object-find-role-select").selectOption("consultant_broker");
-  await page.getByTestId("point-object-find-scenario-select").selectOption("b2b_commercial_real_estate");
-  await expect(page.getByTestId("point-object-find-group-select")).toHaveValue("commercial_office");
-
   const findCta = page.getByTestId("find-search-cta");
   const twoDimensionalControl = page.getByTestId("map-dimension-control").getByRole("button", { name: "2d", exact: true });
   await expect(twoDimensionalControl).toHaveAttribute("aria-pressed", "true");
   await expect(findCta).toBeEnabled();
+  await page.getByTestId("point-object-city-select").selectOption("singapore");
+  await expect(findCta).toBeDisabled();
+  await expect(findCta).toBeEnabled();
+  await page.getByTestId("point-object-find-role-select").selectOption("consultant_broker");
+  await page.getByTestId("point-object-find-scenario-select").selectOption("b2b_commercial_real_estate");
+  await expect(page.getByTestId("point-object-find-group-select")).toHaveValue("commercial_office");
+
   await page.getByRole("button", { name: "Zoom in", exact: true }).click();
   await expect(findCta).toBeDisabled();
   await expect(findCta).toBeEnabled();

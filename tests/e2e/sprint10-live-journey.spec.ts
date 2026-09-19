@@ -66,10 +66,18 @@ const LIVE_SCOPES = [
 ] as const;
 const SINGAPORE_MARINA_BAY_REFERENCE_BOUNDS = [103.855, 1.278, 103.868, 1.289] as const;
 type LiveScope = Sprint10LiveScope;
-type SingaporeFindRequestIssue = "shape" | "market_or_locale" | "criteria" | "bounds_outside_marina_bay";
+type SingaporeFindRequestIssue = "shape" | "market_or_locale" | "criteria" | "bounds";
+type FindPreDispatchIssue = SingaporeFindRequestIssue | "method" | "contract_mismatch" | "timeout";
 type SourceResponseObservation =
   | { kind: "response"; response: Response }
   | { kind: "aborted" | "network_failed" | "timeout" };
+
+class FindPreDispatchError extends Error {
+  constructor(readonly reason: FindPreDispatchIssue) {
+    super(`The Find request failed its bounded pre-dispatch contract: ${reason}.`);
+    this.name = "FindPreDispatchError";
+  }
+}
 
 const runnerActive = process.env.GEOAI_SPRINT10_LIVE_RUNNER_ACTIVE === "1";
 const selectedScope = process.env.GEOAI_SPRINT10_LIVE_SCOPE as LiveScope | undefined;
@@ -182,6 +190,18 @@ function requireCreateContextResponse(observation: SourceResponseObservation, pr
   throw new Error(`The Create context transport ended with the safe reason ${observation.kind}.`);
 }
 
+function markFindPreDispatchFailure(error: unknown, progress: LiveProgress) {
+  if (!(error instanceof FindPreDispatchError)) return;
+  const reason = error.reason;
+  if (reason === "method") progress.start("find_source_pre_dispatch_method");
+  else if (reason === "shape") progress.start("find_source_pre_dispatch_shape");
+  else if (reason === "market_or_locale") progress.start("find_source_pre_dispatch_market_or_locale");
+  else if (reason === "criteria") progress.start("find_source_pre_dispatch_criteria");
+  else if (reason === "bounds") progress.start("find_source_pre_dispatch_bounds");
+  else if (reason === "timeout") progress.start("find_source_pre_dispatch_timeout");
+  else progress.start("find_source_pre_dispatch_contract_mismatch");
+}
+
 function exactObjectKeys(value: unknown, keys: readonly string[]): value is Record<string, unknown> {
   return record(value) && Object.keys(value).sort().join("\u0000") === [...keys].sort().join("\u0000");
 }
@@ -202,7 +222,7 @@ function singaporeFindRequestIssue(value: unknown): SingaporeFindRequestIssue | 
     value.bounds[2] <= SINGAPORE_MARINA_BAY_REFERENCE_BOUNDS[2] &&
     value.bounds[3] <= SINGAPORE_MARINA_BAY_REFERENCE_BOUNDS[3]
     ? null
-    : "bounds_outside_marina_bay";
+    : "bounds";
 }
 
 function acceptedSingaporeFindRequest(value: unknown): value is Record<string, unknown> & { bounds: number[] } {
@@ -225,7 +245,7 @@ type AcceptedFindRequest = Record<string, unknown> & { bounds: number[] };
 async function installFindPreDispatchGate(
   page: Page,
   accepts: (value: unknown) => value is AcceptedFindRequest,
-  label: string
+  label: "Dubai" | "Singapore"
 ) {
   let resolveRequest!: (value: AcceptedFindRequest) => void;
   let rejectRequest!: (reason: Error) => void;
@@ -234,7 +254,7 @@ async function installFindPreDispatchGate(
     rejectRequest = reject;
   });
   const requestTimeout = setTimeout(() => {
-    rejectRequest(new Error(`The ${label} Find request did not dispatch inside the bounded source-request window.`));
+    rejectRequest(new FindPreDispatchError("timeout"));
   }, SOURCE_REQUEST_HARNESS_TIMEOUT_MS);
   void request.finally(() => clearTimeout(requestTimeout)).catch(() => undefined);
   await page.route("**/api/prototype/point-to-object/find", async (route) => {
@@ -242,8 +262,12 @@ async function installFindPreDispatchGate(
     try { submitted = route.request().postDataJSON(); }
     catch { submitted = null; }
     if (route.request().method() !== "POST" || !accepts(submitted)) {
-      const reason = label === "Singapore" ? singaporeFindRequestIssue(submitted) ?? "method" : "contract_mismatch";
-      rejectRequest(new Error(`The ${label} Find request failed its bounded pre-dispatch contract: ${reason}.`));
+      const reason: FindPreDispatchIssue = route.request().method() !== "POST"
+        ? "method"
+        : label === "Singapore"
+          ? singaporeFindRequestIssue(submitted) ?? "contract_mismatch"
+          : "contract_mismatch";
+      rejectRequest(new FindPreDispatchError(reason));
       await route.abort("blockedbyclient");
       return;
     }
@@ -1279,11 +1303,14 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
   progress.start("find_source_pre_dispatch");
   const preDispatch = await installFindPreDispatchGate(page, acceptedDubaiFindRequest, "Dubai");
   const responseObservation = observeSourcePostResponse(page, "/api/prototype/point-to-object/find", SOURCE_REQUEST_HARNESS_TIMEOUT_MS);
-  await page.getByTestId("find-search-cta").click();
   let submitted: AcceptedFindRequest;
-  try { submitted = await preDispatch.request; }
+  try {
+    await page.getByTestId("find-search-cta").click();
+    submitted = await preDispatch.request;
+  }
   catch (error) {
     responseObservation.cancel();
+    markFindPreDispatchFailure(error, progress);
     throw error;
   }
   progress.complete("find_source_pre_dispatch");
@@ -1350,17 +1377,19 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
 async function runSingaporeFind(page: Page, configuration: LiveConfiguration, policy: NetworkPolicy, budget: ReturnType<typeof installBudgetGate>, progress: LiveProgress) {
   progress.start("find_source_ui");
   await page.goto("/prototype/point-to-object");
-  await page.getByTestId("point-object-city-select").selectOption("singapore");
   await page.getByRole("tab", { name: "Find", exact: true }).click();
+  const findCta = page.getByTestId("find-search-cta");
+  const twoDimensionalControl = page.getByTestId("map-dimension-control").getByRole("button", { name: "2d", exact: true });
+  await expect(twoDimensionalControl).toHaveAttribute("aria-pressed", "true");
+  await expect(findCta).toBeEnabled({ timeout: 30_000 });
+  await page.getByTestId("point-object-city-select").selectOption("singapore");
+  await expect(findCta).toBeDisabled();
+  await expect(findCta).toBeEnabled({ timeout: 30_000 });
   await page.getByTestId("point-object-find-role-select").selectOption("consultant_broker");
   await page.getByTestId("point-object-find-scenario-select").selectOption("b2b_commercial_real_estate");
   await expect(page.getByTestId("point-object-find-group-select")).toHaveValue("commercial_office");
   progress.complete("find_source_ui");
   progress.start("find_source_camera");
-  const findCta = page.getByTestId("find-search-cta");
-  const twoDimensionalControl = page.getByTestId("map-dimension-control").getByRole("button", { name: "2d", exact: true });
-  await expect(twoDimensionalControl).toHaveAttribute("aria-pressed", "true");
-  await expect(findCta).toBeEnabled({ timeout: 30_000 });
   const zoomIn = page.getByRole("button", { name: "Zoom in", exact: true });
   await expect(zoomIn).toBeVisible({ timeout: 30_000 });
   await zoomIn.click();
@@ -1373,11 +1402,14 @@ async function runSingaporeFind(page: Page, configuration: LiveConfiguration, po
   progress.start("find_source_pre_dispatch");
   const preDispatch = await installFindPreDispatchGate(page, acceptedSingaporeFindRequest, "Singapore");
   const responseObservation = observeSourcePostResponse(page, "/api/prototype/point-to-object/find", SOURCE_REQUEST_HARNESS_TIMEOUT_MS);
-  await page.getByTestId("find-search-cta").click();
   let submitted: AcceptedFindRequest;
-  try { submitted = await preDispatch.request; }
+  try {
+    await page.getByTestId("find-search-cta").click();
+    submitted = await preDispatch.request;
+  }
   catch (error) {
     responseObservation.cancel();
+    markFindPreDispatchFailure(error, progress);
     throw error;
   }
   progress.complete("find_source_pre_dispatch");
@@ -1472,12 +1504,19 @@ async function runMarketCreate(
     "/api/prototype/point-to-object/area-context",
     SOURCE_REQUEST_HARNESS_TIMEOUT_MS
   );
-  await upload.setInputFiles({
-    name: input.fileName,
-    mimeType: "application/geo+json",
-    buffer: Buffer.from(JSON.stringify({ type: "Polygon", coordinates: input.coordinates }))
-  });
-  const contextRequest = await contextRequestPromise;
+  let contextRequest!: Request;
+  let contextRequestObserved = false;
+  try {
+    await upload.setInputFiles({
+      name: input.fileName,
+      mimeType: "application/geo+json",
+      buffer: Buffer.from(JSON.stringify({ type: "Polygon", coordinates: input.coordinates }))
+    });
+    contextRequest = await contextRequestPromise;
+    contextRequestObserved = true;
+  } finally {
+    if (!contextRequestObserved) contextResponseObservation.cancel();
+  }
   const submittedContext: unknown = contextRequest.postDataJSON();
   progress.complete("create_source_context_request");
 

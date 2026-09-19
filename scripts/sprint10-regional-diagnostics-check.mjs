@@ -108,6 +108,20 @@ for (const functionName of ["runDubaiFind", "runSingaporeFind"]) {
 const findGate = liveSpec.split("async function installFindPreDispatchGate")[1]?.split("\n}\n\nfunction acceptedFindResponse")[0] ?? "";
 assert.match(findGate, /setTimeout\([\s\S]*?SOURCE_REQUEST_HARNESS_TIMEOUT_MS\)/,
   "the fail-closed Find pre-dispatch request gate must use the same bounded source envelope");
+assert.match(findGate, /route[.]request\(\)[.]method\(\) !== "POST"[\s\S]*?\? "method"/,
+  "a non-POST Find dispatch must retain its fixed method reason");
+const preDispatchFailureMapping = liveSpec.split("function markFindPreDispatchFailure")[1]?.split("\n}\n\nfunction exactObjectKeys")[0] ?? "";
+for (const [reason, stage] of [
+  ["method", "find_source_pre_dispatch_method"],
+  ["shape", "find_source_pre_dispatch_shape"],
+  ["market_or_locale", "find_source_pre_dispatch_market_or_locale"],
+  ["criteria", "find_source_pre_dispatch_criteria"],
+  ["bounds", "find_source_pre_dispatch_bounds"],
+  ["timeout", "find_source_pre_dispatch_timeout"]
+]) {
+  assert.match(preDispatchFailureMapping, new RegExp(`reason === "${reason}"[\\s\\S]*?progress[.]start\\("${stage}"\\)`),
+    `${reason} must map to its fixed pre-dispatch diagnostic stage`);
+}
 const sourceObserver = liveSpec.split("function observeSourcePostResponse")[1]?.split("\n}\n\nfunction requireFindSourceResponse")[0] ?? "";
 assert.match(sourceObserver, /page[.]on\("response", onResponse\)/,
   "the source observer must distinguish an HTTP response from a missing response");
@@ -118,6 +132,8 @@ assert.match(sourceObserver, /setTimeout\(\(\) => finish\(\{ kind: "timeout" \}\
 const createBody = liveSpec.split("async function runMarketCreate")[1]?.split("\nasync function runDubaiCreate")[0] ?? "";
 assert.equal((createBody.match(/SOURCE_REQUEST_HARNESS_TIMEOUT_MS/g) ?? []).length, 2,
   "area-context request and response observation must both use the shared 60-second source envelope");
+assert.match(createBody, /finally \{[\s\S]*?if \(!contextRequestObserved\) contextResponseObservation[.]cancel\(\)/,
+  "a failed Create upload or request wait must remove its response observers");
 const suggestBody = liveSpec.split("async function runAnalyseSourceSuggest")[1]?.split("\nasync function logoutVerified")[0] ?? "";
 assert.doesNotMatch(suggestBody, /SOURCE_REQUEST_HARNESS_TIMEOUT_MS/,
   "the regional source deadline alignment must not alter suggestion waits");
