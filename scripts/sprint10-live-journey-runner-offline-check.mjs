@@ -23,11 +23,15 @@ import {
   SPRINT10_ANALYSIS_EVIDENCE_CAPTURE_OPT_IN
 } from "../tests/e2e/helpers/sprint10-analysis-result-evidence.ts";
 import {
+  SPRINT10_DEPTH_CYCLE_EVIDENCE_CAPTURE_OPT_IN
+} from "../tests/e2e/helpers/sprint10-depth-cycle-evidence.ts";
+import {
   LIVE_SCOPE_RECEIPT_PLAN,
   acquireRunLease,
   releaseRunLease,
   runtimeEnvironment,
   validateAnalysisEvidenceCaptureEnvironment,
+  validateDepthCycleEvidenceCaptureEnvironment,
   validateLedger,
   validateLiveLedgerPostRun,
   validateLiveLedgerPreflight,
@@ -72,7 +76,13 @@ try {
     "singapore-create": [{ route: "create", depth: "standard", reserveUsd: RESERVE_USD.create }],
     "singapore-analyse": [{ route: "ai", depth: "standard", reserveUsd: RESERVE_USD.ai }],
     "singapore-find": [],
-    "dubai-create": [{ route: "create", depth: "standard", reserveUsd: RESERVE_USD.create }]
+    "dubai-create": [{ route: "create", depth: "standard", reserveUsd: RESERVE_USD.create }],
+    "dubai-depth-cycle": [
+      { route: "ai", depth: "standard", reserveUsd: RESERVE_USD.ai },
+      { route: "ai", depth: "standard", reserveUsd: RESERVE_USD.ai },
+      { route: "ai", depth: "deep", reserveUsd: RESERVE_USD.ai },
+      { route: "ai", depth: "quick", reserveUsd: RESERVE_USD.ai }
+    ]
   }, "the combined journey and every separately selectable case must retain exact bounded receipt plans");
   const evidencePath = join(root, "analysis-evidence.json");
   const scrubbed = runtimeEnvironment({
@@ -128,6 +138,31 @@ try {
   ]);
   assert.equal(JSON.stringify(forwardedEvidence).includes("must-not-propagate"), false);
 
+  const depthEvidencePath = join(root, "depth-cycle-evidence.json");
+  const requestedDepthEvidence = {
+    GEOAI_SPRINT10_DEPTH_CYCLE_EVIDENCE_CAPTURE: SPRINT10_DEPTH_CYCLE_EVIDENCE_CAPTURE_OPT_IN,
+    GEOAI_SPRINT10_DEPTH_CYCLE_EVIDENCE_PATH: depthEvidencePath,
+    GEOAI_SPRINT10_LIVE_PASSWORD: "must-not-propagate",
+    OPENAI_API_KEY: "must-not-propagate"
+  };
+  assert.deepEqual(validateDepthCycleEvidenceCaptureEnvironment({}, "dubai-depth-cycle"), {});
+  assert.deepEqual(validateDepthCycleEvidenceCaptureEnvironment(requestedDepthEvidence, "dubai-depth-cycle"), {
+    GEOAI_SPRINT10_DEPTH_CYCLE_EVIDENCE_CAPTURE: SPRINT10_DEPTH_CYCLE_EVIDENCE_CAPTURE_OPT_IN,
+    GEOAI_SPRINT10_DEPTH_CYCLE_EVIDENCE_PATH: depthEvidencePath
+  });
+  for (const scope of ["journey", "dubai-analyse", "dubai-find", "singapore-create", "singapore-analyse", "singapore-find", "dubai-create"]) {
+    assert.throws(() => validateDepthCycleEvidenceCaptureEnvironment(requestedDepthEvidence, scope), /available only/);
+  }
+  assert.throws(() => validateDepthCycleEvidenceCaptureEnvironment({
+    ...requestedDepthEvidence,
+    GEOAI_SPRINT10_DEPTH_CYCLE_EVIDENCE_CAPTURE: "wrong-opt-in"
+  }, "dubai-depth-cycle"), /exact opt-in/);
+  assert.throws(() => validateDepthCycleEvidenceCaptureEnvironment({
+    ...requestedDepthEvidence,
+    GEOAI_SPRINT10_ANALYSIS_EVIDENCE_CAPTURE: SPRINT10_ANALYSIS_EVIDENCE_CAPTURE_OPT_IN,
+    GEOAI_SPRINT10_ANALYSIS_EVIDENCE_PATH: evidencePath
+  }, "dubai-depth-cycle"), /cannot be combined/);
+
   assert.throws(() => validateAnalysisEvidenceCaptureEnvironment({
     ...requestedEvidence,
     GEOAI_SPRINT10_ANALYSIS_EVIDENCE_PATH: "relative-evidence.json"
@@ -151,7 +186,7 @@ try {
   assert.equal(validateLedger(root, ledgerPath).ledgerId, ledgerId);
   for (const scope of [
     "journey", "dubai-analyse", "dubai-find", "singapore-create",
-    "singapore-analyse", "singapore-find", "dubai-create"
+    "singapore-analyse", "singapore-find", "dubai-create", "dubai-depth-cycle"
   ]) {
     assert.equal(validateLiveLedgerPreflight(root, ledgerPath, scope).ledgerId, ledgerId);
   }
@@ -203,6 +238,8 @@ try {
   assert.throws(() => validateLiveLedgerScopeHeadroom({ ceilingUsd: 15, estimatedOrReservedUsd: 14.70000001 }, "dubai-create"));
   assert.doesNotThrow(() => validateLiveLedgerScopeHeadroom({ ceilingUsd: 15, estimatedOrReservedUsd: 15 }, "dubai-find"));
   assert.doesNotThrow(() => validateLiveLedgerScopeHeadroom({ ceilingUsd: 15, estimatedOrReservedUsd: 15 }, "singapore-find"));
+  assert.doesNotThrow(() => validateLiveLedgerScopeHeadroom({ ceilingUsd: 15, estimatedOrReservedUsd: 10.2 }, "dubai-depth-cycle"));
+  assert.throws(() => validateLiveLedgerScopeHeadroom({ ceilingUsd: 15, estimatedOrReservedUsd: 10.20000001 }, "dubai-depth-cycle"));
   assert.throws(() => validateLiveLedgerScopeHeadroom({ ceilingUsd: 15, estimatedOrReservedUsd: 15 }, "journey"));
 
   writeLedger(empty);
@@ -246,7 +283,7 @@ try {
     cases: {
       strictCanonicalLedger: 6,
       unresolvedStops: 2,
-      scopeHeadroomBoundaries: 13,
+      scopeHeadroomBoundaries: 15,
       staleLeaseStops: 6,
       raceAfterPreflight: 1,
       postRunNoFreshHeadroom: 2,
@@ -257,7 +294,12 @@ try {
       evidenceScopeRejections: 5,
       evidenceScopeAcceptances: 2,
       evidencePathRejections: 3,
-      evidenceForwarding: 1
+      evidenceForwarding: 1,
+      depthEvidenceCaptureOff: 1,
+      depthEvidencePairRejections: 1,
+      depthEvidenceScopeRejections: 7,
+      depthEvidenceScopeAcceptances: 1,
+      depthEvidenceMutualExclusion: 1
     }
   }));
 } finally {

@@ -23,6 +23,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   LIVE_SCOPE_RECEIPT_PLAN,
   validateAnalysisEvidenceCaptureEnvironment,
+  validateDepthCycleEvidenceCaptureEnvironment,
   validateLiveLedgerPreflight
 } from "./sprint10-live-journey-run.mjs";
 import {
@@ -39,7 +40,7 @@ const exactLiveJourneySeamOptIn = "run-reviewed-sprint10-live-journey-before-ret
 const exactLedgerId = "5aa405b3-bbda-48aa-aeea-ca3357be4042";
 const acceptedLiveScopes = new Set([
   "journey", "dubai-analyse", "dubai-find", "singapore-create",
-  "singapore-analyse", "singapore-find", "dubai-create"
+  "singapore-analyse", "singapore-find", "dubai-create", "dubai-depth-cycle"
 ]);
 const acceptedPreviewFailureStages = new Set([
   "preview_preflight",
@@ -277,6 +278,8 @@ export function validateRuntimeConfig(
   }
   const analysisEvidenceEnvironment = validateAnalysisEvidenceCaptureEnvironment(env,
     liveJourneySeam === exactLiveJourneySeamOptIn ? env.GEOAI_HOSTED_AUTH_PROBE_LIVE_JOURNEY_SCOPE : undefined);
+  const depthCycleEvidenceEnvironment = validateDepthCycleEvidenceCaptureEnvironment(env,
+    liveJourneySeam === exactLiveJourneySeamOptIn ? env.GEOAI_HOSTED_AUTH_PROBE_LIVE_JOURNEY_SCOPE : undefined);
   let liveJourney = null;
   if (liveJourneySeam === exactLiveJourneySeamOptIn) {
     if (previewSeam !== exactPreviewSeamOptIn) {
@@ -314,7 +317,8 @@ export function validateRuntimeConfig(
       ledgerId,
       liveApproval,
       checkpointPath,
-      analysisEvidenceEnvironment
+      analysisEvidenceEnvironment,
+      depthCycleEvidenceEnvironment
     };
   }
   return {
@@ -890,6 +894,7 @@ export function buildLiveJourneyChildEnvironment(config, personas, env = process
   Object.assign(childEnvironment, {
     GEOAI_E2E_BASE_URL: env.GEOAI_E2E_BASE_URL,
     ...config.liveJourney.analysisEvidenceEnvironment,
+    ...config.liveJourney.depthCycleEvidenceEnvironment,
     GEOAI_SPRINT10_LIVE_EXPLICIT_RUN: "root-paid-live-journey-2026-09-18",
     GEOAI_SPRINT10_LIVE_SCOPE: config.liveJourney.scope,
     GEOAI_SPRINT10_LIVE_PREVIEW_URL: config.liveJourney.previewUrl,
@@ -909,9 +914,9 @@ export function buildLiveJourneyChildEnvironment(config, personas, env = process
 }
 
 function parseLiveReceipts(value, scope, { allowPartialPrefix = false } = {}) {
-  if (!Array.isArray(value) || value.length > 2) fail("The live child receipt list is not accepted.", "live_receipt_invalid");
   const expected = LIVE_SCOPE_RECEIPT_PLAN[scope];
-  if (!expected || (!allowPartialPrefix && value.length !== expected.length) ||
+  if (!Array.isArray(value) || !expected || value.length > expected.length ||
+      (!allowPartialPrefix && value.length !== expected.length) ||
       (allowPartialPrefix && value.length > expected.length)) {
     fail("The live child spend receipt does not match the selected bounded scope.", "live_receipt_invalid");
   }
@@ -1030,7 +1035,7 @@ export function runReviewedLiveJourney(
     env: childEnvironment,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
-    timeout: 810_000,
+    timeout: config.liveJourney.scope === "dubai-depth-cycle" ? 1_140_000 : 810_000,
     killSignal: "SIGTERM",
     maxBuffer: 256 * 1024
   });

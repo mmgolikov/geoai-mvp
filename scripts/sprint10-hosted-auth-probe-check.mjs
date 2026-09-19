@@ -451,7 +451,7 @@ assert.match(operator, /admin[.]auth[.]admin[.]getUserById/);
 assert.match(operator, /scripts\/sprint10-real-password-auth-run[.]mjs/);
 assert.match(operator, /only its fixed safe failure stage was retained/);
 assert.match(operator, /A non-allowlisted hosted Auth probe request was blocked before dispatch/);
-for (const scope of ["singapore-analyse", "singapore-find", "dubai-create"]) {
+for (const scope of ["singapore-analyse", "singapore-find", "dubai-create", "dubai-depth-cycle"]) {
   assert.match(operator, new RegExp(`"${scope}"`), `${scope} must be an explicit hosted seam scope, never a wildcard`);
 }
 const previewHarnessSource = operator.slice(

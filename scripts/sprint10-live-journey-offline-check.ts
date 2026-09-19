@@ -103,7 +103,8 @@ async function run() {
     "singapore-create": { ai: 0, create: 1 },
     "singapore-analyse": { ai: 1, create: 0 },
     "singapore-find": { ai: 0, create: 0 },
-    "dubai-create": { ai: 0, create: 1 }
+    "dubai-create": { ai: 0, create: 1 },
+    "dubai-depth-cycle": { ai: 4, create: 0 }
   }, "Every selectable live scope must have one exact paid-route matrix.");
   assert.deepEqual(sprint10PaidPostDecision("dubai-find", "ai", 1), { ok: false, reason: "route_disallowed" });
   assert.deepEqual(sprint10PaidPostDecision("dubai-find", "create", 1), { ok: false, reason: "route_disallowed" });
@@ -118,6 +119,10 @@ async function run() {
   assert.deepEqual(sprint10PaidPostDecision("dubai-create", "create", 1), { ok: true });
   assert.deepEqual(sprint10PaidPostDecision("dubai-create", "ai", 1), { ok: false, reason: "route_disallowed" });
   assert.deepEqual(sprint10PaidPostDecision("dubai-create", "create", 2), { ok: false, reason: "occurrence_exceeded" });
+  assert.deepEqual(sprint10PaidPostDecision("dubai-depth-cycle", "ai", 1), { ok: true });
+  assert.deepEqual(sprint10PaidPostDecision("dubai-depth-cycle", "ai", 4), { ok: true });
+  assert.deepEqual(sprint10PaidPostDecision("dubai-depth-cycle", "ai", 5), { ok: false, reason: "occurrence_exceeded" });
+  assert.deepEqual(sprint10PaidPostDecision("dubai-depth-cycle", "create", 1), { ok: false, reason: "route_disallowed" });
 
   assert.match(liveSpec, /fill\("Marina Bay Sands Tower 1"\)/,
     "Singapore Analyse must keep one exact public place query");
@@ -156,6 +161,16 @@ async function run() {
   assert.match(liveSpec, /if \(configuration[.]scope === "singapore-analyse"\)/);
   assert.match(liveSpec, /if \(configuration[.]scope === "singapore-find"\)/);
   assert.match(liveSpec, /if \(configuration[.]scope === "dubai-create"\)/);
+  assert.match(liveSpec, /if \(configuration[.]scope === "dubai-depth-cycle"\)/);
+  const depthCycleBody = /async function runDubaiDepthCycle[\s\S]*?\n}\n\nasync function runSingaporeAnalyse/.exec(liveSpec)?.[0] ?? "";
+  assert.match(depthCycleBody, /screeningDepths = \["standard", "deep", "quick"\]/,
+    "the new cycle must keep the exact Standard/Deep/Quick screening sequence after its baseline");
+  assert.match(depthCycleBody, /data-in-flight-depth/,
+    "the cycle must observe an in-flight depth receipt rather than only submitted/completed payloads");
+  assert.match(depthCycleBody, /Running .* analysis while keeping the current result visible/,
+    "the cycle must prove that the prior result remains visible while each rerun is loading");
+  assert.match(depthCycleBody, /requireLocalArtifactState\(page, configuration[.]userId, "analyse", 4\)/,
+    "the four bounded paid results must remain distinct browser-local artifacts");
   assert.doesNotMatch(liveSpec, /configuration[.]scope === "journey" \|\| configuration[.]scope === "(?:singapore-analyse|singapore-find|dubai-create)"/,
     "the existing two-paid-request journey must not silently include any complementary scope");
   assert.match(liveSpec, /selectedScope === "journey" \|\| selectedScope === "dubai-analyse"/,

@@ -102,7 +102,7 @@ assert.equal(earlyLedgerValidations, 1, "live opt-in must validate the existing 
 assert.equal(config.liveJourney.scope, "journey");
 assert.equal(config.liveJourney.checkpointPath, checkpointPath);
 
-for (const scope of ["singapore-analyse", "singapore-find", "dubai-create"]) {
+for (const scope of ["singapore-analyse", "singapore-find", "dubai-create", "dubai-depth-cycle"]) {
   const scopedConfig = validateRuntimeConfig({
     ...baseEnvironment,
     GEOAI_HOSTED_AUTH_PROBE_LIVE_JOURNEY_SCOPE: scope,
@@ -194,6 +194,27 @@ assert.equal(evidenceChild.GEOAI_SPRINT10_ANALYSIS_EVIDENCE_CAPTURE, evidenceEnv
 assert.equal(evidenceChild.GEOAI_SPRINT10_ANALYSIS_EVIDENCE_PATH, evidenceEnvironment.GEOAI_SPRINT10_ANALYSIS_EVIDENCE_PATH);
 assert.equal(evidenceChild.GEOAI_HOSTED_AUTH_PROBE_ADMIN_SECRET_KEY, undefined);
 assert.equal(evidenceChild.UNRELATED_RUNTIME_SECRET, undefined);
+const depthEvidenceEnvironment = {
+  ...baseEnvironment,
+  GEOAI_HOSTED_AUTH_PROBE_LIVE_JOURNEY_SCOPE: "dubai-depth-cycle",
+  GEOAI_HOSTED_AUTH_PROBE_LIVE_RUN_APPROVAL: `paid-live-journey:${exactLedgerId}:${previewHost}:${head}:dubai-depth-cycle`,
+  GEOAI_SPRINT10_DEPTH_CYCLE_EVIDENCE_CAPTURE: "write-three-dubai-depth-cycle-responses",
+  GEOAI_SPRINT10_DEPTH_CYCLE_EVIDENCE_PATH: join(privateRoot, "depth-cycle-evidence.json")
+};
+const depthEvidenceConfig = validateRuntimeConfig(depthEvidenceEnvironment, ["node", "operator"], head, 22, {
+  ledgerPreflight: () => ledger
+});
+const depthEvidenceChild = buildLiveJourneyChildEnvironment(depthEvidenceConfig, personas, depthEvidenceEnvironment);
+assert.equal(depthEvidenceChild.GEOAI_SPRINT10_DEPTH_CYCLE_EVIDENCE_CAPTURE,
+  depthEvidenceEnvironment.GEOAI_SPRINT10_DEPTH_CYCLE_EVIDENCE_CAPTURE);
+assert.equal(depthEvidenceChild.GEOAI_SPRINT10_DEPTH_CYCLE_EVIDENCE_PATH,
+  depthEvidenceEnvironment.GEOAI_SPRINT10_DEPTH_CYCLE_EVIDENCE_PATH);
+assert.equal(depthEvidenceChild.GEOAI_HOSTED_AUTH_PROBE_ADMIN_SECRET_KEY, undefined);
+assert.throws(() => validateRuntimeConfig({
+  ...depthEvidenceEnvironment,
+  GEOAI_HOSTED_AUTH_PROBE_LIVE_JOURNEY_SCOPE: "dubai-analyse"
+}, ["node", "operator"], head, 22, { ledgerPreflight: () => ledger }), undefined,
+"depth-cycle capture must remain scoped to one explicit hosted live scope");
 for (const delta of [
   { GEOAI_SPRINT10_ANALYSIS_EVIDENCE_CAPTURE: undefined },
   { GEOAI_SPRINT10_ANALYSIS_EVIDENCE_PATH: undefined },
@@ -304,7 +325,13 @@ for (const [scope, receipts] of [
   ["singapore-create", [paidReceipts[1]]],
   ["singapore-analyse", [paidReceipts[0]]],
   ["singapore-find", []],
-  ["dubai-create", [paidReceipts[1]]]
+  ["dubai-create", [paidReceipts[1]]],
+  ["dubai-depth-cycle", [
+    paidReceipts[0],
+    { ...paidReceipts[0], id: 2 },
+    { ...paidReceipts[0], id: 3, depth: "deep" },
+    { ...paidReceipts[0], id: 4, depth: "quick" }
+  ]]
 ]) {
   const tuple = { scope, previewHost, commit: head };
   assert.equal(parseLiveJourneyChildReceipt(childResult(0, {
@@ -332,6 +359,36 @@ assert.equal(passSpawns, 1);
 assert.equal(passSpawnOptions.timeout, 810_000);
 assert.equal(passSpawnOptions.killSignal, "SIGTERM");
 assert.equal(passSpawnOptions.env.NODE_OPTIONS, undefined);
+let depthSpawnOptions;
+const depthTuple = { scope: "dubai-depth-cycle", previewHost, commit: head };
+const depthReceipts = [
+  paidReceipts[0],
+  { ...paidReceipts[0], id: 2 },
+  { ...paidReceipts[0], id: 3, depth: "deep" },
+  { ...paidReceipts[0], id: 4, depth: "quick" }
+];
+const depthPass = runReviewedLiveJourney(depthEvidenceConfig, personas, runId, {
+  env: depthEvidenceEnvironment,
+  invocationState: { invoked: false },
+  spawn: (_command, _args, options) => {
+    depthSpawnOptions = options;
+    return childResult(0, { status: "PASS", ...depthTuple, browserLocalPersistenceOnly: true, receipts: depthReceipts });
+  }
+});
+assert.equal(depthPass.status, "PASS");
+assert.equal(depthSpawnOptions.timeout, 1_140_000);
+assert.throws(() => parseLiveJourneyChildReceipt(childResult(0, {
+  status: "PASS", ...depthTuple, browserLocalPersistenceOnly: true,
+  receipts: [...depthReceipts, { ...paidReceipts[0], id: 5 }]
+}), depthTuple), undefined, "depth cycle must reject an over-count receipt");
+assert.throws(() => parseLiveJourneyChildReceipt(childResult(0, {
+  status: "PASS", ...depthTuple, browserLocalPersistenceOnly: true,
+  receipts: depthReceipts.map((receipt, index) => index === 2 ? { ...receipt, depth: "standard" } : receipt)
+}), depthTuple), undefined, "depth cycle must reject a wrong-depth receipt");
+assert.throws(() => parseLiveJourneyChildReceipt(childResult(0, {
+  status: "PASS", ...depthTuple, browserLocalPersistenceOnly: true,
+  receipts: depthReceipts.map((receipt, index) => index === 3 ? { ...receipt, state: "unknown" } : receipt)
+}), depthTuple), undefined, "depth cycle must reject an unknown receipt");
 assert.throws(() => runReviewedLiveJourney(config, personas, runId, {
   env: baseEnvironment,
   invocationState,
@@ -744,7 +801,7 @@ console.log(JSON.stringify({
     childEnvironmentSecretExclusions: 10,
     childReceiptStates: 3,
     strictReceiptDenials: 23,
-    exactScopeReceiptMatrices: 7,
+    exactScopeReceiptMatrices: 8,
     singleChildSpawn: passSpawns,
     timeoutFailClosed: 1,
     invalidReceiptFailClosed: 1,

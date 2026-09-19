@@ -42,6 +42,13 @@ import {
   validateSprint10AnalysisEvidencePath,
   writeSprint10AnalysisResultEvidence
 } from "./helpers/sprint10-analysis-result-evidence";
+import {
+  SPRINT10_DEPTH_CYCLE_EVIDENCE_CAPTURE_OPT_IN,
+  SPRINT10_DEVELOPMENT_SCREENING_QUESTION,
+  validateSprint10DepthCycleEvidencePath,
+  writeSprint10DepthCycleEvidence,
+  type Sprint10DepthCycleEvidenceInput
+} from "./helpers/sprint10-depth-cycle-evidence";
 // @ts-expect-error The diagnostics module is an operator-only JavaScript contract checked by its offline suite.
 import { LIVE_JOURNEY_CLEANUP_STAGES, LIVE_JOURNEY_STEPS, boundedLiveJourneyResponseJson, encodeLiveJourneyDiagnostic, primaryAfterFinalizeFailure } from "../../scripts/sprint10-live-journey-diagnostics.mjs";
 
@@ -53,7 +60,7 @@ const EXACT_DEVELOPMENT_PROJECT_REF = "pphdqkurxneyagvnnjdt";
 const EXPECTED_LEDGER_ID = "5aa405b3-bbda-48aa-aeea-ca3357be4042";
 const LIVE_SCOPES = [
   "journey", "dubai-analyse", "dubai-find", "singapore-create",
-  "singapore-analyse", "singapore-find", "dubai-create"
+  "singapore-analyse", "singapore-find", "dubai-create", "dubai-depth-cycle"
 ] as const;
 const SINGAPORE_MARINA_BAY_REFERENCE_BOUNDS = [103.855, 1.278, 103.868, 1.289] as const;
 type LiveScope = Sprint10LiveScope;
@@ -74,6 +81,7 @@ type LiveConfiguration = {
   ledgerPath: string;
   receiptPath: string;
   analysisEvidencePath: string | null;
+  depthCycleEvidencePath: string | null;
 };
 
 function guard(condition: unknown, message: string): asserts condition {
@@ -172,6 +180,18 @@ function loadConfiguration(baseURL: string | undefined): LiveConfiguration {
       "Analysis evidence capture is available only for a scope containing the bounded Dubai Analyse scenario.");
     validateSprint10AnalysisEvidencePath(evidencePath);
   }
+  const depthEvidenceOptIn = process.env.GEOAI_SPRINT10_DEPTH_CYCLE_EVIDENCE_CAPTURE;
+  const depthEvidencePath = process.env.GEOAI_SPRINT10_DEPTH_CYCLE_EVIDENCE_PATH;
+  const depthEvidenceRequested = depthEvidenceOptIn !== undefined || depthEvidencePath !== undefined;
+  if (depthEvidenceRequested) {
+    guard(depthEvidenceOptIn === SPRINT10_DEPTH_CYCLE_EVIDENCE_CAPTURE_OPT_IN &&
+      typeof depthEvidencePath === "string" && depthEvidencePath.length > 0,
+    "Depth-cycle evidence capture requires its exact opt-in and one explicit output path.");
+    guard(selectedScope === "dubai-depth-cycle",
+      "Depth-cycle evidence capture is available only for the bounded Dubai depth-cycle scope.");
+    guard(!evidenceRequested, "Single-response and depth-cycle evidence capture cannot be combined.");
+    validateSprint10DepthCycleEvidencePath(depthEvidencePath);
+  }
   return {
     scope: selectedScope,
     origin: preview.origin,
@@ -184,7 +204,8 @@ function loadConfiguration(baseURL: string | undefined): LiveConfiguration {
     ledgerRoot: required("GEOAI_SPRINT10_LIVE_LEDGER_ROOT"),
     ledgerPath: required("GEOAI_SPRINT10_LIVE_LEDGER_PATH"),
     receiptPath: required("GEOAI_SPRINT10_LIVE_DEPLOYMENT_RECEIPT_PATH"),
-    analysisEvidencePath: evidenceRequested ? evidencePath! : null
+    analysisEvidencePath: evidenceRequested ? evidencePath! : null,
+    depthCycleEvidencePath: depthEvidenceRequested ? depthEvidencePath! : null
   };
 }
 
@@ -700,9 +721,9 @@ async function localArtifactState(page: Page, userId: string, kind: ArtifactKind
   }, { expectedUserId: userId, expectedKind: kind });
 }
 
-async function requireLocalArtifactState(page: Page, userId: string, kind: ArtifactKind): Promise<LocalArtifactState> {
+async function requireLocalArtifactState(page: Page, userId: string, kind: ArtifactKind, expectedCount = 1): Promise<LocalArtifactState> {
   const state = await localArtifactState(page, userId, kind);
-  guard(state && state.count === 1 && typeof state.artifactId === "string" && state.artifactId.length > 0 &&
+  guard(state && state.count === expectedCount && typeof state.artifactId === "string" && state.artifactId.length > 0 &&
     typeof state.payloadHash === "string" && /^[a-f0-9]{64}$/.test(state.payloadHash) &&
     typeof state.label === "string" && state.label.length > 0 && typeof state.viewRevision === "number" &&
     Number.isInteger(state.viewRevision) && state.viewRevision >= 0 &&
@@ -748,7 +769,8 @@ async function reopenSavedArtifact(
   kind: ArtifactKind,
   policy: NetworkPolicy,
   expected: LocalArtifactState,
-  verify: () => Promise<void>
+  verify: () => Promise<void>,
+  expectedCount = 1
 ) {
   await page.goto("/projects?view=spatial");
   await expect(page.getByText("Saved on this device", { exact: true })).toBeVisible();
@@ -760,7 +782,7 @@ async function reopenSavedArtifact(
   await card.getByRole("button", { name: kind === "analyse" ? "Open result" : "Show on map", exact: true }).click();
   await verify();
   await stableLocalBarrier(page);
-  const reopened = await requireLocalArtifactState(page, userId, kind);
+  const reopened = await requireLocalArtifactState(page, userId, kind, expectedCount);
   assertSameArtifact(expected, reopened);
   assertNoReplay(before, policy.snapshotJourneyRequests());
 }
@@ -838,6 +860,176 @@ async function runDubaiAnalyse(page: Page, configuration: LiveConfiguration, pol
     await expect(page.getByTestId("ai-success")).toBeVisible();
     await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
   });
+  expect(budget.paidDispatchCount()).toBe(paidBeforeReopen);
+  progress.complete("analyse_local_reopen");
+}
+
+async function runDubaiDepthCycle(page: Page, configuration: LiveConfiguration, policy: NetworkPolicy, budget: ReturnType<typeof installBudgetGate>, progress: LiveProgress) {
+  const { chosen, chosenIndex } = await runAnalyseSourceSuggest(page, {
+    marketKey: "dubai",
+    query: "Shangri-La Dubai",
+    enterQuery: (search) => search.fill("Shangri-La Dubai"),
+    candidateLabel: /shangri/i,
+    label: "Dubai depth cycle"
+  }, progress);
+  const option = page.locator(`#point-object-search-result-${chosenIndex}`);
+  progress.start("analyse_source_context");
+  const contextResponse = page.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/point-to-object/context"), { timeout: 45_000 });
+  await option.click();
+  const context = await contextResponse;
+  const contextPayload: unknown = await boundedLiveJourneyResponseJson(context, 10_000);
+  guard(context.status() === 200 && record(contextPayload) && contextPayload.mode === "resolved" && contextPayload.schemaVersion === 2 &&
+    record(contextPayload.subject) && contextPayload.subject.sourceFeatureId === chosen.id,
+  "The selected Dubai depth-cycle source identity was not resolved to the exact structured object.");
+  progress.complete("analyse_source_context");
+
+  await expect(page.getByRole("button", { name: "Analyze", exact: true })).toBeEnabled({ timeout: 45_000 });
+  await page.locator("#point-object-question").fill(SPRINT10_PUBLIC_ANALYSIS_QUESTION);
+  progress.start("analyse_paid_response");
+  const baselineResponsePromise = page.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/point-to-object/ai"), { timeout: 180_000 });
+  await page.getByRole("button", { name: "Analyze", exact: true }).click();
+  const baselineResponse = await baselineResponsePromise;
+  const baselinePayload: unknown = await boundedLiveJourneyResponseJson(baselineResponse, 10_000);
+  progress.complete("analyse_paid_response");
+  progress.start("analyse_paid_terminal");
+  await budget.waitForTerminalReceipts();
+  progress.complete("analyse_paid_terminal");
+  progress.start("analyse_result_contract");
+  const baselineSubmitted: unknown = baselineResponse.request().postDataJSON();
+  guard(baselineResponse.status() === 200 && record(baselinePayload) && baselinePayload.mode === "openai" && baselinePayload.schemaVersion === 6 &&
+    typeof baselinePayload.evidencePackHash === "string" && /^[a-f0-9]{64}$/.test(baselinePayload.evidencePackHash) &&
+    baselinePayload.evidencePackId === `p2o_live_evidence_${baselinePayload.evidencePackHash.slice(0, 24)}` &&
+    record(baselineSubmitted) && baselineSubmitted.depth === "standard" && baselineSubmitted.goal === "custom" &&
+    baselineSubmitted.perspective === "developer" && baselineSubmitted.horizon === "current" &&
+    baselineSubmitted.question === SPRINT10_PUBLIC_ANALYSIS_QUESTION && baselineSubmitted.locale === "en" &&
+    baselineSubmitted.role === "developer" && baselineSubmitted.scenario === "unspecified" &&
+    baselineSubmitted.expectedSourceFeatureId === chosen.id &&
+    record(baselinePayload.request) && baselinePayload.request.depth === "standard" && baselinePayload.request.goal === "custom" &&
+    baselinePayload.request.perspective === "developer" && baselinePayload.request.horizon === "current" &&
+    baselinePayload.request.question === SPRINT10_PUBLIC_ANALYSIS_QUESTION && baselinePayload.request.locale === "en" &&
+    baselinePayload.request.role === "developer" && baselinePayload.request.scenario === "unspecified" &&
+    record(baselinePayload.subject) && baselinePayload.subject.sourceFeatureId === chosen.id &&
+    baselinePayload.subject.sourceLabel === "© OpenStreetMap contributors" &&
+    record(baselinePayload.content) && record(baselinePayload.content.depthReview) && baselinePayload.content.depthReview.depth === "standard",
+  "The initial Dubai Standard baseline did not preserve its exact source, submitted settings and completed depth receipt.");
+  progress.complete("analyse_result_contract");
+  await expect(page.getByTestId("ai-success")).toBeVisible();
+  await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
+  await expect(page.getByTestId("analysis-request-state")).toHaveAttribute("data-completed-depth", "standard");
+  await expect.poll(async () => (await localArtifactState(page, configuration.userId, "analyse"))?.count ?? 0).toBe(1);
+
+  const preset = page.getByRole("button", { name: "Development screening", exact: true });
+  await expect(preset).toBeEnabled();
+  await preset.click();
+  await expect(preset).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("#analysis-follow-up")).toHaveValue(SPRINT10_DEVELOPMENT_SCREENING_QUESTION);
+
+  const captureInputs: Sprint10DepthCycleEvidenceInput[] = [];
+  const screeningDepths = ["standard", "deep", "quick"] as const;
+  let previousDepth: "standard" | "deep" | "quick" = "standard";
+  let finalPayload: Record<string, unknown> | null = null;
+  for (const [screeningIndex, depth] of screeningDepths.entries()) {
+    const depthButton = page.getByRole("button", { name: depth === "standard" ? "Standard" : depth === "deep" ? "Deep" : "Quick", exact: true });
+    await depthButton.click();
+    await expect(depthButton).toHaveAttribute("aria-pressed", "true");
+    const state = page.getByTestId("analysis-request-state");
+    await expect(state).toHaveAttribute("data-draft-depth", depth);
+    await expect(state).toHaveAttribute("data-draft-role", "developer");
+    await expect(state).toHaveAttribute("data-draft-scenario", "unspecified");
+    const run = page.getByRole("button", { name: "Run focused analysis", exact: true });
+    await expect(run).toBeEnabled();
+
+    progress.start("analyse_paid_response");
+    const requestPromise = page.waitForRequest((request) => request.method() === "POST" && request.url().endsWith("/point-to-object/ai"), { timeout: 45_000 });
+    const responsePromise = page.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/point-to-object/ai"), { timeout: 180_000 });
+    await run.click();
+    const request = await requestPromise;
+    const submittedRequest: unknown = request.postDataJSON();
+    guard(record(submittedRequest) && submittedRequest.depth === depth && submittedRequest.goal === "development_screening" &&
+      submittedRequest.perspective === "developer" && submittedRequest.horizon === "current" &&
+      submittedRequest.question === SPRINT10_DEVELOPMENT_SCREENING_QUESTION && submittedRequest.locale === "en" &&
+      submittedRequest.role === "developer" && submittedRequest.scenario === "unspecified" &&
+      submittedRequest.expectedSourceFeatureId === chosen.id,
+    `The submitted ${depth} screening request changed a fixed non-depth input or source identity.`);
+    await expect(state).toHaveAttribute("data-in-flight-depth", depth);
+    await expect(state).toHaveAttribute("data-completed-depth", previousDepth);
+    await expect(page.getByTestId("ai-success")).toBeVisible();
+    await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", previousDepth);
+    await expect(page.getByRole("status").filter({ hasText: `Running ${depth === "deep" ? "Deep" : depth === "quick" ? "Quick" : "Standard"} analysis while keeping the current result visible` })).toBeVisible();
+    await expect(page.getByRole("button", { name: new RegExp(`^Running ${depth === "deep" ? "Deep" : depth === "quick" ? "Quick" : "Standard"} analysis`) })).toBeDisabled();
+
+    const response = await responsePromise;
+    const payload: unknown = await boundedLiveJourneyResponseJson(response, 10_000);
+    progress.complete("analyse_paid_response");
+    progress.start("analyse_paid_terminal");
+    await budget.waitForTerminalReceipts();
+    progress.complete("analyse_paid_terminal");
+    progress.start("analyse_result_contract");
+    guard(response.request() === request && response.status() === 200 && record(payload) && payload.mode === "openai" && payload.schemaVersion === 6 &&
+      typeof payload.evidencePackHash === "string" && /^[a-f0-9]{64}$/.test(payload.evidencePackHash) &&
+      payload.evidencePackId === `p2o_live_evidence_${payload.evidencePackHash.slice(0, 24)}` &&
+      record(payload.request) && payload.request.depth === depth && payload.request.goal === "development_screening" &&
+      payload.request.perspective === "developer" && payload.request.horizon === "current" &&
+      payload.request.question === SPRINT10_DEVELOPMENT_SCREENING_QUESTION && payload.request.locale === "en" &&
+      payload.request.role === "developer" && payload.request.scenario === "unspecified" &&
+      record(payload.subject) && payload.subject.sourceFeatureId === chosen.id && payload.subject.sourceLabel === "© OpenStreetMap contributors" &&
+      record(payload.content) && payload.content.caveat === CAVEAT && record(payload.content.depthReview) && payload.content.depthReview.depth === depth,
+    `The completed ${depth} screening result changed source identity, fixed inputs, provenance or depth receipt.`);
+    progress.complete("analyse_result_contract");
+    await expect(page.getByTestId("ai-success")).toBeVisible();
+    await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", depth);
+    await expect(state).toHaveAttribute("data-in-flight-depth", "none");
+    await expect(state).toHaveAttribute("data-completed-depth", depth);
+    await expect.poll(async () => {
+      const artifact = await localArtifactState(page, configuration.userId, "analyse");
+      return artifact?.count === screeningIndex + 2
+        ? artifact.domainIdentity
+        : null;
+    }).toBe(JSON.stringify({ sourceFeatureId: chosen.id, evidencePackHash: payload.evidencePackHash }));
+    if (configuration.depthCycleEvidencePath) {
+      captureInputs.push({
+        response: payload,
+        submittedRequest,
+        expectedSourceFeatureId: chosen.id,
+        telemetryIdentity: {
+          requestKey: sprint10LiveRequestKey(configuration.scope, "ai", screeningIndex + 2, configuration.commit),
+          phase: "S4",
+          candidateHost: configuration.host,
+          candidateCommit: configuration.commit,
+          route: "ai",
+          depth,
+          promptVersion: SPRINT10_ANALYSIS_PROMPT_VERSION,
+          schemaVersion: 6
+        }
+      });
+    }
+    previousDepth = depth;
+    finalPayload = payload;
+  }
+
+  guard(finalPayload && typeof finalPayload.evidencePackHash === "string", "The final Quick screening result is missing.");
+  if (configuration.depthCycleEvidencePath) {
+    progress.start("analyse_evidence_capture");
+    writeSprint10DepthCycleEvidence(configuration.depthCycleEvidencePath, captureInputs);
+    progress.complete("analyse_evidence_capture");
+  }
+  const expectedDomainIdentity = JSON.stringify({ sourceFeatureId: chosen.id, evidencePackHash: finalPayload.evidencePackHash });
+  progress.start("analyse_local_save");
+  await expect.poll(async () => {
+    const state = await localArtifactState(page, configuration.userId, "analyse");
+    return state?.count === 4 ? state.domainIdentity : null;
+  }).toBe(expectedDomainIdentity);
+  const saved = await requireLocalArtifactState(page, configuration.userId, "analyse", 4);
+  expect(saved.marketKey).toBe("dubai");
+  expect(saved.role).toBe("developer");
+  expect(saved.scenario).toBe("unspecified");
+  progress.complete("analyse_local_save");
+  const paidBeforeReopen = budget.paidDispatchCount();
+  progress.start("analyse_local_reopen");
+  await reopenSavedArtifact(page, configuration.userId, "analyse", policy, saved, async () => {
+    await expect(page.getByTestId("ai-success")).toBeVisible();
+    await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "quick");
+  }, 4);
   expect(budget.paidDispatchCount()).toBe(paidBeforeReopen);
   progress.complete("analyse_local_reopen");
 }
@@ -1248,7 +1440,7 @@ async function runDubaiCreate(page: Page, configuration: LiveConfiguration, poli
 
 test("root-authorized protected Preview source-to-decision journey", async ({ page, baseURL }) => {
   test.skip(!runnerActive, "Live execution requires the fail-closed root-owned runner.");
-  test.setTimeout(720_000);
+  test.setTimeout(selectedScope === "dubai-depth-cycle" ? 1_020_000 : 720_000);
   const configuration = loadConfiguration(baseURL);
   const initialLedger = readSprint10SpendLedgerFile(configuration.ledgerRoot, configuration.ledgerPath);
   guard(initialLedger.ledgerId === EXPECTED_LEDGER_ID, "The existing cycle-root ledger identity is not accepted.");
@@ -1275,6 +1467,9 @@ test("root-authorized protected Preview source-to-decision journey", async ({ pa
     progress.complete("auth_login");
     if (configuration.scope === "journey" || configuration.scope === "dubai-analyse") {
       await runDubaiAnalyse(page, configuration, policy, budget, progress);
+    }
+    if (configuration.scope === "dubai-depth-cycle") {
+      await runDubaiDepthCycle(page, configuration, policy, budget, progress);
     }
     if (configuration.scope === "journey" || configuration.scope === "dubai-find") {
       try { await runDubaiFind(page, configuration, policy, budget, progress); }

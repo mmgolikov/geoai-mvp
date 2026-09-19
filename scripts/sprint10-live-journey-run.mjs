@@ -27,6 +27,10 @@ import {
   SPRINT10_ANALYSIS_EVIDENCE_CAPTURE_OPT_IN,
   validateSprint10AnalysisEvidencePath
 } from "../tests/e2e/helpers/sprint10-analysis-result-evidence.ts";
+import {
+  SPRINT10_DEPTH_CYCLE_EVIDENCE_CAPTURE_OPT_IN,
+  validateSprint10DepthCycleEvidencePath
+} from "../tests/e2e/helpers/sprint10-depth-cycle-evidence.ts";
 import { findLiveJourneyDiagnostic } from "./sprint10-live-journey-diagnostics.mjs";
 
 const exactDevelopmentProjectRef = "pphdqkurxneyagvnnjdt";
@@ -34,7 +38,7 @@ const exactLedgerId = "5aa405b3-bbda-48aa-aeea-ca3357be4042";
 const exactExplicitRun = "root-paid-live-journey-2026-09-18";
 const acceptedScopes = new Set([
   "journey", "dubai-analyse", "dubai-find", "singapore-create",
-  "singapore-analyse", "singapore-find", "dubai-create"
+  "singapore-analyse", "singapore-find", "dubai-create", "dubai-depth-cycle"
 ]);
 export const LIVE_SCOPE_RECEIPT_PLAN = Object.freeze({
   journey: Object.freeze([
@@ -54,6 +58,12 @@ export const LIVE_SCOPE_RECEIPT_PLAN = Object.freeze({
   "singapore-find": Object.freeze([]),
   "dubai-create": Object.freeze([
     Object.freeze({ route: "create", depth: "standard", reserveUsd: RESERVE_USD.create })
+  ]),
+  "dubai-depth-cycle": Object.freeze([
+    Object.freeze({ route: "ai", depth: "standard", reserveUsd: RESERVE_USD.ai }),
+    Object.freeze({ route: "ai", depth: "standard", reserveUsd: RESERVE_USD.ai }),
+    Object.freeze({ route: "ai", depth: "deep", reserveUsd: RESERVE_USD.ai }),
+    Object.freeze({ route: "ai", depth: "quick", reserveUsd: RESERVE_USD.ai })
   ])
 });
 const forbiddenProductionHosts = new Set([
@@ -170,6 +180,26 @@ export function validateAnalysisEvidenceCaptureEnvironment(source, scope) {
   });
 }
 
+export function validateDepthCycleEvidenceCaptureEnvironment(source, scope) {
+  const capture = source.GEOAI_SPRINT10_DEPTH_CYCLE_EVIDENCE_CAPTURE;
+  const path = source.GEOAI_SPRINT10_DEPTH_CYCLE_EVIDENCE_PATH;
+  if (capture === undefined && path === undefined) return Object.freeze({});
+  if (capture !== SPRINT10_DEPTH_CYCLE_EVIDENCE_CAPTURE_OPT_IN || typeof path !== "string" || path.length === 0) {
+    fail("Depth-cycle evidence capture requires its exact opt-in and one explicit output path.");
+  }
+  if (scope !== "dubai-depth-cycle") {
+    fail("Depth-cycle evidence capture is available only for the bounded Dubai depth-cycle scope.");
+  }
+  if (source.GEOAI_SPRINT10_ANALYSIS_EVIDENCE_CAPTURE !== undefined || source.GEOAI_SPRINT10_ANALYSIS_EVIDENCE_PATH !== undefined) {
+    fail("Single-response and depth-cycle evidence capture cannot be combined.");
+  }
+  const validatedPath = validateSprint10DepthCycleEvidencePath(path);
+  return Object.freeze({
+    GEOAI_SPRINT10_DEPTH_CYCLE_EVIDENCE_CAPTURE: SPRINT10_DEPTH_CYCLE_EVIDENCE_CAPTURE_OPT_IN,
+    GEOAI_SPRINT10_DEPTH_CYCLE_EVIDENCE_PATH: validatedPath
+  });
+}
+
 function commandOutput(command, args, repositoryRoot, label) {
   const result = spawnSync(command, args, {
     cwd: repositoryRoot,
@@ -270,6 +300,7 @@ function preflight(repositoryRoot) {
   const scope = required("GEOAI_SPRINT10_LIVE_SCOPE");
   if (!acceptedScopes.has(scope)) fail("The selected bounded live scope is not accepted.");
   const analysisEvidenceEnvironment = validateAnalysisEvidenceCaptureEnvironment(process.env, scope);
+  const depthCycleEvidenceEnvironment = validateDepthCycleEvidenceCaptureEnvironment(process.env, scope);
   const previewUrl = canonicalOrigin(required("GEOAI_SPRINT10_LIVE_PREVIEW_URL"));
   const baseUrl = canonicalOrigin(required("GEOAI_E2E_BASE_URL"));
   if (!previewUrl || baseUrl !== previewUrl) fail("The base URL and Preview URL must be the same exact origin.");
@@ -307,7 +338,8 @@ function preflight(repositoryRoot) {
     ledgerRoot,
     ledgerPath,
     baselineReceiptCount: ledger.receipts.length,
-    analysisEvidenceEnvironment
+    analysisEvidenceEnvironment,
+    depthCycleEvidenceEnvironment
   };
 }
 
@@ -470,7 +502,7 @@ function run() {
 const { defineConfig } = require(${JSON.stringify(playwrightEntry)});
 module.exports = defineConfig({
   testDir: ${JSON.stringify(join(repositoryRoot, "tests/e2e"))},
-  timeout: 720000,
+  timeout: ${config.scope === "dubai-depth-cycle" ? 1020000 : 720000},
   expect: { timeout: 45000 },
   fullyParallel: false,
   forbidOnly: true,
@@ -508,6 +540,7 @@ module.exports = defineConfig({
     ...runtimeEnvironment(),
     ...Object.fromEntries(liveKeys.map((key) => [key, required(key)])),
     ...config.analysisEvidenceEnvironment,
+    ...config.depthCycleEvidenceEnvironment,
     GEOAI_SPRINT10_LIVE_RUNNER_ACTIVE: "1"
   };
   const commonArguments = [
@@ -545,7 +578,7 @@ module.exports = defineConfig({
       env: liveEnvironment,
       encoding: "utf8",
       maxBuffer: 32 * 1024 * 1024,
-      timeout: 750_000,
+      timeout: config.scope === "dubai-depth-cycle" ? 1_080_000 : 750_000,
       killSignal: "SIGTERM"
     });
     if (result.error || result.signal) fail("The live child exceeded its bounded execution window; logout is not verified and operator action is required.");
