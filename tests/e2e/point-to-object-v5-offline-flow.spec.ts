@@ -15,6 +15,7 @@ test.beforeEach(async ({ page, browserName }, testInfo) => {
 
 const sha256 = "a".repeat(64);
 const acquiredAt = "2026-09-04T09:00:00.000Z";
+const singaporeMarinaBayReferenceBounds = [103.855, 1.278, 103.868, 1.289] as const;
 const contextRequests: Array<Record<string, unknown>> = [];
 const findPostRequests: Array<Record<string, unknown>> = [];
 const createPostRequests: Array<Record<string, unknown>> = [];
@@ -506,6 +507,49 @@ test("SOURCE10 Find preserves exact criteria through timeout, recovery and sourc
   expect(requests).toHaveLength(4);
   expect(requests[3]).toEqual(requests[0]);
   expect(external).toEqual([]);
+});
+
+test("Singapore Find waits for its real 2D zoom before dispatching the frozen Marina Bay request", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  const unexpectedExternal = await installOfflineRoutes(page, { emptyFind: true });
+  await page.addInitScript(() => localStorage.setItem("geoai-mock-demo-session-v1", "active"));
+  const findCallsBefore = findPostRequests.length;
+
+  await page.goto("/prototype/point-to-object");
+  await page.getByTestId("point-object-city-select").selectOption("singapore");
+  await page.getByRole("tab", { name: "Find", exact: true }).click();
+  await page.getByTestId("point-object-find-role-select").selectOption("consultant_broker");
+  await page.getByTestId("point-object-find-scenario-select").selectOption("b2b_commercial_real_estate");
+  await expect(page.getByTestId("point-object-find-group-select")).toHaveValue("commercial_office");
+
+  const findCta = page.getByTestId("find-search-cta");
+  const twoDimensionalControl = page.getByTestId("map-dimension-control").getByRole("button", { name: "2d", exact: true });
+  await expect(twoDimensionalControl).toHaveAttribute("aria-pressed", "true");
+  await expect(findCta).toBeEnabled();
+  await page.getByRole("button", { name: "Zoom in", exact: true }).click();
+  await expect(findCta).toBeDisabled();
+  await expect(findCta).toBeEnabled();
+  await findCta.click();
+
+  await expect.poll(() => findPostRequests.length).toBe(findCallsBefore + 1);
+  const submitted = findPostRequests.at(-1);
+  expect(submitted && Object.keys(submitted).sort()).toEqual(["bounds", "group", "limit", "locale", "mappedMaximumLevels", "mappedMinimumLevels", "marketKey"]);
+  expect(submitted).toMatchObject({
+    marketKey: "singapore",
+    locale: "en",
+    group: "commercial_office",
+    mappedMinimumLevels: null,
+    mappedMaximumLevels: null,
+    limit: 12
+  });
+  const bounds = submitted?.bounds;
+  expect(Array.isArray(bounds) && bounds.length === 4 && bounds.every((item) => typeof item === "number" && Number.isFinite(item))).toBe(true);
+  const [west, south, east, north] = bounds as number[];
+  expect(west).toBeGreaterThanOrEqual(singaporeMarinaBayReferenceBounds[0]);
+  expect(south).toBeGreaterThanOrEqual(singaporeMarinaBayReferenceBounds[1]);
+  expect(east).toBeLessThanOrEqual(singaporeMarinaBayReferenceBounds[2]);
+  expect(north).toBeLessThanOrEqual(singaporeMarinaBayReferenceBounds[3]);
+  expect(unexpectedExternal).toEqual([]);
 });
 
 test("Sprint06 J06 keeps unsent RU refinement separate on Back and restores it without another request", async ({ page }, testInfo) => {

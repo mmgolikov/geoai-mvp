@@ -66,6 +66,10 @@ const LIVE_SCOPES = [
 ] as const;
 const SINGAPORE_MARINA_BAY_REFERENCE_BOUNDS = [103.855, 1.278, 103.868, 1.289] as const;
 type LiveScope = Sprint10LiveScope;
+type SingaporeFindRequestIssue = "shape" | "market_or_locale" | "criteria" | "bounds_outside_marina_bay";
+type SourceResponseObservation =
+  | { kind: "response"; response: Response }
+  | { kind: "aborted" | "network_failed" | "timeout" };
 
 const runnerActive = process.env.GEOAI_SPRINT10_LIVE_RUNNER_ACTIVE === "1";
 const selectedScope = process.env.GEOAI_SPRINT10_LIVE_SCOPE as LiveScope | undefined;
@@ -129,6 +133,55 @@ function record(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function observeSourcePostResponse(page: Page, pathname: string, timeoutMs: number) {
+  guard(pathname.startsWith("/api/") && Number.isInteger(timeoutMs) && timeoutMs > 0,
+    "The source response observer configuration is invalid.");
+  let settled = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let resolveResult: (result: SourceResponseObservation) => void = () => undefined;
+  const matches = (request: Request) => request.method() === "POST" && new URL(request.url()).pathname === pathname;
+  const cleanup = () => {
+    if (timer) clearTimeout(timer);
+    page.off("response", onResponse);
+    page.off("requestfailed", onRequestFailed);
+  };
+  const finish = (result: SourceResponseObservation) => {
+    if (settled) return;
+    settled = true;
+    cleanup();
+    resolveResult(result);
+  };
+  const onResponse = (response: Response) => {
+    if (matches(response.request())) finish({ kind: "response", response });
+  };
+  const onRequestFailed = (request: Request) => {
+    if (!matches(request)) return;
+    const errorText = request.failure()?.errorText ?? "";
+    finish({ kind: /aborted/i.test(errorText) ? "aborted" : "network_failed" });
+  };
+  const result = new Promise<SourceResponseObservation>((resolve) => { resolveResult = resolve; });
+  page.on("response", onResponse);
+  page.on("requestfailed", onRequestFailed);
+  timer = setTimeout(() => finish({ kind: "timeout" }), timeoutMs);
+  return { result, cancel: cleanup };
+}
+
+function requireFindSourceResponse(observation: SourceResponseObservation, progress: LiveProgress): Response {
+  if (observation.kind === "response") return observation.response;
+  if (observation.kind === "aborted") progress.start("find_source_response_wait_aborted");
+  else if (observation.kind === "network_failed") progress.start("find_source_response_wait_network_failed");
+  else progress.start("find_source_response_wait_timeout");
+  throw new Error(`The Find source transport ended with the safe reason ${observation.kind}.`);
+}
+
+function requireCreateContextResponse(observation: SourceResponseObservation, progress: LiveProgress): Response {
+  if (observation.kind === "response") return observation.response;
+  if (observation.kind === "aborted") progress.start("create_source_context_response_aborted");
+  else if (observation.kind === "network_failed") progress.start("create_source_context_response_network_failed");
+  else progress.start("create_source_context_response_timeout");
+  throw new Error(`The Create context transport ended with the safe reason ${observation.kind}.`);
+}
+
 function exactObjectKeys(value: unknown, keys: readonly string[]): value is Record<string, unknown> {
   return record(value) && Object.keys(value).sort().join("\u0000") === [...keys].sort().join("\u0000");
 }
@@ -137,16 +190,23 @@ function isoTimestamp(value: unknown): value is string {
   return typeof value === "string" && Number.isFinite(Date.parse(value));
 }
 
-function acceptedSingaporeFindRequest(value: unknown): value is Record<string, unknown> & { bounds: number[] } {
+function singaporeFindRequestIssue(value: unknown): SingaporeFindRequestIssue | null {
   if (!exactObjectKeys(value, ["bounds", "group", "limit", "locale", "mappedMaximumLevels", "mappedMinimumLevels", "marketKey"]) ||
       !Array.isArray(value.bounds) || value.bounds.length !== 4 ||
-      value.bounds.some((item) => typeof item !== "number" || !Number.isFinite(item))) return false;
-  return value.marketKey === "singapore" && value.locale === "en" && value.group === "commercial_office" &&
-    value.mappedMinimumLevels === null && value.mappedMaximumLevels === null && value.limit === 12 &&
-    value.bounds[0] >= SINGAPORE_MARINA_BAY_REFERENCE_BOUNDS[0] &&
+      value.bounds.some((item) => typeof item !== "number" || !Number.isFinite(item))) return "shape";
+  if (value.marketKey !== "singapore" || value.locale !== "en") return "market_or_locale";
+  if (value.group !== "commercial_office" || value.mappedMinimumLevels !== null ||
+      value.mappedMaximumLevels !== null || value.limit !== 12) return "criteria";
+  return value.bounds[0] >= SINGAPORE_MARINA_BAY_REFERENCE_BOUNDS[0] &&
     value.bounds[1] >= SINGAPORE_MARINA_BAY_REFERENCE_BOUNDS[1] &&
     value.bounds[2] <= SINGAPORE_MARINA_BAY_REFERENCE_BOUNDS[2] &&
-    value.bounds[3] <= SINGAPORE_MARINA_BAY_REFERENCE_BOUNDS[3];
+    value.bounds[3] <= SINGAPORE_MARINA_BAY_REFERENCE_BOUNDS[3]
+    ? null
+    : "bounds_outside_marina_bay";
+}
+
+function acceptedSingaporeFindRequest(value: unknown): value is Record<string, unknown> & { bounds: number[] } {
+  return singaporeFindRequestIssue(value) === null;
 }
 
 function acceptedDubaiFindRequest(value: unknown): value is Record<string, unknown> & { bounds: number[] } {
@@ -182,7 +242,8 @@ async function installFindPreDispatchGate(
     try { submitted = route.request().postDataJSON(); }
     catch { submitted = null; }
     if (route.request().method() !== "POST" || !accepts(submitted)) {
-      rejectRequest(new Error(`The ${label} Find request failed its bounded pre-dispatch contract.`));
+      const reason = label === "Singapore" ? singaporeFindRequestIssue(submitted) ?? "method" : "contract_mismatch";
+      rejectRequest(new Error(`The ${label} Find request failed its bounded pre-dispatch contract: ${reason}.`));
       await route.abort("blockedbyclient");
       return;
     }
@@ -1217,13 +1278,17 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
   progress.complete("find_source_cta");
   progress.start("find_source_pre_dispatch");
   const preDispatch = await installFindPreDispatchGate(page, acceptedDubaiFindRequest, "Dubai");
-  const responsePromise = page.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/point-to-object/find"), { timeout: SOURCE_REQUEST_HARNESS_TIMEOUT_MS });
-  void responsePromise.catch(() => undefined);
+  const responseObservation = observeSourcePostResponse(page, "/api/prototype/point-to-object/find", SOURCE_REQUEST_HARNESS_TIMEOUT_MS);
   await page.getByTestId("find-search-cta").click();
-  const submitted = await preDispatch.request;
+  let submitted: AcceptedFindRequest;
+  try { submitted = await preDispatch.request; }
+  catch (error) {
+    responseObservation.cancel();
+    throw error;
+  }
   progress.complete("find_source_pre_dispatch");
   progress.start("find_source_response_wait");
-  const response = await responsePromise;
+  const response = requireFindSourceResponse(await responseObservation.result, progress);
   progress.complete("find_source_response_wait");
   progress.start("find_source_http");
   guard(response.status() === 200, "The Dubai Find source response did not return HTTP 200.");
@@ -1292,25 +1357,32 @@ async function runSingaporeFind(page: Page, configuration: LiveConfiguration, po
   await expect(page.getByTestId("point-object-find-group-select")).toHaveValue("commercial_office");
   progress.complete("find_source_ui");
   progress.start("find_source_camera");
+  const findCta = page.getByTestId("find-search-cta");
   const twoDimensionalControl = page.getByTestId("map-dimension-control").getByRole("button", { name: "2d", exact: true });
-  await twoDimensionalControl.click();
   await expect(twoDimensionalControl).toHaveAttribute("aria-pressed", "true");
+  await expect(findCta).toBeEnabled({ timeout: 30_000 });
   const zoomIn = page.getByRole("button", { name: "Zoom in", exact: true });
   await expect(zoomIn).toBeVisible({ timeout: 30_000 });
   await zoomIn.click();
+  await expect(findCta).toBeDisabled();
+  await expect(findCta).toBeEnabled({ timeout: 30_000 });
   progress.complete("find_source_camera");
   progress.start("find_source_cta");
-  await expect(page.getByTestId("find-search-cta")).toBeEnabled({ timeout: 30_000 });
+  await expect(findCta).toBeEnabled({ timeout: 30_000 });
   progress.complete("find_source_cta");
   progress.start("find_source_pre_dispatch");
   const preDispatch = await installFindPreDispatchGate(page, acceptedSingaporeFindRequest, "Singapore");
-  const responsePromise = page.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/point-to-object/find"), { timeout: SOURCE_REQUEST_HARNESS_TIMEOUT_MS });
-  void responsePromise.catch(() => undefined);
+  const responseObservation = observeSourcePostResponse(page, "/api/prototype/point-to-object/find", SOURCE_REQUEST_HARNESS_TIMEOUT_MS);
   await page.getByTestId("find-search-cta").click();
-  const submitted = await preDispatch.request;
+  let submitted: AcceptedFindRequest;
+  try { submitted = await preDispatch.request; }
+  catch (error) {
+    responseObservation.cancel();
+    throw error;
+  }
   progress.complete("find_source_pre_dispatch");
   progress.start("find_source_response_wait");
-  const response = await responsePromise;
+  const response = requireFindSourceResponse(await responseObservation.result, progress);
   progress.complete("find_source_response_wait");
   progress.start("find_source_http");
   guard(response.status() === 200, "The Singapore Find source response did not return HTTP 200.");
@@ -1395,9 +1467,11 @@ async function runMarketCreate(
   progress.start("create_source_context_request");
   const contextRequestPromise = page.waitForRequest((request) =>
     request.method() === "POST" && new URL(request.url()).pathname === "/api/prototype/point-to-object/area-context", { timeout: SOURCE_REQUEST_HARNESS_TIMEOUT_MS });
-  const contextResponsePromise = page.waitForResponse((response) =>
-    response.request().method() === "POST" && new URL(response.url()).pathname === "/api/prototype/point-to-object/area-context", { timeout: SOURCE_REQUEST_HARNESS_TIMEOUT_MS });
-  void contextResponsePromise.catch(() => undefined);
+  const contextResponseObservation = observeSourcePostResponse(
+    page,
+    "/api/prototype/point-to-object/area-context",
+    SOURCE_REQUEST_HARNESS_TIMEOUT_MS
+  );
   await upload.setInputFiles({
     name: input.fileName,
     mimeType: "application/geo+json",
@@ -1408,7 +1482,7 @@ async function runMarketCreate(
   progress.complete("create_source_context_request");
 
   progress.start("create_source_context_response");
-  const contextResponse = await contextResponsePromise;
+  const contextResponse = requireCreateContextResponse(await contextResponseObservation.result, progress);
   progress.complete("create_source_context_response");
 
   progress.start("create_source_context_http");

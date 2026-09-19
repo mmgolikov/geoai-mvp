@@ -97,8 +97,8 @@ for (const functionName of ["runDubaiFind", "runSingaporeFind"]) {
   }
   assert.match(body, /boundedLiveJourneyResponseJson\(response, 10_000\)/,
     `${functionName} must use the existing bounded response-body reader`);
-  assert.match(body, /waitForResponse\([\s\S]*?timeout: SOURCE_REQUEST_HARNESS_TIMEOUT_MS/,
-    `${functionName} must use the shared 60-second source response envelope`);
+  assert.match(body, /observeSourcePostResponse\(page, "\/api\/prototype\/point-to-object\/find", SOURCE_REQUEST_HARNESS_TIMEOUT_MS\)/,
+    `${functionName} must observe response and request-failure outcomes within the shared 60-second source envelope`);
   assert.doesNotMatch(body, /await response[.]json\(\)/,
     `${functionName} must not restore an unbounded body read`);
   assert.ok(body.indexOf("installFindPreDispatchGate") < body.indexOf('getByTestId("find-search-cta").click()'),
@@ -108,9 +108,16 @@ for (const functionName of ["runDubaiFind", "runSingaporeFind"]) {
 const findGate = liveSpec.split("async function installFindPreDispatchGate")[1]?.split("\n}\n\nfunction acceptedFindResponse")[0] ?? "";
 assert.match(findGate, /setTimeout\([\s\S]*?SOURCE_REQUEST_HARNESS_TIMEOUT_MS\)/,
   "the fail-closed Find pre-dispatch request gate must use the same bounded source envelope");
+const sourceObserver = liveSpec.split("function observeSourcePostResponse")[1]?.split("\n}\n\nfunction requireFindSourceResponse")[0] ?? "";
+assert.match(sourceObserver, /page[.]on\("response", onResponse\)/,
+  "the source observer must distinguish an HTTP response from a missing response");
+assert.match(sourceObserver, /page[.]on\("requestfailed", onRequestFailed\)/,
+  "the source observer must distinguish a failed browser request from a harness timeout");
+assert.match(sourceObserver, /setTimeout\(\(\) => finish\(\{ kind: "timeout" \}\), timeoutMs\)/,
+  "the source observer must retain a bounded timeout outcome");
 const createBody = liveSpec.split("async function runMarketCreate")[1]?.split("\nasync function runDubaiCreate")[0] ?? "";
-assert.equal((createBody.match(/timeout: SOURCE_REQUEST_HARNESS_TIMEOUT_MS/g) ?? []).length, 2,
-  "area-context request and response waits must both use the shared 60-second source envelope");
+assert.equal((createBody.match(/SOURCE_REQUEST_HARNESS_TIMEOUT_MS/g) ?? []).length, 2,
+  "area-context request and response observation must both use the shared 60-second source envelope");
 const suggestBody = liveSpec.split("async function runAnalyseSourceSuggest")[1]?.split("\nasync function logoutVerified")[0] ?? "";
 assert.doesNotMatch(suggestBody, /SOURCE_REQUEST_HARNESS_TIMEOUT_MS/,
   "the regional source deadline alignment must not alter suggestion waits");
