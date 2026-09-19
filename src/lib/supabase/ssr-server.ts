@@ -29,6 +29,7 @@ export async function createRequestScopedSupabaseClient(deadlineSignal?: AbortSi
       return cookieStore.getAll();
     },
     setAll(cookiesToSet) {
+      if (deadlineSignal?.aborted) return;
       try {
         for (const { name, value, options } of cookiesToSet) {
           cookieStore.set(name, value, options);

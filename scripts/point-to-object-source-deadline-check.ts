@@ -211,6 +211,10 @@ try {
   authTransportDeadline.abort(new PointObjectSourceDeadlineError());
   await assert.rejects(authCall, isPointObjectSourceDeadlineError,
     "The actual per-client Auth transport must observe the route deadline abort.");
+  const cookieWritesAfterAbort = cookieWrites.length;
+  deadlineFactory.options.cookies.setAll([{ name: "late", value: "must-not-write", options: {} }]);
+  assert.equal(cookieWrites.length, cookieWritesAfterAbort,
+    "A late deadline-enabled SSR Auth callback must not mutate cookies after route termination.");
   assert.equal(transportCalls.length, 3);
 } finally {
   globalThis.fetch = originalAuthFetch;

@@ -4,6 +4,7 @@ import {
   type RequestIdentityEvidenceStatus
 } from "@/src/lib/auth/request-identity-evidence";
 import { getEffectiveAuthMode } from "@/src/lib/auth/auth-mode";
+import { pointObjectRequestAuthDeadlineSignal } from "@/src/lib/prototype/source-request-deadline";
 import { createRequestScopedSupabaseClient } from "@/src/lib/supabase/ssr-server";
 
 export type RequestAuthStatus =
@@ -43,12 +44,6 @@ type ProfileRow = {
   identity_kind: string;
 };
 
-const REQUEST_AUTH_DEADLINE_SIGNAL = Symbol.for("geoai.point-object.request-auth-deadline-signal");
-
-type DeadlineAwareRequest = Request & {
-  [REQUEST_AUTH_DEADLINE_SIGNAL]?: AbortSignal;
-};
-
 async function waitForRequestAuthOperation<T>(operation: PromiseLike<T>, signal?: AbortSignal): Promise<T> {
   if (!signal) return operation;
   signal.throwIfAborted();
@@ -85,7 +80,7 @@ export async function createRequestAuthContext(request?: Request): Promise<Reque
   const requestId = crypto.randomUUID();
   // Only the two bounded source routes attach this opt-in signal. Ordinary
   // Auth callers keep their previous behavior and signatures unchanged.
-  const deadlineSignal = request ? (request as DeadlineAwareRequest)[REQUEST_AUTH_DEADLINE_SIGNAL] : undefined;
+  const deadlineSignal = pointObjectRequestAuthDeadlineSignal(request);
 
   if (getEffectiveAuthMode() !== "supabase_auth") {
     return result(requestId, "auth_mode_disabled", null);
