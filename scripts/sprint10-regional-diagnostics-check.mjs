@@ -2,6 +2,7 @@
 
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { stripTypeScriptTypes } from "node:module";
 import { POINT_OBJECT_SOURCE_HARNESS_RESPONSE_TIMEOUT_MS } from "../src/lib/prototype/source-request-deadline.ts";
 
 import {
@@ -209,6 +210,48 @@ assert.match(createBody, /finally \{[\s\S]*?if \(!contextRequestObserved\) conte
 const suggestBody = liveSpec.split("async function runAnalyseSourceSuggest")[1]?.split("\nasync function logoutVerified")[0] ?? "";
 assert.doesNotMatch(suggestBody, /SOURCE_REQUEST_HARNESS_TIMEOUT_MS/,
   "the regional source deadline alignment must not alter suggestion waits");
+assert.match(liveSpec, /const ANALYSE_SUGGESTION_RESPONSE_TIMEOUT_MS = 30_000;/,
+  "suggestion request and response observation must retain one 30-second envelope");
+assert.match(suggestBody, /const responseDeadlineAt = Date[.]now\(\) \+ ANALYSE_SUGGESTION_RESPONSE_TIMEOUT_MS;[\s\S]*?waitForRequest\([\s\S]*?timeout: ANALYSE_SUGGESTION_RESPONSE_TIMEOUT_MS[\s\S]*?waitForExactSuggestionResponse\(request, responseDeadlineAt\)/,
+  "suggestion response observation must spend only the remainder of the request's original 30-second envelope");
+assert.doesNotMatch(suggestBody, /page[.]waitForResponse\(/,
+  "suggestion response observation must not race an independently matched response against the exact request");
+
+const exactResponseHelperBody = liveSpec.split("async function waitForExactSuggestionResponse")[1]
+  ?.split("\nasync function runAnalyseSourceSuggest")[0];
+assert.ok(exactResponseHelperBody, "the exact-request suggestion response helper must remain present");
+const exactResponseHelperSource = stripTypeScriptTypes(
+  `async function waitForExactSuggestionResponse${exactResponseHelperBody}\nexport { waitForExactSuggestionResponse };`,
+  { mode: "transform", sourceMap: false }
+);
+const { waitForExactSuggestionResponse } = await import(
+  `data:text/javascript;base64,${Buffer.from(exactResponseHelperSource).toString("base64")}`
+);
+
+let resolveFirst;
+let resolveSecond;
+const firstResponse = Object.freeze({ requestIdentity: "first" });
+const secondResponse = Object.freeze({ requestIdentity: "second" });
+const firstRequest = { response: () => new Promise((resolve) => { resolveFirst = resolve; }) };
+const secondRequest = { response: () => new Promise((resolve) => { resolveSecond = resolve; }) };
+const firstObserved = waitForExactSuggestionResponse(firstRequest, Date.now() + 1_000);
+const secondObserved = waitForExactSuggestionResponse(secondRequest, Date.now() + 1_000);
+resolveSecond(secondResponse);
+assert.equal(await secondObserved, secondResponse,
+  "a later overlapping request that responds first must retain its own response identity");
+resolveFirst(firstResponse);
+assert.equal(await firstObserved, firstResponse,
+  "the earlier overlapping request must not inherit the later request's response");
+await assert.rejects(
+  () => waitForExactSuggestionResponse({ response: async () => null }, Date.now() + 100),
+  /completed without an HTTP response/,
+  "an exact request with no HTTP response must fail closed"
+);
+await assert.rejects(
+  () => waitForExactSuggestionResponse({ response: () => new Promise(() => undefined) }, Date.now() + 10),
+  /deadline expired/,
+  "an exact request whose response never settles must retain the bounded timeout"
+);
 
 assert.match(liveSpec, /allCoordinatesInMarket: resultRecords[.]every[\s\S]*?coordinatesMatchPointObjectMarket/,
   "all returned candidates must remain inside the selected market");
@@ -230,6 +273,9 @@ console.log(JSON.stringify({
     marketLocale: 1,
     exactQuery: 1,
     allCandidateCoordinates: 1,
+    exactResponsePairing: 2,
+    exactResponseNull: 1,
+    exactResponseTimeout: 1,
     findFlows: 2,
     fixedStages: analyseStages.length + findStages.length,
     historicalStagesRetained: 2,

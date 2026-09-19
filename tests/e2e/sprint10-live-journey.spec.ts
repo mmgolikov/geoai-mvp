@@ -64,6 +64,7 @@ const LIVE_SCOPES = [
   "journey", "dubai-analyse", "dubai-find", "singapore-create",
   "singapore-analyse", "singapore-find", "dubai-create", "dubai-depth-cycle"
 ] as const;
+const ANALYSE_SUGGESTION_RESPONSE_TIMEOUT_MS = 30_000;
 const SINGAPORE_MARINA_BAY_REFERENCE_BOUNDS = [103.855, 1.278, 103.868, 1.289] as const;
 type LiveScope = Sprint10LiveScope;
 type SingaporeFindRequestIssue = "shape" | "market_or_locale" | "criteria" | "bounds";
@@ -686,6 +687,27 @@ type LiveAnalyseSuggestion = {
   chosenIndex: number;
 };
 
+async function waitForExactSuggestionResponse(
+  request: { response(): Promise<Response | null> },
+  deadlineAt: number
+): Promise<Response> {
+  const remainingMs = Math.max(0, deadlineAt - Date.now());
+  if (remainingMs === 0) throw new Error("The exact suggestion response deadline expired.");
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const response = await Promise.race([
+      request.response(),
+      new Promise<never>((_resolve, reject) => {
+        timeout = setTimeout(() => reject(new Error("The exact suggestion response deadline expired.")), remainingMs);
+      })
+    ]);
+    if (!response) throw new Error("The exact suggestion request completed without an HTTP response.");
+    return response;
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
+
 async function runAnalyseSourceSuggest(
   page: Page,
   input: LiveAnalyseSuggestionCase,
@@ -699,18 +721,18 @@ async function runAnalyseSourceSuggest(
   progress.complete("analyse_source_suggest_ui");
 
   progress.start("analyse_source_suggest_request");
-  const requestPromise = page.waitForRequest((request) =>
-    request.method() === "POST" && new URL(request.url()).pathname === "/api/prototype/point-to-object/suggest", { timeout: 30_000 });
-  const responsePromise = page.waitForResponse((response) =>
-    response.request().method() === "POST" && new URL(response.url()).pathname === "/api/prototype/point-to-object/suggest", { timeout: 30_000 });
-  void responsePromise.catch(() => undefined);
+  const responseDeadlineAt = Date.now() + ANALYSE_SUGGESTION_RESPONSE_TIMEOUT_MS;
+  const requestPromise = page.waitForRequest(
+    (request) => request.method() === "POST" && new URL(request.url()).pathname === "/api/prototype/point-to-object/suggest",
+    { timeout: ANALYSE_SUGGESTION_RESPONSE_TIMEOUT_MS }
+  );
   await input.enterQuery(search);
   const request = await requestPromise;
   const submitted: unknown = request.postDataJSON();
   progress.complete("analyse_source_suggest_request");
 
   progress.start("analyse_source_suggest_response");
-  const suggested = await responsePromise;
+  const suggested = await waitForExactSuggestionResponse(request, responseDeadlineAt);
   progress.complete("analyse_source_suggest_response");
 
   progress.start("analyse_source_suggest_http");
