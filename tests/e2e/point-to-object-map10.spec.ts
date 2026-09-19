@@ -5,6 +5,17 @@ import type { FeatureCollection, Polygon, Position } from "geojson";
 import difcFixture from "../fixtures/difc-native-building-sept10.json";
 import { featureFilter } from "@maplibre/maplibre-gl-style-spec";
 
+type MultipartClickCapture =
+  | { status: "armed" }
+  | { status: "invalid"; reason: "missing_native_multipolygon" | "unexpected_southern_member_count" }
+  | {
+      status: "captured";
+      clickedMember: Position[][];
+      sourceFeatureId: string;
+      heightM: unknown;
+      minHeightM: unknown;
+    };
+
 const origin = [55.2828, 25.2137];
 const ring = (points: number[][]): Position[] => points.map(([x, y]) => [origin[0] + x, origin[1] + y]);
 const geometry: FeatureCollection = { type: "FeatureCollection", features: [
@@ -179,24 +190,46 @@ test("MAP10 native complex/multipart highlight preserves geometry without duplic
     const map = (window as unknown as { map10: import("maplibre-gl").Map }).map10;
     map.stop(); map.jumpTo({ center: [55.2842, 25.214], zoom: 18, pitch: 0, bearing: 0 });
   });
-  await expect.poll(() => page.evaluate(() => (window as unknown as { map10: import("maplibre-gl").Map }).map10.isStyleLoaded())).toBe(true);
+  await expect.poll(() => page.evaluate(() => (window as unknown as { map10: import("maplibre-gl").Map }).map10.loaded())).toBe(true);
   const multipartPoint = await page.evaluate(() => {
     const map = (window as unknown as { map10: import("maplibre-gl").Map }).map10;
     const p = map.project([55.2842, 25.2138]); const rect = map.getContainer().getBoundingClientRect();
-    const native = map.queryRenderedFeatures(p, { layers: ["building"] }).find(feature => feature.properties.name === "Multipart neighbour");
-    if (native?.geometry.type !== "MultiPolygon") throw new Error("Expected the native multipart fixture at the tapped point.");
-    const clickedParts = native.geometry.coordinates.filter(part => part[0].every(position => position[1] < 25.214));
-    if (clickedParts.length !== 1) throw new Error("Expected exactly one complete southern member.");
-    return { x: p.x + rect.left, y: p.y + rect.top, clickedMember: clickedParts[0], sourceFeatureId: String(native.id), heightM: native.properties.render_height, minHeightM: native.properties.render_min_height };
+    const captureWindow = window as unknown as { map10MultipartClickCapture: MultipartClickCapture };
+    captureWindow.map10MultipartClickCapture = { status: "armed" };
+    map.once("click", event => {
+      const native = map.queryRenderedFeatures(event.point, { layers: ["building"] }).find(feature => feature.properties.name === "Multipart neighbour");
+      if (native?.geometry.type !== "MultiPolygon") {
+        captureWindow.map10MultipartClickCapture = { status: "invalid", reason: "missing_native_multipolygon" };
+        return;
+      }
+      const clickedParts = native.geometry.coordinates.filter(part => part[0].every(position => position[1] < 25.214));
+      if (clickedParts.length !== 1) {
+        captureWindow.map10MultipartClickCapture = { status: "invalid", reason: "unexpected_southern_member_count" };
+        return;
+      }
+      captureWindow.map10MultipartClickCapture = {
+        status: "captured",
+        clickedMember: clickedParts[0],
+        sourceFeatureId: String(native.id),
+        heightM: native.properties.render_height,
+        minHeightM: native.properties.render_min_height
+      };
+    });
+    return { x: p.x + rect.left, y: p.y + rect.top };
   });
   await page.mouse.click(multipartPoint.x, multipartPoint.y);
   await expect(page.getByTestId("selected-object")).toHaveText("Multipart neighbour");
-  const multipart = await page.evaluate(() => JSON.parse(sessionStorage.getItem("geoai:point-to-object:selection:v3")!));
-  expect(multipart.object.geometry).toEqual({ type: "Polygon", coordinates: multipartPoint.clickedMember });
-  expect(multipart.object.geometryProvenance).toBe("rendered_tile_polygon_member");
-  expect(multipart.object.sourceFeatureId).toBe(multipartPoint.sourceFeatureId);
-  expect(multipart.object.renderHeightM).toBe(multipartPoint.heightM);
-  expect(multipart.object.renderMinHeightM).toBe(multipartPoint.minHeightM);
+  const multipart = await page.evaluate(() => ({
+    selection: JSON.parse(sessionStorage.getItem("geoai:point-to-object:selection:v3")!),
+    clickedNative: (window as unknown as { map10MultipartClickCapture: MultipartClickCapture }).map10MultipartClickCapture
+  }));
+  expect(multipart.clickedNative.status).toBe("captured");
+  if (multipart.clickedNative.status !== "captured") throw new Error(`Same-event native capture failed: ${JSON.stringify(multipart.clickedNative)}`);
+  expect(multipart.selection.object.geometry).toEqual({ type: "Polygon", coordinates: multipart.clickedNative.clickedMember });
+  expect(multipart.selection.object.geometryProvenance).toBe("rendered_tile_polygon_member");
+  expect(multipart.selection.object.sourceFeatureId).toBe(multipart.clickedNative.sourceFeatureId);
+  expect(multipart.selection.object.renderHeightM).toBe(multipart.clickedNative.heightM);
+  expect(multipart.selection.object.renderMinHeightM).toBe(multipart.clickedNative.minHeightM);
   const otherMultipartMemberVisible = () => page.evaluate(() => {
     const map = (window as unknown as { map10: import("maplibre-gl").Map }).map10;
     return map.queryRenderedFeatures(map.project([55.2842, 25.2142]), { layers: ["building"] })
