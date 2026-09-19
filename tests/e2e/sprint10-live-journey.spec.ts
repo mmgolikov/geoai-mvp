@@ -51,7 +51,7 @@ import {
   type Sprint10DepthCycleEvidenceInput
 } from "./helpers/sprint10-depth-cycle-evidence";
 // @ts-expect-error The diagnostics module is an operator-only JavaScript contract checked by its offline suite.
-import { LIVE_JOURNEY_CLEANUP_STAGES, LIVE_JOURNEY_STEPS, boundedLiveJourneyResponseJson, encodeLiveJourneyDiagnostic, primaryAfterFinalizeFailure } from "../../scripts/sprint10-live-journey-diagnostics.mjs";
+import { LIVE_JOURNEY_CLEANUP_STAGES, LIVE_JOURNEY_STEPS, analyseSuggestionCorrelationChecks, boundedLiveJourneyResponseJson, encodeLiveJourneyDiagnostic, primaryAfterFinalizeFailure } from "../../scripts/sprint10-live-journey-diagnostics.mjs";
 
 test.use({ trace: "off", screenshot: "off", video: "off", serviceWorkers: "block" });
 test.describe.configure({ mode: "serial", retries: 0 });
@@ -137,7 +137,8 @@ function isoTimestamp(value: unknown): value is string {
 }
 
 function acceptedSingaporeFindRequest(value: unknown): value is Record<string, unknown> & { bounds: number[] } {
-  if (!record(value) || !Array.isArray(value.bounds) || value.bounds.length !== 4 ||
+  if (!exactObjectKeys(value, ["bounds", "group", "limit", "locale", "mappedMaximumLevels", "mappedMinimumLevels", "marketKey"]) ||
+      !Array.isArray(value.bounds) || value.bounds.length !== 4 ||
       value.bounds.some((item) => typeof item !== "number" || !Number.isFinite(item))) return false;
   return value.marketKey === "singapore" && value.locale === "en" && value.group === "commercial_office" &&
     value.mappedMinimumLevels === null && value.mappedMaximumLevels === null && value.limit === 12 &&
@@ -145,6 +146,66 @@ function acceptedSingaporeFindRequest(value: unknown): value is Record<string, u
     value.bounds[1] >= SINGAPORE_MARINA_BAY_REFERENCE_BOUNDS[1] &&
     value.bounds[2] <= SINGAPORE_MARINA_BAY_REFERENCE_BOUNDS[2] &&
     value.bounds[3] <= SINGAPORE_MARINA_BAY_REFERENCE_BOUNDS[3];
+}
+
+function acceptedDubaiFindRequest(value: unknown): value is Record<string, unknown> & { bounds: number[] } {
+  if (!exactObjectKeys(value, ["bounds", "group", "limit", "locale", "mappedMaximumLevels", "mappedMinimumLevels", "marketKey"]) ||
+      !Array.isArray(value.bounds) || value.bounds.length !== 4 ||
+      value.bounds.some((item) => typeof item !== "number" || !Number.isFinite(item))) return false;
+  return value.marketKey === "dubai" && value.locale === "en" && value.group === "hospitality" &&
+    value.mappedMinimumLevels === null && value.mappedMaximumLevels === null && value.limit === 12 &&
+    value.bounds[0] < value.bounds[2] && value.bounds[1] < value.bounds[3] &&
+    coordinatesMatchPointObjectMarket("dubai", value.bounds[0], value.bounds[1]) &&
+    coordinatesMatchPointObjectMarket("dubai", value.bounds[2], value.bounds[3]);
+}
+
+type AcceptedFindRequest = Record<string, unknown> & { bounds: number[] };
+
+async function installFindPreDispatchGate(
+  page: Page,
+  accepts: (value: unknown) => value is AcceptedFindRequest,
+  label: string
+) {
+  let resolveRequest!: (value: AcceptedFindRequest) => void;
+  let rejectRequest!: (reason: Error) => void;
+  const request = new Promise<AcceptedFindRequest>((resolve, reject) => {
+    resolveRequest = resolve;
+    rejectRequest = reject;
+  });
+  await page.route("**/api/prototype/point-to-object/find", async (route) => {
+    let submitted: unknown;
+    try { submitted = route.request().postDataJSON(); }
+    catch { submitted = null; }
+    if (route.request().method() !== "POST" || !accepts(submitted)) {
+      rejectRequest(new Error(`The ${label} Find request failed its bounded pre-dispatch contract.`));
+      await route.abort("blockedbyclient");
+      return;
+    }
+    resolveRequest(submitted);
+    await route.fallback();
+  }, { times: 1 });
+  return { request };
+}
+
+function acceptedFindResponse(
+  value: unknown,
+  submitted: AcceptedFindRequest,
+  marketKey: "dubai" | "singapore",
+  group: "hospitality" | "commercial_office"
+): value is Record<string, unknown> & { candidates: Array<Record<string, unknown>> } {
+  if (!record(value) || value.protocol !== "POINT_TO_OBJECT_001_FIND_OPEN_MAP_V1" ||
+      (value.mode !== "results" && value.mode !== "empty") || !Array.isArray(value.candidates) ||
+      !value.candidates.every(record) ||
+      !record(value.criteria) || value.criteria.marketKey !== marketKey || value.criteria.group !== group ||
+      JSON.stringify(value.criteria.bounds) !== JSON.stringify(submitted.bounds) || !record(value.source)) return false;
+  return value.source.name === "OpenStreetMap" && value.source.service === "Overpass API" &&
+    value.source.licenceId === "ODbL-1.0" && typeof value.source.sourceResponseHash === "string" &&
+    /^[a-f0-9]{64}$/.test(value.source.sourceResponseHash) && isoTimestamp(value.source.acquiredAt) &&
+    (value.source.observedAt === null || isoTimestamp(value.source.observedAt)) &&
+    value.source.runtimeNetworkUsed === true && value.source.persistenceUsed === false &&
+    value.source.officialStatus === "open_context_not_official" && record(value.coverage) &&
+    value.coverage.completeInventory === false && value.ordering === "source_identity_ascending_not_ranked" &&
+    value.caveat === CAVEAT;
 }
 
 function loadConfiguration(baseURL: string | undefined): LiveConfiguration {
@@ -588,20 +649,41 @@ async function runAnalyseSourceSuggest(
     `The ${input.label} source suggestion returned duplicate source identities.`);
   progress.complete("analyse_source_suggest_contract");
 
-  progress.start("analyse_source_suggest_correlation");
-  const responseSubmitted: unknown = suggested.request().postDataJSON();
-  guard(suggested.request() === request &&
-    exactObjectKeys(submitted, ["locale", "marketKey", "query"]) &&
-    exactObjectKeys(responseSubmitted, ["locale", "marketKey", "query"]) &&
-    JSON.stringify([responseSubmitted.marketKey, responseSubmitted.locale, responseSubmitted.query]) ===
-      JSON.stringify([submitted.marketKey, submitted.locale, submitted.query]) &&
-    submitted.marketKey === input.marketKey && submitted.locale === "en" && submitted.query === input.query &&
-    resultRecords.every((candidate) => coordinatesMatchPointObjectMarket(
+  progress.start("analyse_source_suggest_request_identity");
+  const responseRequest = suggested.request();
+  guard(responseRequest === request, `The ${input.label} suggestion response did not belong to the observed request.`);
+  progress.complete("analyse_source_suggest_request_identity");
+
+  progress.start("analyse_source_suggest_request_contract");
+  let responseSubmitted: unknown;
+  try { responseSubmitted = responseRequest.postDataJSON(); }
+  catch { responseSubmitted = null; }
+  const correlation = analyseSuggestionCorrelationChecks({
+    observedRequest: request,
+    responseRequest,
+    submitted,
+    responseSubmitted,
+    expectedMarketKey: input.marketKey,
+    expectedLocale: "en",
+    expectedQuery: input.query,
+    allCoordinatesInMarket: resultRecords.every((candidate) => coordinatesMatchPointObjectMarket(
       input.marketKey,
       Number(candidate.longitude),
       Number(candidate.latitude)
-    )), `The ${input.label} suggestion request/result was not correlated to the exact market and query.`);
-  progress.complete("analyse_source_suggest_correlation");
+    ))
+  });
+  guard(correlation.requestIdentity, `The ${input.label} suggestion response did not belong to the observed request.`);
+  guard(correlation.requestContract, `The ${input.label} suggestion request did not preserve the exact bounded field contract.`);
+  progress.complete("analyse_source_suggest_request_contract");
+  progress.start("analyse_source_suggest_market_locale");
+  guard(correlation.marketLocale, `The ${input.label} suggestion request did not preserve the exact market and locale.`);
+  progress.complete("analyse_source_suggest_market_locale");
+  progress.start("analyse_source_suggest_query");
+  guard(correlation.query, `The ${input.label} suggestion request did not preserve the exact public place query.`);
+  progress.complete("analyse_source_suggest_query");
+  progress.start("analyse_source_suggest_coordinates");
+  guard(correlation.coordinates, `The ${input.label} suggestion returned a candidate outside the selected market.`);
+  progress.complete("analyse_source_suggest_coordinates");
 
   progress.start("analyse_source_suggest_candidate");
   const chosenIndex = resultRecords.findIndex((candidate) => input.candidateLabel.test(String(candidate.label)));
@@ -620,7 +702,9 @@ async function runAnalyseSourceSuggest(
 }
 
 async function logoutVerified(page: Page, expectedUserId: string) {
-  const initial = await browserSessionState(page, expectedUserId);
+  let initial: Awaited<ReturnType<typeof browserSessionState>>;
+  try { initial = await browserSessionState(page, expectedUserId); }
+  catch { throw new Error("LIVE_JOURNEY_CLEANUP_FAILED: logout_session_precheck"); }
   if (initial === "anonymous") return;
   if (initial !== "authenticated") throw new Error("LIVE_JOURNEY_CLEANUP_FAILED: logout_session_precheck");
   try { await page.goto("/profile", { waitUntil: "domcontentloaded", timeout: 60_000 }); }
@@ -1108,32 +1192,44 @@ class InconclusiveLiveCoverageError extends Error {
 }
 
 async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy: NetworkPolicy, budget: ReturnType<typeof installBudgetGate>, progress: LiveProgress) {
-  progress.start("find_source_response");
+  progress.start("find_source_ui");
   await page.goto("/prototype/point-to-object");
   await page.getByTestId("point-object-city-select").selectOption("dubai");
   await page.getByRole("tab", { name: "Find", exact: true }).click();
   await page.getByTestId("point-object-find-role-select").selectOption("consultant_broker");
   await page.getByTestId("point-object-find-scenario-select").selectOption("b2b_hotel_development");
+  await expect(page.getByTestId("point-object-find-group-select")).toHaveValue("hospitality");
+  progress.complete("find_source_ui");
+  progress.start("find_source_camera");
   const zoomOut = page.getByRole("button", { name: "Zoom out" });
   if (await zoomOut.isVisible().catch(() => false)) {
     await zoomOut.click();
     await zoomOut.click();
   }
-  const responsePromise = page.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/point-to-object/find"), { timeout: 45_000 });
+  progress.complete("find_source_camera");
+  progress.start("find_source_cta");
   await expect(page.getByTestId("find-search-cta")).toBeEnabled({ timeout: 30_000 });
+  progress.complete("find_source_cta");
+  progress.start("find_source_pre_dispatch");
+  const preDispatch = await installFindPreDispatchGate(page, acceptedDubaiFindRequest, "Dubai");
+  const responsePromise = page.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/point-to-object/find"), { timeout: 45_000 });
+  void responsePromise.catch(() => undefined);
   await page.getByTestId("find-search-cta").click();
+  const submitted = await preDispatch.request;
+  progress.complete("find_source_pre_dispatch");
+  progress.start("find_source_response_wait");
   const response = await responsePromise;
-  const payload: unknown = await response.json();
-  guard(response.status() === 200 && record(payload) && payload.protocol === "POINT_TO_OBJECT_001_FIND_OPEN_MAP_V1" &&
-    (payload.mode === "results" || payload.mode === "empty") && Array.isArray(payload.candidates) && record(payload.criteria) &&
-    payload.criteria.marketKey === "dubai" && record(payload.source) &&
-    payload.source.name === "OpenStreetMap" && payload.source.service === "Overpass API" && payload.source.licenceId === "ODbL-1.0" &&
-    typeof payload.source.sourceResponseHash === "string" && /^[a-f0-9]{64}$/.test(payload.source.sourceResponseHash) &&
-    isoTimestamp(payload.source.acquiredAt) && (payload.source.observedAt === null || isoTimestamp(payload.source.observedAt)) &&
-    payload.source.runtimeNetworkUsed === true && payload.source.persistenceUsed === false && payload.source.officialStatus === "open_context_not_official" &&
-    record(payload.coverage) && payload.coverage.completeInventory === false && payload.ordering === "source_identity_ascending_not_ranked" && payload.caveat === CAVEAT,
-  "The Dubai Find response did not preserve the bounded open-map source contract.");
-  progress.complete("find_source_response");
+  progress.complete("find_source_response_wait");
+  progress.start("find_source_http");
+  guard(response.status() === 200, "The Dubai Find source response did not return HTTP 200.");
+  progress.complete("find_source_http");
+  progress.start("find_source_body");
+  const payload: unknown = await boundedLiveJourneyResponseJson(response, 10_000);
+  progress.complete("find_source_body");
+  progress.start("find_source_contract");
+  guard(acceptedFindResponse(payload, submitted, "dubai", "hospitality"),
+    "The Dubai Find response did not preserve the exact bounded request and open-map source contract.");
+  progress.complete("find_source_contract");
   progress.start("find_candidate_count");
   const candidates = payload.candidates as Array<Record<string, unknown>>;
   if (candidates.length < 2) {
@@ -1182,55 +1278,45 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
 }
 
 async function runSingaporeFind(page: Page, configuration: LiveConfiguration, policy: NetworkPolicy, budget: ReturnType<typeof installBudgetGate>, progress: LiveProgress) {
-  progress.start("find_source_response");
+  progress.start("find_source_ui");
   await page.goto("/prototype/point-to-object");
   await page.getByTestId("point-object-city-select").selectOption("singapore");
   await page.getByRole("tab", { name: "Find", exact: true }).click();
   await page.getByTestId("point-object-find-role-select").selectOption("consultant_broker");
   await page.getByTestId("point-object-find-scenario-select").selectOption("b2b_commercial_real_estate");
   await expect(page.getByTestId("point-object-find-group-select")).toHaveValue("commercial_office");
+  progress.complete("find_source_ui");
+  progress.start("find_source_camera");
   const twoDimensionalControl = page.getByTestId("map-dimension-control").getByRole("button", { name: "2d", exact: true });
   await twoDimensionalControl.click();
   await expect(twoDimensionalControl).toHaveAttribute("aria-pressed", "true");
   const zoomIn = page.getByRole("button", { name: "Zoom in", exact: true });
   await expect(zoomIn).toBeVisible({ timeout: 30_000 });
   await zoomIn.click();
-  let resolvePreDispatch!: (value: Record<string, unknown> & { bounds: number[] }) => void;
-  let rejectPreDispatch!: (reason: Error) => void;
-  const preDispatchRequest = new Promise<Record<string, unknown> & { bounds: number[] }>((resolve, reject) => {
-    resolvePreDispatch = resolve;
-    rejectPreDispatch = reject;
-  });
-  await page.route("**/api/prototype/point-to-object/find", async (route) => {
-    let submitted: unknown;
-    try { submitted = route.request().postDataJSON(); }
-    catch { submitted = null; }
-    if (route.request().method() !== "POST" || !acceptedSingaporeFindRequest(submitted)) {
-      rejectPreDispatch(new Error("The Singapore Find request failed its bounded pre-dispatch contract."));
-      await route.abort("blockedbyclient");
-      return;
-    }
-    resolvePreDispatch(submitted);
-    await route.fallback();
-  }, { times: 1 });
-  const responsePromise = page.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/point-to-object/find"), { timeout: 45_000 });
+  progress.complete("find_source_camera");
+  progress.start("find_source_cta");
   await expect(page.getByTestId("find-search-cta")).toBeEnabled({ timeout: 30_000 });
-  const responseTransaction = Promise.all([responsePromise, preDispatchRequest]);
+  progress.complete("find_source_cta");
+  progress.start("find_source_pre_dispatch");
+  const preDispatch = await installFindPreDispatchGate(page, acceptedSingaporeFindRequest, "Singapore");
+  const responsePromise = page.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/point-to-object/find"), { timeout: 45_000 });
+  void responsePromise.catch(() => undefined);
   await page.getByTestId("find-search-cta").click();
-  const [response, submitted] = await responseTransaction;
-  const payload: unknown = await response.json();
-  const submittedBounds = submitted.bounds;
-  guard(response.status() === 200 && record(payload) && payload.protocol === "POINT_TO_OBJECT_001_FIND_OPEN_MAP_V1" &&
-    (payload.mode === "results" || payload.mode === "empty") && Array.isArray(payload.candidates) && record(payload.criteria) &&
-    payload.criteria.marketKey === "singapore" && payload.criteria.group === "commercial_office" &&
-    JSON.stringify(payload.criteria.bounds) === JSON.stringify(submittedBounds) && record(payload.source) &&
-    payload.source.name === "OpenStreetMap" && payload.source.service === "Overpass API" && payload.source.licenceId === "ODbL-1.0" &&
-    typeof payload.source.sourceResponseHash === "string" && /^[a-f0-9]{64}$/.test(payload.source.sourceResponseHash) &&
-    isoTimestamp(payload.source.acquiredAt) && (payload.source.observedAt === null || isoTimestamp(payload.source.observedAt)) &&
-    payload.source.runtimeNetworkUsed === true && payload.source.persistenceUsed === false && payload.source.officialStatus === "open_context_not_official" &&
-    record(payload.coverage) && payload.coverage.completeInventory === false && payload.ordering === "source_identity_ascending_not_ranked" && payload.caveat === CAVEAT,
-  "The Singapore Find response did not preserve the exact bounded request and open-map source contract.");
-  progress.complete("find_source_response");
+  const submitted = await preDispatch.request;
+  progress.complete("find_source_pre_dispatch");
+  progress.start("find_source_response_wait");
+  const response = await responsePromise;
+  progress.complete("find_source_response_wait");
+  progress.start("find_source_http");
+  guard(response.status() === 200, "The Singapore Find source response did not return HTTP 200.");
+  progress.complete("find_source_http");
+  progress.start("find_source_body");
+  const payload: unknown = await boundedLiveJourneyResponseJson(response, 10_000);
+  progress.complete("find_source_body");
+  progress.start("find_source_contract");
+  guard(acceptedFindResponse(payload, submitted, "singapore", "commercial_office"),
+    "The Singapore Find response did not preserve the exact bounded request and open-map source contract.");
+  progress.complete("find_source_contract");
   progress.start("find_candidate_count");
   const candidates = payload.candidates as Array<Record<string, unknown>>;
   if (candidates.length < 2) {

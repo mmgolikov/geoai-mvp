@@ -133,13 +133,15 @@ async function run() {
   assert.match(marketSource, /key: "singapore",[\s\S]*?center: \[103[.]8605263, 1[.]2827539\],[\s\S]*?zoom: 16[.]6,/,
     "the offline camera proof must remain bound to the actual Singapore market camera");
   const singaporeFindBody = /async function runSingaporeFind[\s\S]*?\n}\n\ntype LiveCreateCase/.exec(liveSpec)?.[0] ?? "";
+  const preDispatchHelper = /async function installFindPreDispatchGate[\s\S]*?\n}\n\nfunction acceptedFindResponse/.exec(liveSpec)?.[0] ?? "";
   const twoDimensionalIndex = singaporeFindBody.indexOf('name: "2d"');
   const zoomInIndex = singaporeFindBody.indexOf('name: "Zoom in"');
-  const preDispatchGuardIndex = singaporeFindBody.indexOf("acceptedSingaporeFindRequest(submitted)");
-  const transportContinuationIndex = singaporeFindBody.indexOf("await route.fallback()");
+  const preDispatchInstallIndex = singaporeFindBody.indexOf('installFindPreDispatchGate(page, acceptedSingaporeFindRequest, "Singapore")');
   const searchClickIndex = singaporeFindBody.indexOf('getByTestId("find-search-cta").click()');
-  assert.ok(twoDimensionalIndex >= 0 && zoomInIndex > twoDimensionalIndex && preDispatchGuardIndex > zoomInIndex &&
-    transportContinuationIndex > preDispatchGuardIndex && searchClickIndex > transportContinuationIndex,
+  const preDispatchGuardIndex = preDispatchHelper.indexOf("!accepts(submitted)");
+  const transportContinuationIndex = preDispatchHelper.indexOf("await route.fallback()");
+  assert.ok(twoDimensionalIndex >= 0 && zoomInIndex > twoDimensionalIndex && preDispatchInstallIndex > zoomInIndex &&
+    searchClickIndex > preDispatchInstallIndex && preDispatchGuardIndex >= 0 && transportContinuationIndex > preDispatchGuardIndex,
   "Singapore Find must use real 2D/zoom UI and validate its actual bounded request before transport continuation and CTA dispatch.");
   const worldSize = 512 * (2 ** 17.6);
   const center = [103.8605263, 1.2827539] as const;

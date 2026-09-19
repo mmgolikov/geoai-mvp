@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 import {
   LIVE_JOURNEY_DIAGNOSTIC_SCHEMA,
   LIVE_JOURNEY_STEPS,
+  analyseSuggestionCorrelationChecks,
   boundedLiveJourneyResponseJson,
   encodeLiveJourneyDiagnostic,
   findLiveJourneyDiagnostic,
@@ -36,10 +37,12 @@ assert.match(liveSpecSource, /boundedLiveJourneyResponseJson\(contextResponse, 1
   "area-context response-body reads must be bounded");
 assert.match(liveSpecSource, /isPointObjectAreaContextResult\(contextPayload\)/,
   "area-context acceptance must use the production UI validator");
-assert.match(liveSpecSource, /submitted\.marketKey === input\.marketKey[\s\S]*?submitted\.query === input\.query/,
-  "source suggestion acceptance must correlate the exact market and query");
-assert.match(liveSpecSource, /suggested\.request\(\) === request[\s\S]*?exactObjectKeys\(responseSubmitted, \["locale", "marketKey", "query"\]\)[\s\S]*?JSON\.stringify\(\[responseSubmitted\.marketKey, responseSubmitted\.locale, responseSubmitted\.query\]\)/,
-  "source suggestion acceptance must bind the response to the observed request and its canonical payload");
+assert.match(liveSpecSource, /const responseRequest = suggested\.request\(\);[\s\S]*?guard\(responseRequest === request,[\s\S]*?analyseSuggestionCorrelationChecks\(\{[\s\S]*?observedRequest: request,[\s\S]*?responseRequest,[\s\S]*?expectedMarketKey: input\.marketKey,[\s\S]*?expectedQuery: input\.query/,
+  "source suggestion acceptance must bind the response to the observed request and exact expected market/query");
+for (const check of ["requestIdentity", "requestContract", "marketLocale", "query", "coordinates"]) {
+  assert.match(liveSpecSource, new RegExp(`guard\\(correlation[.]${check},`),
+    `source suggestion correlation must fail separately for ${check}`);
+}
 assert.match(liveSpecSource, /contextPayload\.request\.marketKey === input\.marketKey[\s\S]*?contextPayload\.request\.locale === "en"[\s\S]*?JSON\.stringify\(contextPayload\.request\.aoiCoordinates\) === JSON\.stringify\(input\.coordinates\)/,
   "area-context acceptance must correlate the exact market, locale and AOI");
 assert.match(liveSpecSource, /contextResponse\.request\(\) === contextRequest[\s\S]*?exactObjectKeys\(responseSubmittedContext, \["aoiCoordinates", "locale", "marketKey"\]\)/,
@@ -63,8 +66,20 @@ const sourceDiagnosticStages = [
   "analyse_source_suggest_http",
   "analyse_source_suggest_body",
   "analyse_source_suggest_contract",
-  "analyse_source_suggest_correlation",
+  "analyse_source_suggest_request_identity",
+  "analyse_source_suggest_request_contract",
+  "analyse_source_suggest_market_locale",
+  "analyse_source_suggest_query",
+  "analyse_source_suggest_coordinates",
   "analyse_source_suggest_candidate",
+  "find_source_ui",
+  "find_source_camera",
+  "find_source_cta",
+  "find_source_pre_dispatch",
+  "find_source_response_wait",
+  "find_source_http",
+  "find_source_body",
+  "find_source_contract",
   "create_source_context_ui",
   "create_source_context_request",
   "create_source_context_response",
@@ -87,8 +102,39 @@ for (const primaryStage of sourceDiagnosticStages) {
   assert.match(liveSpecSource, new RegExp(`progress[.]start\\("${primaryStage}"\\)`),
     `${primaryStage} must be emitted by the live spec`);
 }
-assert.ok(LIVE_JOURNEY_STEPS.includes("analyse_source_suggest") && LIVE_JOURNEY_STEPS.includes("create_source_context"),
+assert.ok(LIVE_JOURNEY_STEPS.includes("analyse_source_suggest") && LIVE_JOURNEY_STEPS.includes("analyse_source_suggest_correlation") &&
+  LIVE_JOURNEY_STEPS.includes("find_source_response") && LIVE_JOURNEY_STEPS.includes("create_source_context"),
   "legacy v1 broad source stages must remain parseable");
+
+const requestObject = {};
+const exactSuggestionBody = { locale: "en", marketKey: "singapore", query: "Marina Bay Sands Tower 1" };
+assert.deepEqual(analyseSuggestionCorrelationChecks({
+  observedRequest: requestObject,
+  responseRequest: requestObject,
+  submitted: exactSuggestionBody,
+  responseSubmitted: { ...exactSuggestionBody },
+  expectedMarketKey: "singapore",
+  expectedLocale: "en",
+  expectedQuery: "Marina Bay Sands Tower 1",
+  allCoordinatesInMarket: true
+}), {
+  requestIdentity: true,
+  requestContract: true,
+  marketLocale: true,
+  query: true,
+  coordinates: true
+});
+assert.equal(analyseSuggestionCorrelationChecks({
+  observedRequest: requestObject,
+  responseRequest: {},
+  submitted: exactSuggestionBody,
+  responseSubmitted: { ...exactSuggestionBody },
+  expectedMarketKey: "singapore",
+  expectedLocale: "en",
+  expectedQuery: "Marina Bay Sands Tower 1",
+  allCoordinatesInMarket: true
+}).requestIdentity, false,
+"semantically identical request bodies must not hide a distinct response-request object");
 
 const boundedFixturePayload = { mode: "results", count: 1 };
 assert.deepEqual(await boundedLiveJourneyResponseJson({

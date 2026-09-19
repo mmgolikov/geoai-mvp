@@ -13,7 +13,13 @@ export const LIVE_JOURNEY_STEPS = Object.freeze([
   "analyse_source_suggest_http",
   "analyse_source_suggest_body",
   "analyse_source_suggest_contract",
+  // Retained for strict parsing of already-issued v1 receipts. New runs use the fixed checks below.
   "analyse_source_suggest_correlation",
+  "analyse_source_suggest_request_identity",
+  "analyse_source_suggest_request_contract",
+  "analyse_source_suggest_market_locale",
+  "analyse_source_suggest_query",
+  "analyse_source_suggest_coordinates",
   "analyse_source_suggest_candidate",
   "analyse_source_context",
   "analyse_paid_response",
@@ -22,7 +28,16 @@ export const LIVE_JOURNEY_STEPS = Object.freeze([
   "analyse_evidence_capture",
   "analyse_local_save",
   "analyse_local_reopen",
+  // Retained for strict parsing of already-issued v1 receipts. New runs use the fixed substages below.
   "find_source_response",
+  "find_source_ui",
+  "find_source_camera",
+  "find_source_cta",
+  "find_source_pre_dispatch",
+  "find_source_response_wait",
+  "find_source_http",
+  "find_source_body",
+  "find_source_contract",
   "find_candidate_count",
   "find_compare",
   "find_local_save",
@@ -102,6 +117,29 @@ export function encodeLiveJourneyDiagnostic(value) {
 export function primaryAfterFinalizeFailure(primaryStatus, primaryStage) {
   if (primaryStatus === "failed") return { primaryStatus, primaryStage };
   return { primaryStatus: "failed", primaryStage: "paid_finalize" };
+}
+
+export function analyseSuggestionCorrelationChecks({
+  observedRequest,
+  responseRequest,
+  submitted,
+  responseSubmitted,
+  expectedMarketKey,
+  expectedLocale,
+  expectedQuery,
+  allCoordinatesInMarket
+}) {
+  const requestKeys = ["locale", "marketKey", "query"];
+  const requestContract = exactKeys(submitted, requestKeys) && exactKeys(responseSubmitted, requestKeys);
+  return Object.freeze({
+    requestIdentity: responseRequest === observedRequest,
+    requestContract,
+    marketLocale: requestContract && responseSubmitted.marketKey === submitted.marketKey &&
+      responseSubmitted.locale === submitted.locale && submitted.marketKey === expectedMarketKey &&
+      submitted.locale === expectedLocale,
+    query: requestContract && responseSubmitted.query === submitted.query && submitted.query === expectedQuery,
+    coordinates: allCoordinatesInMarket === true
+  });
 }
 
 export async function boundedLiveJourneyResponseJson(response, timeoutMs) {
