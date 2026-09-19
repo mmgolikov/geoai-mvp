@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import { expect, test, type BrowserContext, type Page, type Route, type TestInfo } from "@playwright/test";
+import { installLocalWebKitHttpCsp } from "./helpers/local-webkit-csp";
 
 const cloudPath = "/api/prototype/point-to-object/project-artifacts";
 const cookieName = "sb-127-auth-token";
@@ -11,6 +12,14 @@ let fakeSupabase: Server | null = null;
 
 function isAuthenticatedRun(testInfo: TestInfo): boolean {
   return (testInfo.project.metadata as { cloudAuthE2E?: boolean }).cloudAuthE2E === true;
+}
+
+async function newCloudPage(context: BrowserContext, baseURL: string): Promise<Page> {
+  const page = await context.newPage();
+  // Mocked persistence semantics over HTTP loopback only; remote/HTTPS CSP
+  // acceptance remains covered by the separate unchanged-policy suites.
+  await installLocalWebKitHttpCsp(page, context.browser()?.browserType().name(), baseURL);
+  return page;
 }
 
 function canonical(value: unknown): string {
@@ -246,6 +255,7 @@ test.afterAll(async () => {
 });
 
 test("demo/anonymous Project Hub never calls the cloud artifact route", async ({ page }, testInfo) => {
+  await installLocalWebKitHttpCsp(page, testInfo.project.use.browserName, String(testInfo.project.use.baseURL));
   let cloudCalls = 0;
   await page.route(`**${cloudPath}**`, async (route) => {
     cloudCalls += 1;
@@ -272,7 +282,7 @@ test("explicit Save to cloud is the only PUT and a clean second context imports 
 
   const firstContext = await browser.newContext({ baseURL });
   await installAuthenticatedCookie(firstContext, baseURL, primaryUserId);
-  const firstPage = await firstContext.newPage();
+  const firstPage = await newCloudPage(firstContext, baseURL);
   await seedLocalProject(firstPage, primaryUserId);
   await firstPage.route(`**${cloudPath}**`, async (route) => {
     const method = route.request().method();
@@ -307,7 +317,7 @@ test("explicit Save to cloud is the only PUT and a clean second context imports 
 
   const secondContext = await browser.newContext({ baseURL });
   await installAuthenticatedCookie(secondContext, baseURL, primaryUserId);
-  const secondPage = await secondContext.newPage();
+  const secondPage = await newCloudPage(secondContext, baseURL);
   let secondContextPutCalls = 0;
   await secondPage.route(`**${cloudPath}**`, async (route) => {
     if (route.request().method() === "PUT") secondContextPutCalls += 1;
@@ -330,7 +340,7 @@ test("an older cloud view is shown as unsaved local changes until explicit Save"
   const baseURL = String(testInfo.project.use.baseURL);
   const context = await browser.newContext({ baseURL });
   await installAuthenticatedCookie(context, baseURL, primaryUserId);
-  const page = await context.newPage();
+  const page = await newCloudPage(context, baseURL);
   const localProject = { ...fixtureProject(), artifacts: [fixtureLocalAheadArtifact()] };
   const localStore = {
     schemaVersion: 1,
@@ -378,7 +388,7 @@ test("cloud conflict and error preserve the selected local project bytes", async
   for (const scenario of ["conflict", "error"] as const) {
     const context = await browser.newContext({ baseURL });
     await installAuthenticatedCookie(context, baseURL, primaryUserId);
-    const page = await context.newPage();
+    const page = await newCloudPage(context, baseURL);
     const projectName = scenario === "conflict" ? "Locally renamed project" : "Selected cloud project";
     await seedLocalProject(page, primaryUserId, projectName);
     await page.route(`**${cloudPath}**`, async (route) => {
@@ -410,9 +420,11 @@ test("an old account cloud completion cannot import into the next account", asyn
   const baseURL = String(testInfo.project.use.baseURL);
   const context = await browser.newContext({ baseURL });
   await installAuthenticatedCookie(context, baseURL, primaryUserId);
-  const page = await context.newPage();
-  const oldListDeferred: { release?: () => void } = {};
-  let getCalls = 0;
+  const page = await newCloudPage(context, baseURL);
+  const oldListReleases: Array<() => void> = [];
+  let completedOldLists = 0;
+  let newAccountGetCalls = 0;
+  let accountSwitchStarted = false;
   let putCalls = 0;
   await page.route(`**${cloudPath}**`, async (route) => {
     if (route.request().method() === "PUT") {
@@ -420,21 +432,28 @@ test("an old account cloud completion cannot import into the next account", asyn
       await route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ ok: false }) });
       return;
     }
-    getCalls += 1;
-    if (getCalls > 1) return fulfillCloudList(route);
-    await new Promise<void>((resolve) => { oldListDeferred.release = resolve; });
+    if (accountSwitchStarted) {
+      newAccountGetCalls += 1;
+      return fulfillCloudList(route);
+    }
+    // Development StrictMode may mount more than one initial GET. Hold every
+    // old-account response; the isolation assertion must not depend on count.
+    await new Promise<void>((resolve) => { oldListReleases.push(resolve); });
     await fulfillCloudList(route, [{ cloudRevision: 1, localProject: {
       projectId: fixtureProject().projectId, name: fixtureProject().name, createdAt: fixtureProject().createdAt
     }, artifact: fixtureArtifact() }]).catch(() => undefined);
+    completedOldLists += 1;
   });
   await page.goto("/projects");
-  await expect.poll(() => getCalls).toBe(1);
+  await expect.poll(() => oldListReleases.length).toBeGreaterThanOrEqual(1);
   await installAuthenticatedCookie(context, baseURL, secondaryUserId);
+  accountSwitchStarted = true;
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   await expect.poll(() => page.evaluate(() => localStorage.getItem("geoai:point-to-object:browser-identity:v1"))).toBe(`user:${secondaryUserId}`);
-  await expect.poll(() => getCalls).toBeGreaterThanOrEqual(2);
-  oldListDeferred.release?.();
-  await page.waitForTimeout(250);
+  await expect.poll(() => newAccountGetCalls).toBeGreaterThanOrEqual(1);
+  const releasedCount = oldListReleases.length;
+  for (const release of oldListReleases) release();
+  await expect.poll(() => completedOldLists).toBe(releasedCount);
   expect(await page.evaluate((storageKey) => localStorage.getItem(storageKey), projectStorageKey(secondaryUserId))).toBeNull();
   expect(putCalls).toBe(0);
   await context.close();

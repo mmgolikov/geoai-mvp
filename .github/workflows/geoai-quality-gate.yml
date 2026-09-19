@@ -400,6 +400,7 @@ jobs:
           node scripts/sprint10-cloud-concurrency-check.mjs | tee artifacts/sprint10-cloud-race-static-contract.txt
           node --experimental-transform-types scripts/sprint10-cloud-live-acceptance-check.mjs | tee artifacts/sprint10-cloud-live-static-contract.txt
           node --experimental-transform-types scripts/point-object-source-middleware-auth-deadline-check.mjs | tee artifacts/source-middleware-deadline-contract.txt
+          node --experimental-transform-types scripts/point-object-request-auth-deadline-integration-check.mjs | tee artifacts/source-request-auth-deadline-integration.txt
           npm run test:self-host-runtime | tee artifacts/sprint10-self-host-contract.txt
           node scripts/sprint10-portable-readiness-load-check.mjs | tee artifacts/sprint10-portable-load-contract.txt
           node --experimental-transform-types scripts/sprint10-analysis-result-evidence-check.ts | tee artifacts/sprint10-analysis-evidence-contract.txt
@@ -504,6 +505,7 @@ jobs:
           fi
 
           GEOAI_TEST_BASE_URL=http://127.0.0.1:3000 npm run test:api-contract | tee artifacts/api-contract-check.txt
+          GEOAI_TEST_BASE_URL=http://127.0.0.1:3000 node scripts/source-framework-request-check.mjs | tee artifacts/source-framework-request-check.txt
           GEOAI_TEST_BASE_URL=http://127.0.0.1:3000 npm run test:security-headers | tee artifacts/security-header-check.txt
           GEOAI_TEST_BASE_URL=http://127.0.0.1:3000 npm run test:api-route-inventory | tee artifacts/api-route-inventory-runtime-check.txt
 

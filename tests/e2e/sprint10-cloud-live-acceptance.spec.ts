@@ -175,7 +175,7 @@ test("writer saves, clean context reopens, outsider is denied", async ({ browser
     const aResponses: number[] = [];
     first.page.on("response", (response) => { if (new URL(response.url()).pathname === cloudPath) aResponses.push(response.status()); });
     await login(first.page, personaA, originalBytes);
-    await expect(first.page.getByText("Cloud projects are synced to this device.", { exact: true })).toBeVisible();
+    await expect(first.page.getByText("Cloud projects are available on this device.", { exact: true })).toBeVisible();
     const put = first.page.waitForResponse((response) => response.request().method() === "PUT" && new URL(response.url()).pathname === cloudPath);
     await first.page.getByRole("button", { name: "Save to cloud", exact: true }).click();
     expect((await put).status()).toBe(201);
@@ -225,7 +225,7 @@ test("viewer cannot save", async ({ browser }) => {
     await verifyPreview(viewer.page);
     const originalBytes = fixtureStore(personaB.userId);
     await login(viewer.page, personaB, originalBytes);
-    await expect(viewer.page.getByText("Cloud projects are synced to this device.", { exact: true })).toBeVisible();
+    await expect(viewer.page.getByText("Cloud projects are available on this device.", { exact: true })).toBeVisible();
     const button = viewer.page.getByRole("button", { name: "Save to cloud", exact: true });
     await expect(button).toBeEnabled();
     const put = viewer.page.waitForResponse((response) => response.request().method() === "PUT" && new URL(response.url()).pathname === cloudPath);
