@@ -50,6 +50,11 @@ assert.match(liveSpecSource, /areaContextSection\.getByText\("Mapped objects", \
   "Create must prove that the UI accepted the validated area-context result before paid generation");
 assert.match(liveSpecSource, /query: "Marina Bay Sands Tower 1"[\s\S]*?candidateLabel: \/marina bay sands\.\*tower 1\/i/,
   "Singapore Analyse must retain its fixed query and exact candidate identity rule");
+const suggestionContractSource = liveSpecSource.split('progress.start("analyse_source_suggest_contract");')[1]
+  ?.split('progress.complete("analyse_source_suggest_contract");')[0] ?? "";
+assert.ok(suggestionContractSource.length > 0);
+assert.doesNotMatch(suggestionContractSource, /results\.length\s*>\s*0/,
+  "A valid empty Photon response must reach the distinct exact-candidate stage, not be misclassified as malformed source data");
 
 const sourceDiagnosticStages = [
   "analyse_source_suggest_ui",

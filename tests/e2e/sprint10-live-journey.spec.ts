@@ -555,7 +555,7 @@ async function runAnalyseSourceSuggest(
     suggestionPayload.source.licenceUrl === "https://www.openstreetmap.org/copyright" &&
     suggestionPayload.source.serviceUrl === "https://photon.komoot.io/" &&
     suggestionPayload.source.officialStatus === "open_context_not_official" && Array.isArray(suggestionPayload.results) &&
-    suggestionPayload.results.length > 0 && suggestionPayload.results.length <= 5 &&
+    suggestionPayload.results.length <= 5 &&
     suggestionPayload.results.every((candidate) => record(candidate) && typeof candidate.id === "string" &&
       /^(node|way|relation)\/[1-9]\d{0,19}$/.test(candidate.id) && typeof candidate.label === "string" &&
       candidate.label.trim().length > 0 && typeof candidate.longitude === "number" && Number.isFinite(candidate.longitude) &&
