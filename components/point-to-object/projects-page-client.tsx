@@ -77,10 +77,12 @@ export function PointObjectProjectsPageClient() {
   const [cloudActionMessage, setCloudActionMessage] = useState<string | null>(null);
   const renamePendingRef = useRef(false);
   const refreshSequence = useRef(0);
+  const cloudActionErrorRevision = useRef(0);
   const identityRef = useRef(identityKey);
   identityRef.current = identityKey;
   const refresh = useCallback(async () => {
     const sequence = ++refreshSequence.current;
+    const errorRevision = cloudActionErrorRevision.current;
     if (!identityKey) {
       setStore(null);
       setReadStatus("missing");
@@ -90,7 +92,7 @@ export function PointObjectProjectsPageClient() {
     if (identityRef.current !== identityKey || refreshSequence.current !== sequence) return;
     setReadStatus(result.status);
     setStore(result.store);
-    setError(result.store ? null : result.message);
+    if (cloudActionErrorRevision.current === errorRevision) setError(result.store ? null : result.message);
   }, [identityKey]);
 
   useEffect(() => {
@@ -225,6 +227,9 @@ export function PointObjectProjectsPageClient() {
         : "The selected project is saved to the protected cloud test environment and can be reopened there after signing in on another device.");
     } catch (caught) {
       if (identityRef.current === initiatingIdentity) {
+        // A verification started by an earlier cloud-import event may still
+        // update the store, but must not erase this newer action error.
+        cloudActionErrorRevision.current += 1;
         setError(caught instanceof Error ? caught.message : locale === "ru"
           ? "Не удалось сохранить выбранный проект в облаке. Локальная копия сохранена."
           : "The selected project could not be saved to cloud. The local copy is preserved.");

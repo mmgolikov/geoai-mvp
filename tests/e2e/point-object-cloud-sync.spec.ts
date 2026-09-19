@@ -415,6 +415,86 @@ test("cloud conflict and error preserve the selected local project bytes", async
   }
 });
 
+test("viewer denial remains visible after an older cloud import refresh completes", async ({ browser }, testInfo) => {
+  test.skip(!isAuthenticatedRun(testInfo), "Requires the local authenticated cloud harness.");
+  const baseURL = String(testInfo.project.use.baseURL);
+  const context = await browser.newContext({ baseURL });
+  await installAuthenticatedCookie(context, baseURL, primaryUserId);
+  const page = await newCloudPage(context, baseURL);
+  const storageKey = projectStorageKey(primaryUserId);
+  await page.addInitScript(({ fixtureStorageKey }) => {
+    type RefreshGateWindow = typeof window & {
+      __geoaiCloudRefreshHeld?: boolean;
+      __geoaiReleaseCloudRefresh?: () => void;
+    };
+    const gateWindow = window as RefreshGateWindow;
+    const originalDigest = SubtleCrypto.prototype.digest;
+    let oneArtifactDigestCount = 0;
+    let held = false;
+    Object.defineProperty(SubtleCrypto.prototype, "digest", {
+      configurable: true,
+      value: async function digest(
+        this: SubtleCrypto,
+        algorithm: AlgorithmIdentifier,
+        data: BufferSource
+      ): Promise<ArrayBuffer> {
+        let artifactCount = 0;
+        try {
+          const raw = localStorage.getItem(fixtureStorageKey);
+          const parsed = raw ? JSON.parse(raw) as { projects?: Array<{ artifacts?: unknown[] }> } : null;
+          artifactCount = parsed?.projects?.reduce((count, project) => count + (project.artifacts?.length ?? 0), 0) ?? 0;
+        } catch {
+          artifactCount = 0;
+        }
+        // Let the first imported artifact render before the second import
+        // completes, matching a clean viewer device receiving a project page.
+        if (artifactCount === 1 && ++oneArtifactDigestCount === 2) {
+          await new Promise((resolve) => setTimeout(resolve, 75));
+        }
+        // The second import emits a refresh without awaiting it. Hold that
+        // refresh until the mocked 403 has produced the action error.
+        if (artifactCount === 2 && !held) {
+          held = true;
+          gateWindow.__geoaiCloudRefreshHeld = true;
+          await new Promise<void>((resolve) => {
+            gateWindow.__geoaiReleaseCloudRefresh = resolve;
+          });
+        }
+        return originalDigest.call(this, algorithm, data);
+      }
+    });
+  }, { fixtureStorageKey: storageKey });
+
+  const project = fixtureProject();
+  let putCalls = 0;
+  await page.route(`**${cloudPath}**`, async (route) => {
+    if (route.request().method() === "GET") {
+      return fulfillCloudList(route, [fixtureArtifact(2, "Cloud beta result"), fixtureArtifact(1, "Cloud alpha result")].map((artifact) => ({
+        cloudRevision: 1,
+        localProject: { projectId: project.projectId, name: project.name, createdAt: project.createdAt },
+        artifact
+      })));
+    }
+    putCalls += 1;
+    await route.fulfill({ status: 403, contentType: "application/json", body: JSON.stringify({ ok: false }) });
+  });
+
+  await page.goto("/projects");
+  await expect.poll(() => page.evaluate(() => (window as typeof window & { __geoaiCloudRefreshHeld?: boolean }).__geoaiCloudRefreshHeld)).toBe(true);
+  await expect(page.getByRole("heading", { name: project.name, exact: true })).toBeVisible();
+  const before = await page.evaluate((key) => localStorage.getItem(key), storageKey);
+  await page.getByRole("button", { name: "Save to cloud", exact: true }).click();
+  const alert = page.getByTestId("point-object-projects-page").getByRole("alert");
+  await expect(alert).toContainText("The cloud copy was not saved completely");
+  expect(putCalls).toBe(1);
+  await page.evaluate(() => (window as typeof window & { __geoaiReleaseCloudRefresh?: () => void }).__geoaiReleaseCloudRefresh?.());
+  await expect(page.getByText("Cloud alpha result", { exact: true })).toBeVisible();
+  await expect(page.getByText("Cloud beta result", { exact: true })).toBeVisible();
+  await expect(alert).toContainText("The cloud copy was not saved completely");
+  expect(await page.evaluate((key) => localStorage.getItem(key), storageKey)).toBe(before);
+  await context.close();
+});
+
 test("an old account cloud completion cannot import into the next account", async ({ browser }, testInfo) => {
   test.skip(!isAuthenticatedRun(testInfo), "Requires the local authenticated cloud harness.");
   const baseURL = String(testInfo.project.use.baseURL);
