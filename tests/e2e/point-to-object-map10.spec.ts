@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { installLocalWebKitHttpCsp } from "./helpers/local-webkit-csp";
+import { externalHttpUrlPattern, installLoopbackBrowserHarness } from "./helpers/local-webkit-csp";
 import { fromGeojsonVt } from "@maplibre/vt-pbf";
 import type { FeatureCollection, Polygon, Position } from "geojson";
 import difcFixture from "../fixtures/difc-native-building-sept10.json";
@@ -40,7 +40,7 @@ const geometry: FeatureCollection = { type: "FeatureCollection", features: [
 async function installMapFixture(page: Page) {
   const { GeoJSONVT } = await import("@maplibre/geojson-vt");
   const index = new GeoJSONVT(geometry, { maxZoom: 18, tolerance: 0, extent: 8192, buffer: 64 });
-  await page.route(/^https:\/\//, async route => {
+  await page.route(externalHttpUrlPattern(test.info().project.use.baseURL), async route => {
     const url = new URL(route.request().url());
     if (url.hostname === "tiles.openfreemap.org" && url.pathname.startsWith("/styles/")) {
       await route.fulfill({ json: { version: 8, sources: { openmaptiles: { type: "vector", tiles: ["https://tiles.openfreemap.org/map10/{z}/{x}/{y}.pbf"], maxzoom: 18 } }, layers: [
@@ -91,7 +91,7 @@ test("MAP10 native complex/multipart highlight preserves geometry without duplic
   const pageErrors: string[] = [];
   page.on("pageerror", error => pageErrors.push(error.message));
   await page.setViewportSize({ width: 1440, height: 900 });
-  await installLocalWebKitHttpCsp(page, testInfo.project.use.browserName, testInfo.project.use.baseURL);
+  await installLoopbackBrowserHarness(page, testInfo.project.use.browserName, testInfo.project.use.baseURL);
   const index = await installMapFixture(page);
   await page.goto("/prototype/point-to-object");
   await exposeFixtureMap(page);
@@ -264,7 +264,7 @@ test("MAP10 native complex/multipart highlight preserves geometry without duplic
 });
 
 test("MAP10 exact captured DIFC footprint hides all native tile fragments and restores outside-safe on toggle/style/zoom/delete", async ({ page }, testInfo) => {
-  await installLocalWebKitHttpCsp(page, testInfo.project.use.browserName, testInfo.project.use.baseURL);
+  await installLoopbackBrowserHarness(page, testInfo.project.use.browserName, testInfo.project.use.baseURL);
   await page.setViewportSize({ width: 1440, height: 900 });
   await installMapFixture(page);
   await page.goto("/prototype/point-to-object");

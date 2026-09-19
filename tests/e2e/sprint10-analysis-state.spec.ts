@@ -1,11 +1,10 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 import { sprint10AnalysisResponse, sprint10Selection } from "./helpers/sprint10-analysis-fixture";
 import { POINT_OBJECT_ANALYSIS_CLIENT_DEADLINE_MS } from "../../src/lib/prototype/point-to-object-analysis-request-state";
-import { installLocalWebKitHttpCsp } from "./helpers/local-webkit-csp";
+import { installLoopbackBrowserHarness } from "./helpers/local-webkit-csp";
 
 test.beforeEach(async ({ page }, testInfo) => {
-  await installLocalWebKitHttpCsp(page, testInfo.project.use.browserName, testInfo.project.use.baseURL);
-  await page.route(/^https:\/\//, (route) => route.abort());
+  await installLoopbackBrowserHarness(page, testInfo.project.use.browserName, testInfo.project.use.baseURL);
 });
 
 async function json(route: Route, body: unknown, status = 200) {

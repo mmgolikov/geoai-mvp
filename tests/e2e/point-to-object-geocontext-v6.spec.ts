@@ -5,10 +5,10 @@ import {
   expectProtectedEntryDeniedWithoutByteMutation,
   sessionMissingFixture
 } from "./helpers/auth-persona";
-import { installLocalWebKitHttpCsp } from "./helpers/local-webkit-csp";
+import { externalHttpUrlPattern, installLoopbackBrowserHarness } from "./helpers/local-webkit-csp";
 
 test.beforeEach(async ({ page, browserName }, testInfo) => {
-  await installLocalWebKitHttpCsp(page, browserName, testInfo.project.use.baseURL);
+  await installLoopbackBrowserHarness(page, browserName, testInfo.project.use.baseURL);
 });
 
 const CAVEAT = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
@@ -498,7 +498,7 @@ async function installAnalysisRoutes(page: Page) {
     }
   });
 
-  await page.route(/^https:\/\//, async (route) => {
+  await page.route(externalHttpUrlPattern(test.info().project.use.baseURL), async (route) => {
     unexpectedExternal.push(route.request().url());
     await route.abort("blockedbyclient");
   });

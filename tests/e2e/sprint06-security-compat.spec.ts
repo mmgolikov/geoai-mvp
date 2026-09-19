@@ -1,9 +1,9 @@
 import { expect, test } from "@playwright/test";
-import { installLocalWebKitHttpCsp } from "./helpers/local-webkit-csp";
+import { installLoopbackBrowserHarness } from "./helpers/local-webkit-csp";
 
 for (const width of [390, 430, 1440]) {
   test(`Security06 keeps the accepted landing images and map entry usable in EN and RU at ${width}px`, async ({ page }, testInfo) => {
-    await installLocalWebKitHttpCsp(page, testInfo.project.use.browserName, testInfo.project.use.baseURL);
+    await installLoopbackBrowserHarness(page, testInfo.project.use.browserName, testInfo.project.use.baseURL);
     const errors: string[] = [];
     const heroRequests: URL[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
@@ -76,9 +76,8 @@ for (const width of [390, 430, 1440]) {
 }
 
 test("landing action bubbles open the corresponding workspace mode on mobile", async ({ page }, testInfo) => {
-  await page.route(/^https:\/\//, route => route.abort());
   await page.route("**/api/prototype/point-to-object/**", route => route.fulfill({ status: 503, json: { mode: "unavailable", error: "Offline navigation check." } }));
-  await installLocalWebKitHttpCsp(page, testInfo.project.use.browserName, testInfo.project.use.baseURL);
+  await installLoopbackBrowserHarness(page, testInfo.project.use.browserName, testInfo.project.use.baseURL);
   await page.setViewportSize({ width: 390, height: 844 });
   for (const [mode, label] of [["analyse", "Analyse"], ["find", "Find"], ["create", "Create"]]) {
     await page.goto("/");

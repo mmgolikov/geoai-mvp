@@ -5,7 +5,7 @@ import {
   expectProtectedEntryDeniedWithoutByteMutation,
   sessionMissingFixture
 } from "./helpers/auth-persona";
-import { installLocalWebKitHttpCsp } from "./helpers/local-webkit-csp";
+import { externalHttpUrlPattern, installLoopbackBrowserHarness } from "./helpers/local-webkit-csp";
 
 const identity = "demo:demo-user-geoai";
 const storageKey = `geoai:point-to-object:projects:v1:${encodeURIComponent(identity)}`;
@@ -158,7 +158,8 @@ async function expectNativeDeadlineCalls(page: Page, expected: number) {
 }
 
 async function installOfflineHub(page: Page, store = storeFixture(), options: { mockSession?: boolean } = {}) {
-  await page.route(/^https:\/\//, async (route) => {
+  await installLoopbackBrowserHarness(page, test.info().project.use.browserName, test.info().project.use.baseURL);
+  await page.route(externalHttpUrlPattern(test.info().project.use.baseURL), async (route) => {
     const url = new URL(route.request().url());
     if (url.hostname === "tiles.openfreemap.org" && url.pathname.startsWith("/styles/")) {
       await route.fulfill({ json: { version: 8, name: "Sprint07 offline map", sources: {}, layers: [{ id: "background", type: "background", paint: { "background-color": "#e8edf0" } }] } });
@@ -166,7 +167,6 @@ async function installOfflineHub(page: Page, store = storeFixture(), options: { 
     }
     await route.abort();
   });
-  await installLocalWebKitHttpCsp(page, test.info().project.use.browserName, test.info().project.use.baseURL);
   await page.addInitScript(({ key, store, mockSession }) => {
     if (mockSession) localStorage.setItem("geoai-mock-demo-session-v1", "active");
     localStorage.setItem(key, store);
@@ -557,8 +557,7 @@ test("Sprint07: an area-context deadline leaves Create actionable and retries wi
 });
 
 test("Sprint07: landing keeps the selected real-map image bounded and action paths usable at review sizes", async ({ page }, testInfo) => {
-  await page.route(/^https:\/\//, (route) => route.abort());
-  await installLocalWebKitHttpCsp(page, testInfo.project.use.browserName, testInfo.project.use.baseURL);
+  await installLoopbackBrowserHarness(page, testInfo.project.use.browserName, testInfo.project.use.baseURL);
   for (const [width, height] of [[1440, 900], [393, 852]] as const) {
     await page.setViewportSize({ width, height });
     await page.goto("/");

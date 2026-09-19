@@ -1,9 +1,9 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 import { sessionMissingFixture } from "./helpers/auth-persona";
-import { installLocalWebKitHttpCsp } from "./helpers/local-webkit-csp";
+import { externalHttpUrlPattern, installLoopbackBrowserHarness } from "./helpers/local-webkit-csp";
 
 test.beforeEach(async ({ page }, testInfo) => {
-  await installLocalWebKitHttpCsp(page, testInfo.project.use.browserName, testInfo.project.use.baseURL);
+  await installLoopbackBrowserHarness(page, testInfo.project.use.browserName, testInfo.project.use.baseURL);
 });
 
 const caveat = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
@@ -39,7 +39,7 @@ async function installRoutes(page: Page) {
       }
     });
   });
-  await page.route(/^https:\/\//, async (route) => {
+  await page.route(externalHttpUrlPattern(test.info().project.use.baseURL), async (route) => {
     const url = new URL(route.request().url());
     if (url.hostname === "tiles.openfreemap.org" && url.pathname.startsWith("/styles/")) {
       return json(route, {

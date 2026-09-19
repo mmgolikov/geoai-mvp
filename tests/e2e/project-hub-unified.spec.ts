@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 import { parsePointObjectFindSessionState } from "@/src/lib/prototype/point-to-object-find-session";
-import { installLocalWebKitHttpCsp } from "./helpers/local-webkit-csp";
+import { installLoopbackBrowserHarness } from "./helpers/local-webkit-csp";
 
 const identity = "demo:demo-user-geoai";
 const key = `geoai:point-to-object:projects:v1:${encodeURIComponent(identity)}`;
@@ -40,8 +40,7 @@ function fixtureStore() {
 }
 
 async function openHub(page: Page, raw: string | null) {
-  await page.route(/^https:\/\//, (route) => route.abort());
-  await installLocalWebKitHttpCsp(page, test.info().project.use.browserName, test.info().project.use.baseURL);
+  await installLoopbackBrowserHarness(page, test.info().project.use.browserName, test.info().project.use.baseURL);
   await page.addInitScript(({ storageKey, value }) => {
     localStorage.setItem("geoai-mock-demo-session-v1", "active");
     if (!sessionStorage.getItem("hub-fixture-installed")) {

@@ -8,10 +8,10 @@ import {
   type ConceptLocale
 } from "../../src/lib/prototype/point-to-object-create";
 import { POINT_OBJECT_CREATE_RESULT_CAVEAT } from "../../src/lib/prototype/point-to-object-create-result";
-import { installLocalWebKitHttpCsp } from "./helpers/local-webkit-csp";
+import { installLoopbackBrowserHarness } from "./helpers/local-webkit-csp";
 
 test.beforeEach(async ({ page, browserName }, testInfo) => {
-  await installLocalWebKitHttpCsp(page, browserName, testInfo.project.use.baseURL);
+  await installLoopbackBrowserHarness(page, browserName, testInfo.project.use.baseURL);
 });
 
 async function json(route: Route, body: unknown, status = 200) {
@@ -68,7 +68,6 @@ async function prepareExactSavedResult(page: Page, locale: ConceptLocale, option
       } as typeof HTMLCanvasElement.prototype.getContext;
     });
   }
-  await page.route(/^https:\/\//, (route) => route.abort("blockedbyclient"));
   await page.route("**/api/auth/session", (route) => json(route, { isAuthenticated: false, sessionStatus: "session_missing", user: null }));
   await page.route("**/api/auth/logout", (route) => json(route, { ok: true }));
   await page.route("**/api/prototype/point-to-object/create", (route) => {

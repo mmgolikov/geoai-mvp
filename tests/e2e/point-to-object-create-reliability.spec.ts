@@ -1,9 +1,9 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 import packageManifest from "../../package.json";
-import { installLocalWebKitHttpCsp } from "./helpers/local-webkit-csp";
+import { externalHttpUrlPattern, installLoopbackBrowserHarness } from "./helpers/local-webkit-csp";
 
 test.beforeEach(async ({ page, browserName }, testInfo) => {
-  await installLocalWebKitHttpCsp(page, browserName, testInfo.project.use.baseURL);
+  await installLoopbackBrowserHarness(page, browserName, testInfo.project.use.baseURL);
 });
 
 const createPosts: Array<Record<string, unknown>> = [];
@@ -124,7 +124,7 @@ function conceptResponse(request: Record<string, unknown>, generation: number) {
 }
 
 async function installRoutes(page: Page) {
-  await page.route(/^https:\/\//, async (route) => {
+  await page.route(externalHttpUrlPattern(test.info().project.use.baseURL), async (route) => {
     const url = new URL(route.request().url());
     if (url.hostname === "tiles.openfreemap.org" && url.pathname.startsWith("/styles/")) {
       await json(route, {

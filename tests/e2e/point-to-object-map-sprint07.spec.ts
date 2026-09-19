@@ -1,7 +1,7 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 import { fromGeojsonVt } from "@maplibre/vt-pbf";
 import type { FeatureCollection, Position } from "geojson";
-import { installLocalWebKitHttpCsp } from "./helpers/local-webkit-csp";
+import { externalHttpUrlPattern, installLoopbackBrowserHarness } from "./helpers/local-webkit-csp";
 
 const rectangle = (w: number, s: number, e: number, n: number): Position[][] => [[[w,s],[e,s],[e,n],[w,n],[w,s]]];
 const aoi = { type: "Polygon", coordinates: rectangle(55.320,25.224,55.326,25.229) };
@@ -20,7 +20,7 @@ const features: FeatureCollection = { type: "FeatureCollection", features: [
 async function fixture(page: Page) {
   const { GeoJSONVT } = await import("@maplibre/geojson-vt");
   const index = new GeoJSONVT(features, { maxZoom: 14, tolerance: 0, extent: 8192, buffer: 64 });
-  await page.route(/^https:\/\//, async route => {
+  await page.route(externalHttpUrlPattern(test.info().project.use.baseURL), async route => {
     const url = new URL(route.request().url());
     if (url.hostname === "tiles.openfreemap.org" && url.pathname.startsWith("/styles/")) {
       await route.fulfill({ json: { version: 8, sources: { openmaptiles: { type: "vector", tiles: ["https://tiles.openfreemap.org/sprint07/{z}/{x}/{y}.pbf"], maxzoom: 14, attribution: "Offline representative fixture · © OpenStreetMap contributors" } }, layers: [
@@ -77,7 +77,7 @@ async function pointCovered(page: Page, coordinate: [number, number]) {
 
 test("Sprint07 partitions complete native members and restores exterior buildings through source, style, mode and clear cycles", async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await installLocalWebKitHttpCsp(page, testInfo.project.use.browserName, testInfo.project.use.baseURL);
+  await installLoopbackBrowserHarness(page, testInfo.project.use.browserName, testInfo.project.use.baseURL);
   await fixture(page);
   await page.goto("/prototype/point-to-object?mode=create");
   await exposeMap(page);
@@ -140,7 +140,7 @@ test("Sprint07 partitions complete native members and restores exterior building
 
 test("Sprint07 selects a complete tile member without colouring the aggregate and preserves it across style and reload", async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await installLocalWebKitHttpCsp(page, testInfo.project.use.browserName, testInfo.project.use.baseURL);
+  await installLoopbackBrowserHarness(page, testInfo.project.use.browserName, testInfo.project.use.baseURL);
   await fixture(page);
   await page.goto("/prototype/point-to-object?mode=analyse");
   await exposeMap(page);

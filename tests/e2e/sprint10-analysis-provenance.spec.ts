@@ -1,12 +1,11 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 import { sprint10AnalysisResponse, sprint10Selection } from "./helpers/sprint10-analysis-fixture";
-import { installLocalWebKitHttpCsp } from "./helpers/local-webkit-csp";
+import { installLoopbackBrowserHarness } from "./helpers/local-webkit-csp";
 
 const caveat = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
 
 test.beforeEach(async ({ page }, testInfo) => {
-  await installLocalWebKitHttpCsp(page, testInfo.project.use.browserName, testInfo.project.use.baseURL);
-  await page.route(/^https:\/\//, (route) => route.abort());
+  await installLoopbackBrowserHarness(page, testInfo.project.use.browserName, testInfo.project.use.baseURL);
 });
 
 async function json(route: Route, body: unknown, status = 200) {
