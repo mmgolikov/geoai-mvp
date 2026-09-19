@@ -1949,15 +1949,51 @@ async function assertCandidateAiSafety(): Promise<void> {
     `Current Deep plan must produce a bounded structured review: ${JSON.stringify(currentValidation)}`);
   assert.equal(currentValidation.ok && currentValidation.content.depthReview instanceof Object, true);
   const deepReview = (currentValidation as { ok: true; content: any }).content.depthReview as any;
-  assert.match(deepReview.analyticChecks.find((item: any) => item.title === "Mapped use classification")?.implication ?? "",
-    /If official or client records differ[\s\S]*redirect the screen[\s\S]*next evidence gate/,
-    "Deep criteria must state a conditional redirect without claiming that validation already occurred.");
-  assert.match(deepReview.analyticChecks.find((item: any) => item.title === "Mapped lifecycle marker")?.implication ?? "",
-    /If verified construction or refurbishment history does not corroborate[\s\S]*drop the lifecycle-capital hypothesis/,
-    "Deep lifecycle review must identify the evidence condition that would remove its hypothesis.");
-  assert.match(deepReview.alternatives.find((item: any) => item.title === "Alternative: identity-first review")?.rationale ?? "",
-    /If authority- or client-validated identity or parcel association does not match[\s\S]*restart from the confirmed record/,
-    "Deep identity alternatives must invalidate and restart a subject-specific screen on a future mismatch.");
+  const deepUseImplication = deepReview.analyticChecks
+    .find((item: any) => item.title === "Mapped use classification")?.implication ?? "";
+  assert.match(deepUseImplication,
+    /If independently verified current use of the same asset contradicts[\s\S]*different official or planning taxonomy alone is not a like-for-like contradiction/,
+    "Deep use review must compare the same asset's verified current use, not unlike taxonomies.");
+  assert.doesNotMatch(deepUseImplication, /official or client records differ from the mapped class/,
+    "Deep use review must not treat a category-system difference as a contradiction.");
+  const deepLifecycleImplication = deepReview.analyticChecks
+    .find((item: any) => item.title === "Mapped lifecycle marker")?.implication ?? "";
+  assert.match(deepLifecycleImplication,
+    /verified chronology for the same asset contradicts the construction or start event[\s\S]*A refurbishment event is distinct and must not be compared as if it were the same dated event/,
+    "Deep lifecycle review must compare the same asset and event while keeping refurbishment distinct.");
+  assert.doesNotMatch(deepLifecycleImplication, /construction or refurbishment history does not corroborate/,
+    "Deep lifecycle review must not compare construction and refurbishment as interchangeable dates.");
+  const deepSourceImplication = deepReview.analyticChecks
+    .find((item: any) => item.title === "Open-context evidence boundary")?.implication ?? "";
+  assert.match(deepSourceImplication,
+    /source about the same identified subject contradicts a like-for-like mapped fact[\s\S]*next unresolved domain-specific gate/,
+    "Deep source challenges must compare the same subject and fact without skipping unresolved gates.");
+  const deepIdentityRationale = deepReview.alternatives
+    .find((item: any) => item.title === "Alternative: identity-first review")?.rationale ?? "";
+  assert.match(deepIdentityRationale,
+    /object identity does not match the mapped subject[\s\S]*invalidate the subject-specific screen and restart from the confirmed object/,
+    "Deep identity alternatives must invalidate and restart only when object identity mismatches.");
+  assert.match(deepIdentityRationale,
+    /object matches but its parcel association differs[\s\S]*hold and rebind parcel\/site conclusions without automatically invalidating facts or metrics for the same object/,
+    "A parcel-association mismatch must not automatically invalidate facts or metrics for the same object.");
+  assert.match(deepIdentityRationale,
+    /confirmed object and parcel association advances to the next unresolved rights or planning gate/,
+    "Positive identity evidence must preserve unresolved rights and planning gates.");
+  const deepPlanningRationale = deepReview.alternatives
+    .find((item: any) => item.title === "Alternative: planning-first review")?.rationale ?? "";
+  assert.match(deepPlanningRationale,
+    /verified rights or planning constraints for the identity-bound site contradict the development hypothesis[\s\S]*without changing mapped object metrics/,
+    "Planning evidence must evaluate the development hypothesis without altering unrelated object metrics.");
+  assert.match(deepPlanningRationale,
+    /one evidence class advances only to the next unresolved gate[\s\S]*does not satisfy unresolved identity, rights, other planning, technical or market gates/,
+    "A positive planning result must not bypass other unresolved evidence gates.");
+  assert.doesNotMatch(deepPlanningRationale, /recalculate|geometry-derived metrics|advances only to technical and market validation/,
+    "Planning or parcel evidence must not be treated as a like-for-like building-outline comparison.");
+  const deepIdentityTrigger = deepReview.decisionTriggers
+    .find((item: any) => item.title === "Identity, rights and planning gate")?.decisionImpact ?? "";
+  assert.match(deepIdentityTrigger,
+    /object identity does not match[\s\S]*restart from the confirmed object[\s\S]*parcel association differs[\s\S]*without automatically invalidating facts or metrics for the same object/,
+    "Deep identity triggers must distinguish object mismatch from parcel-association mismatch.");
   assert.match(deepReview.decisionTriggers.find((item: any) => item.title === "Technical-baseline gate")?.decisionImpact ?? "",
     /If verified condition, capacity or systems contradict[\s\S]*hold the reuse or replacement judgement[\s\S]*next evidence gate/,
     "Deep technical triggers must conditionally hold the judgement, not prescribe replacement.");
@@ -1982,8 +2018,11 @@ async function assertCandidateAiSafety(): Promise<void> {
   const identityPrimaryAlternatives = (identityPrimaryDeepValidation as { ok: true; content: any })
     .content.depthReview.alternatives as any[];
   assert.match(identityPrimaryAlternatives.find((item) => item.title === "Alternative: existing-asset screen")?.rationale ?? "",
-    /If official or client evidence corroborates[\s\S]*if it conflicts, drop this path and redirect/,
-    "A Deep existing-asset alternative must expose both advance and redirect conditions.");
+    /independently verified current use of the same asset[\s\S]*records for the same building form[\s\S]*next unresolved gate[\s\S]*like-for-like same-asset evidence contradicts/,
+    "A Deep existing-asset alternative must compare like-for-like evidence for the same asset and preserve unresolved gates.");
+  assert.match(identityPrimaryAlternatives.find((item) => item.title === "Alternative: existing-asset screen")?.rationale ?? "",
+    /planning-taxonomy difference alone is not a contradiction/,
+    "A Deep existing-asset alternative must not treat a taxonomy difference as a use contradiction.");
   assert.match(identityPrimaryAlternatives.find((item) => item.title === "Alternative: technical-baseline review")?.rationale ?? "",
     /If verified condition, capacity or systems do not support[\s\S]*hold the reuse or replacement judgement/,
     "A Deep technical alternative must hold the judgement without treating replacement as proven.");
@@ -2059,8 +2098,34 @@ async function assertCandidateAiSafety(): Promise<void> {
   assert.equal(russianDeepValidation.ok, true,
     `Russian Deep challenge must remain renderable: ${JSON.stringify(russianDeepValidation)}`);
   const russianDeepReview = (russianDeepValidation as { ok: true; content: any }).content.depthReview as any;
-  assert.match(russianDeepReview.alternatives[0]?.rationale ?? "", /Если[\s\S]*недействительным[\s\S]*начните заново/,
-    "Russian Deep alternatives must carry the same conditional invalidation semantics.");
+  assert.match(russianDeepReview.alternatives[0]?.rationale ?? "",
+    /идентичность объекта не совпадает[\s\S]*начните заново от подтверждённого объекта[\s\S]*связь с участком[\s\S]*не делая автоматически недействительными факты или метрики того же объекта/,
+    "Russian identity alternatives must distinguish object mismatch from parcel-association mismatch.");
+  const russianUseImplication = russianDeepReview.analyticChecks
+    .find((item: any) => item.title === "Картированная классификация использования")?.implication ?? "";
+  assert.match(russianUseImplication,
+    /текущее использование того же актива противоречит[\s\S]*отличие официальной или градостроительной классификации не является сопоставимым противоречием/,
+    "Russian use review must compare the same asset's current use and reject taxonomy-only differences.");
+  const russianLifecycleImplication = russianDeepReview.analyticChecks
+    .find((item: any) => item.title === "Картированный маркер жизненного цикла")?.implication ?? "";
+  assert.match(russianLifecycleImplication,
+    /хронология того же актива противоречит событию строительства или начала эксплуатации[\s\S]*Реконструкция — отдельное событие/,
+    "Russian lifecycle review must keep construction/start and refurbishment events distinct.");
+  const russianSourceImplication = russianDeepReview.analyticChecks
+    .find((item: any) => item.title === "Граница применимости открытого контекста")?.implication ?? "";
+  assert.match(russianSourceImplication,
+    /источник о том же идентифицированном объекте противоречит сопоставимому картированному факту[\s\S]*следующему незакрытому профильному условию/,
+    "Russian source challenges must compare the same subject and fact without skipping gates.");
+  const russianPlanningRationale = russianDeepReview.alternatives
+    .find((item: any) => item.title === "Альтернатива: сначала планирование")?.rationale ?? "";
+  assert.match(russianPlanningRationale,
+    /участка с подтверждённой идентичностью противоречат гипотезе развития[\s\S]*без изменения картированных метрик объекта/,
+    "Russian planning review must scope a contradiction to the hypothesis, not object metrics.");
+  assert.match(russianPlanningRationale,
+    /следующему незакрытому условию[\s\S]*не закрывает нерешённые вопросы идентичности, прав/,
+    "Russian positive planning evidence must not bypass identity, rights or later gates.");
+  assert.doesNotMatch(russianPlanningRationale, /пересчитайте|перейти только к технической и рыночной проверке/,
+    "Russian planning copy must not couple planning evidence to object-metric recalculation or skip gates.");
   assert.match(russianDeepReview.decisionTriggers.find((item: any) => item.title === "Технический базис")?.decisionImpact ?? "",
     /Если проверенные состояние, мощности или системы противоречат[\s\S]*приостановите вывод/,
     "Russian Deep triggers must carry the same conditional hold semantics.");
@@ -2092,9 +2157,45 @@ async function assertCandidateAiSafety(): Promise<void> {
   const noAttributesReview = (noAttributesValidation as { ok: true; content: any }).content.depthReview as any;
   const noAttributesForm = noAttributesReview.analyticChecks.find((item: any) => item.title === "Mapped physical form");
   assert.deepEqual(noAttributesForm?.evidenceRefs, ["EVD-GEOMETRY"]);
-  assert.match(noAttributesForm?.implication ?? "", /validated boundary or surveyed form differs from the mapped geometry/);
+  assert.match(noAttributesForm?.implication ?? "",
+    /verified outline or surveyed form of the same identified building or object differs from its corresponding mapped outline[\s\S]*recalculate only the affected object-footprint metrics/,
+    "A geometry-only comparison must bind both outlines to the same building or object and metric grain.");
+  assert.match(noAttributesForm?.implication ?? "",
+    /parcel-boundary difference is a separate site-identity and site-geometry question and does not by itself invalidate those object metrics/,
+    "A parcel-boundary difference must not automatically invalidate mapped building/object metrics.");
+  assert.doesNotMatch(noAttributesForm?.implication ?? "", /validated boundary or surveyed form differs from the mapped geometry/,
+    "The renderer must not compare an unspecified boundary with the selected-object outline.");
   assert.doesNotMatch(noAttributesForm?.implication ?? "", /mapped attributes/,
     "A geometry-only Deep challenge must not claim that mapped building attributes were observed.");
+  assert.match(noAttributesReview.decisionTriggers
+    .find((item: any) => item.title === "Evidence-boundary gate")?.decisionImpact ?? "",
+    /same identified subject contradicts a like-for-like mapped fact[\s\S]*next unresolved domain-specific gate/,
+    "The Deep source trigger must retain the same-entity comparison and gate ordering in sparse support.");
+  const russianNoAttributesValidation = validateContentDetailed(
+    {
+      ...rawPlan,
+      answerCode: null,
+      focusedAnswer: null,
+      depthPlan: {
+        criteriaSignalCodes: ["building_form", "use_classification", "source_limit", "object_identity"],
+        alternativePaths: ["planning_first_due_diligence", "identity_first_due_diligence"],
+        counterEvidenceRiskCodes: ["non_official_source", "identity_uncertainty", "geometry_not_parcel"],
+        decisionTriggerCodes: ["identity_rights_planning_first", "technical_baseline_first", "source_evidence_only"]
+      }
+    },
+    evidencePackWithoutAttributes,
+    { ...initialAnalysisRequest, depth: "deep", locale: "ru" }
+  );
+  assert.equal(russianNoAttributesValidation.ok, true,
+    `Russian geometry-only Deep challenge must remain renderable: ${JSON.stringify(russianNoAttributesValidation)}`);
+  const russianNoAttributesForm = (russianNoAttributesValidation as { ok: true; content: any })
+    .content.depthReview.analyticChecks.find((item: any) => item.title === "Картированная физическая форма");
+  assert.match(russianNoAttributesForm?.implication ?? "",
+    /того же идентифицированного здания либо объекта расходится с соответствующим картированным контуром[\s\S]*только затронутые метрики контура объекта/,
+    "Russian geometry comparison must stay at the same building/object grain.");
+  assert.match(russianNoAttributesForm?.implication ?? "",
+    /Отличие границы участка — отдельный вопрос идентичности и геометрии участка и само по себе не делает эти метрики объекта недействительными/,
+    "Russian copy must separate parcel geometry from building/object metrics.");
 
   const evidencePackWithoutGeometry = structuredClone(evidencePack) as any;
   evidencePackWithoutGeometry.selectedObject.geometryType = null;

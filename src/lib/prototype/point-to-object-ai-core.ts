@@ -2418,25 +2418,25 @@ function renderDepthCriterion(
       "Если подтверждённая органом власти или клиентом идентичность не совпадает с этим картированным объектом, выводы по объекту становятся недействительными и скрининг нужно начать заново от подтверждённого объекта; совпадение позволяет перейти только к следующему доказательному условию."
     ],
     use_classification: [
-      "If official or client records differ from the mapped class, redirect the screen and do not carry the mapped-use hypothesis forward; corroboration advances only to the next evidence gate.",
-      "Если официальные или клиентские данные расходятся с картированным классом, скрининг нужно перенаправить и не переносить гипотезу о назначении дальше; подтверждение позволяет перейти только к следующему доказательному условию."
+      "If independently verified current use of the same asset contradicts the mapped-use assumption, redirect the screen and do not carry that assumption forward; a different official or planning taxonomy alone is not a like-for-like contradiction.",
+      "Если независимо проверенное текущее использование того же актива противоречит предположению на основе карты, перенаправьте скрининг и не переносите это предположение дальше; одно лишь отличие официальной или градостроительной классификации не является сопоставимым противоречием."
     ],
     building_form: support.hasBuildingGeometry
       ? [
-          "If an authority- or client-validated boundary or surveyed form differs from the mapped geometry, recalculate affected geometry-derived metrics and hold reuse or replacement judgement until the technical baseline is reconciled.",
-          "Если подтверждённая органом власти или клиентом граница либо обследованная форма расходится с картированной геометрией, пересчитайте затронутые производные метрики и приостановите вывод о повторном использовании или замене до согласования технического базиса."
+          "If a verified outline or surveyed form of the same identified building or object differs from its corresponding mapped outline, recalculate only the affected object-footprint metrics and hold reuse or replacement judgement until the technical baseline is reconciled. A parcel-boundary difference is a separate site-identity and site-geometry question and does not by itself invalidate those object metrics.",
+          "Если проверенный контур или обследованная форма того же идентифицированного здания либо объекта расходится с соответствующим картированным контуром, пересчитайте только затронутые метрики контура объекта и приостановите вывод о повторном использовании или замене до согласования технического базиса. Отличие границы участка — отдельный вопрос идентичности и геометрии участка и само по себе не делает эти метрики объекта недействительными."
         ]
       : [
           "If verified building-form records differ from the mapped attributes, discard the affected form assumptions and hold reuse or replacement judgement until the technical baseline is reconciled.",
           "Если проверенные данные о форме здания расходятся с картированными атрибутами, исключите затронутые предположения о форме и приостановите вывод о повторном использовании или замене до согласования технического базиса."
         ],
     lifecycle_marker: [
-      "If verified construction or refurbishment history does not corroborate the mapped lifecycle marker, drop the lifecycle-capital hypothesis and redirect the evidence request; corroboration still requires a current condition review.",
-      "Если проверенная история строительства или реконструкции не подтверждает картированную временную отметку, исключите гипотезу о капитальном цикле и перенаправьте запрос данных; даже подтверждение требует актуальной проверки состояния."
+      "If verified chronology for the same asset contradicts the construction or start event represented by the mapped marker, drop the lifecycle-capital hypothesis and redirect the evidence request. A refurbishment event is distinct and must not be compared as if it were the same dated event; corroboration still requires a current condition review.",
+      "Если проверенная хронология того же актива противоречит событию строительства или начала эксплуатации, которое обозначает картированная отметка, исключите гипотезу о капитальном цикле и перенаправьте запрос данных. Реконструкция — отдельное событие, и её нельзя сравнивать как то же датированное событие; даже подтверждение требует актуальной проверки состояния."
     ],
     source_limit: [
-      "If an authoritative or client-approved source contradicts the open-map record, replace the mapped premise and rerun the screen; corroboration advances only to the next domain-specific gate.",
-      "Если авторитетный или одобренный клиентом источник противоречит записи открытой карты, замените картированную предпосылку и повторите скрининг; подтверждение позволяет перейти только к следующему профильному условию."
+      "If an authoritative or client-approved source about the same identified subject contradicts a like-for-like mapped fact, replace that premise and rerun the screen; corroboration advances only to the next unresolved domain-specific gate.",
+      "Если авторитетный или одобренный клиентом источник о том же идентифицированном объекте противоречит сопоставимому картированному факту, замените эту предпосылку и повторите скрининг; подтверждение позволяет перейти только к следующему незакрытому профильному условию."
     ],
     address_context: [
       "If validated location or address association differs from the mapped context, re-resolve the subject and rebuild the affected context before using it in the decision sequence.",
@@ -2494,24 +2494,24 @@ function renderDepthAlternative(
   };
   const deepCopy: Record<PointObjectDecisionPath, [string, string]> = {
     existing_asset_screen: [
-      "If official or client evidence corroborates the mapped use or form, advance the existing-asset screen only to its next validation gate; if it conflicts, drop this path and redirect the screen without assuming reuse or repositioning.",
-      "Если официальные или клиентские данные подтверждают картированное назначение или форму, продвигайте скрининг существующего актива только к следующему условию проверки; при расхождении исключите этот путь и перенаправьте скрининг, не предполагая повторное использование или репозиционирование."
+      "If independently verified current use of the same asset and, where relevant, records for the same building form corroborate the mapped assumptions, advance the existing-asset screen only to its next unresolved gate. If like-for-like same-asset evidence contradicts an assumption, drop that assumption and redirect the screen; a planning-taxonomy difference alone is not a contradiction.",
+      "Если независимо проверенное текущее использование того же актива и, где применимо, данные о форме того же здания подтверждают картированные предположения, продвигайте скрининг существующего актива только к следующему незакрытому условию. Если сопоставимые данные о том же активе противоречат предположению, исключите его и перенаправьте скрининг; одно лишь отличие градостроительной классификации не является противоречием."
     ],
     identity_first_due_diligence: [
-      "If authority- or client-validated identity or parcel association does not match the mapped subject, invalidate the subject-specific screen and restart from the confirmed record; if it matches, advance only to rights and planning validation.",
-      "Если подтверждённая органом власти или клиентом идентичность либо связь с участком не совпадает с картированным объектом, признайте скрининг по объекту недействительным и начните заново от подтверждённой записи; при совпадении переходите только к проверке прав и планирования."
+      "If authority- or client-validated object identity does not match the mapped subject, invalidate the subject-specific screen and restart from the confirmed object. If the object matches but its parcel association differs, hold and rebind parcel/site conclusions without automatically invalidating facts or metrics for the same object. Only a confirmed object and parcel association advances to the next unresolved rights or planning gate.",
+      "Если подтверждённая органом власти или клиентом идентичность объекта не совпадает с картированным объектом, признайте скрининг по объекту недействительным и начните заново от подтверждённого объекта. Если объект совпадает, но отличается его связь с участком, приостановите и заново привяжите выводы об участке, не делая автоматически недействительными факты или метрики того же объекта. Только подтверждённые объект и связь с участком позволяют перейти к следующему незакрытому условию по правам или планированию."
     ],
     planning_first_due_diligence: [
-      "If authoritative parcel or planning evidence differs from the mapped premise, hold the development hypothesis, recalculate affected geometry-derived metrics where they exist and redirect the screen; corroboration advances only to technical and market validation.",
-      "Если авторитетные данные об участке или планировании расходятся с картированной предпосылкой, приостановите гипотезу развития, пересчитайте затронутые производные от геометрии метрики там, где они существуют, и перенаправьте скрининг; подтверждение позволяет перейти только к технической и рыночной проверке."
+      "If verified rights or planning constraints for the identity-bound site contradict the development hypothesis, hold or redirect that hypothesis without changing mapped object metrics. Support from one evidence class advances only to the next unresolved gate and does not satisfy unresolved identity, rights, other planning, technical or market gates.",
+      "Если проверенные права или градостроительные ограничения для участка с подтверждённой идентичностью противоречат гипотезе развития, приостановите или перенаправьте эту гипотезу без изменения картированных метрик объекта. Подтверждение одним классом данных позволяет перейти только к следующему незакрытому условию и не закрывает нерешённые вопросы идентичности, прав, других градостроительных ограничений, технических или рыночных данных."
     ],
     technical_baseline_first: [
       "If verified condition, capacity or systems do not support the reuse premise, hold the reuse or replacement judgement and redirect the technical scope; only corroborating evidence can advance reuse evaluation to its next gate.",
       "Если проверенные состояние, мощности или системы не поддерживают предпосылку повторного использования, приостановите вывод о повторном использовании или замене и перенаправьте технический объём; только подтверждающие данные позволяют перевести оценку повторного использования к следующему условию."
     ],
     insufficient_open_context: [
-      "Hold the requested conclusion until decision-specific evidence is added. If that evidence contradicts the mapped premise, restart or redirect the screen; if it supports it, advance only to the next validation gate.",
-      "Приостановите запрошенный вывод до добавления данных, относящихся к решению. Если они противоречат картированной предпосылке, начните скрининг заново или перенаправьте его; если подтверждают — переходите только к следующему условию проверки."
+      "Hold the requested conclusion until identity-bound, decision-specific evidence is added. If like-for-like evidence contradicts the mapped premise, restart or redirect the screen; if it supports it, advance only to the next unresolved validation gate.",
+      "Приостановите запрошенный вывод до добавления относящихся к решению данных, привязанных к подтверждённому объекту. Если сопоставимые данные противоречат картированной предпосылке, начните скрининг заново или перенаправьте его; если подтверждают — переходите только к следующему незакрытому условию проверки."
     ]
   };
   const selected = copy[path];
@@ -2541,8 +2541,8 @@ function renderDepthDecisionTrigger(
   };
   const deepDecisionImpact: Record<PointObjectAnswerCode, [string, string]> = {
     identity_rights_planning_first: [
-      "If validated identity or parcel association does not match the mapped subject, invalidate the subject-specific findings and restart from the confirmed record; if it matches, advance only to the next rights or planning gate.",
-      "Если подтверждённая идентичность или связь с участком не совпадает с картированным объектом, выводы по объекту становятся недействительными и проверку нужно начать заново от подтверждённой записи; при совпадении переходите только к следующему условию по правам или планированию."
+      "If validated object identity does not match the mapped subject, invalidate the subject-specific findings and restart from the confirmed object. If the object matches but its parcel association differs, hold and rebind parcel/site conclusions without automatically invalidating facts or metrics for the same object. Only a confirmed object and parcel association advances to the next unresolved rights or planning gate.",
+      "Если подтверждённая идентичность объекта не совпадает с картированным объектом, выводы по объекту становятся недействительными и проверку нужно начать заново от подтверждённого объекта. Если объект совпадает, но отличается его связь с участком, приостановите и заново привяжите выводы об участке, не делая автоматически недействительными факты или метрики того же объекта. Только подтверждённые объект и связь с участком позволяют перейти к следующему незакрытому условию по правам или планированию."
     ],
     technical_baseline_first: [
       "If verified condition, capacity or systems contradict the reuse or repositioning premise, hold the reuse or replacement judgement and redirect the technical scope; corroboration advances only to the next evidence gate.",
@@ -2553,12 +2553,12 @@ function renderDepthDecisionTrigger(
       "До добавления лицензированных рыночных данных, сделок, затрат и финансовых показателей приостановите коммерческие и финансовые выводы. Противоречащие данные перенаправляют или останавливают скрининг; подтверждающие позволяют перейти только к оценке осуществимости, а не к одобрению."
     ],
     source_evidence_only: [
-      "If an authoritative or client-approved source contradicts the mapped record, replace the premise and rerun the screen; corroboration advances only to the next domain-specific gate.",
-      "Если авторитетный или одобренный клиентом источник противоречит картированной записи, замените предпосылку и повторите скрининг; подтверждение позволяет перейти только к следующему профильному условию."
+      "If an authoritative or client-approved source about the same identified subject contradicts a like-for-like mapped fact, replace that premise and rerun the screen; corroboration advances only to the next unresolved domain-specific gate.",
+      "Если авторитетный или одобренный клиентом источник о том же идентифицированном объекте противоречит сопоставимому картированному факту, замените эту предпосылку и повторите скрининг; подтверждение позволяет перейти только к следующему незакрытому профильному условию."
     ],
     insufficient_for_requested_conclusion: [
-      "Hold the requested conclusion. If decision-specific evidence is added, rerun the screen: contradictory evidence stops or redirects the path, while supportive evidence advances only to the next validation gate.",
-      "Приостановите запрошенный вывод. После добавления данных, относящихся к решению, повторите скрининг: противоречащие данные останавливают или перенаправляют путь, а подтверждающие позволяют перейти только к следующему условию проверки."
+      "Hold the requested conclusion. If identity-bound, decision-specific evidence is added, rerun the screen: like-for-like contradictory evidence stops or redirects the path, while supportive evidence advances only to the next unresolved validation gate.",
+      "Приостановите запрошенный вывод. После добавления относящихся к решению данных, привязанных к подтверждённому объекту, повторите скрининг: сопоставимые противоречащие данные останавливают или перенаправляют путь, а подтверждающие позволяют перейти только к следующему незакрытому условию проверки."
     ]
   };
   return {
