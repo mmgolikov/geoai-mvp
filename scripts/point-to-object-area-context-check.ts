@@ -44,6 +44,7 @@ const {
   PointObjectAreaContextError,
   resolvePointObjectAreaContext
 } = await import("../src/lib/prototype/point-to-object-area-context");
+const { isPointObjectAreaContextResult } = await import("../src/lib/prototype/point-to-object-create-result");
 
 const request = parsePointObjectAreaContextRequest({
   marketKey: "dubai",
@@ -87,6 +88,47 @@ assert.equal(result.coverage.inclusionMethod, "returned_center_inside_aoi");
 assert.equal(result.coverage.completeInventory, false);
 assert.equal(result.features.some((feature) => feature.sourceFeatureId === "way/15"), false);
 assert.equal(result.source.persistenceUsed, false);
+
+const decimalResult = normalizePointObjectAreaContext({
+  osm3s: { timestamp_osm_base: "2026-09-04T06:00:00Z" },
+  elements: [
+    { type: "way", id: 21, center: { lon: 55.271, lat: 25.206 }, tags: { name: "Decimal Tower", building: "office", "building:levels": "2.5" } },
+    { type: "way", id: 22, center: { lon: 55.2715, lat: 25.2065 }, tags: { name: "Three-level block", building: "apartments", "building:levels": "3.0" } }
+  ]
+}, request.value, "2026-09-04T06:01:00Z");
+assert.equal(decimalResult.features[0]?.mappedBuildingLevels, 2.5,
+  "The producer must preserve its normalized one-decimal mapped level without rounding.");
+assert.equal(decimalResult.features[0]?.observedTags["building:levels"], "2.5",
+  "Consumer alignment must not alter the source tag retained in observed facts.");
+assert.equal(decimalResult.summary.mappedLevelsKnownCount, 2);
+assert.equal(decimalResult.summary.medianMappedLevels, 2.8,
+  "The producer summary must retain its existing one-decimal median rule.");
+assert.equal(isPointObjectAreaContextResult(decimalResult), true,
+  "A producer-normalized one-decimal mapped level must pass the full production consumer contract.");
+
+function withFirstMappedLevel(value: unknown) {
+  const candidate: any = structuredClone(decimalResult);
+  candidate.features[0].mappedBuildingLevels = value;
+  return candidate;
+}
+
+assert.equal(isPointObjectAreaContextResult(withFirstMappedLevel(2.55)), false,
+  "The consumer must reject precision beyond the producer's one-decimal grammar.");
+for (const invalidLevel of [0.9, 300.1, -2.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+  assert.equal(isPointObjectAreaContextResult(withFirstMappedLevel(invalidLevel)), false,
+    `Mapped level must remain finite and within the existing consumer bounds: ${String(invalidLevel)}`);
+}
+for (const boundaryLevel of [1, 300]) {
+  const boundaryResult = withFirstMappedLevel(boundaryLevel);
+  boundaryResult.summary.medianMappedLevels = Number(((boundaryLevel + 3) / 2).toFixed(1));
+  assert.equal(isPointObjectAreaContextResult(boundaryResult), true,
+    `Existing inclusive mapped-level bound must remain accepted: ${boundaryLevel}`);
+}
+const nullableLevelResult = withFirstMappedLevel(null);
+nullableLevelResult.summary.mappedLevelsKnownCount = 1;
+nullableLevelResult.summary.medianMappedLevels = 3;
+assert.equal(isPointObjectAreaContextResult(nullableLevelResult), true,
+  "A null mapped level must remain valid when the summary reflects the remaining known level.");
 
 const legitimateEmpty = normalizePointObjectAreaContext({
   osm3s: { timestamp_osm_base: "2026-09-04T06:00:00Z" },
