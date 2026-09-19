@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
+import { POINT_OBJECT_SOURCE_BROWSER_TIMEOUT_MS } from "../../src/lib/prototype/source-request-deadline";
 import {
   declaredAuthPersona,
   expectProtectedEntryDeniedWithoutByteMutation,
@@ -134,15 +135,15 @@ async function chooseAutocompleteResult(page: Page, query: string) {
   await search.press("Enter");
 }
 
-async function installNativeOneSecondDeadline(page: Page) {
-  await page.addInitScript((counterKey) => {
+async function installNativeOneSecondDeadline(page: Page, productionTimeoutMs: number) {
+  await page.addInitScript(({ counterKey, productionTimeoutMs }) => {
     const originalTimeout = AbortSignal.timeout.bind(AbortSignal);
     let calls = 0;
     Object.defineProperty(globalThis, counterKey, { configurable: true, get: () => calls });
     Object.defineProperty(AbortSignal, "timeout", {
       configurable: true,
       value: (milliseconds: number) => {
-        if (milliseconds !== 30_000) return originalTimeout(milliseconds);
+        if (milliseconds !== productionTimeoutMs) return originalTimeout(milliseconds);
         calls += 1;
         // Keep the engine's native timeout signal. The production flow owns
         // the deadline transition explicitly, then aborts its request controller;
@@ -150,7 +151,7 @@ async function installNativeOneSecondDeadline(page: Page) {
         return originalTimeout(1_000);
       }
     });
-  }, nativeDeadlineCallsKey);
+  }, { counterKey: nativeDeadlineCallsKey, productionTimeoutMs });
 }
 
 async function expectNativeDeadlineCalls(page: Page, expected: number) {
@@ -375,7 +376,7 @@ test("Sprint07: a stacked project marker opens an exact saved result only after 
 
 test("Sprint07: a context deadline is recoverable and preserves the question", async ({ page }) => {
   await installOfflineHub(page);
-  await installNativeOneSecondDeadline(page);
+  await installNativeOneSecondDeadline(page, 30_000);
   let requests = 0;
   await installContextAutocomplete(page, async (sourceFeatureId) => {
     requests += 1;
@@ -509,7 +510,7 @@ test("Sprint07: a collapsed mobile task sheet shows every mode tab without scrol
 
 test("Sprint07: an area-context deadline leaves Create actionable and retries without a new paid request", async ({ page }) => {
   await installOfflineHub(page);
-  await installNativeOneSecondDeadline(page);
+  await installNativeOneSecondDeadline(page, POINT_OBJECT_SOURCE_BROWSER_TIMEOUT_MS);
   let areaRequests = 0;
   await page.route("**/api/prototype/point-to-object/area-context", async (route) => {
     areaRequests += 1;
