@@ -15,7 +15,10 @@ export const browserProgressStages = Object.freeze({
   ]),
   viewer_denial: Object.freeze(["viewer_login", "viewer_cloud_read", "viewer_save", "viewer_assertion"])
 });
-const browserRunnerStages = new Set(["browser_preflight", "browser_process_unconfirmed", "browser_report_invalid"]);
+const browserRunnerStages = new Set([
+  "browser_preflight", "browser_process_unconfirmed", "invalid_report_identity", "invalid_result_schema",
+  "raw_test_output_present", "invalid_attachments_schema", "invalid_annotations_schema", "invalid_status_schema"
+]);
 const forbiddenProductionHosts = new Set([
   "geoai-mvp.vercel.app",
   "geoai-id0xnwco2-geoaidev.vercel.app",
@@ -65,6 +68,12 @@ function exactKeys(value, keys) {
     Object.keys(value).sort().join("|") === [...keys].sort().join("|");
 }
 
+function reportError(code, message) {
+  const error = new Error(message);
+  error.code = code;
+  throw error;
+}
+
 export function browserTitlePattern(title) {
   return `${title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`;
 }
@@ -82,12 +91,26 @@ export function parseBrowserReport(report, expectedTitle, expectedPhase) {
   const result = selected?.test?.results?.[0];
   if (!Array.isArray(projects) || projects.length !== 1 || projects[0]?.name !== "sprint10-cloud-live" ||
       tests.length !== 1 || selected.spec?.title !== expectedTitle || selected.test?.projectName !== "sprint10-cloud-live" ||
-      selected.test?.expectedStatus !== "passed" || !Array.isArray(selected.test?.results) ||
-      selected.test.results.length !== 1 || result?.retry !== 0 ||
-      !Array.isArray(result?.stdout) || result.stdout.length !== 0 || !Array.isArray(result?.stderr) || result.stderr.length !== 0 ||
-      !Array.isArray(result?.attachments) || result.attachments.length !== 0 ||
-      !Array.isArray(report?.errors) || report.errors.length !== 0 || stats?.skipped !== 0 || stats?.flaky !== 0) {
-    throw new Error("Browser JSON report did not prove one exact non-skipped test.");
+      selected.test?.expectedStatus !== "passed") {
+    reportError("invalid_report_identity", "Browser JSON report identity did not match one exact test.");
+  }
+  if (!Array.isArray(selected.test.results) || selected.test.results.length !== 1 || result?.retry !== 0) {
+    reportError("invalid_result_schema", "Browser JSON result cardinality or retry contract was invalid.");
+  }
+  if (!Array.isArray(result.stdout) || result.stdout.length !== 0 || !Array.isArray(result.stderr) || result.stderr.length !== 0) {
+    reportError("raw_test_output_present", "Browser JSON result contained unexpected raw test output.");
+  }
+  if (!Array.isArray(result.attachments)) reportError("invalid_attachments_schema", "Browser attachment schema was invalid.");
+  const failureAttachmentsSafe = result.attachments.length <= 1 && result.attachments.every((attachment) =>
+    exactKeys(attachment, ["name", "contentType", "path"]) && attachment.name === "error-context" &&
+    attachment.contentType === "text/markdown" && typeof attachment.path === "string" &&
+    /(?:^|[\\/])error-context\.md$/.test(attachment.path));
+  if ((result.status === "passed" && result.attachments.length !== 0) ||
+      (result.status !== "passed" && !failureAttachmentsSafe)) {
+    reportError("invalid_attachments_schema", "Browser JSON contained an unapproved attachment type.");
+  }
+  if (!Array.isArray(report?.errors) || report.errors.length !== 0 || stats?.skipped !== 0 || stats?.flaky !== 0) {
+    reportError("invalid_status_schema", "Browser JSON global status was not exact.");
   }
   const expectedStages = browserProgressStages[expectedPhase];
   const annotations = result.annotations;
@@ -95,14 +118,14 @@ export function parseBrowserReport(report, expectedTitle, expectedPhase) {
       !annotations.every((annotation, index) => exactKeys(annotation, ["type", "description"]) &&
         annotation.type === "geoai_cloud_stage" && annotation.description === expectedStages[index]) ||
       JSON.stringify(selected.test.annotations) !== JSON.stringify(annotations)) {
-    throw new Error("Browser progress annotations are not the exact safe enum prefix.");
+    reportError("invalid_annotations_schema", "Browser progress annotations are not the exact safe enum prefix.");
   }
   const passed = result.status === "passed" && selected.spec.ok === true && selected.test.status === "expected" &&
     stats?.expected === 1 && stats?.unexpected === 0 && annotations.length === expectedStages.length;
   const failed = ["failed", "timedOut"].includes(result.status) && selected.spec.ok === false &&
     selected.test.status === "unexpected" && stats?.expected === 0 && stats?.unexpected === 1 &&
     annotations.length <= expectedStages.length;
-  if (!passed && !failed) throw new Error("Browser JSON report status disagrees with its safe progress sequence.");
+  if (!passed && !failed) reportError("invalid_status_schema", "Browser JSON report status disagrees with its safe progress sequence.");
   return { status: passed ? "PASS" : "FAIL", tests: 1, progressStage: annotations.at(-1).description };
 }
 
@@ -142,7 +165,7 @@ module.exports = defineConfig({
     if (result.error || result.signal) throw new Error("Browser phase was unconfirmed.");
     let report;
     try { report = JSON.parse(result.stdout || ""); } catch { report = null; }
-    safeStage = "browser_report_invalid";
+    safeStage = "invalid_result_schema";
     const parsed = parseBrowserReport(report, title, phase);
     if (result.status !== (parsed.status === "PASS" ? 0 : 1)) throw new Error("Browser process status disagrees with report.");
     if (parsed.status !== "PASS") {
@@ -153,7 +176,8 @@ module.exports = defineConfig({
       schemaVersion: "geoai.sprint10.cloud-live-browser-receipt.v1",
       status: "PASS", phase, tests: parsed.tests, secretMaterialEmitted: false
     }));
-  } catch {
+  } catch (error) {
+    if (isBrowserFailureStage(error?.code, phase)) safeStage = error.code;
     console.error(JSON.stringify({
       schemaVersion: "geoai.sprint10.cloud-live-browser-receipt.v1",
       status: "FAIL", phase, stage: safeStage, rawOutputSuppressed: true, secretMaterialEmitted: false

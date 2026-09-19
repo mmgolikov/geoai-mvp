@@ -92,7 +92,7 @@ try {
 } catch (error) {
   invalidBrowserFailure = error;
 }
-assert.equal(invalidBrowserFailure?.code, "browser_report_invalid");
+assert.equal(invalidBrowserFailure?.code, "invalid_browser_receipt");
 
 const calls = [];
 const pass = runCloudAcceptance({ expectedCommitSha: "a".repeat(40) }, personas, target, {
@@ -210,11 +210,12 @@ const progressAnnotations = (phase, count = browserProgressStages[phase].length)
 function browserReport({ phase = "writer_outsider", status = "passed", count, stdout = [], expectedStatus = "passed" } = {}) {
   const annotations = progressAnnotations(phase, count);
   const passed = status === "passed";
+  const attachments = passed ? [] : [{ name: "error-context", contentType: "text/markdown", path: "/private/tmp/error-context.md" }];
   return {
     config: { projects: [{ name: "sprint10-cloud-live" }] },
     suites: [{ specs: [{ title: reportTitle, ok: passed, tests: [{
       projectName: "sprint10-cloud-live", expectedStatus, status: passed ? "expected" : "unexpected", annotations,
-      results: [{ status, retry: 0, annotations, stdout, stderr: [], attachments: [], errors: passed ? [] : [{ message: "raw ignored" }] }]
+      results: [{ status, retry: 0, annotations, stdout, stderr: [], attachments, errors: passed ? [] : [{ message: "raw ignored" }] }]
     }] }] }],
     stats: { expected: passed ? 1 : 0, skipped: 0, flaky: 0, unexpected: passed ? 0 : 1 }, errors: []
   };
@@ -226,16 +227,25 @@ assert.deepEqual(parseBrowserReport(browserReport({ status: "failed", count: 3 }
 const rawProgress = browserReport({ status: "failed", count: 3 });
 rawProgress.suites[0].specs[0].tests[0].annotations[2].description = "raw database payload";
 rawProgress.suites[0].specs[0].tests[0].results[0].annotations[2].description = "raw database payload";
-assert.throws(() => parseBrowserReport(rawProgress, reportTitle, "writer_outsider"), /safe enum prefix/);
+assert.throws(() => parseBrowserReport(rawProgress, reportTitle, "writer_outsider"),
+  (error) => error?.code === "invalid_annotations_schema");
 const extraProgress = browserReport();
 extraProgress.suites[0].specs[0].tests[0].annotations.push({ type: "geoai_cloud_stage", description: "extra" });
 extraProgress.suites[0].specs[0].tests[0].results[0].annotations.push({ type: "geoai_cloud_stage", description: "extra" });
-assert.throws(() => parseBrowserReport(extraProgress, reportTitle, "writer_outsider"));
+assert.throws(() => parseBrowserReport(extraProgress, reportTitle, "writer_outsider"),
+  (error) => error?.code === "invalid_annotations_schema");
+const unsafeAttachment = browserReport({ status: "failed", count: 3 });
+unsafeAttachment.suites[0].specs[0].tests[0].results[0].attachments[0] = {
+  name: "screenshot", contentType: "image/png", path: "/private/tmp/raw.png"
+};
+assert.throws(() => parseBrowserReport(unsafeAttachment, reportTitle, "writer_outsider"),
+  (error) => error?.code === "invalid_attachments_schema");
 assert.throws(() => parseBrowserReport(browserReport({ status: "failed", count: 3, stdout: [{ text: "raw" }] }),
-  reportTitle, "writer_outsider"), /non-skipped test/);
+  reportTitle, "writer_outsider"), (error) => error?.code === "raw_test_output_present");
 assert.throws(() => parseBrowserReport(browserReport({ status: "skipped", count: 1, expectedStatus: "skipped" }),
-  reportTitle, "writer_outsider"), /non-skipped test/);
+  reportTitle, "writer_outsider"), (error) => error?.code === "invalid_report_identity");
 
+let reporterParitySummary;
 const discoveryRoot = mkdtempSync(join(realpathSync(tmpdir()), "geoai-cloud-live-discovery-"));
 try {
   chmodSync(discoveryRoot, 0o700);
@@ -264,6 +274,51 @@ module.exports = defineConfig({
     });
     visit(report.suites);
     assert.deepEqual(discoveredTitles, [title]);
+  }
+  const parityConfigPath = join(discoveryRoot, "parity.config.cjs");
+  const paritySpecPath = join(discoveryRoot, "parity.spec.js");
+  const playwrightEntry = resolve(root, "node_modules/@playwright/test/index.js");
+  writeFileSync(parityConfigPath, `
+const { defineConfig } = require(${JSON.stringify(playwrightEntry)});
+module.exports = defineConfig({
+  testDir: ${JSON.stringify(discoveryRoot)}, reporter: [["json"]], workers: 1, retries: 0,
+  projects: [{ name: "sprint10-cloud-live" }]
+});
+`, { mode: 0o600 });
+  writeFileSync(paritySpecPath, `
+const { test, expect } = require(${JSON.stringify(playwrightEntry)});
+const stages = ${JSON.stringify(browserProgressStages.writer_outsider)};
+test("offline reporter pass", async () => {
+  for (const description of stages) test.info().annotations.push({ type: "geoai_cloud_stage", description });
+});
+test("offline reporter fail", async () => {
+  for (const description of stages.slice(0, 2)) test.info().annotations.push({ type: "geoai_cloud_stage", description });
+  expect(false).toBe(true);
+});
+`, { mode: 0o600 });
+  reporterParitySummary = {};
+  for (const fixture of [
+    { key: "pass", title: "offline reporter pass", exit: 0 },
+    { key: "fail", title: "offline reporter fail", exit: 1 }
+  ]) {
+    const parity = spawnSync(process.execPath, [
+      resolve(root, "node_modules/@playwright/test/cli.js"), "test", "parity.spec.js", `--config=${parityConfigPath}`,
+      `--grep=${browserTitlePattern(fixture.title)}`, "--reporter=json", "--workers=1", "--retries=0"
+    ], { cwd: discoveryRoot, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 30_000 });
+    assert.equal(parity.error, undefined);
+    assert.equal(parity.signal, null);
+    assert.equal(parity.status, fixture.exit);
+    const report = JSON.parse(parity.stdout);
+    const parsed = parseBrowserReport(report, fixture.title, "writer_outsider");
+    const testResult = report.suites[0].specs[0].tests[0].results[0];
+    reporterParitySummary[fixture.key] = {
+      reportKeys: Object.keys(report).sort(),
+      resultKeys: Object.keys(testResult).sort(),
+      stats: { expected: report.stats.expected, skipped: report.stats.skipped, flaky: report.stats.flaky, unexpected: report.stats.unexpected },
+      accepted: parsed.status,
+      progressStage: parsed.progressStage,
+      attachmentKinds: testResult.attachments.map(({ name, contentType }) => `${name}:${contentType}`)
+    };
   }
 } finally {
   rmSync(discoveryRoot, { recursive: true, force: true });
@@ -362,4 +417,6 @@ assert.match(spec, /localStorage\.getItem\(key\)[\s\S]*toBe\(originalBytes\)/);
 assert.match(spec, /expect\(\(await put\)\.status\(\)\)\.toBe\(403\)/);
 assert.doesNotMatch(`${harness}\n${runner}\n${spec}`, /console\.(?:log|error)\([^\n]*(?:PASSWORD|BYPASS|ADMIN_SECRET|PUBLISHABLE)/);
 
-console.log("Cloud-live acceptance static contract passed: exactly one offline-discovered test per phase; safe progress enums; existing Auth lifecycle reused; row-preserving root cleanup; no paid AI or secret files.");
+console.log(JSON.stringify({ status: "PASS", playwrightReporterParity: reporterParitySummary,
+  hostedCalls: 0, apiCalls: 0, browserLaunches: 0 }));
+console.log("Cloud-live acceptance static contract passed: actual Playwright PASS/FAIL reporter parity; exactly one offline-discovered test per phase; safe progress enums and row-preserving cleanup.");

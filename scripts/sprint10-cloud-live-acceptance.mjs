@@ -281,7 +281,7 @@ export function runBrowserPhase(config, target, personas, phase, { env = process
         failureReceipt.schemaVersion !== "geoai.sprint10.cloud-live-browser-receipt.v1" || failureReceipt.status !== "FAIL" ||
         failureReceipt.phase !== phase || !isBrowserFailureStage(failureReceipt.stage, phase) ||
         failureReceipt.rawOutputSuppressed !== true || failureReceipt.secretMaterialEmitted !== false) {
-      fail("Cloud-live browser failure receipt was invalid; output suppressed.", "browser_report_invalid");
+      fail("Cloud-live browser failure receipt was invalid; output suppressed.", "invalid_browser_receipt");
     }
     fail("Cloud-live browser phase failed at a bounded progress stage; output suppressed.", failureReceipt.stage);
   }
