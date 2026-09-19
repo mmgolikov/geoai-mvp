@@ -81,6 +81,11 @@ export function encodeLiveJourneyDiagnostic(value) {
   return `${LIVE_JOURNEY_DIAGNOSTIC_MARKER}${Buffer.from(JSON.stringify(parsed), "utf8").toString("base64url")}:END`;
 }
 
+export function primaryAfterFinalizeFailure(primaryStatus, primaryStage) {
+  if (primaryStatus === "failed") return { primaryStatus, primaryStage };
+  return { primaryStatus: "failed", primaryStage: "paid_finalize" };
+}
+
 export function findLiveJourneyDiagnostic(value) {
   if (typeof value === "string") {
     const match = new RegExp(`${LIVE_JOURNEY_DIAGNOSTIC_MARKER}([A-Za-z0-9_-]{1,4096}):END`).exec(value);

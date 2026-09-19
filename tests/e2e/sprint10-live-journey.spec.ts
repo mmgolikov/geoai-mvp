@@ -39,7 +39,7 @@ import {
   writeSprint10AnalysisResultEvidence
 } from "./helpers/sprint10-analysis-result-evidence";
 // @ts-expect-error The diagnostics module is an operator-only JavaScript contract checked by its offline suite.
-import { LIVE_JOURNEY_CLEANUP_STAGES, LIVE_JOURNEY_STEPS, encodeLiveJourneyDiagnostic } from "../../scripts/sprint10-live-journey-diagnostics.mjs";
+import { LIVE_JOURNEY_CLEANUP_STAGES, LIVE_JOURNEY_STEPS, encodeLiveJourneyDiagnostic, primaryAfterFinalizeFailure } from "../../scripts/sprint10-live-journey-diagnostics.mjs";
 
 test.use({ trace: "off", screenshot: "off", video: "off", serviceWorkers: "block" });
 test.describe.configure({ mode: "serial", retries: 0 });
@@ -1219,10 +1219,7 @@ test("root-authorized protected Preview source-to-decision journey", async ({ pa
       progress.complete("paid_finalize");
     }
     catch {
-      if (primaryStatus === null) {
-        primaryStatus = "failed";
-        primaryStage = "paid_finalize";
-      }
+      ({ primaryStatus, primaryStage } = primaryAfterFinalizeFailure(primaryStatus, primaryStage));
     }
     if (loginAttempted) {
       try { await logoutVerified(page, configuration.userId); }

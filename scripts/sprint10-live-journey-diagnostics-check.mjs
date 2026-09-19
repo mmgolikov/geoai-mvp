@@ -7,7 +7,8 @@ import {
   LIVE_JOURNEY_DIAGNOSTIC_SCHEMA,
   encodeLiveJourneyDiagnostic,
   findLiveJourneyDiagnostic,
-  parseLiveJourneyDiagnostic
+  parseLiveJourneyDiagnostic,
+  primaryAfterFinalizeFailure
 } from "./sprint10-live-journey-diagnostics.mjs";
 import { classifyLiveJourneyReport } from "./sprint10-live-journey-run.mjs";
 
@@ -72,6 +73,21 @@ const primaryOnly = classifyLiveJourneyReport(reportFor({
 assert.equal(primaryOnly.receipt.status, "FAIL", "a failed product path must never become PASS or INCONCLUSIVE");
 assert.equal(primaryOnly.exitCode, 1);
 
+const promotedFinalizeFailure = primaryAfterFinalizeFailure("inconclusive", "find_candidate_count");
+assert.deepEqual(promotedFinalizeFailure, { primaryStatus: "failed", primaryStage: "paid_finalize" },
+  "a delayed inconclusive result must be promoted when accounting finalization fails");
+const classifiedFinalizeFailure = classifyLiveJourneyReport(reportFor({
+  ...promotedFinalizeFailure,
+  cleanupStage: null,
+  completedSteps: ["anonymous_protection", "exact_preview", "auth_login", "find_source_response"]
+}), 1, config, receipts);
+assert.equal(classifiedFinalizeFailure.receipt.status, "FAIL");
+assert.equal(classifiedFinalizeFailure.receipt.diagnostic.primaryStage, "paid_finalize");
+assert.deepEqual(primaryAfterFinalizeFailure("failed", "analyse_result_contract"), {
+  primaryStatus: "failed",
+  primaryStage: "analyse_result_contract"
+}, "an earlier hard primary failure must remain the first hard cause");
+
 const inconclusive = classifyLiveJourneyReport(reportFor({
   primaryStatus: "inconclusive",
   primaryStage: "find_candidate_count",
@@ -128,6 +144,7 @@ console.log(JSON.stringify({
   cases: {
     simultaneousPrimaryAndCleanup: 1,
     primaryOnlyNeverPassOrInconclusive: 1,
+    inconclusiveFinalizeFailurePromoted: 1,
     inconclusiveOnly: 1,
     cleanupOnly: 1,
     malformedDiagnosticsRejected: 6,
