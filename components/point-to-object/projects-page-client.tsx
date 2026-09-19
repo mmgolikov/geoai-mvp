@@ -8,6 +8,7 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { readPointObjectAnalysis, readPointObjectSelection, writePointObjectAnalysis, writePointObjectQuestion, writePointObjectSelection } from "@/components/point-to-object/live-session";
 import { usePointObjectLocale } from "@/components/point-to-object/locale-provider";
 import { ReliableSelect } from "@/components/point-to-object/reliable-select";
+import { usePointObjectCloudSync } from "@/components/point-to-object/use-point-object-cloud-sync";
 import {
   createPointObjectProject,
   POINT_OBJECT_PROJECTS_EVENT,
@@ -57,6 +58,11 @@ export function PointObjectProjectsPageClient() {
   const { user, isSessionResolved } = useAuth();
   const { locale, setLocale } = usePointObjectLocale();
   const identityKey = useMemo(() => pointObjectProjectIdentity(user), [user]);
+  const cloudSync = usePointObjectCloudSync({
+    identityKey,
+    isSessionResolved,
+    isDemoUser: user?.isDemoUser !== false
+  });
   const [store, setStore] = useState<PointObjectProjectStore | null>(null);
   const [readStatus, setReadStatus] = useState<PointObjectProjectStoreReadResult["status"]>("missing");
   const [error, setError] = useState<string | null>(null);
@@ -67,6 +73,8 @@ export function PointObjectProjectsPageClient() {
   const [navigationPending, setNavigationPending] = useState(false);
   const [renaming, setRenaming] = useState<{ projectId: string; originalName: string; name: string } | null>(null);
   const [renamePending, setRenamePending] = useState(false);
+  const [cloudSavingProjectId, setCloudSavingProjectId] = useState<string | null>(null);
+  const [cloudActionMessage, setCloudActionMessage] = useState<string | null>(null);
   const renamePendingRef = useRef(false);
   const refreshSequence = useRef(0);
   const identityRef = useRef(identityKey);
@@ -88,6 +96,8 @@ export function PointObjectProjectsPageClient() {
   useEffect(() => {
     if (!isSessionResolved) return;
     setRenaming(null);
+    setCloudSavingProjectId(null);
+    setCloudActionMessage(null);
     reconcilePointObjectBrowserIdentity(identityKey);
     void refresh();
     const update = (event: Event) => {
@@ -105,6 +115,19 @@ export function PointObjectProjectsPageClient() {
   // Never render a previous identity's results while its successor is loading.
   const visibleStore = store?.identityKey === identityKey ? store : null;
   const unavailable = readStatus === "damaged" || readStatus === "inaccessible";
+  const cloudMessage = user?.isDemoUser === false
+    ? cloudSync.status === "syncing"
+      ? (locale === "ru" ? "Синхронизируем облачные проекты…" : "Syncing cloud projects…")
+      : cloudSync.status === "ready"
+        ? (locale === "ru" ? "Облачные проекты синхронизированы с этим устройством." : "Cloud projects are synced to this device.")
+        : cloudSync.status === "conflict"
+          ? (locale === "ru" ? "Облачная версия отличается; локальная запись сохранена без изменений." : "The cloud copy differs; existing local bytes were preserved.")
+          : cloudSync.status === "failed"
+            ? (locale === "ru" ? "Облачная синхронизация временно недоступна; локальная запись сохранена." : "Cloud sync is temporarily unavailable; the local copy is preserved.")
+            : cloudSync.status === "denied"
+              ? (locale === "ru" ? "Для этого проекта нет доступа к облачной синхронизации." : "Cloud sync is not authorized for this project.")
+              : null
+    : null;
   const counts = { analyse: 0, find: 0, create: 0 };
   for (const project of visibleStore?.projects ?? []) {
     for (const artifact of project.artifacts) counts[artifact.kind] += 1;
@@ -155,6 +178,45 @@ export function PointObjectProjectsPageClient() {
       await refresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : locale === "ru" ? "Не удалось создать проект." : "Project could not be created.");
+    }
+  }
+
+  async function saveSelectedProjectToCloud(project: PointObjectProjectStore["projects"][number]) {
+    if (!identityKey || identityRef.current !== identityKey || user?.isDemoUser !== false ||
+        visibleStore?.activeProjectId !== project.projectId || cloudSync.status !== "ready" ||
+        cloudSavingProjectId || !project.artifacts.length) return;
+    const initiatingIdentity = identityKey;
+    setCloudSavingProjectId(project.projectId);
+    setCloudActionMessage(null);
+    setError(null);
+    try {
+      const artifacts = [...project.artifacts].sort((left, right) =>
+        left.completedAt.localeCompare(right.completedAt) || left.artifactId.localeCompare(right.artifactId));
+      for (const artifact of artifacts) {
+        const result = await cloudSync.persist(project, artifact);
+        if (identityRef.current !== initiatingIdentity) return;
+        if (result?.status === "conflict" && result.reason === "local_project_identity") {
+          throw new Error(locale === "ru"
+            ? "Название локального проекта отличается от исходной облачной записи. Верните исходное название или создайте новый проект; локальные данные не изменены."
+            : "The local project name differs from its original cloud receipt. Restore the original name or create a new project; local data was not changed.");
+        }
+        if (result?.status !== "saved") {
+          throw new Error(locale === "ru"
+            ? "Облачная копия не сохранена полностью. Локальный проект не изменён."
+            : "The cloud copy was not saved completely. The local project was not changed.");
+        }
+      }
+      setCloudActionMessage(locale === "ru"
+        ? "Выбранный проект сохранён в защищённой облачной среде тестирования и доступен в ней после входа с другого устройства."
+        : "The selected project is saved to the protected cloud test environment and can be reopened there after signing in on another device.");
+    } catch (caught) {
+      if (identityRef.current === initiatingIdentity) {
+        setError(caught instanceof Error ? caught.message : locale === "ru"
+          ? "Не удалось сохранить выбранный проект в облаке. Локальная копия сохранена."
+          : "The selected project could not be saved to cloud. The local copy is preserved.");
+      }
+    } finally {
+      if (identityRef.current === initiatingIdentity) setCloudSavingProjectId(null);
     }
   }
 
@@ -248,6 +310,7 @@ export function PointObjectProjectsPageClient() {
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.11em] text-[#076b73]">{locale === "ru" ? "СОХРАНЁННЫЕ ПРОЕКТЫ" : "SAVED PROJECTS"}</p>
           <h1 className="mt-2 text-3xl font-bold tracking-[-0.035em]">{locale === "ru" ? "Центр проектов" : "Project Hub"}</h1>
+          {cloudMessage ? <p className="mt-2 text-xs text-muted" role="status">{cloudMessage}</p> : null}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="inline-flex rounded-xl border border-line bg-white p-1" aria-label={locale === "ru" ? "Язык" : "Language"} role="group">
@@ -266,6 +329,7 @@ export function PointObjectProjectsPageClient() {
         </button>)}
       </section>
       {error ? <div className="mt-4 rounded-xl border border-[#e6bd74] bg-[#fff9ed] px-4 py-3 text-sm text-[#79520d]" role="alert"><p>{unavailable ? (locale === "ru" ? "Не удалось проверить сохранённые проекты. Исходные данные не изменены." : "Saved projects could not be verified. Original data was not changed.") : error}</p>{unavailable ? <button type="button" onClick={() => void refresh()} className={`${CONTROL} mt-3 font-bold`}>{locale === "ru" ? "Повторить проверку" : "Retry verification"}</button> : null}</div> : null}
+      {cloudActionMessage ? <p className="mt-4 rounded-xl border border-[#b9d8d1] bg-[#edf7f3] px-4 py-3 text-sm text-[#176548]" role="status">{cloudActionMessage}</p> : null}
 
       {identityKey && !visibleStore && !unavailable ? <p className="mt-6 text-sm text-muted" role="status">{locale === "ru" ? "Проверяем сохранённые проекты…" : "Verifying saved projects…"}</p> : null}
       <section className="mt-8" aria-labelledby="hub-results-heading">
@@ -294,7 +358,7 @@ export function PointObjectProjectsPageClient() {
                 </form> : <div className="flex flex-wrap items-center gap-x-3 gap-y-1"><h3 className="break-words text-lg font-bold">{project.name}</h3><button type="button" disabled={renamePending} aria-label={locale === "ru" ? `Переименовать ${project.name}` : `Rename ${project.name}`} onClick={() => { setError(null); setRenaming({ projectId: project.projectId, originalName: project.name, name: project.name }); }} className="min-h-11 shrink-0 rounded-lg px-2 text-xs font-semibold text-[#087f8c] hover:bg-[#eefaf8] focus-visible:ring-2 focus-visible:ring-[#087f8c]">{locale === "ru" ? "Переименовать" : "Rename"}</button></div>}
                 <p className="mt-1 text-xs text-muted">{locale === "ru" ? "Показано результатов" : "Results shown"}: {project.artifacts.length}</p>
               </div>
-              {visibleStore?.activeProjectId === project.projectId ? <span className="rounded-full bg-[#e8f7f2] px-3 py-1 text-[11px] font-bold text-[#176548]">{locale === "ru" ? "Активный" : "Active"}</span> : <button type="button" onClick={() => { if (identityKey) void selectPointObjectProject(identityKey, project.projectId).then(() => refresh()).catch((caught) => setError(caught instanceof Error ? caught.message : "Project selection failed.")); }} className={`${CONTROL} text-xs font-bold`}>{locale === "ru" ? "Выбрать" : "Select"}</button>}
+              {visibleStore?.activeProjectId === project.projectId ? <div className="flex flex-wrap items-center justify-end gap-2"><span className="rounded-full bg-[#e8f7f2] px-3 py-1 text-[11px] font-bold text-[#176548]">{locale === "ru" ? "Активный" : "Active"}</span>{user?.isDemoUser === false ? <button type="button" onClick={() => void saveSelectedProjectToCloud(project)} disabled={!project.artifacts.length || cloudSavingProjectId !== null || cloudSync.status !== "ready"} className={`${CONTROL} text-xs font-bold disabled:cursor-wait disabled:opacity-60`}>{cloudSavingProjectId === project.projectId ? (locale === "ru" ? "Сохраняем в облаке…" : "Saving to cloud…") : (locale === "ru" ? "Сохранить в облаке" : "Save to cloud")}</button> : null}</div> : <button type="button" onClick={() => { if (identityKey) void selectPointObjectProject(identityKey, project.projectId).then(() => refresh()).catch((caught) => setError(caught instanceof Error ? caught.message : "Project selection failed.")); }} className={`${CONTROL} text-xs font-bold`}>{locale === "ru" ? "Выбрать" : "Select"}</button>}
             </div>
             {project.artifacts.length ? <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{project.artifacts.map((artifact) => (
               <article key={artifact.artifactId} data-testid="saved-result-card" className="flex min-w-0 flex-col rounded-xl border border-line bg-[#fbfcfd] p-4">
