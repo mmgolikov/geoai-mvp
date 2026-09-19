@@ -6,7 +6,10 @@ export const SPRINT10_LIVE_PAID_SCOPE_MATRIX = {
   journey: { ai: 1, create: 1 },
   "dubai-analyse": { ai: 1, create: 0 },
   "dubai-find": { ai: 0, create: 0 },
-  "singapore-create": { ai: 0, create: 1 }
+  "singapore-create": { ai: 0, create: 1 },
+  "singapore-analyse": { ai: 1, create: 0 },
+  "singapore-find": { ai: 0, create: 0 },
+  "dubai-create": { ai: 0, create: 1 }
 } as const;
 
 export type Sprint10LiveScope = keyof typeof SPRINT10_LIVE_PAID_SCOPE_MATRIX;

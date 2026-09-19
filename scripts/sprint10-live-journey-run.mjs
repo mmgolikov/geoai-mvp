@@ -31,7 +31,10 @@ import {
 const exactDevelopmentProjectRef = "pphdqkurxneyagvnnjdt";
 const exactLedgerId = "5aa405b3-bbda-48aa-aeea-ca3357be4042";
 const exactExplicitRun = "root-paid-live-journey-2026-09-18";
-const acceptedScopes = new Set(["journey", "dubai-analyse", "dubai-find", "singapore-create"]);
+const acceptedScopes = new Set([
+  "journey", "dubai-analyse", "dubai-find", "singapore-create",
+  "singapore-analyse", "singapore-find", "dubai-create"
+]);
 export const LIVE_SCOPE_RECEIPT_PLAN = Object.freeze({
   journey: Object.freeze([
     Object.freeze({ route: "ai", depth: "standard", reserveUsd: RESERVE_USD.ai }),
@@ -42,6 +45,13 @@ export const LIVE_SCOPE_RECEIPT_PLAN = Object.freeze({
   ]),
   "dubai-find": Object.freeze([]),
   "singapore-create": Object.freeze([
+    Object.freeze({ route: "create", depth: "standard", reserveUsd: RESERVE_USD.create })
+  ]),
+  "singapore-analyse": Object.freeze([
+    Object.freeze({ route: "ai", depth: "standard", reserveUsd: RESERVE_USD.ai })
+  ]),
+  "singapore-find": Object.freeze([]),
+  "dubai-create": Object.freeze([
     Object.freeze({ route: "create", depth: "standard", reserveUsd: RESERVE_USD.create })
   ])
 });

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 import {
   SPRINT10_ANALYSIS_PROMPT_VERSION,
@@ -93,17 +94,45 @@ function validPayload(target: Sprint10RequestIdentity, withRepair = false) {
 }
 
 async function run() {
+  const liveSpec = readFileSync(new URL("../tests/e2e/sprint10-live-journey.spec.ts", import.meta.url), "utf8");
   assert.deepEqual(SPRINT10_LIVE_PAID_SCOPE_MATRIX, {
     journey: { ai: 1, create: 1 },
     "dubai-analyse": { ai: 1, create: 0 },
     "dubai-find": { ai: 0, create: 0 },
-    "singapore-create": { ai: 0, create: 1 }
+    "singapore-create": { ai: 0, create: 1 },
+    "singapore-analyse": { ai: 1, create: 0 },
+    "singapore-find": { ai: 0, create: 0 },
+    "dubai-create": { ai: 0, create: 1 }
   }, "Every selectable live scope must have one exact paid-route matrix.");
   assert.deepEqual(sprint10PaidPostDecision("dubai-find", "ai", 1), { ok: false, reason: "route_disallowed" });
   assert.deepEqual(sprint10PaidPostDecision("dubai-find", "create", 1), { ok: false, reason: "route_disallowed" });
   assert.deepEqual(sprint10PaidPostDecision("dubai-analyse", "ai", 1), { ok: true });
   assert.deepEqual(sprint10PaidPostDecision("dubai-analyse", "ai", 2), { ok: false, reason: "occurrence_exceeded" });
   assert.deepEqual(sprint10PaidPostDecision("singapore-create", "create", 1), { ok: true });
+  assert.deepEqual(sprint10PaidPostDecision("singapore-analyse", "ai", 1), { ok: true });
+  assert.deepEqual(sprint10PaidPostDecision("singapore-analyse", "create", 1), { ok: false, reason: "route_disallowed" });
+  assert.deepEqual(sprint10PaidPostDecision("singapore-analyse", "ai", 2), { ok: false, reason: "occurrence_exceeded" });
+  assert.deepEqual(sprint10PaidPostDecision("singapore-find", "ai", 1), { ok: false, reason: "route_disallowed" });
+  assert.deepEqual(sprint10PaidPostDecision("singapore-find", "create", 1), { ok: false, reason: "route_disallowed" });
+  assert.deepEqual(sprint10PaidPostDecision("dubai-create", "create", 1), { ok: true });
+  assert.deepEqual(sprint10PaidPostDecision("dubai-create", "ai", 1), { ok: false, reason: "route_disallowed" });
+  assert.deepEqual(sprint10PaidPostDecision("dubai-create", "create", 2), { ok: false, reason: "occurrence_exceeded" });
+
+  assert.match(liveSpec, /fill\("Marina Bay Sands Tower 1"\)/,
+    "Singapore Analyse must keep one exact public place query");
+  assert.match(liveSpec, /SINGAPORE_MARINA_BAY_REFERENCE_BOUNDS = \[103[.]855, 1[.]278, 103[.]868, 1[.]289\]/,
+    "Singapore Find must remain bounded to the reviewed public reference envelope");
+  assert.match(liveSpec, /selectOption\("b2b_commercial_real_estate"\)/,
+    "Singapore Find must keep its exact product role/scenario path");
+  assert.match(liveSpec, /\[55[.]27015, 25[.]20515\][\s\S]*\[55[.]27065, 25[.]20565\]/,
+    "Dubai Create must keep its exact reviewed fixture AOI");
+  assert.match(liveSpec, /if \(configuration[.]scope === "singapore-analyse"\)/);
+  assert.match(liveSpec, /if \(configuration[.]scope === "singapore-find"\)/);
+  assert.match(liveSpec, /if \(configuration[.]scope === "dubai-create"\)/);
+  assert.doesNotMatch(liveSpec, /configuration[.]scope === "journey" \|\| configuration[.]scope === "(?:singapore-analyse|singapore-find|dubai-create)"/,
+    "the existing two-paid-request journey must not silently include any complementary scope");
+  assert.match(liveSpec, /selectedScope === "journey" \|\| selectedScope === "dubai-analyse"/,
+    "structured semantic evidence capture must remain limited to the reviewed Dubai case");
 
   const firstIdentity = identity(sprint10LiveRequestKey("offline-valid", "ai", 1, commit));
   const telemetry = parseSprint10ProviderTelemetry(firstIdentity, validPayload(firstIdentity));

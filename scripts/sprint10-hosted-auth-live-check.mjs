@@ -101,6 +101,22 @@ assert.equal(earlyLedgerValidations, 1, "live opt-in must validate the existing 
 assert.equal(config.liveJourney.scope, "journey");
 assert.equal(config.liveJourney.checkpointPath, checkpointPath);
 
+for (const scope of ["singapore-analyse", "singapore-find", "dubai-create"]) {
+  const scopedConfig = validateRuntimeConfig({
+    ...baseEnvironment,
+    GEOAI_HOSTED_AUTH_PROBE_LIVE_JOURNEY_SCOPE: scope,
+    GEOAI_HOSTED_AUTH_PROBE_LIVE_RUN_APPROVAL: `paid-live-journey:${exactLedgerId}:${previewHost}:${head}:${scope}`
+  }, ["node", "operator"], head, 22, {
+    ledgerPreflight(root, path, selectedScope) {
+      assert.equal(root, privateRoot);
+      assert.equal(path, ledgerPath);
+      assert.equal(selectedScope, scope);
+      return ledger;
+    }
+  });
+  assert.equal(scopedConfig.liveJourney.scope, scope);
+}
+
 const authOnlyConfig = validateRuntimeConfig({
   ...baseEnvironment,
   GEOAI_HOSTED_AUTH_PROBE_PREVIEW_SEAM: "disabled",
@@ -181,7 +197,8 @@ for (const delta of [
   { GEOAI_SPRINT10_ANALYSIS_EVIDENCE_CAPTURE: undefined },
   { GEOAI_SPRINT10_ANALYSIS_EVIDENCE_PATH: undefined },
   { GEOAI_HOSTED_AUTH_PROBE_LIVE_JOURNEY_SEAM: "disabled" },
-  { GEOAI_HOSTED_AUTH_PROBE_LIVE_JOURNEY_SCOPE: "dubai-find" }
+  { GEOAI_HOSTED_AUTH_PROBE_LIVE_JOURNEY_SCOPE: "dubai-find" },
+  { GEOAI_HOSTED_AUTH_PROBE_LIVE_JOURNEY_SCOPE: "singapore-analyse" }
 ]) assert.throws(() => validateRuntimeConfig({ ...evidenceEnvironment, ...delta }, ["node", "operator"], head, 22, {
   ledgerPreflight: () => ledger
 }), undefined, "Invalid optional evidence pair must stop before account creation.");
@@ -241,7 +258,10 @@ assert.throws(() => parseLiveJourneyChildReceipt(childResult(2, cleanupValue), c
 for (const [scope, receipts] of [
   ["dubai-analyse", [paidReceipts[0]]],
   ["dubai-find", []],
-  ["singapore-create", [paidReceipts[1]]]
+  ["singapore-create", [paidReceipts[1]]],
+  ["singapore-analyse", [paidReceipts[0]]],
+  ["singapore-find", []],
+  ["dubai-create", [paidReceipts[1]]]
 ]) {
   const tuple = { scope, previewHost, commit: head };
   assert.equal(parseLiveJourneyChildReceipt(childResult(0, {
@@ -648,7 +668,7 @@ console.log(JSON.stringify({
     childEnvironmentSecretExclusions: 10,
     childReceiptStates: 3,
     strictReceiptDenials: 23,
-    exactScopeReceiptMatrices: 4,
+    exactScopeReceiptMatrices: 7,
     singleChildSpawn: passSpawns,
     timeoutFailClosed: 1,
     invalidReceiptFailClosed: 1,

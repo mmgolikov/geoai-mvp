@@ -36,7 +36,10 @@ const exactRunOptIn = "create-two-synthetic-password-personas";
 const exactPreviewSeamOptIn = "run-existing-real-password-preview-harness";
 const exactLiveJourneySeamOptIn = "run-reviewed-sprint10-live-journey-before-retirement";
 const exactLedgerId = "5aa405b3-bbda-48aa-aeea-ca3357be4042";
-const acceptedLiveScopes = new Set(["journey", "dubai-analyse", "dubai-find", "singapore-create"]);
+const acceptedLiveScopes = new Set([
+  "journey", "dubai-analyse", "dubai-find", "singapore-create",
+  "singapore-analyse", "singapore-find", "dubai-create"
+]);
 const acceptedPreviewFailureStages = new Set([
   "preview_preflight",
   "preview_discovery_spawn",

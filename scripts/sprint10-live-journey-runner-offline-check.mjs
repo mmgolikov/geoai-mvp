@@ -12,6 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import {
+  RESERVE_USD,
   SPRINT10_ANALYSIS_PROMPT_VERSION,
   createSprint10SpendLedger,
   markSprint10SpendUnknown,
@@ -22,6 +23,7 @@ import {
   SPRINT10_ANALYSIS_EVIDENCE_CAPTURE_OPT_IN
 } from "../tests/e2e/helpers/sprint10-analysis-result-evidence.ts";
 import {
+  LIVE_SCOPE_RECEIPT_PLAN,
   acquireRunLease,
   releaseRunLease,
   runtimeEnvironment,
@@ -57,6 +59,21 @@ function identity(requestKey) {
 }
 
 try {
+  assert.deepEqual(Object.fromEntries(Object.entries(LIVE_SCOPE_RECEIPT_PLAN).map(([scope, plan]) => [
+    scope,
+    plan.map(({ route, depth, reserveUsd }) => ({ route, depth, reserveUsd }))
+  ])), {
+    journey: [
+      { route: "ai", depth: "standard", reserveUsd: RESERVE_USD.ai },
+      { route: "create", depth: "standard", reserveUsd: RESERVE_USD.create }
+    ],
+    "dubai-analyse": [{ route: "ai", depth: "standard", reserveUsd: RESERVE_USD.ai }],
+    "dubai-find": [],
+    "singapore-create": [{ route: "create", depth: "standard", reserveUsd: RESERVE_USD.create }],
+    "singapore-analyse": [{ route: "ai", depth: "standard", reserveUsd: RESERVE_USD.ai }],
+    "singapore-find": [],
+    "dubai-create": [{ route: "create", depth: "standard", reserveUsd: RESERVE_USD.create }]
+  }, "the combined journey and every separately selectable case must retain exact bounded receipt plans");
   const evidencePath = join(root, "analysis-evidence.json");
   const scrubbed = runtimeEnvironment({
     PATH: "/safe/bin",
@@ -89,7 +106,7 @@ try {
     GEOAI_SPRINT10_LIVE_PASSWORD: "must-not-propagate",
     OPENAI_API_KEY: "must-not-propagate"
   };
-  for (const scope of ["dubai-find", "singapore-create"]) {
+  for (const scope of ["dubai-find", "singapore-create", "singapore-analyse", "singapore-find", "dubai-create"]) {
     assert.throws(() => validateAnalysisEvidenceCaptureEnvironment(requestedEvidence, scope), /available only/);
   }
   assert.deepEqual(validateAnalysisEvidenceCaptureEnvironment(requestedEvidence, "journey"), {
@@ -132,9 +149,14 @@ try {
   const empty = createSprint10SpendLedger(createdAt, ledgerId);
   writeLedger(empty);
   assert.equal(validateLedger(root, ledgerPath).ledgerId, ledgerId);
-  for (const scope of ["journey", "dubai-analyse", "dubai-find", "singapore-create"]) {
+  for (const scope of [
+    "journey", "dubai-analyse", "dubai-find", "singapore-create",
+    "singapore-analyse", "singapore-find", "dubai-create"
+  ]) {
     assert.equal(validateLiveLedgerPreflight(root, ledgerPath, scope).ledgerId, ledgerId);
   }
+  assert.throws(() => validateLiveLedgerPreflight(root, ledgerPath, "all"), /scope is not accepted/,
+    "an unknown scope must fail before any reservation or browser child");
   assert.equal(validateLiveLedgerPostRun(root, ledgerPath).ledgerId, ledgerId);
 
   for (const malformed of [
@@ -175,7 +197,12 @@ try {
   assert.throws(() => validateLiveLedgerScopeHeadroom({ ceilingUsd: 15, estimatedOrReservedUsd: 13.80000001 }, "dubai-analyse"));
   assert.doesNotThrow(() => validateLiveLedgerScopeHeadroom({ ceilingUsd: 15, estimatedOrReservedUsd: 14.7 }, "singapore-create"));
   assert.throws(() => validateLiveLedgerScopeHeadroom({ ceilingUsd: 15, estimatedOrReservedUsd: 14.70000001 }, "singapore-create"));
+  assert.doesNotThrow(() => validateLiveLedgerScopeHeadroom({ ceilingUsd: 15, estimatedOrReservedUsd: 13.8 }, "singapore-analyse"));
+  assert.throws(() => validateLiveLedgerScopeHeadroom({ ceilingUsd: 15, estimatedOrReservedUsd: 13.80000001 }, "singapore-analyse"));
+  assert.doesNotThrow(() => validateLiveLedgerScopeHeadroom({ ceilingUsd: 15, estimatedOrReservedUsd: 14.7 }, "dubai-create"));
+  assert.throws(() => validateLiveLedgerScopeHeadroom({ ceilingUsd: 15, estimatedOrReservedUsd: 14.70000001 }, "dubai-create"));
   assert.doesNotThrow(() => validateLiveLedgerScopeHeadroom({ ceilingUsd: 15, estimatedOrReservedUsd: 15 }, "dubai-find"));
+  assert.doesNotThrow(() => validateLiveLedgerScopeHeadroom({ ceilingUsd: 15, estimatedOrReservedUsd: 15 }, "singapore-find"));
   assert.throws(() => validateLiveLedgerScopeHeadroom({ ceilingUsd: 15, estimatedOrReservedUsd: 15 }, "journey"));
 
   writeLedger(empty);
@@ -219,7 +246,7 @@ try {
     cases: {
       strictCanonicalLedger: 6,
       unresolvedStops: 2,
-      scopeHeadroomBoundaries: 8,
+      scopeHeadroomBoundaries: 13,
       staleLeaseStops: 6,
       raceAfterPreflight: 1,
       postRunNoFreshHeadroom: 2,
@@ -227,7 +254,7 @@ try {
       environmentScrub: 2,
       evidenceCaptureOff: 1,
       evidencePairRejections: 4,
-      evidenceScopeRejections: 2,
+      evidenceScopeRejections: 5,
       evidenceScopeAcceptances: 2,
       evidencePathRejections: 3,
       evidenceForwarding: 1

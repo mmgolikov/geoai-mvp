@@ -45,7 +45,11 @@ test.describe.configure({ mode: "serial", retries: 0 });
 const CAVEAT = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
 const EXACT_DEVELOPMENT_PROJECT_REF = "pphdqkurxneyagvnnjdt";
 const EXPECTED_LEDGER_ID = "5aa405b3-bbda-48aa-aeea-ca3357be4042";
-const LIVE_SCOPES = ["journey", "dubai-analyse", "dubai-find", "singapore-create"] as const;
+const LIVE_SCOPES = [
+  "journey", "dubai-analyse", "dubai-find", "singapore-create",
+  "singapore-analyse", "singapore-find", "dubai-create"
+] as const;
+const SINGAPORE_MARINA_BAY_REFERENCE_BOUNDS = [103.855, 1.278, 103.868, 1.289] as const;
 type LiveScope = Sprint10LiveScope;
 
 const runnerActive = process.env.GEOAI_SPRINT10_LIVE_RUNNER_ACTIVE === "1";
@@ -78,6 +82,10 @@ function required(name: string): string {
 
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isoTimestamp(value: unknown): value is string {
+  return typeof value === "string" && Number.isFinite(Date.parse(value));
 }
 
 function loadConfiguration(baseURL: string | undefined): LiveConfiguration {
@@ -467,6 +475,9 @@ type LocalArtifactState = {
   activeAlternativeId: unknown;
   shortlistCount: number | null;
   comparisonView: unknown;
+  marketKey: unknown;
+  role: unknown;
+  scenario: unknown;
 };
 
 async function localArtifactState(page: Page, userId: string, kind: ArtifactKind) {
@@ -482,6 +493,7 @@ async function localArtifactState(page: Page, userId: string, kind: ArtifactKind
     const payload = recordForBrowser(artifact.payload);
     const session = recordForBrowser(payload?.session);
     const analysis = recordForBrowser(payload?.analysis);
+    const analysisRequest = recordForBrowser(analysis?.request);
     const subject = recordForBrowser(analysis?.subject);
     const result = recordForBrowser(session?.result);
     const aoi = recordForBrowser(payload?.aoi);
@@ -514,7 +526,10 @@ async function localArtifactState(page: Page, userId: string, kind: ArtifactKind
       domainIdentity: JSON.stringify(domainIdentity),
       activeAlternativeId: payload?.activeAlternativeId ?? null,
       shortlistCount: Array.isArray(session?.shortlist) ? session.shortlist.length : null,
-      comparisonView: session?.comparisonView ?? null
+      comparisonView: session?.comparisonView ?? null,
+      marketKey: artifact.marketKey ?? null,
+      role: expectedKind === "analyse" ? analysisRequest?.role ?? null : session?.role ?? null,
+      scenario: expectedKind === "analyse" ? analysisRequest?.scenario ?? null : session?.scenario ?? null
     };
 
     function recordForBrowser(value: unknown): Record<string, unknown> | null {
@@ -539,6 +554,9 @@ function assertSameArtifact(before: LocalArtifactState, after: LocalArtifactStat
   expect(after.payloadHash).toBe(before.payloadHash);
   expect(after.viewRevision).toBe(before.viewRevision);
   expect(after.domainIdentity).toBe(before.domainIdentity);
+  expect(after.marketKey).toBe(before.marketKey);
+  expect(after.role).toBe(before.role);
+  expect(after.scenario).toBe(before.scenario);
 }
 
 const replayKeys = [
@@ -646,6 +664,63 @@ async function runDubaiAnalyse(page: Page, configuration: LiveConfiguration, pol
   const expectedDomainIdentity = JSON.stringify({ sourceFeatureId: chosen.id, evidencePackHash: payload.evidencePackHash });
   await expect.poll(async () => (await localArtifactState(page, configuration.userId, "analyse"))?.domainIdentity ?? null).toBe(expectedDomainIdentity);
   const saved = await requireLocalArtifactState(page, configuration.userId, "analyse");
+  expect(saved.marketKey).toBe("dubai");
+  expect(saved.role).toBe("developer");
+  expect(saved.scenario).toBe("unspecified");
+  const paidBeforeReopen = budget.paidDispatchCount();
+  await reopenSavedArtifact(page, configuration.userId, "analyse", policy, saved, async () => {
+    await expect(page.getByTestId("ai-success")).toBeVisible();
+    await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
+  });
+  expect(budget.paidDispatchCount()).toBe(paidBeforeReopen);
+}
+
+async function runSingaporeAnalyse(page: Page, configuration: LiveConfiguration, policy: NetworkPolicy, budget: ReturnType<typeof installBudgetGate>) {
+  await page.goto("/prototype/point-to-object");
+  await page.getByTestId("point-object-city-select").selectOption("singapore");
+  const suggestResponse = page.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/point-to-object/suggest"), { timeout: 30_000 });
+  await page.getByRole("combobox", { name: "Search address or place" }).fill("Marina Bay Sands Tower 1");
+  const suggested = await suggestResponse;
+  const suggestionPayload: unknown = await suggested.json();
+  guard(suggested.status() === 200 && record(suggestionPayload) && suggestionPayload.protocol === "POINT_TO_OBJECT_001_AUTOCOMPLETE_V1" &&
+    suggestionPayload.provider === "Photon" && record(suggestionPayload.source) && suggestionPayload.source.licenceId === "ODbL-1.0" &&
+    suggestionPayload.source.officialStatus === "open_context_not_official" && Array.isArray(suggestionPayload.results) && suggestionPayload.results.length > 0,
+  "The Singapore source suggestion did not return accepted Photon/OSM evidence.");
+  const resultRecords = suggestionPayload.results as Array<Record<string, unknown>>;
+  const chosenIndex = resultRecords.findIndex((candidate) => record(candidate) && /marina bay sands.*tower 1/i.test(String(candidate.label)));
+  const chosen = chosenIndex >= 0 ? resultRecords[chosenIndex] : undefined;
+  guard(chosen && typeof chosen.id === "string" && /^(node|way|relation)\/[1-9]\d{0,19}$/.test(chosen.id),
+    "The exact Singapore source candidate was not returned; no fallback candidate was used.");
+  const option = page.locator(`#point-object-search-result-${chosenIndex}`);
+  await expect(option).toBeVisible();
+  const contextResponse = page.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/point-to-object/context"), { timeout: 45_000 });
+  await option.click();
+  const context = await contextResponse;
+  const contextPayload: unknown = await context.json();
+  guard(context.status() === 200 && record(contextPayload) && contextPayload.mode === "resolved" && contextPayload.schemaVersion === 2 &&
+    record(contextPayload.subject) && contextPayload.subject.sourceFeatureId === chosen.id,
+  "The selected Singapore source identity was not resolved to the exact structured object.");
+  await expect(page.getByRole("button", { name: "Analyze", exact: true })).toBeEnabled({ timeout: 45_000 });
+  await page.locator("#point-object-question").fill(SPRINT10_PUBLIC_ANALYSIS_QUESTION);
+  const responsePromise = page.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/point-to-object/ai"), { timeout: 180_000 });
+  await page.getByRole("button", { name: "Analyze", exact: true }).click();
+  const response = await responsePromise;
+  const payload: unknown = await response.json();
+  await budget.waitForTerminalReceipts();
+  guard(response.status() === 200 && record(payload) && payload.mode === "openai" && payload.schemaVersion === 6 &&
+    typeof payload.evidencePackId === "string" && typeof payload.evidencePackHash === "string" && /^[a-f0-9]{64}$/.test(payload.evidencePackHash) &&
+    record(payload.request) && payload.request.depth === "standard" && payload.request.role === "developer" && payload.request.scenario === "unspecified" &&
+    record(payload.subject) && payload.subject.sourceFeatureId === chosen.id && payload.subject.sourceLabel === "© OpenStreetMap contributors" &&
+    record(payload.content) && payload.content.caveat === CAVEAT && record(payload.content.depthReview) && payload.content.depthReview.depth === "standard",
+  "The Singapore Analyse response did not preserve current V10 depth, role/scenario provenance and source identity.");
+  await expect(page.getByTestId("ai-success")).toBeVisible();
+  await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
+  const expectedDomainIdentity = JSON.stringify({ sourceFeatureId: chosen.id, evidencePackHash: payload.evidencePackHash });
+  await expect.poll(async () => (await localArtifactState(page, configuration.userId, "analyse"))?.domainIdentity ?? null).toBe(expectedDomainIdentity);
+  const saved = await requireLocalArtifactState(page, configuration.userId, "analyse");
+  expect(saved.marketKey).toBe("singapore");
+  expect(saved.role).toBe("developer");
+  expect(saved.scenario).toBe("unspecified");
   const paidBeforeReopen = budget.paidDispatchCount();
   await reopenSavedArtifact(page, configuration.userId, "analyse", policy, saved, async () => {
     await expect(page.getByTestId("ai-success")).toBeVisible();
@@ -678,8 +753,11 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
   const response = await responsePromise;
   const payload: unknown = await response.json();
   guard(response.status() === 200 && record(payload) && payload.protocol === "POINT_TO_OBJECT_001_FIND_OPEN_MAP_V1" &&
-    (payload.mode === "results" || payload.mode === "empty") && Array.isArray(payload.candidates) && record(payload.source) &&
+    (payload.mode === "results" || payload.mode === "empty") && Array.isArray(payload.candidates) && record(payload.criteria) &&
+    payload.criteria.marketKey === "dubai" && record(payload.source) &&
     payload.source.name === "OpenStreetMap" && payload.source.service === "Overpass API" && payload.source.licenceId === "ODbL-1.0" &&
+    typeof payload.source.sourceResponseHash === "string" && /^[a-f0-9]{64}$/.test(payload.source.sourceResponseHash) &&
+    isoTimestamp(payload.source.acquiredAt) && (payload.source.observedAt === null || isoTimestamp(payload.source.observedAt)) &&
     payload.source.runtimeNetworkUsed === true && payload.source.persistenceUsed === false && payload.source.officialStatus === "open_context_not_official" &&
     record(payload.coverage) && payload.coverage.completeInventory === false && payload.ordering === "source_identity_ascending_not_ranked" && payload.caveat === CAVEAT,
   "The Dubai Find response did not preserve the bounded open-map source contract.");
@@ -711,6 +789,9 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
   });
   await expect.poll(async () => (await localArtifactState(page, configuration.userId, "find"))?.domainIdentity ?? null).toBe(expectedDomainIdentity);
   const saved = await requireLocalArtifactState(page, configuration.userId, "find");
+  expect(saved.marketKey).toBe("dubai");
+  expect(saved.role).toBe("consultant_broker");
+  expect(saved.scenario).toBe("b2b_hotel_development");
   const paidBeforeReopen = budget.paidDispatchCount();
   await reopenSavedArtifact(page, configuration.userId, "find", policy, saved, async () => {
     await expect(page.getByTestId("find-full-comparison-dashboard")).toBeVisible();
@@ -719,31 +800,113 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
   expect(budget.paidDispatchCount()).toBe(paidBeforeReopen);
 }
 
-async function runSingaporeCreate(page: Page, configuration: LiveConfiguration, policy: NetworkPolicy, budget: ReturnType<typeof installBudgetGate>) {
+async function runSingaporeFind(page: Page, configuration: LiveConfiguration, policy: NetworkPolicy, budget: ReturnType<typeof installBudgetGate>) {
   await page.goto("/prototype/point-to-object");
   await page.getByTestId("point-object-city-select").selectOption("singapore");
+  await page.getByRole("tab", { name: "Find", exact: true }).click();
+  await page.getByTestId("point-object-find-role-select").selectOption("consultant_broker");
+  await page.getByTestId("point-object-find-scenario-select").selectOption("b2b_commercial_real_estate");
+  await expect(page.getByTestId("point-object-find-group-select")).toHaveValue("commercial_office");
+  const responsePromise = page.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/point-to-object/find"), { timeout: 45_000 });
+  await expect(page.getByTestId("find-search-cta")).toBeEnabled({ timeout: 30_000 });
+  await page.getByTestId("find-search-cta").click();
+  const response = await responsePromise;
+  const payload: unknown = await response.json();
+  const submitted: unknown = response.request().postDataJSON();
+  const submittedBounds = record(submitted) && Array.isArray(submitted.bounds) ? submitted.bounds : null;
+  guard(record(submitted) && submitted.marketKey === "singapore" && submitted.locale === "en" &&
+    submitted.group === "commercial_office" && submitted.mappedMinimumLevels === null && submitted.mappedMaximumLevels === null &&
+    submitted.limit === 12 && submittedBounds?.length === 4 && submittedBounds.every((value) => typeof value === "number" && Number.isFinite(value)) &&
+    submittedBounds[0] >= SINGAPORE_MARINA_BAY_REFERENCE_BOUNDS[0] && submittedBounds[1] >= SINGAPORE_MARINA_BAY_REFERENCE_BOUNDS[1] &&
+    submittedBounds[2] <= SINGAPORE_MARINA_BAY_REFERENCE_BOUNDS[2] && submittedBounds[3] <= SINGAPORE_MARINA_BAY_REFERENCE_BOUNDS[3],
+  "The Singapore Find request did not use the bounded Marina Bay reference envelope and exact product criteria.");
+  guard(response.status() === 200 && record(payload) && payload.protocol === "POINT_TO_OBJECT_001_FIND_OPEN_MAP_V1" &&
+    (payload.mode === "results" || payload.mode === "empty") && Array.isArray(payload.candidates) && record(payload.criteria) &&
+    payload.criteria.marketKey === "singapore" && payload.criteria.group === "commercial_office" &&
+    JSON.stringify(payload.criteria.bounds) === JSON.stringify(submittedBounds) && record(payload.source) &&
+    payload.source.name === "OpenStreetMap" && payload.source.service === "Overpass API" && payload.source.licenceId === "ODbL-1.0" &&
+    typeof payload.source.sourceResponseHash === "string" && /^[a-f0-9]{64}$/.test(payload.source.sourceResponseHash) &&
+    isoTimestamp(payload.source.acquiredAt) && (payload.source.observedAt === null || isoTimestamp(payload.source.observedAt)) &&
+    payload.source.runtimeNetworkUsed === true && payload.source.persistenceUsed === false && payload.source.officialStatus === "open_context_not_official" &&
+    record(payload.coverage) && payload.coverage.completeInventory === false && payload.ordering === "source_identity_ascending_not_ranked" && payload.caveat === CAVEAT,
+  "The Singapore Find response did not preserve the exact bounded request and open-map source contract.");
+  const candidates = payload.candidates as Array<Record<string, unknown>>;
+  if (candidates.length < 2) {
+    throw new InconclusiveLiveCoverageError(`Singapore Find returned ${candidates.length} usable candidate(s); Compare requires at least two.`);
+  }
+  const identities = candidates.slice(0, 2).map((candidate) => candidate.sourceFeatureId);
+  guard(identities.every((value) => typeof value === "string" && /^(node|way|relation)\/[1-9]\d{0,19}$/.test(value)) && new Set(identities).size === 2,
+    "Singapore Find did not return two distinct exact source identities.");
+  const items = page.getByTestId("find-scroll-region").getByRole("listitem");
+  await expect(items).toHaveCount(candidates.length);
+  const beforeLocalComparison = policy.snapshotJourneyRequests();
+  await items.nth(0).getByRole("button", { name: "Compare", exact: true }).click();
+  await items.nth(1).getByRole("button", { name: "Compare", exact: true }).click();
+  await page.getByRole("button", { name: "Compare selected", exact: true }).click();
+  await expect(page.getByTestId("find-comparison-grid")).toBeVisible();
+  await page.getByRole("button", { name: "Open full comparison dashboard", exact: true }).click();
+  await expect(page.getByTestId("find-full-comparison-dashboard")).toBeVisible();
+  await expect.poll(async () => {
+    const state = await localArtifactState(page, configuration.userId, "find");
+    return `${state?.shortlistCount ?? 0}:${state?.comparisonView ?? "none"}`;
+  }).toBe("2:dashboard");
+  await stableLocalBarrier(page);
+  assertNoReplay(beforeLocalComparison, policy.snapshotJourneyRequests());
+  const expectedDomainIdentity = JSON.stringify({
+    candidateIds: candidates.map((candidate) => candidate.sourceFeatureId),
+    shortlistIds: identities
+  });
+  await expect.poll(async () => (await localArtifactState(page, configuration.userId, "find"))?.domainIdentity ?? null).toBe(expectedDomainIdentity);
+  const saved = await requireLocalArtifactState(page, configuration.userId, "find");
+  expect(saved.marketKey).toBe("singapore");
+  expect(saved.role).toBe("consultant_broker");
+  expect(saved.scenario).toBe("b2b_commercial_real_estate");
+  const paidBeforeReopen = budget.paidDispatchCount();
+  await reopenSavedArtifact(page, configuration.userId, "find", policy, saved, async () => {
+    await expect(page.getByTestId("find-full-comparison-dashboard")).toBeVisible();
+    for (const identity of identities) await expect(page.getByText(String(identity), { exact: true })).toBeVisible();
+  });
+  expect(budget.paidDispatchCount()).toBe(paidBeforeReopen);
+}
+
+type LiveCreateCase = {
+  marketKey: "dubai" | "singapore";
+  coordinates: number[][][];
+  fileName: string;
+  label: string;
+};
+
+async function runMarketCreate(
+  page: Page,
+  configuration: LiveConfiguration,
+  policy: NetworkPolicy,
+  budget: ReturnType<typeof installBudgetGate>,
+  input: LiveCreateCase
+) {
+  await page.goto("/prototype/point-to-object");
+  await page.getByTestId("point-object-city-select").selectOption(input.marketKey);
   await page.getByRole("tab", { name: "Create", exact: true }).click();
-  const coordinates = [[
-    [103.8580, 1.2815],
-    [103.8600, 1.2815],
-    [103.8600, 1.2830],
-    [103.8580, 1.2830],
-    [103.8580, 1.2815]
-  ]];
   const contextPromise = page.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/point-to-object/area-context"), { timeout: 45_000 });
   await page.getByLabel("Upload GeoJSON", { exact: true }).setInputFiles({
-    name: "sprint10-singapore-live-aoi.geojson",
+    name: input.fileName,
     mimeType: "application/geo+json",
-    buffer: Buffer.from(JSON.stringify({ type: "Polygon", coordinates }))
+    buffer: Buffer.from(JSON.stringify({ type: "Polygon", coordinates: input.coordinates }))
   });
   const contextResponse = await contextPromise;
   const contextPayload: unknown = await contextResponse.json();
   guard(contextResponse.status() === 200 && record(contextPayload) && contextPayload.protocol === "POINT_TO_OBJECT_001_AREA_CONTEXT_V1" &&
-    (contextPayload.mode === "results" || contextPayload.mode === "empty") && record(contextPayload.request) && contextPayload.request.marketKey === "singapore" &&
+    (contextPayload.mode === "results" || contextPayload.mode === "empty") && Array.isArray(contextPayload.features) &&
+    contextPayload.features.every((feature) => record(feature) && typeof feature.sourceFeatureId === "string" &&
+      /^(node|way|relation)\/[1-9]\d{0,19}$/.test(feature.sourceFeatureId)) &&
+    new Set(contextPayload.features.map((feature) => record(feature) ? feature.sourceFeatureId : null)).size === contextPayload.features.length &&
+    record(contextPayload.request) && contextPayload.request.marketKey === input.marketKey &&
+    JSON.stringify(contextPayload.request.aoiCoordinates) === JSON.stringify(input.coordinates) &&
     record(contextPayload.source) && contextPayload.source.name === "OpenStreetMap" && contextPayload.source.service === "Overpass API" &&
-    contextPayload.source.licenceId === "ODbL-1.0" && contextPayload.source.runtimeNetworkUsed === true &&
+    contextPayload.source.licenceId === "ODbL-1.0" && typeof contextPayload.source.sourceResponseHash === "string" &&
+    /^[a-f0-9]{64}$/.test(contextPayload.source.sourceResponseHash) && isoTimestamp(contextPayload.source.acquiredAt) &&
+    (contextPayload.source.observedAt === null || isoTimestamp(contextPayload.source.observedAt)) && contextPayload.source.runtimeNetworkUsed === true &&
     contextPayload.source.persistenceUsed === false && contextPayload.caveat === CAVEAT,
-  "The Singapore AOI did not return accepted bounded Overpass evidence.");
+  `The ${input.label} AOI did not return accepted bounded Overpass evidence.`);
   await page.getByRole("button", { name: /^Business towers/ }).click();
   await expect(page.getByTestId("create-generate-action")).toBeEnabled();
   const responsePromise = page.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/point-to-object/create"), { timeout: 180_000 });
@@ -751,11 +914,16 @@ async function runSingaporeCreate(page: Page, configuration: LiveConfiguration, 
   const response = await responsePromise;
   const payload: unknown = await response.json();
   await budget.waitForTerminalReceipts();
+  const submitted: unknown = response.request().postDataJSON();
+  guard(record(submitted) && submitted.marketKey === input.marketKey && submitted.locale === "en" && submitted.depth === "standard" &&
+    submitted.templateId === "commercial_hub" &&
+    JSON.stringify(submitted.aoiCoordinates) === JSON.stringify(input.coordinates),
+  `The ${input.label} Create request did not preserve the exact market, programme, depth and AOI.`);
   guard(response.status() === 200 && record(payload) && payload.mode === "openai_concept" &&
     typeof payload.generatedAt === "string" && Number.isFinite(Date.parse(payload.generatedAt)) &&
     payload.promptVersion === SPRINT10_CREATE_PROMPT_VERSION && Array.isArray(payload.alternatives) && payload.alternatives.length === 2 &&
     payload.alternatives.every((item) => record(item) && (item.id === "A" || item.id === "B")) && payload.caveat === CAVEAT,
-  "The Singapore Create response did not return one strict current A/B concept.");
+  `The ${input.label} Create response did not return one strict current A/B concept.`);
   await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
   const paidAfterGeneration = budget.paidDispatchCount();
   const beforeLocalViews = policy.snapshotJourneyRequests();
@@ -771,6 +939,7 @@ async function runSingaporeCreate(page: Page, configuration: LiveConfiguration, 
   await stableLocalBarrier(page);
   assertNoReplay(beforeLocalViews, policy.snapshotJourneyRequests());
   const saved = await requireLocalArtifactState(page, configuration.userId, "create");
+  expect(saved.marketKey).toBe(input.marketKey);
   const savedDomain: unknown = JSON.parse(saved.domainIdentity);
   guard(record(savedDomain) && typeof savedDomain.aoiId === "string" && savedDomain.aoiId.length > 0 &&
     savedDomain.generatedAt === payload.generatedAt && savedDomain.promptVersion === payload.promptVersion &&
@@ -790,6 +959,36 @@ async function runSingaporeCreate(page: Page, configuration: LiveConfiguration, 
   assertSameArtifact(saved, reloaded);
   assertNoReplay(beforeReload, policy.snapshotJourneyRequests());
   expect(budget.paidDispatchCount()).toBe(paidAfterGeneration);
+}
+
+async function runSingaporeCreate(page: Page, configuration: LiveConfiguration, policy: NetworkPolicy, budget: ReturnType<typeof installBudgetGate>) {
+  await runMarketCreate(page, configuration, policy, budget, {
+    marketKey: "singapore",
+    coordinates: [[
+      [103.8580, 1.2815],
+      [103.8600, 1.2815],
+      [103.8600, 1.2830],
+      [103.8580, 1.2830],
+      [103.8580, 1.2815]
+    ]],
+    fileName: "sprint10-singapore-live-aoi.geojson",
+    label: "Singapore"
+  });
+}
+
+async function runDubaiCreate(page: Page, configuration: LiveConfiguration, policy: NetworkPolicy, budget: ReturnType<typeof installBudgetGate>) {
+  await runMarketCreate(page, configuration, policy, budget, {
+    marketKey: "dubai",
+    coordinates: [[
+      [55.27015, 25.20515],
+      [55.27065, 25.20515],
+      [55.27065, 25.20565],
+      [55.27015, 25.20565],
+      [55.27015, 25.20515]
+    ]],
+    fileName: "sprint10-dubai-live-aoi.geojson",
+    label: "Dubai"
+  });
 }
 
 test("root-authorized protected Preview source-to-decision journey", async ({ page, baseURL }) => {
@@ -821,6 +1020,19 @@ test("root-authorized protected Preview source-to-decision journey", async ({ pa
     }
     if (configuration.scope === "journey" || configuration.scope === "singapore-create") {
       await runSingaporeCreate(page, configuration, policy, budget);
+    }
+    if (configuration.scope === "singapore-analyse") {
+      await runSingaporeAnalyse(page, configuration, policy, budget);
+    }
+    if (configuration.scope === "singapore-find") {
+      try { await runSingaporeFind(page, configuration, policy, budget); }
+      catch (error) {
+        if (error instanceof InconclusiveLiveCoverageError) delayedInconclusive = error;
+        else throw error;
+      }
+    }
+    if (configuration.scope === "dubai-create") {
+      await runDubaiCreate(page, configuration, policy, budget);
     }
     await budget.waitForTerminalReceipts();
     budget.assertExpectedScopeCounts();
