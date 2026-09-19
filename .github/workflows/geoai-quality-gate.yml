@@ -43,6 +43,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Install WebKit for optimized product regression
+        run: npx playwright install --with-deps webkit
+
       - name: Install physical PDF inspection tools
         shell: bash
         run: |
@@ -395,6 +398,7 @@ jobs:
           npm run test:self-host-runtime | tee artifacts/sprint10-self-host-contract.txt
           node scripts/sprint10-portable-readiness-load-check.mjs | tee artifacts/sprint10-portable-load-contract.txt
           node --experimental-transform-types scripts/sprint10-analysis-result-evidence-check.ts | tee artifacts/sprint10-analysis-evidence-contract.txt
+          node --experimental-transform-types scripts/sprint10-depth-cycle-evidence-check.ts | tee artifacts/sprint10-depth-cycle-evidence-contract.txt
           node --experimental-transform-types scripts/sprint10-live-budget-check.ts | tee artifacts/sprint10-live-budget-contract.txt
           node --experimental-transform-types scripts/sprint10-live-journey-offline-check.ts | tee artifacts/sprint10-live-journey-contract.txt
           node --experimental-transform-types scripts/sprint10-live-journey-runner-offline-check.mjs | tee artifacts/sprint10-live-runner-contract.txt
@@ -486,6 +490,15 @@ jobs:
           GEOAI_TEST_BASE_URL=http://127.0.0.1:3000 npm run test:api-contract | tee artifacts/api-contract-check.txt
           GEOAI_TEST_BASE_URL=http://127.0.0.1:3000 npm run test:security-headers | tee artifacts/security-header-check.txt
           GEOAI_TEST_BASE_URL=http://127.0.0.1:3000 npm run test:api-route-inventory | tee artifacts/api-route-inventory-runtime-check.txt
+
+          # Use the optimized build so dev hot reload cannot interrupt navigation.
+          # Fixtures block external services; the existing loopback-only WebKit
+          # helper handles HTTP transport. Protected HTTPS is tested separately.
+          NEXT_PUBLIC_AUTH_MODE=demo_public GEOAI_ACCESS_ENFORCEMENT_MODE=soft GEOAI_ALLOW_DEMO_PUBLIC=true \
+            GEOAI_E2E_BASE_URL=http://127.0.0.1:3000 \
+            PLAYWRIGHT_JUNIT_OUTPUT_FILE=artifacts/point-to-object-webkit-product-junit.xml \
+            npm run test:e2e:point-to-object-v5:demo -- --config playwright.webkit.config.ts --retries=0 \
+            --output=artifacts/playwright-point-to-object-webkit | tee artifacts/point-to-object-webkit-product.txt
 
           : > artifacts/route-smoke.txt
           routes=(
