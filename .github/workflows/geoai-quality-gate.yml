@@ -398,6 +398,10 @@ jobs:
           node --experimental-transform-types scripts/sprint10-live-budget-check.ts | tee artifacts/sprint10-live-budget-contract.txt
           node --experimental-transform-types scripts/sprint10-live-journey-offline-check.ts | tee artifacts/sprint10-live-journey-contract.txt
           node --experimental-transform-types scripts/sprint10-live-journey-runner-offline-check.mjs | tee artifacts/sprint10-live-runner-contract.txt
+          node scripts/sprint10-real-password-auth-diagnostics-check.mjs | tee artifacts/sprint10-auth-diagnostics-contract.txt
+          node scripts/sprint10-real-password-auth-check.mjs | tee artifacts/sprint10-password-auth-contract.txt
+          node --experimental-transform-types scripts/sprint10-hosted-auth-probe-check.mjs | tee artifacts/sprint10-hosted-auth-contract.txt
+          node --experimental-transform-types scripts/sprint10-hosted-auth-live-check.mjs | tee artifacts/sprint10-combined-auth-contract.txt
 
       - name: Browser demo-public product flow
         shell: bash

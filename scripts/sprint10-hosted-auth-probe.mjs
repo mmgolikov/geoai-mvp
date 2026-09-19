@@ -22,6 +22,7 @@ import { basename, dirname, isAbsolute, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   LIVE_SCOPE_RECEIPT_PLAN,
+  validateAnalysisEvidenceCaptureEnvironment,
   validateLiveLedgerPreflight
 } from "./sprint10-live-journey-run.mjs";
 import {
@@ -270,6 +271,8 @@ export function validateRuntimeConfig(
   if (!["disabled", exactLiveJourneySeamOptIn].includes(liveJourneySeam)) {
     fail("The optional live-journey seam setting is not accepted.");
   }
+  const analysisEvidenceEnvironment = validateAnalysisEvidenceCaptureEnvironment(env,
+    liveJourneySeam === exactLiveJourneySeamOptIn ? env.GEOAI_HOSTED_AUTH_PROBE_LIVE_JOURNEY_SCOPE : undefined);
   let liveJourney = null;
   if (liveJourneySeam === exactLiveJourneySeamOptIn) {
     if (previewSeam !== exactPreviewSeamOptIn) {
@@ -306,7 +309,8 @@ export function validateRuntimeConfig(
       ledgerPath,
       ledgerId,
       liveApproval,
-      checkpointPath
+      checkpointPath,
+      analysisEvidenceEnvironment
     };
   }
   return {
@@ -881,6 +885,7 @@ export function buildLiveJourneyChildEnvironment(config, personas, env = process
   }
   Object.assign(childEnvironment, {
     GEOAI_E2E_BASE_URL: env.GEOAI_E2E_BASE_URL,
+    ...config.liveJourney.analysisEvidenceEnvironment,
     GEOAI_SPRINT10_LIVE_EXPLICIT_RUN: "root-paid-live-journey-2026-09-18",
     GEOAI_SPRINT10_LIVE_SCOPE: config.liveJourney.scope,
     GEOAI_SPRINT10_LIVE_PREVIEW_URL: config.liveJourney.previewUrl,

@@ -162,6 +162,29 @@ assert.throws(() => assertActiveCurrentPersona([
 ], runId, { invoked: false }));
 
 const childEnvironment = buildLiveJourneyChildEnvironment(config, personas, baseEnvironment);
+assert.equal(childEnvironment.GEOAI_SPRINT10_ANALYSIS_EVIDENCE_CAPTURE, undefined);
+assert.equal(childEnvironment.GEOAI_SPRINT10_ANALYSIS_EVIDENCE_PATH, undefined);
+const evidenceEnvironment = {
+  ...baseEnvironment,
+  GEOAI_SPRINT10_ANALYSIS_EVIDENCE_CAPTURE: "write-one-synthetic-public-analysis-response",
+  GEOAI_SPRINT10_ANALYSIS_EVIDENCE_PATH: join(privateRoot, "analysis-evidence.json")
+};
+const evidenceConfig = validateRuntimeConfig(evidenceEnvironment, ["node", "operator"], head, 22, {
+  ledgerPreflight: () => ledger
+});
+const evidenceChild = buildLiveJourneyChildEnvironment(evidenceConfig, personas, evidenceEnvironment);
+assert.equal(evidenceChild.GEOAI_SPRINT10_ANALYSIS_EVIDENCE_CAPTURE, evidenceEnvironment.GEOAI_SPRINT10_ANALYSIS_EVIDENCE_CAPTURE);
+assert.equal(evidenceChild.GEOAI_SPRINT10_ANALYSIS_EVIDENCE_PATH, evidenceEnvironment.GEOAI_SPRINT10_ANALYSIS_EVIDENCE_PATH);
+assert.equal(evidenceChild.GEOAI_HOSTED_AUTH_PROBE_ADMIN_SECRET_KEY, undefined);
+assert.equal(evidenceChild.UNRELATED_RUNTIME_SECRET, undefined);
+for (const delta of [
+  { GEOAI_SPRINT10_ANALYSIS_EVIDENCE_CAPTURE: undefined },
+  { GEOAI_SPRINT10_ANALYSIS_EVIDENCE_PATH: undefined },
+  { GEOAI_HOSTED_AUTH_PROBE_LIVE_JOURNEY_SEAM: "disabled" },
+  { GEOAI_HOSTED_AUTH_PROBE_LIVE_JOURNEY_SCOPE: "dubai-find" }
+]) assert.throws(() => validateRuntimeConfig({ ...evidenceEnvironment, ...delta }, ["node", "operator"], head, 22, {
+  ledgerPreflight: () => ledger
+}), undefined, "Invalid optional evidence pair must stop before account creation.");
 for (const key of [
   "GEOAI_HOSTED_AUTH_PROBE_ADMIN_SECRET_KEY",
   "GEOAI_HOSTED_AUTH_PROBE_PUBLISHABLE_KEY",

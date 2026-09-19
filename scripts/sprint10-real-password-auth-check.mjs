@@ -142,7 +142,12 @@ assert.match(spec, /page\.close\(\{ runBeforeUnload: false \}\)/,
   "Credential-bearing pages must close before Playwright failure-context collection.");
 assert.doesNotMatch(packageJson, /sprint10-real-password-auth-(?:run|check)|sprint10-real-password-auth\.spec/,
   "Default package scripts must not invoke the live real-password harness.");
-assert.doesNotMatch(workflows, /sprint10-real-password-auth-(?:run|check)|sprint10-real-password-auth\.spec/,
+const liveWorkflowPattern = /sprint10-real-password-auth-run|sprint10-real-password-auth\.spec/;
+assert.match('node scripts/sprint10-real-password-auth-run.mjs', liveWorkflowPattern);
+assert.match('playwright test tests/e2e/sprint10-real-password-auth.spec.ts', liveWorkflowPattern);
+assert.doesNotMatch('node scripts/sprint10-real-password-auth-check.mjs', liveWorkflowPattern);
+assert.doesNotMatch('node scripts/sprint10-real-password-auth-diagnostics-check.mjs', liveWorkflowPattern);
+assert.doesNotMatch(workflows, liveWorkflowPattern,
   "Repository workflows must not invoke the live real-password harness.");
 
 for (const prohibitedOperation of [

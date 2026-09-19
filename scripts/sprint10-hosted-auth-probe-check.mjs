@@ -486,8 +486,11 @@ assert.doesNotMatch(operator.replace(checkpointWriter, ""), /writeFileSync\(/,
 
 assert.doesNotMatch(packageJson, /sprint10-hosted-auth-probe/,
   "The live operator must not be included in default package scripts.");
+const liveOperatorWorkflowPattern = /sprint10-hosted-auth-probe(?:\.mjs|[\s"'])/;
+assert.match('node scripts/sprint10-hosted-auth-probe.mjs', liveOperatorWorkflowPattern);
+assert.doesNotMatch('node scripts/sprint10-hosted-auth-probe-check.mjs', liveOperatorWorkflowPattern);
 for (const workflow of workflows) {
-  assert.doesNotMatch(workflow, /sprint10-hosted-auth-probe/,
+  assert.doesNotMatch(workflow, liveOperatorWorkflowPattern,
     "The live operator must not be included in repository workflows.");
 }
 assert.match(handoff, /No hosted call was executed during implementation/i);
