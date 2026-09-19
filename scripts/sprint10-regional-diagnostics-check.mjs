@@ -2,6 +2,7 @@
 
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { POINT_OBJECT_SOURCE_HARNESS_RESPONSE_TIMEOUT_MS } from "../src/lib/prototype/source-request-deadline.ts";
 
 import {
   LIVE_JOURNEY_STEPS,
@@ -10,8 +11,12 @@ import {
 } from "./sprint10-live-journey-diagnostics.mjs";
 
 const liveSpec = readFileSync(new URL("../tests/e2e/sprint10-live-journey.spec.ts", import.meta.url), "utf8");
-assert.match(liveSpec, /const SOURCE_REQUEST_HARNESS_TIMEOUT_MS = 60_000;/,
+assert.equal(POINT_OBJECT_SOURCE_HARNESS_RESPONSE_TIMEOUT_MS, 60_000,
   "the regional source request/response envelope must remain exactly 60 seconds");
+assert.match(liveSpec, /import \{ POINT_OBJECT_SOURCE_HARNESS_RESPONSE_TIMEOUT_MS as SOURCE_REQUEST_HARNESS_TIMEOUT_MS \} from "\.\.\/\.\.\/src\/lib\/prototype\/source-request-deadline";/,
+  "the harness must use the production deadline contract rather than a drifting local literal");
+assert.doesNotMatch(liveSpec, /(?:const|let|var) SOURCE_REQUEST_HARNESS_TIMEOUT_MS\s*=/,
+  "the shared source response deadline must not be shadowed in the harness");
 const exactBody = Object.freeze({ locale: "en", marketKey: "singapore", query: "Marina Bay Sands Tower 1" });
 const sharedRequest = {};
 

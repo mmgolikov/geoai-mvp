@@ -52,6 +52,7 @@ import {
 } from "./helpers/sprint10-depth-cycle-evidence";
 // @ts-expect-error The diagnostics module is an operator-only JavaScript contract checked by its offline suite.
 import { LIVE_JOURNEY_CLEANUP_STAGES, LIVE_JOURNEY_STEPS, analyseSuggestionCorrelationChecks, boundedLiveJourneyResponseJson, encodeLiveJourneyDiagnostic, primaryAfterFinalizeFailure } from "../../scripts/sprint10-live-journey-diagnostics.mjs";
+import { POINT_OBJECT_SOURCE_HARNESS_RESPONSE_TIMEOUT_MS as SOURCE_REQUEST_HARNESS_TIMEOUT_MS } from "../../src/lib/prototype/source-request-deadline";
 
 test.use({ trace: "off", screenshot: "off", video: "off", serviceWorkers: "block" });
 test.describe.configure({ mode: "serial", retries: 0 });
@@ -64,8 +65,6 @@ const LIVE_SCOPES = [
   "singapore-analyse", "singapore-find", "dubai-create", "dubai-depth-cycle"
 ] as const;
 const SINGAPORE_MARINA_BAY_REFERENCE_BOUNDS = [103.855, 1.278, 103.868, 1.289] as const;
-// Root binds this literal to SOURCE_REQUEST_HARNESS_TIMEOUT_MS after the shared source-deadline change is integrated.
-const SOURCE_REQUEST_HARNESS_TIMEOUT_MS = 60_000;
 type LiveScope = Sprint10LiveScope;
 
 const runnerActive = process.env.GEOAI_SPRINT10_LIVE_RUNNER_ACTIVE === "1";

@@ -1,6 +1,6 @@
 # Sprint10: authenticated rehearsal and decision-journey recovery
 
-Status: APPROVED FOR LOCAL IMPLEMENTATION; NOT RELEASED
+Status: APPROVED CANDIDATE IMPLEMENTATION AND SCOPED DEVELOPMENT REHEARSAL; NOT RELEASED
 Approved: 2026-09-18 by founder in control
 Owner/integrator: control
 
@@ -63,7 +63,19 @@ Founder approved **USD15 total for this entire four-sprint cycle**, all candidat
 
 Only control dispatches paid tests after atomic reservation in one root ledger. New SHA/date does not reset expenditure. Unknown charges halt the paid lane until reconciled. Offline/fixture coverage is not evidence of provider functionality. Model changes require current model/price validation and measurable quality acceptance.
 
-No main/Production mutation, domain/server purchase, DNS cutover, provider subscription or hosted Supabase auth/schema/grants/env/seed change is authorized. Prepare exact-target approval requests after local gates. No external outreach. No redemption of Codex usage credits.
+The founder's later 18 September approvals supersede the original blanket hosted-development hold: root may perform necessary data-preserving database work only in existing `geoai-dev` (`pphdqkurxneyagvnnjdt`), publish/refresh protected candidate Previews only on `codex/sprint10-control-20260918` in `geoai-mvp`, and configure the exact protected test contour using existing keys, callback URLs and isolated synthetic non-email accounts. Each action retains exact-target, recovery, compatibility, security and read-back gates. Prior tool-denied private-content/hash/upload/concurrency operations remain held without their own renewed exact approval; the general development permission is not a bypass.
+
+No main/Production mutation, database reset, deletion of customer data, domain/server purchase, DNS cutover, new paid service, key rotation, unrelated project/Auth/environment change or security weakening is authorized. Transactional email is explicitly deferred until the founder has the domain and corporate email. No external outreach or redemption of Codex reset credits.
+
+## 19 September regional blocker-only correction
+
+Base `4677291c7b61eccccb0cd21c4c4dc74d6da1a65c` passed zero-retry CI and a live Dubai depth cycle, but real Singapore Find/Analyse and Singapore/Dubai Create did not complete. All four regional attempts stopped before paid calls and all eight synthetic personas were retired. Historical successes do not close these failures.
+
+Scope: establish a bounded shared route-entry/Auth/source deadline for Find and area-context; retain single upstream attempts, last-good state and fail-closed identity; split regional browser failures into privacy-safe fixed substages without weakening request, market or subject correlation. Middleware status alone is not proof of Route Handler completion. A static timeout mismatch is confirmed; it is not yet a proven explanation for the live failures.
+
+Auth cancellation is opt-in for those two source routes only. The existing request-scoped Supabase factory may accept an optional signal and bind it to that client's fetch, retaining any caller-provided cancellation and every existing cookie/identity/profile rule. No global fetch patch or change to ordinary callers, hosted Auth policy or secrets is included. A response deadline alone must not be reported as transport cancellation.
+
+Two isolated workers own the source deadline and regional harness respectively. Root owns shared wiring and integration. Fresh focused negative tests, lint/build, exact-candidate zero-retry browser/CI, protected Preview read-back and a bounded real retest are required before acceptance. No automatic retries or expanded feature work. Original cycle deadline remains 19 September 14:30 Moscow.
 
 ## Delivery truth
 

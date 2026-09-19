@@ -367,6 +367,13 @@ if (productHttpsStart === -1 || productHttpsEnd === -1) {
   }
 }
 requireText(workflow, "node --experimental-strip-types scripts/product-https-harness-check.mjs", "CI must test the product HTTPS loopback guard before browser execution");
+for (const [name, command] of [
+  ["test:point-to-object-source-deadline", "node --experimental-transform-types scripts/point-to-object-source-deadline-check.ts"],
+  ["test:sprint10-regional-diagnostics", "node --experimental-transform-types scripts/sprint10-regional-diagnostics-check.mjs"]
+]) {
+  if (packageJson.scripts?.[name] !== command) failures.push(`Missing exact source acceptance command: ${name}`);
+  requireText(workflow, `npm run ${name}`, `CI must run the source acceptance contract: ${name}`);
+}
 for (const marker of [
   "NEXT_PUBLIC_AUTH_MODE: supabase_auth",
   "NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321",

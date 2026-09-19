@@ -403,6 +403,8 @@ jobs:
           node --experimental-transform-types scripts/sprint10-live-journey-offline-check.ts | tee artifacts/sprint10-live-journey-contract.txt
           node --experimental-transform-types scripts/sprint10-live-journey-runner-offline-check.mjs | tee artifacts/sprint10-live-runner-contract.txt
           node --experimental-transform-types scripts/sprint10-live-journey-diagnostics-check.mjs | tee artifacts/sprint10-live-diagnostics-contract.txt
+          npm run test:point-to-object-source-deadline | tee artifacts/sprint10-source-deadline-contract.txt
+          npm run test:sprint10-regional-diagnostics | tee artifacts/sprint10-regional-diagnostics-contract.txt
           node scripts/sprint10-real-password-auth-diagnostics-check.mjs | tee artifacts/sprint10-auth-diagnostics-contract.txt
           node scripts/sprint10-real-password-auth-check.mjs | tee artifacts/sprint10-password-auth-contract.txt
           node --experimental-transform-types scripts/sprint10-hosted-auth-probe-check.mjs | tee artifacts/sprint10-hosted-auth-contract.txt
