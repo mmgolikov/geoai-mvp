@@ -96,12 +96,42 @@ const replayed = await projects.importPointObjectCloudArtifact(targetIdentity, c
 assert.equal(replayed.status, "replayed");
 assert.equal(localStorage.getItem(targetKey), importedBytes, "An exact cloud replay must not rewrite local bytes.");
 
+const localFindUpdate = await projects.updatePointObjectFindViewState(targetIdentity, cloudArtifact.artifactId, {
+  shortlist: cloudArtifact.kind === "find" ? cloudArtifact.payload.session.result.candidates.slice(0, 1) : [],
+  comparisonOpen: false,
+  comparisonView: "results",
+  analysisTargetSourceFeatureId: null
+});
+assert.equal(localFindUpdate.status, "saved");
+if (localFindUpdate.status !== "saved") throw new Error("Expected a valid local Find view successor.");
+const localFindBytes = localStorage.getItem(targetKey);
+const olderCloudAfterLocalUpdate = await projects.importPointObjectCloudArtifact(targetIdentity, cloudProject, cloudArtifact);
+assert.equal(olderCloudAfterLocalUpdate.status, "local_newer",
+  "A verified local Find view exactly one revision ahead of the same immutable cloud result must remain eligible for explicit CAS save.");
+assert.equal(localStorage.getItem(targetKey), localFindBytes, "Recognizing a local successor must not rewrite its bytes.");
+
+const equalRevisionDifferentView = structuredClone(localFindUpdate.artifact);
+if (equalRevisionDifferentView.kind !== "find") throw new Error("Expected a Find successor.");
+equalRevisionDifferentView.payload.session.shortlist = [];
+equalRevisionDifferentView.payload.session.comparisonOpen = false;
+equalRevisionDifferentView.payload.session.analysisTargetSourceFeatureId = null;
+equalRevisionDifferentView.payloadHash = await projects.hashPointObjectOperation(equalRevisionDifferentView);
+const equalRevisionConflict = await projects.importPointObjectCloudArtifact(targetIdentity, cloudProject, equalRevisionDifferentView);
+assert.equal(equalRevisionConflict.status, "conflict", "Equal revisions with different view bytes must remain fail closed.");
+assert.equal(localStorage.getItem(targetKey), localFindBytes);
+
+const newerRemoteView = structuredClone(cloudArtifact);
+newerRemoteView.viewRevision = localFindUpdate.artifact.viewRevision + 1;
+const newerRemoteConflict = await projects.importPointObjectCloudArtifact(targetIdentity, cloudProject, newerRemoteView);
+assert.equal(newerRemoteConflict.status, "conflict", "A newer remote view must never be overwritten from stale local bytes.");
+assert.equal(localStorage.getItem(targetKey), localFindBytes);
+
 const wrongProjectReplay = await projects.importPointObjectCloudArtifact(targetIdentity, {
   ...cloudProject,
   projectId: "project-different-cloud-origin"
 }, cloudArtifact);
 assert.equal(wrongProjectReplay.status, "conflict");
-assert.equal(localStorage.getItem(targetKey), importedBytes,
+assert.equal(localStorage.getItem(targetKey), localFindBytes,
   "The same artifact receipt under a different cloud project must not replay or rewrite local bytes.");
 
 const wrongCreatedAtReplay = await projects.importPointObjectCloudArtifact(targetIdentity, {
@@ -109,7 +139,7 @@ const wrongCreatedAtReplay = await projects.importPointObjectCloudArtifact(targe
   createdAt: "2026-09-18T09:59:59.000Z"
 }, cloudArtifact);
 assert.equal(wrongCreatedAtReplay.status, "conflict");
-assert.equal(localStorage.getItem(targetKey), importedBytes,
+assert.equal(localStorage.getItem(targetKey), localFindBytes,
   "The same artifact receipt with a different project origin timestamp must not replay or rewrite local bytes.");
 
 const conflictingInput = findInput("Different immutable cloud result", 55.28);
@@ -120,7 +150,7 @@ const conflict = {
 };
 const conflicted = await projects.importPointObjectCloudArtifact(targetIdentity, cloudProject, conflict);
 assert.equal(conflicted.status, "conflict");
-assert.equal(localStorage.getItem(targetKey), importedBytes, "A cloud conflict must preserve local bytes.");
+assert.equal(localStorage.getItem(targetKey), localFindBytes, "A cloud conflict must preserve local bytes.");
 
 localStorage.setItem(targetKey, "{damaged-json");
 const damagedBytes = localStorage.getItem(targetKey);
@@ -168,4 +198,4 @@ try {
   Object.defineProperty(crypto.subtle, "digest", { configurable: true, value: originalDigest });
 }
 
-console.log("Point-to-object cloud additive import checks passed (origin-bound replay, conflict, damage, capacity, identity race).");
+console.log("Point-to-object cloud additive import checks passed (origin-bound replay, safe local successor, conflict, damage, capacity, identity race).");

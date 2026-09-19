@@ -21,7 +21,15 @@ registerHooks({
 // @ts-expect-error Node transform-types requires the physical TypeScript suffix.
 const cloud = await import("../src/lib/prototype/point-object-cloud-client.ts");
 // @ts-expect-error Node transform-types requires the physical TypeScript suffix.
+const cloudContract = await import("../src/lib/prototype/point-object-cloud-contract.ts");
+// @ts-expect-error Node transform-types requires the physical TypeScript suffix.
+const localIntegrity = await import("../src/lib/prototype/point-object-cloud-local-integrity.ts");
+// @ts-expect-error Node transform-types requires the physical TypeScript suffix.
 const projects = await import("../src/lib/prototype/point-object-projects.ts");
+// @ts-expect-error Node transform-types requires the physical TypeScript suffix.
+const create = await import("../src/lib/prototype/point-to-object-create.ts");
+// @ts-expect-error Node transform-types requires the physical TypeScript suffix.
+const createAi = await import("../src/lib/prototype/point-to-object-create-ai-core.ts");
 type PointObjectProjectOperationInput = import("../src/lib/prototype/point-object-projects-contract.ts").PointObjectProjectOperationInput;
 type SavedPointObjectArtifact = import("../src/lib/prototype/point-object-projects-contract.ts").SavedPointObjectArtifact;
 
@@ -218,6 +226,20 @@ assert.equal((await conflictSession.persist(localProject, artifact(1, "2026-09-1
 assert.equal(conflictCalls, 1, "A local/cloud byte conflict must block cloud mutation.");
 conflictSession.close();
 
+let capacityCalls = 0;
+const capacitySession = cloud.createPointObjectCloudSyncSession({
+  identityKey: "user:local-capacity",
+  importArtifact: async () => ({ status: "capacity" as const }),
+  fetcher: async (_url: RequestInfo | URL, init?: RequestInit) => {
+    capacityCalls += 1;
+    return init?.method === "GET" ? okPage([item(artifact(1, "2026-09-18T10:01:00.000Z"), 2)], null) : okPut("updated", 3);
+  }
+});
+assert.equal(await capacitySession.start(), "capacity");
+assert.equal((await capacitySession.persist(localProject, artifact(1, "2026-09-18T10:01:00.000Z"))).status, "skipped");
+assert.equal(capacityCalls, 1, "Local capacity must remain distinct and block cloud mutation.");
+capacitySession.close();
+
 let rejectedImportCalls = 0;
 const rejectedImportStatuses: string[] = [];
 const rejectedImportSession = cloud.createPointObjectCloudSyncSession({
@@ -321,4 +343,189 @@ assert.equal((await staleWrite).status, "skipped", "A stale completion must not 
 assert.equal(staleWriteSession.getExpectedRevision("artifact-cloud-1"), null);
 assert.equal(staleStatusUpdates, staleUpdatesBeforeCompletion, "A stale completion must not update UI state.");
 
-console.log("Point-object cloud client checks passed (strict pages/origins, additive order, CAS serialization, fail-closed conflicts/errors, identity abort).");
+class MemoryStorage {
+  values = new Map<string, string>();
+  get length() { return this.values.size; }
+  key(index: number) { return [...this.values.keys()][index] ?? null; }
+  getItem(key: string) { return this.values.get(key) ?? null; }
+  removeItem(key: string) { this.values.delete(key); }
+  setItem(key: string, value: string) { this.values.set(key, value); }
+}
+class ProjectEvent<T = unknown> extends Event {
+  detail: T;
+  constructor(type: string, init: { detail: T }) { super(type); this.detail = init.detail; }
+}
+const browserLocalStorage = new MemoryStorage();
+const browserSessionStorage = new MemoryStorage();
+Object.assign(globalThis, {
+  CustomEvent: ProjectEvent,
+  window: { localStorage: browserLocalStorage, sessionStorage: browserSessionStorage, dispatchEvent: () => true }
+});
+
+const createCoordinates: Array<Array<[number, number]>> = [[
+  [55.2808, 25.2182], [55.2828, 25.2182], [55.2828, 25.2197], [55.2808, 25.2197], [55.2808, 25.2182]
+]];
+const aoiValidation = create.validatePointObjectCreateAoiVertices(createCoordinates[0].slice(0, -1));
+assert.equal(aoiValidation.ok, true);
+if (!aoiValidation.ok) throw new Error("Expected a valid Create AOI fixture.");
+const createAoi = {
+  id: "create-aoi-cloud-local-successor",
+  coordinates: createCoordinates,
+  vertexCount: createCoordinates[0].length - 1,
+  areaSqM: aoiValidation.measurements.areaSqM,
+  perimeterM: aoiValidation.measurements.perimeterM
+};
+const programValidation = create.validateRedevelopmentProgram({
+  templateId: "residential_mixed_use",
+  title: "Cloud successor courtyard concept",
+  summary: "A bounded two-alternative concept used only by the local cloud regression.",
+  massingStyle: "courtyard",
+  blockCount: 5,
+  levelsMin: 6,
+  levelsMax: 12,
+  targetSiteCoveragePct: 28,
+  openSpacePct: 35,
+  setbackM: 8,
+  useMix: [
+    { use: "residential", sharePct: 72 },
+    { use: "retail", sharePct: 18 },
+    { use: "open_space", sharePct: 10 }
+  ],
+  rationale: ["Local cloud synchronization regression fixture."]
+});
+assert.equal(programValidation.ok, true);
+if (!programValidation.ok) throw new Error("Expected a valid Create program fixture.");
+const createSeed = createAi.createProgramSeed(programValidation.value, "c".repeat(64));
+const createAlternatives = create.generateConceptMassingAlternatives(createCoordinates, programValidation.value, createSeed, "en");
+const createOperation: PointObjectProjectOperationInput = {
+  kind: "create",
+  locale: "en",
+  marketKey: "dubai",
+  label: "Cloud Create successor",
+  payload: {
+    aoi: createAoi,
+    editorSnapshot: null,
+    generated: {
+      mode: "openai_concept",
+      generatedAt: "2026-09-18T10:00:00.000Z",
+      promptVersion: createAi.POINT_OBJECT_CREATE_PROMPT_VERSION,
+      program: programValidation.value,
+      massing: createAlternatives[0].massing,
+      alternatives: createAlternatives,
+      telemetry: {
+        model: "gpt-5.6-sol",
+        reasoningEffort: "medium",
+        requestId: "req_cloud_successor_create",
+        latencyMs: 1,
+        attempts: 1,
+        inputTokens: 1,
+        outputTokens: 1,
+        totalTokens: 2,
+        estimatedCostUsd: 0,
+        stored: false,
+        toolCalls: 0
+      },
+      caveat
+    },
+    generatedLocale: "en",
+    activeAlternativeId: "A",
+    areaContext: null
+  }
+};
+
+async function exerciseRealLocalSuccessor(input: PointObjectProjectOperationInput, label: "find" | "create") {
+  const identityKey = `user:cloud-local-${label}` as const;
+  projects.reconcilePointObjectBrowserIdentity(identityKey);
+  const project = await projects.createPointObjectProject(identityKey, "en", `Cloud ${label} project`);
+  const saved = await projects.savePointObjectOperation(identityKey, input, `operation-cloud-local-${label}`);
+  assert.equal(saved.status, "saved");
+  if (saved.status !== "saved") throw new Error(`Expected a saved ${label} cloud fixture.`);
+  const remoteArtifact = structuredClone(saved.artifact);
+  const updated = label === "find" && saved.artifact.kind === "find"
+    ? await projects.updatePointObjectFindViewState(identityKey, saved.artifact.artifactId, {
+        shortlist: saved.artifact.payload.session.result.candidates.slice(0, 1),
+        comparisonOpen: false,
+        comparisonView: "results",
+        analysisTargetSourceFeatureId: null
+      })
+    : await projects.updatePointObjectCreateViewState(identityKey, saved.artifact.artifactId, "B");
+  assert.equal(updated.status, "saved");
+  if (updated.status !== "saved") throw new Error(`Expected a local ${label} successor.`);
+  assert.deepEqual(
+    localIntegrity.pointObjectCloudLocalImmutableProjection(updated.artifact),
+    cloudContract.pointObjectCloudImmutableProjection(updated.artifact),
+    `The browser-local ${label} immutable projection must match the current server field-selection contract.`
+  );
+  const storageKey = `geoai:point-to-object:projects:v1:${encodeURIComponent(identityKey)}`;
+  const localBytesBeforeGet = browserLocalStorage.getItem(storageKey);
+  const equalRevisionRemote = { ...structuredClone(remoteArtifact), viewRevision: updated.artifact.viewRevision };
+  assert.equal((await projects.importPointObjectCloudArtifact(identityKey, {
+    projectId: project.projectId, name: project.name, createdAt: project.createdAt
+  }, equalRevisionRemote)).status, "conflict", `Equal ${label} view revisions with different bytes must fail closed.`);
+  const newerRemote = { ...structuredClone(remoteArtifact), viewRevision: updated.artifact.viewRevision + 1 };
+  assert.equal((await projects.importPointObjectCloudArtifact(identityKey, {
+    projectId: project.projectId, name: project.name, createdAt: project.createdAt
+  }, newerRemote)).status, "conflict", `A newer remote ${label} view must fail closed.`);
+  const immutableMismatch = { ...structuredClone(remoteArtifact), label: `${remoteArtifact.label} changed` };
+  assert.equal((await projects.importPointObjectCloudArtifact(identityKey, {
+    projectId: project.projectId, name: project.name, createdAt: project.createdAt
+  }, immutableMismatch)).status, "conflict", `A divergent immutable ${label} result must fail closed.`);
+  const equalRevisionImmutableMismatch = { ...structuredClone(updated.artifact), label: `${updated.artifact.label} changed` };
+  assert.equal((await projects.importPointObjectCloudArtifact(identityKey, {
+    projectId: project.projectId, name: project.name, createdAt: project.createdAt
+  }, equalRevisionImmutableMismatch)).status, "conflict", `Equal-revision ${label} immutable differences must not replay.`);
+  assert.equal(browserLocalStorage.getItem(storageKey), localBytesBeforeGet,
+    `Rejected ${label} remote candidates must preserve every local byte.`);
+  let putCount = 0;
+  const successorSession = cloud.createPointObjectCloudSyncSession({
+    identityKey,
+    importArtifact: projects.importPointObjectCloudArtifact,
+    fetcher: async (_url: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === "GET") return okPage([{
+        cloudRevision: 7,
+        localProject: { projectId: project.projectId, name: project.name, createdAt: project.createdAt },
+        artifact: remoteArtifact
+      }], null);
+      putCount += 1;
+      const body = JSON.parse(String(init?.body)) as {
+        localProject: { projectId: string };
+        artifact: SavedPointObjectArtifact;
+        expectedCloudRevision: number | null;
+      };
+      assert.equal(body.localProject.projectId, project.projectId);
+      assert.equal(body.artifact.artifactId, updated.artifact.artifactId);
+      assert.equal(body.artifact.viewRevision, remoteArtifact.viewRevision + 1);
+      assert.equal(body.expectedCloudRevision, 7, "The GET cloud revision must remain the CAS base for the explicit update.");
+      return new Response(JSON.stringify({
+        ok: true,
+        persisted: true,
+        storageMode: "authenticated_supabase_preview",
+        outcome: "updated",
+        cloudRevision: 8,
+        payloadHash: body.artifact.payloadHash,
+        immutableHash: "b".repeat(64)
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+  });
+  assert.equal(await successorSession.start(), "ready", `An older same-immutable ${label} cloud view must allow explicit save.`);
+  assert.equal(browserLocalStorage.getItem(storageKey), localBytesBeforeGet, "GET must preserve the newer local bytes exactly.");
+  const currentProject = (await projects.readVerifiedPointObjectProjects(identityKey)).store?.projects.find(
+    (candidate: { projectId: string }) => candidate.projectId === project.projectId
+  );
+  assert.ok(currentProject);
+  const currentArtifact = currentProject.artifacts.find((candidate: SavedPointObjectArtifact) => candidate.artifactId === updated.artifact.artifactId);
+  assert.ok(currentArtifact);
+  const result = await successorSession.persist(
+    { projectId: currentProject.projectId, name: currentProject.name, createdAt: currentProject.createdAt },
+    currentArtifact
+  );
+  assert.equal(result.status, "saved");
+  assert.equal(putCount, 1);
+  assert.equal(browserLocalStorage.getItem(storageKey), localBytesBeforeGet, "Explicit cloud save must not rewrite local project bytes.");
+  successorSession.close();
+}
+
+await exerciseRealLocalSuccessor(operation, "find");
+await exerciseRealLocalSuccessor(createOperation, "create");
+
+console.log("Point-object cloud client checks passed (strict pages/origins, additive order, real Find/Create local-successor CAS, fail-closed conflicts/errors, identity abort).");

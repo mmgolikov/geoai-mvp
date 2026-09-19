@@ -42,9 +42,9 @@ export type PointObjectCloudPutResult =
   | { status: "conflict"; reason: PointObjectCloudConflictReason | null; cloudRevision: number | null }
   | { status: Exclude<PointObjectCloudAvailability, "ready"> };
 
-export type PointObjectCloudImportOutcome = "imported" | "replayed" | "conflict" | "capacity" | "failed";
+export type PointObjectCloudImportOutcome = "imported" | "replayed" | "local_newer" | "conflict" | "capacity" | "failed";
 
-export type PointObjectCloudSyncStatus = PointObjectCloudAvailability | "idle" | "syncing" | "conflict";
+export type PointObjectCloudSyncStatus = PointObjectCloudAvailability | "idle" | "syncing" | "conflict" | "capacity";
 
 type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
@@ -211,7 +211,7 @@ export function createPointObjectCloudSyncSession(input: PointObjectCloudSyncSes
   const revisions = new Map<string, number>();
   let closed = false;
   let status: PointObjectCloudSyncStatus = "syncing";
-  let started: Promise<PointObjectCloudAvailability | "conflict"> | null = null;
+  let started: Promise<PointObjectCloudAvailability | "conflict" | "capacity"> | null = null;
   let uploadQueue: Promise<void> = Promise.resolve();
   let writesBlocked = false;
 
@@ -234,7 +234,7 @@ export function createPointObjectCloudSyncSession(input: PointObjectCloudSyncSes
           return listed.status;
         }
         for (const item of listed.items) revisions.set(item.artifact.artifactId, item.cloudRevision);
-        let hasConflict = false;
+        let importFailure: "conflict" | "capacity" | "failed" | null = null;
         // Server pages are newest-first. Additive local imports prepend, so
         // replay oldest-first to retain newest-first local artifact ordering.
         const ordered = [...listed.items].sort((left, right) =>
@@ -244,11 +244,14 @@ export function createPointObjectCloudSyncSession(input: PointObjectCloudSyncSes
           if (closed) return "aborted" as const;
           const imported = await input.importArtifact(input.identityKey, item.localProject, item.artifact);
           if (closed) return "aborted" as const;
-          if (imported.status === "conflict" || imported.status === "capacity" || imported.status === "failed") hasConflict = true;
+          if (imported.status === "failed") importFailure = "failed";
+          else if (imported.status === "capacity" && importFailure !== "failed") importFailure = "capacity";
+          else if (imported.status === "conflict" && importFailure === null) importFailure = "conflict";
         }
-        writesBlocked = hasConflict;
-        setStatus(hasConflict ? "conflict" : "ready");
-        return hasConflict ? "conflict" as const : "ready" as const;
+        writesBlocked = importFailure !== null;
+        const importStatus: "ready" | "conflict" | "capacity" | "failed" = importFailure ?? "ready";
+        setStatus(importStatus);
+        return importStatus;
       } catch (error) {
         if (closed || controller.signal.aborted || (error instanceof DOMException && error.name === "AbortError")) return "aborted" as const;
         writesBlocked = true;

@@ -10,6 +10,10 @@ import {
   type SavedPointObjectArtifact,
   type SavedPointObjectProject
 } from "@/src/lib/prototype/point-object-projects-contract";
+import {
+  pointObjectCloudLocalArtifactEqual,
+  pointObjectCloudLocalImmutableEqual
+} from "@/src/lib/prototype/point-object-cloud-local-integrity";
 import { parsePointObjectFindSessionState } from "@/src/lib/prototype/point-to-object-find-session";
 import type { PointObjectLocale } from "@/src/lib/prototype/point-to-object-markets";
 import type { GeoAIUser } from "@/src/types/auth";
@@ -95,7 +99,7 @@ export type PointObjectCloudImportProject = {
 };
 
 export type PointObjectCloudImportResult =
-  | { status: "imported" | "replayed"; project: SavedPointObjectProject; artifact: SavedPointObjectArtifact }
+  | { status: "imported" | "replayed" | "local_newer"; project: SavedPointObjectProject; artifact: SavedPointObjectArtifact }
   | { status: "conflict" | "capacity" | "failed"; code: PointObjectProjectFailureCode; message: string };
 
 type PendingOperation = {
@@ -234,8 +238,9 @@ function enqueueIdentityOperation<T>(identityKey: PointObjectProjectIdentity, op
 
 /**
  * Adds one integrity-verified cloud artifact to its original browser-local
- * project. Existing bytes are never replaced: identical receipts replay,
- * while ID/hash/revision or project-origin differences fail as conflicts.
+ * project. Existing bytes are never replaced: identical receipts replay, a
+ * verified same-immutable local view one revision ahead stays eligible for an
+ * explicit CAS save, and every other difference remains a conflict.
  */
 export function importPointObjectCloudArtifact(
   identityKey: PointObjectProjectIdentity,
@@ -266,12 +271,17 @@ export function importPointObjectCloudArtifact(
         const matches = snapshot.store.projects.flatMap((project) => project.artifacts.map((artifact) => ({ project, artifact })))
           .filter(({ artifact }) => artifact.artifactId === parsedArtifact.artifactId || artifact.idempotencyKey === parsedArtifact.idempotencyKey);
         if (matches.length > 0) {
-          const exact = matches.length === 1 && matches[0].artifact.artifactId === parsedArtifact.artifactId &&
-            matches[0].artifact.idempotencyKey === parsedArtifact.idempotencyKey && matches[0].artifact.payloadHash === parsedArtifact.payloadHash &&
-            matches[0].artifact.viewRevision === parsedArtifact.viewRevision && matches[0].project.projectId === projectId &&
-            matches[0].project.createdAt === projectCreatedAt;
-          return exact
-            ? { status: "replayed", project: matches[0].project, artifact: matches[0].artifact }
+          const match = matches[0];
+          const sameIdentity = matches.length === 1 && match.artifact.artifactId === parsedArtifact.artifactId &&
+            match.artifact.idempotencyKey === parsedArtifact.idempotencyKey && match.project.projectId === projectId &&
+            match.project.createdAt === projectCreatedAt;
+          const exact = sameIdentity && pointObjectCloudLocalArtifactEqual(match.artifact, parsedArtifact);
+          if (exact) return { status: "replayed", project: match.project, artifact: match.artifact };
+          const validLocalSuccessor = sameIdentity && (match.artifact.kind === "find" || match.artifact.kind === "create") &&
+            match.artifact.kind === parsedArtifact.kind && match.artifact.viewRevision === parsedArtifact.viewRevision + 1 &&
+            pointObjectCloudLocalImmutableEqual(match.artifact, parsedArtifact);
+          return validLocalSuccessor
+            ? { status: "local_newer", project: match.project, artifact: match.artifact }
             : { status: "conflict", code: "idempotency_conflict", message: "Cloud sync conflict: the local receipt has different immutable bytes, revision or project origin." };
         }
         const existingProject = snapshot.store.projects.find((project) => project.projectId === projectId);

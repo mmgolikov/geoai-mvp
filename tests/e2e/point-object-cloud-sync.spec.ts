@@ -21,8 +21,8 @@ function canonical(value: unknown): string {
   return JSON.stringify(value);
 }
 
-function fixtureArtifact() {
-  const timestamp = "2026-09-18T10:01:00.000Z";
+function fixtureArtifact(index = 1, label = "Cloud alpha result") {
+  const timestamp = `2026-09-18T10:0${index}:00.000Z`;
   const input = {
     kind: "find",
     locale: "en",
@@ -47,13 +47,13 @@ function fixtureArtifact() {
           mode: "results",
           criteria: { marketKey: "dubai", locale: "en", bounds: [55.26, 25.19, 55.28, 25.21], group: "construction", mappedMinimumLevels: null, mappedMaximumLevels: null, limit: 12 },
           candidates: [{
-            sourceFeatureId: "way/7001", sourceElementType: "way", sourceElementId: "7001", label: "Cloud site", name: "Cloud site",
-            longitude: 55.27, latitude: 25.2, group: "construction", matchedTag: { key: "landuse", value: "construction" },
-            mappedBuildingLevels: null, observedTags: { landuse: "construction", name: "Cloud site" }, evidenceClass: "observed_in_open_map_source"
+            sourceFeatureId: `way/700${index}`, sourceElementType: "way", sourceElementId: `700${index}`, label, name: label,
+            longitude: 55.27 + index / 10_000, latitude: 25.2, group: "construction", matchedTag: { key: "landuse", value: "construction" },
+            mappedBuildingLevels: null, observedTags: { landuse: "construction", name: label }, evidenceClass: "observed_in_open_map_source"
           }],
           ordering: "source_identity_ascending_not_ranked",
           coverage: { kind: "bounded_open_map_sample", approximateAreaSqKm: 4.47, upstreamElementCount: 1, normalizedCandidateCount: 1, returnedCandidateCount: 1, upstreamQueryLimit: 80, capReached: false, completeInventory: false, mappedLevelsPolicy: "not_requested" },
-          source: { name: "OpenStreetMap", service: "Overpass API", sourceResponseHash: "7".repeat(64), observedAt: null, acquiredAt: timestamp, freshness: "runtime_response_feature_time_unavailable", licenceId: "ODbL-1.0", attribution: "© OpenStreetMap contributors", licenceUrl: "https://www.openstreetmap.org/copyright", usagePolicyUrl: "https://dev.overpass-api.de/overpass-doc/en/preface/commons.html", officialStatus: "open_context_not_official", runtimeNetworkUsed: true, persistenceUsed: false },
+          source: { name: "OpenStreetMap", service: "Overpass API", sourceResponseHash: String(index + 6).repeat(64), observedAt: null, acquiredAt: timestamp, freshness: "runtime_response_feature_time_unavailable", licenceId: "ODbL-1.0", attribution: "© OpenStreetMap contributors", licenceUrl: "https://www.openstreetmap.org/copyright", usagePolicyUrl: "https://dev.overpass-api.de/overpass-doc/en/preface/commons.html", officialStatus: "open_context_not_official", runtimeNetworkUsed: true, persistenceUsed: false },
           limitations: ["Cloud browser fixture."],
           caveat
         }
@@ -62,10 +62,10 @@ function fixtureArtifact() {
   };
   return {
     ...input,
-    label: "Selected cloud project result",
+    label,
     schemaVersion: 1,
-    artifactId: "artifact-cloud-browser-1",
-    idempotencyKey: "operation-cloud-browser-1",
+    artifactId: `artifact-cloud-browser-${index}`,
+    idempotencyKey: `operation-cloud-browser-${index}`,
     payloadHash: createHash("sha256").update(canonical(input)).digest("hex"),
     completedAt: timestamp,
     updatedAt: timestamp,
@@ -80,15 +80,21 @@ function fixtureProject(name = "Selected cloud project") {
     name,
     storageMode: "browser_local_on_this_device",
     createdAt: "2026-09-18T09:00:00.000Z",
-    updatedAt: "2026-09-18T10:01:00.000Z",
-    artifacts: [fixtureArtifact()]
+    updatedAt: "2026-09-18T10:02:00.000Z",
+    artifacts: [fixtureArtifact(2, "Cloud beta result"), fixtureArtifact(1, "Cloud alpha result")]
   };
 }
 
 function fixtureStore(userId = primaryUserId, name = "Selected cloud project") {
   const identityKey = `user:${userId}`;
   const project = fixtureProject(name);
-  return { schemaVersion: 1, identityKey, activeProjectId: project.projectId, projects: [project] };
+  const unrelated = {
+    ...fixtureProject("Unrelated local project"),
+    projectId: "project-cloud-browser-unrelated",
+    createdAt: "2026-09-18T08:00:00.000Z",
+    artifacts: [fixtureArtifact(3, "Unrelated gamma result")]
+  };
+  return { schemaVersion: 1, identityKey, activeProjectId: project.projectId, projects: [project, unrelated] };
 }
 
 function projectStorageKey(userId: string) {
@@ -244,8 +250,10 @@ test("demo/anonymous Project Hub never calls the cloud artifact route", async ({
 test("explicit Save to cloud is the only PUT and a clean second context imports additively", async ({ browser }, testInfo) => {
   test.skip(!isAuthenticatedRun(testInfo), "Requires the local authenticated cloud harness.");
   const baseURL = String(testInfo.project.use.baseURL);
-  let remoteItem: { cloudRevision: number; localProject: unknown; artifact: unknown } | null = null;
+  const remoteItems: Array<{ cloudRevision: number; localProject: unknown; artifact: unknown }> = [];
   const methods: string[] = [];
+  const putArtifactIds: string[] = [];
+  const putProjectIds: string[] = [];
 
   const firstContext = await browser.newContext({ baseURL });
   await installAuthenticatedCookie(firstContext, baseURL, primaryUserId);
@@ -254,9 +262,14 @@ test("explicit Save to cloud is the only PUT and a clean second context imports 
   await firstPage.route(`**${cloudPath}**`, async (route) => {
     const method = route.request().method();
     methods.push(method);
-    if (method === "GET") return fulfillCloudList(route, remoteItem ? [remoteItem] : []);
-    const body = route.request().postDataJSON() as { localProject: unknown; artifact: unknown };
-    remoteItem = { cloudRevision: 1, localProject: body.localProject, artifact: body.artifact };
+    if (method === "GET") return fulfillCloudList(route, remoteItems);
+    const body = route.request().postDataJSON() as {
+      localProject: { projectId: string };
+      artifact: { artifactId: string; payloadHash: string };
+    };
+    putArtifactIds.push(body.artifact.artifactId);
+    putProjectIds.push(body.localProject.projectId);
+    remoteItems.push({ cloudRevision: 1, localProject: body.localProject, artifact: body.artifact });
     await route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify({
       ok: true, persisted: true, storageMode: "authenticated_supabase_preview", outcome: "created", cloudRevision: 1,
       payloadHash: (body.artifact as { payloadHash: string }).payloadHash, immutableHash: "b".repeat(64)
@@ -266,12 +279,16 @@ test("explicit Save to cloud is the only PUT and a clean second context imports 
   await expect(firstPage.getByRole("heading", { name: "Project Hub", exact: true })).toBeVisible();
   await expect(firstPage.getByText("Cloud projects are synced to this device.", { exact: true })).toBeVisible();
   expect(methods.filter((method) => method === "PUT")).toHaveLength(0);
+  await firstPage.getByLabel("Search", { exact: true }).fill("Cloud alpha");
+  await expect(firstPage.getByTestId("saved-result-card")).toHaveCount(1);
   const beforeSave = await firstPage.evaluate((storageKey) => localStorage.getItem(storageKey), projectStorageKey(primaryUserId));
   await firstPage.getByRole("button", { name: "Save to cloud", exact: true }).click();
   await expect(firstPage.getByText(/selected project is saved to the protected cloud test environment/i)).toBeVisible();
-  expect(methods.filter((method) => method === "PUT")).toHaveLength(1);
+  expect(methods.filter((method) => method === "PUT")).toHaveLength(2);
+  expect(putArtifactIds).toEqual(["artifact-cloud-browser-1", "artifact-cloud-browser-2"]);
+  expect(putProjectIds).toEqual(["project-cloud-browser-1", "project-cloud-browser-1"]);
   expect(await firstPage.evaluate((storageKey) => localStorage.getItem(storageKey), projectStorageKey(primaryUserId))).toBe(beforeSave);
-  expect(remoteItem).not.toBeNull();
+  expect(remoteItems).toHaveLength(2);
 
   const secondContext = await browser.newContext({ baseURL });
   await installAuthenticatedCookie(secondContext, baseURL, primaryUserId);
@@ -279,14 +296,15 @@ test("explicit Save to cloud is the only PUT and a clean second context imports 
   let secondContextPutCalls = 0;
   await secondPage.route(`**${cloudPath}**`, async (route) => {
     if (route.request().method() === "PUT") secondContextPutCalls += 1;
-    await fulfillCloudList(route, remoteItem ? [remoteItem] : []);
+    await fulfillCloudList(route, remoteItems);
   });
   await secondPage.goto("/projects");
   await expect(secondPage.getByRole("heading", { name: "Selected cloud project", exact: true })).toBeVisible();
-  await expect(secondPage.getByText("Selected cloud project result", { exact: true })).toBeVisible();
+  await expect(secondPage.getByText("Cloud alpha result", { exact: true })).toBeVisible();
+  await expect(secondPage.getByText("Cloud beta result", { exact: true })).toBeVisible();
   const imported = await secondPage.evaluate((storageKey) => localStorage.getItem(storageKey), projectStorageKey(primaryUserId));
   expect(imported).not.toBeNull();
-  expect(JSON.parse(imported!).projects[0].artifacts[0]).toEqual(fixtureArtifact());
+  expect(JSON.parse(imported!).projects).toEqual([fixtureProject()]);
   expect(secondContextPutCalls).toBe(0);
   await secondContext.close();
   await firstContext.close();
