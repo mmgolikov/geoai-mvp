@@ -43,6 +43,7 @@ const serialized = JSON.stringify(failure);
 assert(!serialized.includes(secret));
 assert.equal(hostedPreviewFailureStage(failure), "preview_test_execution_dual_session_isolation");
 assert.deepEqual(parseAuthDiagnostic(serialized, 1), failure);
+assert.equal(hostedPreviewFailureStage({ ...failure, testLane: "none" }), "preview_test_execution_none");
 
 const timeout = makeAuthDiagnostic({
   status: "FAIL",
@@ -109,6 +110,7 @@ console.log(JSON.stringify({
   cases: {
     plantedSecretExcluded: 1,
     fixedFailureLane: 1,
+    unknownFailureLaneProjection: 1,
     timeoutProjection: 1,
     discoveryProjection: 1,
     malformedOrProhibitedReports: 8,

@@ -120,7 +120,7 @@ export function parseAuthDiagnostic(stdout, exitStatus) {
 export function hostedPreviewFailureStage(diagnostic) {
   validateAuthDiagnostic(diagnostic, 1);
   if (diagnostic.status !== "FAIL") throw new Error("A PASS diagnostic has no hosted failure stage.");
-  if (diagnostic.stage === "test_execution" && diagnostic.testLane !== "none") {
+  if (diagnostic.stage === "test_execution") {
     return `preview_test_execution_${diagnostic.testLane}`;
   }
   return `preview_${diagnostic.stage}`;

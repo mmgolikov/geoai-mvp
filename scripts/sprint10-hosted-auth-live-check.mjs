@@ -519,6 +519,16 @@ assert.deepEqual(integratedPreviewFailure.receipt.liveJourney,
   { status: "FAIL", stage: "preview_test_execution_primary_continuity" });
 assert.equal(integratedPreviewFailure.counters.live, 0, "a failed Preview must stop before the paid live child");
 assert.equal(integratedPreviewFailure.counters.retire, 2, "a failed Preview must still retire both synthetic personas");
+const integratedPreviewFailureUnknownLane = await runLifecycleFixture(null, "PASS", {
+  status: "failed_existing_reviewed_runner",
+  stage: "preview_test_execution_none"
+});
+assert.equal(integratedPreviewFailureUnknownLane.receipt.status, "FAIL");
+assert.equal(integratedPreviewFailureUnknownLane.receipt.observed.previewHarness, "failed_existing_reviewed_runner");
+assert.deepEqual(integratedPreviewFailureUnknownLane.receipt.liveJourney,
+  { status: "FAIL", stage: "preview_test_execution_none" });
+assert.equal(integratedPreviewFailureUnknownLane.counters.live, 0);
+assert.equal(integratedPreviewFailureUnknownLane.counters.retire, 2);
 for (const faultAt of lifecycleFaults) {
   const outcome = await runLifecycleFixture(faultAt);
   assert.equal(outcome.exit, 1);
