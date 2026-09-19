@@ -334,6 +334,10 @@ if (browserStepStart === -1 || buildStepStart === -1) {
     "npm run test:e2e:auth-session:demo",
     "npm run test:e2e:point-to-object-v5:demo"
   ]) requireText(browserStep, marker, `Browser CI step is missing ${marker}`);
+  // The subsequent Auth suite cleans its own output directory and rewrites its
+  // JUnit report. Product evidence must survive that second Playwright process.
+  const isolatedProductCommand = "PLAYWRIGHT_JUNIT_OUTPUT_FILE=artifacts/point-to-object-product-e2e-junit.xml npm run test:e2e:point-to-object-v5:demo -- --output=artifacts/playwright-point-to-object";
+  requireText(browserStep, isolatedProductCommand, "Product screenshots and JUnit must use distinct uploaded paths so the later Auth suite cannot overwrite them");
   if (browserStep.includes("lighthouse-desktop-login.json")) {
     failures.push("Login Lighthouse must measure the protected optimized login, not an auto-continuing demo page");
   }

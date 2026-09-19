@@ -440,7 +440,7 @@ jobs:
           fi
 
           google-chrome --version | tee artifacts/google-chrome-version.txt
-          npm run test:e2e:point-to-object-v5:demo | tee artifacts/point-to-object-v5-demo-e2e.txt
+          PLAYWRIGHT_JUNIT_OUTPUT_FILE=artifacts/point-to-object-product-e2e-junit.xml npm run test:e2e:point-to-object-v5:demo -- --output=artifacts/playwright-point-to-object | tee artifacts/point-to-object-v5-demo-e2e.txt
           npm run test:e2e:auth-session:demo | tee artifacts/auth-session-demo-e2e.txt
 
       - name: Build
