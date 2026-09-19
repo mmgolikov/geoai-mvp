@@ -116,11 +116,9 @@ function withFirstMappedLevel(value: unknown) {
   return candidate;
 }
 
-assert.equal(isPointObjectAreaContextResult(withFirstMappedLevel(2.55)), false,
-  "The consumer must reject precision beyond the producer's one-decimal grammar.");
-for (const invalidLevel of [0, 300.1, -0.1, -2.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+for (const invalidLevel of [2.55, 0, 200.1, 200.5, 201.5, 299.9, 300.1, -0.1, -2.5, Number.NaN, Number.POSITIVE_INFINITY]) {
   assert.equal(isPointObjectAreaContextResult(withFirstMappedLevel(invalidLevel)), false,
-    `Mapped level must remain finite and within the existing consumer bounds: ${String(invalidLevel)}`);
+    `Mapped level must belong to the producer-decimal or legacy-integer contract: ${String(invalidLevel)}`);
 }
 
 for (let tick = 1; tick <= 2_000; tick += 1) {
@@ -131,16 +129,18 @@ for (let tick = 1; tick <= 2_000; tick += 1) {
     `Every producer-valid one-decimal tick from 0.1 through 200 must pass the consumer: ${producerLevel}`);
 }
 
-for (const boundaryLevel of [0.1, 300]) {
+for (const boundaryLevel of [0.1, 200, 201, 300]) {
   const boundaryResult = withFirstMappedLevel(boundaryLevel);
   boundaryResult.summary.medianMappedLevels = Number(((boundaryLevel + 0.5) / 2).toFixed(1));
   assert.equal(isPointObjectAreaContextResult(boundaryResult), true,
-    `Aligned producer minimum and historical consumer maximum must remain accepted: ${boundaryLevel}`);
+    `Producer and legacy integer boundaries must remain accepted: ${boundaryLevel}`);
 }
-const historicalUpperRangeResult = withFirstMappedLevel(200.1);
-historicalUpperRangeResult.summary.medianMappedLevels = 100.3;
-assert.equal(isPointObjectAreaContextResult(historicalUpperRangeResult), true,
-  "Consumer values above the producer cap through the historical maximum 300 must remain readable for backward compatibility.");
+for (let legacyLevel = 201; legacyLevel <= 300; legacyLevel += 1) {
+  const legacyResult = withFirstMappedLevel(legacyLevel);
+  legacyResult.summary.medianMappedLevels = Number(((legacyLevel + 0.5) / 2).toFixed(1));
+  assert.equal(isPointObjectAreaContextResult(legacyResult), true,
+    `Historical whole-integer mapped levels from 201 through 300 must remain readable: ${legacyLevel}`);
+}
 const nullableLevelResult = withFirstMappedLevel(null);
 nullableLevelResult.summary.mappedLevelsKnownCount = 1;
 nullableLevelResult.summary.medianMappedLevels = 0.5;

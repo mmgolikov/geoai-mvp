@@ -59,6 +59,11 @@ function boundedOneDecimal(value: unknown, minimum: number, maximum: number): va
   return finite(value, minimum, maximum) && Number.isInteger(value * 10);
 }
 
+function mappedBuildingLevelsValue(value: unknown): value is number {
+  // Current producer: positive one-decimal values through 200. Legacy saved consumer data: whole levels through 300.
+  return boundedOneDecimal(value, 0.1, 200) || (finite(value, 201, 300) && Number.isInteger(value));
+}
+
 function isoTimestamp(value: unknown): value is string {
   return typeof value === "string" && Number.isFinite(Date.parse(value));
 }
@@ -80,7 +85,7 @@ export function isPointObjectAreaContextResult(value: unknown): value is PointOb
       /^(?:node|way|relation)\/[1-9]\d{0,19}$/.test(feature.sourceFeatureId) && finite(feature.longitude, -180, 180) &&
       finite(feature.latitude, -90, 90) && typeof feature.label === "string" && Boolean(feature.label.trim()) && feature.label.length <= 240 &&
       typeof feature.group === "string" && AREA_CONTEXT_GROUPS.includes(feature.group as PointObjectAreaContextGroup) &&
-      (feature.mappedBuildingLevels === null || boundedOneDecimal(feature.mappedBuildingLevels, 0.1, 300)) &&
+      (feature.mappedBuildingLevels === null || mappedBuildingLevelsValue(feature.mappedBuildingLevels)) &&
       isRecord(feature.observedTags) && Object.keys(feature.observedTags).length <= 24 && Object.values(feature.observedTags).every((item) => typeof item === "string" && item.length <= 240) &&
       feature.inclusionMethod === "returned_center_inside_aoi")) return false;
   const summary = value.summary;
