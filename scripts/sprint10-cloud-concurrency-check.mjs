@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -21,10 +22,13 @@ const LOCK_POLL_TIMEOUT_MS = 12_000;
 const QUOTA_BYTES = 8_388_608;
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const migrationPath = resolve(root, "supabase/migrations/20260918203424_point_object_project_artifacts_v1.sql");
 const pgtapPath = resolve(root, "supabase/tests/sprint10_point_object_project_artifacts.sql");
 const deactivationPath = resolve(root, "supabase/operator/point_object_project_artifacts_v1_deactivation.sql");
+const migration = readFileSync(migrationPath, "utf8");
 const pgtap = readFileSync(pgtapPath, "utf8");
 const deactivation = readFileSync(deactivationPath, "utf8");
+const migrationSha256 = createHash("sha256").update(migration).digest("hex");
 
 const ids = {
   organization: "98100000-0000-0000-0000-000000000001",
@@ -45,6 +49,8 @@ function sqlLiteral(value) {
 }
 
 function staticContractCheck() {
+  assert(migration.includes("incoming_view_revision > saved.view_revision"), "held migration must accept a monotonic view successor");
+  assert(!migration.includes("incoming_view_revision = saved.view_revision + 1"), "held migration must not retain the one-step-only successor rule");
   for (const token of [
     "create function pg_temp.local_project(",
     "create function pg_temp.artifact(",
@@ -234,6 +240,68 @@ SELECT jsonb_build_object(
   const result = await clone.exit;
   if (result.code !== 0) throw new Error(`fresh clone failed: ${result.combined.slice(-2_000)}`);
   cloneCreated = true;
+}
+
+async function sourceSnapshot(label) {
+  return lastJson(await runSql(label, `
+WITH artifact_rows AS (
+  SELECT count(*) AS rows,
+         md5(coalesce(string_agg(id::text || ':' || artifact_json::text || ':' || immutable_json::text, '|' ORDER BY id), '')) AS digest
+  FROM public.point_object_project_artifacts
+), definitions AS (
+  SELECT md5(pg_get_functiondef('geoai_private.put_point_object_project_artifact(text,jsonb,jsonb,bigint)'::regprocedure)) AS put_digest
+)
+SELECT jsonb_build_object(
+  'database', current_database(),
+  'artifactRows', artifact_rows.rows,
+  'artifactDigest', artifact_rows.digest,
+  'putDefinitionDigest', definitions.put_digest,
+  'scopeDigest', (SELECT md5(to_jsonb(config)::text) FROM geoai_private.point_object_artifact_scope_config config WHERE singleton)
+)::text
+FROM artifact_rows, definitions;
+`, { database: SOURCE_DATABASE, user: ADMIN_USER }));
+}
+
+async function applyHeldMigrationToClone() {
+  await runSql("remove cloned artifact slice before held migration", `
+BEGIN;
+SET LOCAL lock_timeout = '5s';
+SET LOCAL statement_timeout = '60s';
+DROP FUNCTION IF EXISTS api.put_point_object_project_artifact(text, jsonb, jsonb, bigint);
+DROP FUNCTION IF EXISTS api.list_point_object_project_artifacts(text, integer, timestamptz, uuid);
+DROP FUNCTION IF EXISTS geoai_private.put_point_object_project_artifact(text, jsonb, jsonb, bigint);
+DROP FUNCTION IF EXISTS geoai_private.list_point_object_project_artifacts(text, integer, timestamptz, uuid);
+DROP FUNCTION IF EXISTS geoai_private.point_object_artifact_projections(jsonb);
+DROP TABLE IF EXISTS public.point_object_project_artifacts CASCADE;
+DROP TABLE IF EXISTS geoai_private.point_object_artifact_scope_config CASCADE;
+COMMIT;
+`, { user: ADMIN_USER });
+  await runSql("apply latest held point-object artifact migration", migration, { user: ADMIN_USER });
+  const receipt = lastJson(await runSql("latest held migration receipt", `
+SELECT jsonb_build_object(
+  'database', current_database(),
+  'migrationSha256', ${sqlLiteral(migrationSha256)},
+  'migrationBytes', ${Buffer.byteLength(migration, "utf8")},
+  'monotonicPredicate', position('incoming_view_revision > saved.view_revision' in pg_get_functiondef('geoai_private.put_point_object_project_artifact(text,jsonb,jsonb,bigint)'::regprocedure)) > 0,
+  'oneStepPredicateGone', position('incoming_view_revision = saved.view_revision + 1' in pg_get_functiondef('geoai_private.put_point_object_project_artifact(text,jsonb,jsonb,bigint)'::regprocedure)) = 0
+)::text;
+`, { user: ADMIN_USER }));
+  assert.equal(receipt.database, targetDatabase);
+  assert.equal(receipt.migrationSha256, migrationSha256);
+  assert.equal(receipt.monotonicPredicate, true);
+  assert.equal(receipt.oneStepPredicateGone, true);
+  return receipt;
+}
+
+async function runPgTap() {
+  const output = await runSql("62-test point-object artifact pgTAP", pgtap, { user: ADMIN_USER });
+  const lines = output.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const ok = lines.filter((line) => /^ok \d+ - /.test(line));
+  const notOk = lines.filter((line) => /^not ok \d+ - /.test(line));
+  assert(lines.includes("1..62"), `pgTAP plan missing: ${lines.slice(-20).join(" | ")}`);
+  assert.equal(ok.length, 62, `expected 62 passing pgTAP assertions, received ${ok.length}`);
+  assert.equal(notOk.length, 0, `pgTAP failures: ${notOk.join(" | ")}`);
+  return { planned: 62, passed: ok.length, failed: notOk.length };
 }
 
 async function assertFreshClone() {
@@ -579,8 +647,11 @@ async function main() {
   assert.equal(process.env[CONFIRM_ENV], `clone-from-${SOURCE_DATABASE}:${targetDatabase}`, `${CONFIRM_ENV} is missing or does not bind the exact source and target`);
 
   const startedAt = new Date().toISOString();
+  const sourceBefore = await sourceSnapshot("source preservation snapshot before clone");
   await cloneFreshTarget();
+  const migrationReceipt = await applyHeldMigrationToClone();
   const freshClone = await assertFreshClone();
+  const pgTap = await runPgTap();
   await setupFixture();
   await prefillCountQuota();
   const byteFixture = await prefillByteQuota();
@@ -635,6 +706,8 @@ async function main() {
   const deadlocksAfter = Number(await runSql("deadlock final", "SELECT deadlocks FROM pg_stat_database WHERE datname = current_database();"));
   assert.equal(deadlocksAfter, deadlocksBefore, "deadlock counter changed");
   const deactivationEvidence = await deactivateTwiceAndVerify();
+  const sourceAfter = await sourceSnapshot("source preservation snapshot after acceptance");
+  assert.deepEqual(sourceAfter, sourceBefore, "preserved source database changed during local acceptance");
 
   console.log(JSON.stringify({
     status: "PASS",
@@ -646,6 +719,11 @@ async function main() {
     startedAt,
     completedAt: new Date().toISOString(),
     environment: { dockerHost: DOCKER_HOST, container: CONTAINER, network: "none", transport: "unix_socket", postgres: "17.6" },
+    sourceBefore,
+    sourceAfter,
+    sourceSnapshotUnchanged: true,
+    heldMigration: migrationReceipt,
+    pgTap,
     freshClone,
     byteBoundary: byteFixture.boundary,
     deadlocksBefore,
