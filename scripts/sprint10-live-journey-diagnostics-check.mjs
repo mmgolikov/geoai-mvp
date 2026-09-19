@@ -5,6 +5,8 @@ import { readFileSync } from "node:fs";
 
 import {
   LIVE_JOURNEY_DIAGNOSTIC_SCHEMA,
+  LIVE_JOURNEY_STEPS,
+  boundedLiveJourneyResponseJson,
   encodeLiveJourneyDiagnostic,
   findLiveJourneyDiagnostic,
   parseLiveJourneyDiagnostic,
@@ -26,8 +28,75 @@ assert.doesNotMatch(classifierSource, /spawnSync|reserveSprint10Spend|dispatchSp
   "diagnostic classification must be incapable of dispatching or retrying a paid request");
 assert.match(liveSpecSource, /fetch\("\/api\/auth\/session", \{[\s\S]*?signal: AbortSignal[.]timeout\(10_000\)/,
   "logout session reads must be bounded inside the browser callback");
-assert.match(liveSpecSource, /boundedResponseJson\(response, 10_000\)/,
+assert.match(liveSpecSource, /boundedLiveJourneyResponseJson\(response, 10_000\)/,
   "logout response-body reads must be bounded and mapped to a fixed cleanup stage");
+assert.match(liveSpecSource, /boundedLiveJourneyResponseJson\(suggested, 10_000\)/,
+  "source suggestion response-body reads must be bounded");
+assert.match(liveSpecSource, /boundedLiveJourneyResponseJson\(contextResponse, 10_000\)/,
+  "area-context response-body reads must be bounded");
+assert.match(liveSpecSource, /isPointObjectAreaContextResult\(contextPayload\)/,
+  "area-context acceptance must use the production UI validator");
+assert.match(liveSpecSource, /submitted\.marketKey === input\.marketKey[\s\S]*?submitted\.query === input\.query/,
+  "source suggestion acceptance must correlate the exact market and query");
+assert.match(liveSpecSource, /suggested\.request\(\) === request[\s\S]*?exactObjectKeys\(responseSubmitted, \["locale", "marketKey", "query"\]\)[\s\S]*?JSON\.stringify\(\[responseSubmitted\.marketKey, responseSubmitted\.locale, responseSubmitted\.query\]\)/,
+  "source suggestion acceptance must bind the response to the observed request and its canonical payload");
+assert.match(liveSpecSource, /contextPayload\.request\.marketKey === input\.marketKey[\s\S]*?contextPayload\.request\.locale === "en"[\s\S]*?JSON\.stringify\(contextPayload\.request\.aoiCoordinates\) === JSON\.stringify\(input\.coordinates\)/,
+  "area-context acceptance must correlate the exact market, locale and AOI");
+assert.match(liveSpecSource, /contextResponse\.request\(\) === contextRequest[\s\S]*?exactObjectKeys\(responseSubmittedContext, \["aoiCoordinates", "locale", "marketKey"\]\)/,
+  "area-context acceptance must bind the response to the observed request and its exact payload keys");
+assert.match(liveSpecSource, /locator\("xpath=ancestor::section\[1\]"\)/,
+  "Create UI acceptance must target only the nearest containing section");
+assert.match(liveSpecSource, /areaContextSection\.getByText\("Mapped objects", \{ exact: true \}\)/,
+  "Create must prove that the UI accepted the validated area-context result before paid generation");
+assert.match(liveSpecSource, /query: "Marina Bay Sands Tower 1"[\s\S]*?candidateLabel: \/marina bay sands\.\*tower 1\/i/,
+  "Singapore Analyse must retain its fixed query and exact candidate identity rule");
+
+const sourceDiagnosticStages = [
+  "analyse_source_suggest_ui",
+  "analyse_source_suggest_request",
+  "analyse_source_suggest_response",
+  "analyse_source_suggest_http",
+  "analyse_source_suggest_body",
+  "analyse_source_suggest_contract",
+  "analyse_source_suggest_correlation",
+  "analyse_source_suggest_candidate",
+  "create_source_context_ui",
+  "create_source_context_request",
+  "create_source_context_response",
+  "create_source_context_http",
+  "create_source_context_body",
+  "create_source_context_contract",
+  "create_source_context_correlation",
+  "create_source_context_ui_acceptance"
+];
+for (const primaryStage of sourceDiagnosticStages) {
+  assert.ok(LIVE_JOURNEY_STEPS.includes(primaryStage), `${primaryStage} must be a fixed diagnostic stage`);
+  const parsed = parseLiveJourneyDiagnostic({
+    schemaVersion: LIVE_JOURNEY_DIAGNOSTIC_SCHEMA,
+    primaryStatus: "failed",
+    primaryStage,
+    cleanupStage: null,
+    completedSteps: []
+  });
+  assert.equal(parsed.primaryStage, primaryStage);
+  assert.match(liveSpecSource, new RegExp(`progress[.]start\\("${primaryStage}"\\)`),
+    `${primaryStage} must be emitted by the live spec`);
+}
+assert.ok(LIVE_JOURNEY_STEPS.includes("analyse_source_suggest") && LIVE_JOURNEY_STEPS.includes("create_source_context"),
+  "legacy v1 broad source stages must remain parseable");
+
+const boundedFixturePayload = { mode: "results", count: 1 };
+assert.deepEqual(await boundedLiveJourneyResponseJson({
+  json: async () => boundedFixturePayload
+}, 100), boundedFixturePayload, "the bounded response reader must return a successful JSON body");
+await assert.rejects(() => boundedLiveJourneyResponseJson({
+  json: async () => { throw new Error("fixture body rejection"); }
+}, 100), /fixture body rejection/, "the bounded response reader must preserve a body rejection for stage-only classification");
+await assert.rejects(() => boundedLiveJourneyResponseJson({
+  json: () => new Promise(() => undefined)
+}, 10), /Bounded response-body read expired/,
+"the bounded response reader must reject a body that does not settle before its deadline");
+
 const completedSteps = [
   "anonymous_protection",
   "exact_preview",
@@ -148,6 +217,7 @@ console.log(JSON.stringify({
     inconclusiveOnly: 1,
     cleanupOnly: 1,
     malformedDiagnosticsRejected: 6,
+    boundedResponseReaderCases: 3,
     rawSecretNotForwarded: 1,
     zeroAdditionalPaidDispatch: paidDispatches,
     legacyRunnerShapes: 3

@@ -5,7 +5,16 @@ export const LIVE_JOURNEY_STEPS = Object.freeze([
   "anonymous_protection",
   "exact_preview",
   "auth_login",
+  // Retained for strict parsing of already-issued v1 receipts. New runs use the fixed substages below.
   "analyse_source_suggest",
+  "analyse_source_suggest_ui",
+  "analyse_source_suggest_request",
+  "analyse_source_suggest_response",
+  "analyse_source_suggest_http",
+  "analyse_source_suggest_body",
+  "analyse_source_suggest_contract",
+  "analyse_source_suggest_correlation",
+  "analyse_source_suggest_candidate",
   "analyse_source_context",
   "analyse_paid_response",
   "analyse_paid_terminal",
@@ -18,7 +27,16 @@ export const LIVE_JOURNEY_STEPS = Object.freeze([
   "find_compare",
   "find_local_save",
   "find_local_reopen",
+  // Retained for strict parsing of already-issued v1 receipts. New runs use the fixed substages below.
   "create_source_context",
+  "create_source_context_ui",
+  "create_source_context_request",
+  "create_source_context_response",
+  "create_source_context_http",
+  "create_source_context_body",
+  "create_source_context_contract",
+  "create_source_context_correlation",
+  "create_source_context_ui_acceptance",
   "create_paid_response",
   "create_paid_terminal",
   "create_result_contract",
@@ -84,6 +102,23 @@ export function encodeLiveJourneyDiagnostic(value) {
 export function primaryAfterFinalizeFailure(primaryStatus, primaryStage) {
   if (primaryStatus === "failed") return { primaryStatus, primaryStage };
   return { primaryStatus: "failed", primaryStage: "paid_finalize" };
+}
+
+export async function boundedLiveJourneyResponseJson(response, timeoutMs) {
+  if (!response || typeof response.json !== "function" || !Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 60_000) {
+    throw new Error("The bounded live response reader configuration is invalid.");
+  }
+  let timeout;
+  try {
+    return await Promise.race([
+      response.json(),
+      new Promise((_resolve, reject) => {
+        timeout = setTimeout(() => reject(new Error("Bounded response-body read expired.")), timeoutMs);
+      })
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
 }
 
 export function findLiveJourneyDiagnostic(value) {

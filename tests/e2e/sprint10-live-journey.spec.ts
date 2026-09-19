@@ -4,11 +4,15 @@ import { readFileSync } from "node:fs";
 import {
   expect,
   test,
+  type Locator,
   type Page,
   type Request,
   type Response,
   type Route
 } from "@playwright/test";
+
+import { isPointObjectAreaContextResult } from "../../src/lib/prototype/point-to-object-create-result";
+import { coordinatesMatchPointObjectMarket, type PointObjectMarketKey } from "../../src/lib/prototype/point-to-object-markets";
 
 import {
   SPRINT10_ANALYSIS_PROMPT_VERSION,
@@ -39,7 +43,7 @@ import {
   writeSprint10AnalysisResultEvidence
 } from "./helpers/sprint10-analysis-result-evidence";
 // @ts-expect-error The diagnostics module is an operator-only JavaScript contract checked by its offline suite.
-import { LIVE_JOURNEY_CLEANUP_STAGES, LIVE_JOURNEY_STEPS, encodeLiveJourneyDiagnostic, primaryAfterFinalizeFailure } from "../../scripts/sprint10-live-journey-diagnostics.mjs";
+import { LIVE_JOURNEY_CLEANUP_STAGES, LIVE_JOURNEY_STEPS, boundedLiveJourneyResponseJson, encodeLiveJourneyDiagnostic, primaryAfterFinalizeFailure } from "../../scripts/sprint10-live-journey-diagnostics.mjs";
 
 test.use({ trace: "off", screenshot: "off", video: "off", serviceWorkers: "block" });
 test.describe.configure({ mode: "serial", retries: 0 });
@@ -113,6 +117,10 @@ function required(name: string): string {
 
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function exactObjectKeys(value: unknown, keys: readonly string[]): value is Record<string, unknown> {
+  return record(value) && Object.keys(value).sort().join("\u0000") === [...keys].sort().join("\u0000");
 }
 
 function isoTimestamp(value: unknown): value is string {
@@ -492,18 +500,101 @@ async function browserSessionState(page: Page, expectedUserId: string) {
   }, expectedUserId);
 }
 
-async function boundedResponseJson(response: Response, timeoutMs: number): Promise<unknown> {
-  let timeout: ReturnType<typeof setTimeout> | undefined;
-  try {
-    return await Promise.race([
-      response.json(),
-      new Promise<never>((_resolve, reject) => {
-        timeout = setTimeout(() => reject(new Error("Bounded response-body read expired.")), timeoutMs);
-      })
-    ]);
-  } finally {
-    if (timeout) clearTimeout(timeout);
-  }
+type LiveAnalyseSuggestionCase = {
+  marketKey: PointObjectMarketKey;
+  query: string;
+  enterQuery: (search: Locator) => Promise<void>;
+  candidateLabel: RegExp;
+  label: string;
+};
+
+type LiveAnalyseSuggestion = {
+  chosen: Record<string, unknown> & { id: string; label: string; longitude: number; latitude: number };
+  chosenIndex: number;
+};
+
+async function runAnalyseSourceSuggest(
+  page: Page,
+  input: LiveAnalyseSuggestionCase,
+  progress: LiveProgress
+): Promise<LiveAnalyseSuggestion> {
+  progress.start("analyse_source_suggest_ui");
+  await page.goto("/prototype/point-to-object");
+  await page.getByTestId("point-object-city-select").selectOption(input.marketKey);
+  const search = page.getByRole("combobox", { name: "Search address or place" });
+  await expect(search).toBeVisible();
+  progress.complete("analyse_source_suggest_ui");
+
+  progress.start("analyse_source_suggest_request");
+  const requestPromise = page.waitForRequest((request) =>
+    request.method() === "POST" && new URL(request.url()).pathname === "/api/prototype/point-to-object/suggest", { timeout: 30_000 });
+  const responsePromise = page.waitForResponse((response) =>
+    response.request().method() === "POST" && new URL(response.url()).pathname === "/api/prototype/point-to-object/suggest", { timeout: 30_000 });
+  void responsePromise.catch(() => undefined);
+  await input.enterQuery(search);
+  const request = await requestPromise;
+  const submitted: unknown = request.postDataJSON();
+  progress.complete("analyse_source_suggest_request");
+
+  progress.start("analyse_source_suggest_response");
+  const suggested = await responsePromise;
+  progress.complete("analyse_source_suggest_response");
+
+  progress.start("analyse_source_suggest_http");
+  guard(suggested.status() === 200, `The ${input.label} source suggestion did not return HTTP 200.`);
+  progress.complete("analyse_source_suggest_http");
+
+  progress.start("analyse_source_suggest_body");
+  const suggestionPayload: unknown = await boundedLiveJourneyResponseJson(suggested, 10_000);
+  progress.complete("analyse_source_suggest_body");
+
+  progress.start("analyse_source_suggest_contract");
+  guard(record(suggestionPayload) && suggestionPayload.protocol === "POINT_TO_OBJECT_001_AUTOCOMPLETE_V1" &&
+    suggestionPayload.mode === "results" && suggestionPayload.provider === "Photon" && record(suggestionPayload.source) &&
+    suggestionPayload.source.attribution === "© OpenStreetMap contributors" && suggestionPayload.source.licenceId === "ODbL-1.0" &&
+    suggestionPayload.source.licenceUrl === "https://www.openstreetmap.org/copyright" &&
+    suggestionPayload.source.serviceUrl === "https://photon.komoot.io/" &&
+    suggestionPayload.source.officialStatus === "open_context_not_official" && Array.isArray(suggestionPayload.results) &&
+    suggestionPayload.results.length > 0 && suggestionPayload.results.length <= 5 &&
+    suggestionPayload.results.every((candidate) => record(candidate) && typeof candidate.id === "string" &&
+      /^(node|way|relation)\/[1-9]\d{0,19}$/.test(candidate.id) && typeof candidate.label === "string" &&
+      candidate.label.trim().length > 0 && typeof candidate.longitude === "number" && Number.isFinite(candidate.longitude) &&
+      typeof candidate.latitude === "number" && Number.isFinite(candidate.latitude)),
+  `The ${input.label} source suggestion did not return accepted Photon/OSM evidence.`);
+  const resultRecords = suggestionPayload.results as Array<Record<string, unknown>>;
+  guard(new Set(resultRecords.map((candidate) => candidate.id)).size === resultRecords.length,
+    `The ${input.label} source suggestion returned duplicate source identities.`);
+  progress.complete("analyse_source_suggest_contract");
+
+  progress.start("analyse_source_suggest_correlation");
+  const responseSubmitted: unknown = suggested.request().postDataJSON();
+  guard(suggested.request() === request &&
+    exactObjectKeys(submitted, ["locale", "marketKey", "query"]) &&
+    exactObjectKeys(responseSubmitted, ["locale", "marketKey", "query"]) &&
+    JSON.stringify([responseSubmitted.marketKey, responseSubmitted.locale, responseSubmitted.query]) ===
+      JSON.stringify([submitted.marketKey, submitted.locale, submitted.query]) &&
+    submitted.marketKey === input.marketKey && submitted.locale === "en" && submitted.query === input.query &&
+    resultRecords.every((candidate) => coordinatesMatchPointObjectMarket(
+      input.marketKey,
+      Number(candidate.longitude),
+      Number(candidate.latitude)
+    )), `The ${input.label} suggestion request/result was not correlated to the exact market and query.`);
+  progress.complete("analyse_source_suggest_correlation");
+
+  progress.start("analyse_source_suggest_candidate");
+  const chosenIndex = resultRecords.findIndex((candidate) => input.candidateLabel.test(String(candidate.label)));
+  const chosen = chosenIndex >= 0 ? resultRecords[chosenIndex] : undefined;
+  guard(chosen && typeof chosen.id === "string" && /^(node|way|relation)\/[1-9]\d{0,19}$/.test(chosen.id) &&
+    typeof chosen.label === "string" && typeof chosen.longitude === "number" && typeof chosen.latitude === "number",
+    `The exact ${input.label} source candidate was not returned; no fallback candidate was used.`);
+  const option = page.locator(`#point-object-search-result-${chosenIndex}`);
+  await expect(option).toBeVisible();
+  await expect(option).toContainText(String(chosen.label));
+  progress.complete("analyse_source_suggest_candidate");
+  return {
+    chosen: chosen as Record<string, unknown> & { id: string; label: string; longitude: number; latitude: number },
+    chosenIndex
+  };
 }
 
 async function logoutVerified(page: Page, expectedUserId: string) {
@@ -525,7 +616,7 @@ async function logoutVerified(page: Page, expectedUserId: string) {
     throw new Error("LIVE_JOURNEY_CLEANUP_FAILED: logout_response");
   }
   let payload: unknown;
-  try { payload = await boundedResponseJson(response, 10_000); }
+  try { payload = await boundedLiveJourneyResponseJson(response, 10_000); }
   catch { throw new Error("LIVE_JOURNEY_CLEANUP_FAILED: logout_response"); }
   if (response.status() !== 200 || !record(payload) || payload.ok !== true || payload.status !== "signed_out") {
     throw new Error("LIVE_JOURNEY_CLEANUP_FAILED: logout_response");
@@ -675,25 +766,14 @@ async function reopenSavedArtifact(
 }
 
 async function runDubaiAnalyse(page: Page, configuration: LiveConfiguration, policy: NetworkPolicy, budget: ReturnType<typeof installBudgetGate>, progress: LiveProgress) {
-  progress.start("analyse_source_suggest");
-  await page.goto("/prototype/point-to-object");
-  await page.getByTestId("point-object-city-select").selectOption("dubai");
-  const suggestResponse = page.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/point-to-object/suggest"), { timeout: 30_000 });
-  await page.getByRole("combobox", { name: "Search address or place" }).fill("Shangri-La Dubai");
-  const suggested = await suggestResponse;
-  const suggestionPayload: unknown = await suggested.json();
-  guard(suggested.status() === 200 && record(suggestionPayload) && suggestionPayload.protocol === "POINT_TO_OBJECT_001_AUTOCOMPLETE_V1" &&
-    suggestionPayload.provider === "Photon" && record(suggestionPayload.source) && suggestionPayload.source.licenceId === "ODbL-1.0" &&
-    suggestionPayload.source.officialStatus === "open_context_not_official" && Array.isArray(suggestionPayload.results) && suggestionPayload.results.length > 0,
-  "The Dubai source suggestion did not return accepted Photon/OSM evidence.");
-  const resultRecords = suggestionPayload.results as Array<Record<string, unknown>>;
-  const chosenIndex = resultRecords.findIndex((candidate) => record(candidate) && /shangri/i.test(String(candidate.label)));
-  const chosen = chosenIndex >= 0 ? resultRecords[chosenIndex] : undefined;
-  guard(chosen && typeof chosen.id === "string" && /^(node|way|relation)\/[1-9]\d{0,19}$/.test(chosen.id),
-    "The exact Dubai source candidate was not returned; no fallback candidate was used.");
-  progress.complete("analyse_source_suggest");
+  const { chosen, chosenIndex } = await runAnalyseSourceSuggest(page, {
+    marketKey: "dubai",
+    query: "Shangri-La Dubai",
+    enterQuery: (search) => search.fill("Shangri-La Dubai"),
+    candidateLabel: /shangri/i,
+    label: "Dubai"
+  }, progress);
   const option = page.locator(`#point-object-search-result-${chosenIndex}`);
-  await expect(option).toBeVisible();
   progress.start("analyse_source_context");
   const contextResponse = page.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/point-to-object/context"), { timeout: 45_000 });
   await option.click();
@@ -763,25 +843,14 @@ async function runDubaiAnalyse(page: Page, configuration: LiveConfiguration, pol
 }
 
 async function runSingaporeAnalyse(page: Page, configuration: LiveConfiguration, policy: NetworkPolicy, budget: ReturnType<typeof installBudgetGate>, progress: LiveProgress) {
-  progress.start("analyse_source_suggest");
-  await page.goto("/prototype/point-to-object");
-  await page.getByTestId("point-object-city-select").selectOption("singapore");
-  const suggestResponse = page.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/point-to-object/suggest"), { timeout: 30_000 });
-  await page.getByRole("combobox", { name: "Search address or place" }).fill("Marina Bay Sands Tower 1");
-  const suggested = await suggestResponse;
-  const suggestionPayload: unknown = await suggested.json();
-  guard(suggested.status() === 200 && record(suggestionPayload) && suggestionPayload.protocol === "POINT_TO_OBJECT_001_AUTOCOMPLETE_V1" &&
-    suggestionPayload.provider === "Photon" && record(suggestionPayload.source) && suggestionPayload.source.licenceId === "ODbL-1.0" &&
-    suggestionPayload.source.officialStatus === "open_context_not_official" && Array.isArray(suggestionPayload.results) && suggestionPayload.results.length > 0,
-  "The Singapore source suggestion did not return accepted Photon/OSM evidence.");
-  const resultRecords = suggestionPayload.results as Array<Record<string, unknown>>;
-  const chosenIndex = resultRecords.findIndex((candidate) => record(candidate) && /marina bay sands.*tower 1/i.test(String(candidate.label)));
-  const chosen = chosenIndex >= 0 ? resultRecords[chosenIndex] : undefined;
-  guard(chosen && typeof chosen.id === "string" && /^(node|way|relation)\/[1-9]\d{0,19}$/.test(chosen.id),
-    "The exact Singapore source candidate was not returned; no fallback candidate was used.");
-  progress.complete("analyse_source_suggest");
+  const { chosen, chosenIndex } = await runAnalyseSourceSuggest(page, {
+    marketKey: "singapore",
+    query: "Marina Bay Sands Tower 1",
+    enterQuery: (search) => search.fill("Marina Bay Sands Tower 1"),
+    candidateLabel: /marina bay sands.*tower 1/i,
+    label: "Singapore"
+  }, progress);
   const option = page.locator(`#point-object-search-result-${chosenIndex}`);
-  await expect(option).toBeVisible();
   progress.start("analyse_source_context");
   const contextResponse = page.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/point-to-object/context"), { timeout: 45_000 });
   await option.click();
@@ -1023,32 +1092,66 @@ async function runMarketCreate(
   input: LiveCreateCase,
   progress: LiveProgress
 ) {
-  progress.start("create_source_context");
+  progress.start("create_source_context_ui");
   await page.goto("/prototype/point-to-object");
   await page.getByTestId("point-object-city-select").selectOption(input.marketKey);
   await page.getByRole("tab", { name: "Create", exact: true }).click();
-  const contextPromise = page.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/point-to-object/area-context"), { timeout: 45_000 });
-  await page.getByLabel("Upload GeoJSON", { exact: true }).setInputFiles({
+  const upload = page.getByLabel("Upload GeoJSON", { exact: true });
+  await expect(upload).toBeAttached();
+  progress.complete("create_source_context_ui");
+
+  progress.start("create_source_context_request");
+  const contextRequestPromise = page.waitForRequest((request) =>
+    request.method() === "POST" && new URL(request.url()).pathname === "/api/prototype/point-to-object/area-context", { timeout: 45_000 });
+  const contextResponsePromise = page.waitForResponse((response) =>
+    response.request().method() === "POST" && new URL(response.url()).pathname === "/api/prototype/point-to-object/area-context", { timeout: 45_000 });
+  void contextResponsePromise.catch(() => undefined);
+  await upload.setInputFiles({
     name: input.fileName,
     mimeType: "application/geo+json",
     buffer: Buffer.from(JSON.stringify({ type: "Polygon", coordinates: input.coordinates }))
   });
-  const contextResponse = await contextPromise;
-  const contextPayload: unknown = await contextResponse.json();
-  guard(contextResponse.status() === 200 && record(contextPayload) && contextPayload.protocol === "POINT_TO_OBJECT_001_AREA_CONTEXT_V1" &&
-    (contextPayload.mode === "results" || contextPayload.mode === "empty") && Array.isArray(contextPayload.features) &&
-    contextPayload.features.every((feature) => record(feature) && typeof feature.sourceFeatureId === "string" &&
-      /^(node|way|relation)\/[1-9]\d{0,19}$/.test(feature.sourceFeatureId)) &&
-    new Set(contextPayload.features.map((feature) => record(feature) ? feature.sourceFeatureId : null)).size === contextPayload.features.length &&
-    record(contextPayload.request) && contextPayload.request.marketKey === input.marketKey &&
+  const contextRequest = await contextRequestPromise;
+  const submittedContext: unknown = contextRequest.postDataJSON();
+  progress.complete("create_source_context_request");
+
+  progress.start("create_source_context_response");
+  const contextResponse = await contextResponsePromise;
+  progress.complete("create_source_context_response");
+
+  progress.start("create_source_context_http");
+  guard(contextResponse.status() === 200, `The ${input.label} AOI context did not return HTTP 200.`);
+  progress.complete("create_source_context_http");
+
+  progress.start("create_source_context_body");
+  const contextPayload: unknown = await boundedLiveJourneyResponseJson(contextResponse, 10_000);
+  progress.complete("create_source_context_body");
+
+  progress.start("create_source_context_contract");
+  guard(isPointObjectAreaContextResult(contextPayload),
+    `The ${input.label} AOI did not return a production-valid bounded Overpass result.`);
+  progress.complete("create_source_context_contract");
+
+  progress.start("create_source_context_correlation");
+  const responseSubmittedContext: unknown = contextResponse.request().postDataJSON();
+  guard(contextResponse.request() === contextRequest &&
+    exactObjectKeys(submittedContext, ["aoiCoordinates", "locale", "marketKey"]) &&
+    exactObjectKeys(responseSubmittedContext, ["aoiCoordinates", "locale", "marketKey"]) &&
+    JSON.stringify([responseSubmittedContext.marketKey, responseSubmittedContext.locale, responseSubmittedContext.aoiCoordinates]) ===
+      JSON.stringify([submittedContext.marketKey, submittedContext.locale, submittedContext.aoiCoordinates]) &&
+    submittedContext.marketKey === input.marketKey && submittedContext.locale === "en" &&
+    JSON.stringify(submittedContext.aoiCoordinates) === JSON.stringify(input.coordinates) &&
+    contextPayload.request.marketKey === input.marketKey && contextPayload.request.locale === "en" &&
     JSON.stringify(contextPayload.request.aoiCoordinates) === JSON.stringify(input.coordinates) &&
-    record(contextPayload.source) && contextPayload.source.name === "OpenStreetMap" && contextPayload.source.service === "Overpass API" &&
-    contextPayload.source.licenceId === "ODbL-1.0" && typeof contextPayload.source.sourceResponseHash === "string" &&
-    /^[a-f0-9]{64}$/.test(contextPayload.source.sourceResponseHash) && isoTimestamp(contextPayload.source.acquiredAt) &&
-    (contextPayload.source.observedAt === null || isoTimestamp(contextPayload.source.observedAt)) && contextPayload.source.runtimeNetworkUsed === true &&
-    contextPayload.source.persistenceUsed === false && contextPayload.caveat === CAVEAT,
-  `The ${input.label} AOI did not return accepted bounded Overpass evidence.`);
-  progress.complete("create_source_context");
+    new Set(contextPayload.features.map((feature) => feature.sourceFeatureId)).size === contextPayload.features.length,
+  `The ${input.label} AOI context was not correlated to the exact submitted market and polygon.`);
+  progress.complete("create_source_context_correlation");
+
+  progress.start("create_source_context_ui_acceptance");
+  const areaContextSection = page.getByTestId("create-area-context-heading").locator("xpath=ancestor::section[1]");
+  await expect(areaContextSection.getByText("Mapped objects", { exact: true })).toBeVisible();
+  await expect(areaContextSection.locator("strong").first()).toHaveText(String(contextPayload.summary.sampleSize));
+  progress.complete("create_source_context_ui_acceptance");
   await page.getByRole("button", { name: /^Business towers/ }).click();
   await expect(page.getByTestId("create-generate-action")).toBeEnabled();
   progress.start("create_paid_response");
