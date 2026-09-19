@@ -329,6 +329,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
   const [selection, setSelection] = useState<LiveMapSelection | null>(null);
   const [question, setQuestion] = useState("");
   const [sessionReady, setSessionReady] = useState(false);
+  const [projectRestorationSettled, setProjectRestorationSettled] = useState(false);
   const [contextStatus, setContextStatus] = useState<"idle" | "loading" | "error">("idle");
   const [contextRetryVersion, setContextRetryVersion] = useState(0);
   const [contextFailure, setContextFailure] = useState<PointObjectSourceFailure>("unavailable");
@@ -433,6 +434,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
   const appliedProfileAudienceRef = useRef<string | null>(null);
   const previousLocaleRef = useRef(locale);
   const projectRestoreAppliedRef = useRef<PointObjectProjectIdentity | null | undefined>(undefined);
+  const projectRestorationGenerationRef = useRef(0);
   const suppressRestoredAreaContextRequestRef = useRef(false);
   const projectIdentityRef = useRef<PointObjectProjectIdentity | null>(projectIdentity);
   const createSaveContextRef = useRef<CreateSaveContext | null>(null);
@@ -457,6 +459,8 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
   findAnalysisTargetRef.current = findAnalysisTargetSourceFeatureId;
   activeCreateAlternativeRef.current = activeCreateAlternativeId;
   findResultRef.current = findResult;
+  const projectRestorationReady = projectRestorationSettled && sessionReady && isSessionResolved &&
+    projectRestoreAppliedRef.current === projectIdentity;
 
   const findRoles = useMemo(() => getExecutableFindRoles(findAudience), [findAudience]);
   const findScenarios = useMemo(() => getExecutableFindScenarios(findAudience, findRole), [findAudience, findRole]);
@@ -568,6 +572,15 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
 
   useEffect(() => {
     if (!sessionReady || !isSessionResolved || projectRestoreAppliedRef.current === projectIdentity) return;
+    const restorationIdentity = projectIdentity;
+    const restorationGeneration = projectRestorationGenerationRef.current + 1;
+    projectRestorationGenerationRef.current = restorationGeneration;
+    const restorationIsCurrent = () => projectRestorationGenerationRef.current === restorationGeneration &&
+      projectIdentityRef.current === restorationIdentity;
+    const finishRestoration = () => {
+      if (restorationIsCurrent()) setProjectRestorationSettled(true);
+    };
+    setProjectRestorationSettled(false);
     reconcilePointObjectBrowserIdentity(projectIdentity);
     contextCacheRef.current.clear();
     findFootprintRequestRef.current?.controller.abort();
@@ -599,33 +612,35 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     setCreateError(null);
     if (!projectIdentity) {
       const restored = readPointObjectCreateSession();
-      if (!restored) return;
-      createSessionOwnerRef.current = null;
-      suppressRestoredAreaContextRequestRef.current = true;
-      setLocale(restored.locale);
-      setLocationKey(restored.marketKey);
-      if (initialMode !== "find") setMode("create");
-      setIsDrawing(false);
-      setDraftCoordinates(restored.aoi.coordinates[0]?.slice(0, -1) ?? []);
-      setCreateAoi(restored.aoi);
-      setCreateAoiFitRequest({ requestId: `restore-guest-create:${restored.updatedAt}`, bounds: createAoiBounds(restored.aoi.coordinates[0] ?? []) });
-      setCreateEditorSnapshot(restored.editorSnapshot);
-      setGeneratedConcept(restored.generated);
-      setGeneratedConceptLocale(restored.generatedLocale);
-      setActiveCreateAlternativeId(restored.activeAlternativeId);
-      setCreateResultDashboardOpen(restored.dashboardOpen);
-      setAreaContext(restored.areaContext);
-      setAreaContextStatus("idle");
-      setCreateAreaCleared(true);
-      setCreateReplacementStatus("idle");
-      setCreateReplacementRevision((revision) => revision + 1);
+      if (restored) {
+        createSessionOwnerRef.current = null;
+        suppressRestoredAreaContextRequestRef.current = true;
+        setLocale(restored.locale);
+        setLocationKey(restored.marketKey);
+        if (initialMode !== "find") setMode("create");
+        setIsDrawing(false);
+        setDraftCoordinates(restored.aoi.coordinates[0]?.slice(0, -1) ?? []);
+        setCreateAoi(restored.aoi);
+        setCreateAoiFitRequest({ requestId: `restore-guest-create:${restored.updatedAt}`, bounds: createAoiBounds(restored.aoi.coordinates[0] ?? []) });
+        setCreateEditorSnapshot(restored.editorSnapshot);
+        setGeneratedConcept(restored.generated);
+        setGeneratedConceptLocale(restored.generatedLocale);
+        setActiveCreateAlternativeId(restored.activeAlternativeId);
+        setCreateResultDashboardOpen(restored.dashboardOpen);
+        setAreaContext(restored.areaContext);
+        setAreaContextStatus("idle");
+        setCreateAreaCleared(true);
+        setCreateReplacementStatus("idle");
+        setCreateReplacementRevision((revision) => revision + 1);
+      }
+      finishRestoration();
       return;
     }
     // A guest result is never adopted into an authenticated owner's projects.
     clearPointObjectCreateSession();
     createSessionOwnerRef.current = projectIdentity;
     void Promise.all([consumePointObjectProjectOverview(projectIdentity), consumePointObjectProjectRestore(projectIdentity)]).then(([overview, artifact]) => {
-      if (projectIdentityRef.current !== projectIdentity) return;
+      if (!restorationIsCurrent()) return;
       if (overview) {
         clearCanvasForProjectOverview(overview);
         return;
@@ -684,7 +699,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
         setCreateReplacementStatus("idle");
         setCreateReplacementRevision((revision) => revision + 1);
       }
-    });
+    }).catch(() => undefined).finally(finishRestoration);
   }, [initialMode, isSessionResolved, projectIdentity, sessionReady, setLocale]);
 
   useEffect(() => {
@@ -994,6 +1009,11 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
   useEffect(() => {
     areaContextRequestIdRef.current += 1;
     const requestId = areaContextRequestIdRef.current;
+    if (!projectRestorationReady) {
+      setAreaContextStatus("idle");
+      setAreaContextRetryAfterSeconds(0);
+      return;
+    }
     if (!createAoi) {
       setAreaContext(null);
       setAreaContextStatus("idle");
@@ -1059,7 +1079,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
       timeoutSignal.removeEventListener("abort", onDeadline);
       controller.abort();
     };
-  }, [areaContextRetryVersion, createAoi, locale, locationKey]);
+  }, [areaContextRetryVersion, createAoi, locale, locationKey, projectRestorationReady]);
 
   const handleSelection = useCallback((nextSelection: LiveMapSelection | null) => {
     clearPointObjectProjectRestore();
@@ -1536,6 +1556,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
   }
 
   function changeMode(nextMode: ProductMode) {
+    if (nextMode === "create" && !projectRestorationReady) return;
     clearPointObjectProjectRestore();
     exitProjectOverview();
     // Enter the Find transition as unavailable before the sheet resize and
@@ -1555,12 +1576,13 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
   }
 
   function addCreateVertex(coordinate: Coordinate) {
-    if (!isDrawing || draftCoordinates.length >= 25) return;
+    if (!projectRestorationReady || !isDrawing || draftCoordinates.length >= 25) return;
     setDraftCoordinates((current) => current.length >= 25 ? current : [...current, coordinate]);
     setCreateError(null);
   }
 
   function closeCreateArea(vertices = draftCoordinates, fitUploadedArea = false) {
+    if (!projectRestorationReady) return;
     clearPointObjectProjectRestore();
     const validation = validatePointObjectCreateAoiVertices(vertices);
     if (validation.ok === false) {
@@ -1607,7 +1629,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
   async function uploadCreateArea(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
-    if (!file) return;
+    if (!file || !projectRestorationReady) return;
     if (file.size > 1_000_000) {
       setCreateError(t("create.uploadError"));
       return;
@@ -1868,11 +1890,11 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
   }
 
   return (
-    <main ref={workspaceRef} className={`${mobileStyles.workspace} overflow-hidden bg-white text-ink`}>
+    <main ref={workspaceRef} data-project-restoration={projectRestorationReady ? "ready" : "loading"} className={`${mobileStyles.workspace} overflow-hidden bg-white text-ink`}>
       <PointObjectHeader />
       <div className={mobileStyles.shell} data-sheet={effectiveSheet} data-testid="mobile-workspace-shell">
         <section className={`${mobileStyles.map} relative overflow-hidden`} inert={mobile && effectiveSheet === "full"} aria-hidden={mobile && effectiveSheet === "full" ? true : undefined} aria-label={t("map.region")}>
-          {sessionReady ? <LiveObjectMap {...createReplacementMapProps} locationKey={locationKey} interactionMode={mode} selection={mode === "analyse" ? selection : null} navigationTarget={navigationTarget} viewModeRequest={viewModeRequest} onSelection={mode === "analyse" ? handleSelection : ignoreMapSelection} onViewportChange={handleViewportChange} onVisibleBoundsChange={handleVisibleBoundsChange} projectMarkers={projectOverviewMarkers.map((marker, index) => ({ id: marker.artifactId, label: marker.label, longitude: marker.longitude, latitude: marker.latitude, kind: marker.kind, number: index + 1 }))} activeProjectMarkerId={activeProjectMarkerId} onProjectMarkerSelect={openProjectOverviewMarker} findResults={mode === "find" && findResult && !findResultCriteriaMismatch ? findResult.candidates.map((candidate, index) => { const resolved = findResolvedObjects[candidate.sourceFeatureId]; return { id: candidate.sourceFeatureId, longitude: candidate.longitude, latitude: candidate.latitude, label: candidate.label, number: index + 1, geometry: resolved?.displayGeometry ?? null, geometryProvenance: resolved?.geometryProvenance ?? null, renderHeightM: resolved?.renderHeightM ?? null, renderMinHeightM: resolved?.renderMinHeightM ?? null, resultKind: findCandidateResultKind(candidate) }; }) : []} activeFindResultId={mode === "find" ? activeFindResultId : null} hoveredFindResultId={mode === "find" ? hoveredFindResultId : null} shortlistedFindResultIds={mode === "find" ? findShortlist.map((candidate) => candidate.sourceFeatureId) : []} onFindResultSelect={focusFindResult} onFindResultHover={(value) => setHoveredFindResultId(value ? exactOsmFeatureId(value) : null)} createDrawing={mode === "create" && isDrawing} createDraftCoordinates={mode === "create" ? draftCoordinates : []} createAoi={mode === "create" ? createAoi : null} createAoiFitRequest={mode === "create" ? createAoiFitRequest : null} createAreaCleared={mode === "create" && createAreaCleared} conceptMassing={mode === "create" ? activeConceptMassing : null} onCreateVertex={addCreateVertex} onCreateFinishDrawing={() => closeCreateArea()} onReplacementStatus={setCreateReplacementStatus} className="h-full min-h-0" /> : <div className="grid h-full min-h-0 place-items-center bg-[#f4f6f7] text-sm font-medium text-[#52606a]" role="status">{t("map.loading")}</div>}
+          {sessionReady ? <LiveObjectMap {...createReplacementMapProps} locationKey={locationKey} interactionMode={mode} selection={mode === "analyse" ? selection : null} navigationTarget={navigationTarget} viewModeRequest={viewModeRequest} onSelection={mode === "analyse" ? handleSelection : ignoreMapSelection} onViewportChange={handleViewportChange} onVisibleBoundsChange={handleVisibleBoundsChange} projectMarkers={projectOverviewMarkers.map((marker, index) => ({ id: marker.artifactId, label: marker.label, longitude: marker.longitude, latitude: marker.latitude, kind: marker.kind, number: index + 1 }))} activeProjectMarkerId={activeProjectMarkerId} onProjectMarkerSelect={openProjectOverviewMarker} findResults={mode === "find" && findResult && !findResultCriteriaMismatch ? findResult.candidates.map((candidate, index) => { const resolved = findResolvedObjects[candidate.sourceFeatureId]; return { id: candidate.sourceFeatureId, longitude: candidate.longitude, latitude: candidate.latitude, label: candidate.label, number: index + 1, geometry: resolved?.displayGeometry ?? null, geometryProvenance: resolved?.geometryProvenance ?? null, renderHeightM: resolved?.renderHeightM ?? null, renderMinHeightM: resolved?.renderMinHeightM ?? null, resultKind: findCandidateResultKind(candidate) }; }) : []} activeFindResultId={mode === "find" ? activeFindResultId : null} hoveredFindResultId={mode === "find" ? hoveredFindResultId : null} shortlistedFindResultIds={mode === "find" ? findShortlist.map((candidate) => candidate.sourceFeatureId) : []} onFindResultSelect={focusFindResult} onFindResultHover={(value) => setHoveredFindResultId(value ? exactOsmFeatureId(value) : null)} createDrawing={mode === "create" && projectRestorationReady && isDrawing} createDraftCoordinates={mode === "create" ? draftCoordinates : []} createAoi={mode === "create" ? createAoi : null} createAoiFitRequest={mode === "create" ? createAoiFitRequest : null} createAreaCleared={mode === "create" && createAreaCleared} conceptMassing={mode === "create" ? activeConceptMassing : null} onCreateVertex={addCreateVertex} onCreateFinishDrawing={() => closeCreateArea()} onReplacementStatus={setCreateReplacementStatus} className="h-full min-h-0" /> : <div className="grid h-full min-h-0 place-items-center bg-[#f4f6f7] text-sm font-medium text-[#52606a]" role="status">{t("map.loading")}</div>}
           <div className="absolute left-3 top-3 z-10 flex w-[min(650px,calc(100%-4.5rem))] flex-row gap-2 sm:left-5 sm:top-5">
             <label className="flex h-11 w-fit shrink-0 items-center rounded-xl border border-white/70 bg-white/95 px-3 shadow-[0_10px_30px_rgba(20,35,45,0.14)] backdrop-blur">
               <span className="sr-only">{t("city.label")}</span>
@@ -1892,7 +1914,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
           </div>
         </section>
 
-        {mode === "create" && isDrawing ? <div className={mobileStyles.drawTools} data-testid="create-map-drawing-tools" data-editing={Boolean(createAoi)}>
+        {mode === "create" && projectRestorationReady && isDrawing ? <div className={mobileStyles.drawTools} data-testid="create-map-drawing-tools" data-editing={Boolean(createAoi)}>
           <p className="text-xs font-semibold" aria-live="polite">{t("create.drawing", { count: draftCoordinates.length })}</p>
           <div className="grid grid-cols-3 gap-2"><button disabled={draftCoordinates.length < 3} onClick={() => closeCreateArea()} className="rounded-lg bg-[#087f70] text-xs font-bold text-white disabled:opacity-40">{locale === "ru" ? "Завершить зону" : "Finish area"}</button><button disabled={!draftCoordinates.length} onClick={() => setDraftCoordinates((current) => current.slice(0, -1))}>{t("create.undo")}</button><button onClick={cancelCreateDrawing}>{t("create.cancel")}</button></div>
           {createError ? <p role="alert" className="text-xs text-[#79520d]">{createError}</p> : null}
@@ -1905,7 +1927,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
               <button type="button" className={mobileStyles.halfControl} data-testid="mobile-sheet-resize" aria-label={effectiveSheet === "half" ? (locale === "ru" ? "Развернуть задачу на весь экран" : "Expand task to full height") : effectiveSheet === "full" ? (locale === "ru" ? "Уменьшить задачу до половины экрана" : "Reduce task to half height") : (locale === "ru" ? "Открыть задачу на половину экрана" : "Open task at half height")} title={effectiveSheet === "half" ? (locale === "ru" ? "Развернуть" : "Expand") : (locale === "ru" ? "Разделить экран" : "Split view")} onClick={() => setSheet(sheet === "half" ? "full" : "half")}><PointObjectIcon name={effectiveSheet === "half" ? "expand" : "split"} className="h-5 w-5" /><span className="sr-only">{effectiveSheet === "half" ? (locale === "ru" ? "Развернуть" : "Expand") : (locale === "ru" ? "Разделить экран" : "Split view")}</span></button>
             </div> : null}
             <div className="mb-2 grid shrink-0 grid-cols-3 gap-1 rounded-xl bg-[#f2f5f4] p-1" role="tablist" aria-label={t("mode.label")}>
-              {(["analyse", "find", "create"] as ProductMode[]).map((item) => <button key={item} type="button" role="tab" aria-selected={mode === item} onClick={() => changeMode(item)} className={`min-h-11 rounded-lg px-2 text-xs font-bold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] ${mode === item ? "bg-white text-[#087f8c] shadow-sm" : "text-[#667085] hover:text-[#344054]"}`}>{t(`mode.${item}` as "mode.analyse" | "mode.find" | "mode.create")}</button>)}
+              {(["analyse", "find", "create"] as ProductMode[]).map((item) => <button key={item} type="button" role="tab" aria-selected={mode === item} disabled={item === "create" && !projectRestorationReady} onClick={() => changeMode(item)} className={`min-h-11 rounded-lg px-2 text-xs font-bold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] disabled:cursor-wait disabled:opacity-50 ${mode === item ? "bg-white text-[#087f8c] shadow-sm" : "text-[#667085] hover:text-[#344054]"}`}>{t(`mode.${item}` as "mode.analyse" | "mode.find" | "mode.create")}</button>)}
             </div>
             <div id="workspace-task-content" className={mobileStyles.content} onFocusCapture={(event) => { if (mobile && /^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName)) setSheet("full"); }}>
             <div className="min-w-0">
@@ -1985,7 +2007,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
               </footer>
             </section> : null}
 
-            <div hidden={mode !== "create"} className="mt-5 space-y-4">
+            <div hidden={mode !== "create"} inert={!projectRestorationReady} aria-busy={!projectRestorationReady || undefined} data-testid="create-workspace" className="mt-5 space-y-4">
               {!createAoi ? <section className="rounded-[18px] border border-[#cfe0da] bg-[#f4faf7] p-4">
                 {canRestoreRemovedCreate ? <button type="button" data-testid="create-undo-remove" onClick={() => { restoreRemovedCreateRef.current?.(); restoreRemovedCreateRef.current = null; setCanRestoreRemovedCreate(false); }} className="mb-3 min-h-11 w-full rounded-xl border border-[#9bbdb5] bg-white px-3 text-xs font-bold text-[#345c54]">{locale === "ru" ? "Вернуть удалённую зону" : "Undo area removal"}</button> : null}
                 <div className="grid grid-cols-2 gap-2">
