@@ -25,6 +25,7 @@ import {
   validateRuntimeConfig,
   writeActivePersonaCheckpoint
 } from "./sprint10-hosted-auth-probe.mjs";
+import { LIVE_JOURNEY_DIAGNOSTIC_SCHEMA } from "./sprint10-live-journey-diagnostics.mjs";
 
 const exactLedgerId = "5aa405b3-bbda-48aa-aeea-ca3357be4042";
 const exactCycleId = "GEOAI_FOUR_SPRINTS_2026_09_18";
@@ -227,13 +228,55 @@ const childResult = (status, value) => ({ status, signal: null, error: null, std
 const passValue = { status: "PASS", ...childTuple, browserLocalPersistenceOnly: true, receipts: paidReceipts };
 const inconclusiveValue = { status: "INCONCLUSIVE", ...childTuple, reason: "Find returned one candidate.", receipts: paidReceipts };
 const cleanupValue = { status: "FAIL_CLEANUP", ...childTuple, stage: "logout", receipts: paidReceipts };
+const failureDiagnostic = {
+  schemaVersion: LIVE_JOURNEY_DIAGNOSTIC_SCHEMA,
+  primaryStatus: "failed",
+  primaryStage: "analyse_result_contract",
+  cleanupStage: null,
+  completedSteps: ["anonymous_protection", "exact_preview", "auth_login", "analyse_source_suggest", "analyse_source_context", "analyse_paid_response", "analyse_paid_terminal"]
+};
+const simultaneousDiagnostic = { ...failureDiagnostic, cleanupStage: "logout_action_missing" };
+const inconclusiveDiagnostic = {
+  schemaVersion: LIVE_JOURNEY_DIAGNOSTIC_SCHEMA,
+  primaryStatus: "inconclusive",
+  primaryStage: "find_candidate_count",
+  cleanupStage: null,
+  completedSteps: ["anonymous_protection", "exact_preview", "auth_login", "find_source_response"]
+};
+const failureValue = { status: "FAIL", ...childTuple, diagnostic: failureDiagnostic, receipts: [paidReceipts[0]] };
+const simultaneousValue = {
+  status: "FAIL_CLEANUP", ...childTuple, stage: "logout_action_missing", diagnostic: simultaneousDiagnostic,
+  receipts: [paidReceipts[0]]
+};
+const diagnosticInconclusiveValue = {
+  status: "INCONCLUSIVE", ...childTuple, reason: "Find returned fewer than two usable candidates for Compare.",
+  diagnostic: inconclusiveDiagnostic, receipts: paidReceipts
+};
 
 assert.equal(parseLiveJourneyChildReceipt(childResult(0, passValue), childTuple).status, "PASS");
 assert.equal(parseLiveJourneyChildReceipt(childResult(2, inconclusiveValue), childTuple).status, "INCONCLUSIVE");
 assert.equal(parseLiveJourneyChildReceipt(childResult(1, cleanupValue), childTuple).status, "FAIL_CLEANUP");
+assert.equal(parseLiveJourneyChildReceipt(childResult(1, failureValue), childTuple).status, "FAIL");
+assert.equal(parseLiveJourneyChildReceipt(childResult(1, simultaneousValue), childTuple).diagnostic.primaryStage,
+  "analyse_result_contract");
+assert.equal(parseLiveJourneyChildReceipt(childResult(2, diagnosticInconclusiveValue), childTuple).status, "INCONCLUSIVE");
 assert.throws(() => parseLiveJourneyChildReceipt(childResult(0, { ...passValue, extra: true }), childTuple));
 assert.throws(() => parseLiveJourneyChildReceipt(childResult(0, { ...passValue, receipts: [] }), childTuple));
 assert.throws(() => parseLiveJourneyChildReceipt(childResult(2, { ...inconclusiveValue, reason: "bad\nreason" }), childTuple));
+assert.throws(() => parseLiveJourneyChildReceipt(childResult(1, { ...failureValue, extra: true }), childTuple));
+assert.throws(() => parseLiveJourneyChildReceipt(childResult(1, {
+  ...failureValue,
+  diagnostic: { ...failureDiagnostic, primaryStage: "raw_secret_stage" }
+}), childTuple));
+assert.throws(() => parseLiveJourneyChildReceipt(childResult(1, {
+  ...simultaneousValue,
+  stage: "logout_response"
+}), childTuple));
+assert.throws(() => parseLiveJourneyChildReceipt(childResult(1, {
+  ...failureValue,
+  diagnostic: { ...failureDiagnostic, cleanupStage: "logout_action_missing" }
+}), childTuple));
+assert.throws(() => parseLiveJourneyChildReceipt(childResult(0, failureValue), childTuple));
 for (const receipts of [
   [{ ...paidReceipts[0], depth: "quick" }, paidReceipts[1]],
   [{ ...paidReceipts[0], estimatedUsd: 1.20000001 }, paidReceipts[1]],
@@ -309,6 +352,23 @@ const cleanupFailure = runReviewedLiveJourney(config, personas, runId, {
   spawn: () => childResult(1, cleanupValue)
 });
 assert.deepEqual(cleanupFailure, parseLiveJourneyChildReceipt(childResult(1, cleanupValue), childTuple));
+
+const productFailure = runReviewedLiveJourney(config, personas, runId, {
+  env: baseEnvironment,
+  invocationState: { invoked: false },
+  spawn: () => childResult(1, failureValue)
+});
+assert.equal(productFailure.status, "FAIL", "a product failure must not be promoted to PASS or INCONCLUSIVE");
+assert.equal(productFailure.diagnostic.primaryStage, "analyse_result_contract");
+
+const productAndCleanupFailure = runReviewedLiveJourney(config, personas, runId, {
+  env: baseEnvironment,
+  invocationState: { invoked: false },
+  spawn: () => childResult(1, simultaneousValue)
+});
+assert.equal(productAndCleanupFailure.status, "FAIL_CLEANUP");
+assert.equal(productAndCleanupFailure.diagnostic.primaryStage, "analyse_result_contract");
+assert.equal(productAndCleanupFailure.stage, "logout_action_missing");
 
 const timeout = runReviewedLiveJourney(config, personas, runId, {
   env: baseEnvironment,
@@ -473,11 +533,14 @@ async function runLifecycleFixture(faultAt = null, liveStatus = "PASS", previewO
     },
     runReviewedLiveJourney() {
       counters.live += 1;
-      return liveStatus === "INCONCLUSIVE"
-        ? { status: "INCONCLUSIVE", scope: "journey", previewHost, commit: head, receipts: paidReceipts,
-            reason: "Find returned one candidate." }
-        : { status: "PASS", scope: "journey", previewHost, commit: head, receipts: paidReceipts,
-            browserLocalPersistenceOnly: true };
+      if (liveStatus === "INCONCLUSIVE") {
+        return { status: "INCONCLUSIVE", scope: "journey", previewHost, commit: head, receipts: paidReceipts,
+          reason: "Find returned one candidate." };
+      }
+      if (liveStatus === "FAIL") return parseLiveJourneyChildReceipt(childResult(1, failureValue), childTuple);
+      if (liveStatus === "FAIL_CLEANUP") return parseLiveJourneyChildReceipt(childResult(1, simultaneousValue), childTuple);
+      return { status: "PASS", scope: "journey", previewHost, commit: head, receipts: paidReceipts,
+        browserLocalPersistenceOnly: true };
     },
     async retirePersona(_createClient, _admin, _fetch, _config, persona, { onStage }) {
       counters.retire += 1;
@@ -552,6 +615,19 @@ assert.equal(integratedPass.receipt.retirement.finalFutureBanReadback, 2);
 const integratedInconclusive = await runLifecycleFixture(null, "INCONCLUSIVE");
 assert.equal(integratedInconclusive.receipt.status, "INCONCLUSIVE");
 assert.equal(integratedInconclusive.exit, 2);
+const integratedProductFailure = await runLifecycleFixture(null, "FAIL");
+assert.equal(integratedProductFailure.receipt.status, "FAIL",
+  "a failed product path must remain FAIL after both personas are retired");
+assert.equal(integratedProductFailure.receipt.liveJourney.diagnostic.primaryStage, "analyse_result_contract");
+assert.equal(integratedProductFailure.counters.live, 1, "the live child must run once without retry");
+assert.equal(integratedProductFailure.counters.retire, 2, "a product failure must still retire both personas");
+assert.equal(integratedProductFailure.exit, 1);
+const integratedProductAndCleanupFailure = await runLifecycleFixture(null, "FAIL_CLEANUP");
+assert.equal(integratedProductAndCleanupFailure.receipt.status, "FAIL");
+assert.equal(integratedProductAndCleanupFailure.receipt.liveJourney.status, "FAIL_CLEANUP");
+assert.equal(integratedProductAndCleanupFailure.receipt.liveJourney.diagnostic.primaryStage, "analyse_result_contract");
+assert.equal(integratedProductAndCleanupFailure.counters.retire, 2);
+assert.equal(integratedProductAndCleanupFailure.exit, 1);
 const integratedPreviewFailure = await runLifecycleFixture(null, "PASS", {
   status: "failed_existing_reviewed_runner",
   stage: "preview_test_execution_primary_continuity"

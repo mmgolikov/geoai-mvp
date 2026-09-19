@@ -29,6 +29,7 @@ import {
   hostedPreviewFailureStage,
   parseAuthDiagnostic
 } from "./sprint10-real-password-auth-diagnostics.mjs";
+import { parseLiveJourneyDiagnostic } from "./sprint10-live-journey-diagnostics.mjs";
 
 const exactProjectRef = "pphdqkurxneyagvnnjdt";
 const exactSupabaseOrigin = `https://${exactProjectRef}.supabase.co`;
@@ -956,21 +957,48 @@ export function parseLiveJourneyChildReceipt(result, expected) {
   }
   if (value.status === "INCONCLUSIVE") {
     const receipts = parseLiveReceipts(value.receipts, expected.scope);
-    if (result.status !== 2 || !exactKeys(value, ["status", "scope", "previewHost", "commit", "reason", "receipts"]) ||
+    const legacyKeys = exactKeys(value, ["status", "scope", "previewHost", "commit", "reason", "receipts"]);
+    const diagnosticKeys = exactKeys(value, ["status", "scope", "previewHost", "commit", "reason", "diagnostic", "receipts"]);
+    let diagnostic = null;
+    try { diagnostic = diagnosticKeys ? parseLiveJourneyDiagnostic(value.diagnostic) : null; }
+    catch { fail("The live INCONCLUSIVE diagnostic is malformed.", "live_receipt_invalid"); }
+    if (result.status !== 2 || (!legacyKeys && !diagnosticKeys) ||
         typeof value.reason !== "string" || !/^[A-Za-z0-9 .,:;()/_-]{1,500}$/.test(value.reason)) {
       fail("The live INCONCLUSIVE receipt is not accepted.", "live_receipt_invalid");
     }
+    if (diagnostic && (diagnostic.primaryStatus !== "inconclusive" || diagnostic.primaryStage === null || diagnostic.cleanupStage !== null)) {
+      fail("The live INCONCLUSIVE diagnostic contradicts its status.", "live_receipt_invalid");
+    }
     return { status: "INCONCLUSIVE", scope: value.scope, previewHost: value.previewHost, commit: value.commit, receipts,
-      reason: value.reason };
+      reason: value.reason, ...(diagnostic ? { diagnostic } : {}) };
   }
   if (value.status === "FAIL_CLEANUP") {
     const receipts = parseLiveReceipts(value.receipts, expected.scope, { allowPartialPrefix: true });
-    if (result.status !== 1 || !exactKeys(value, ["status", "scope", "previewHost", "commit", "stage", "receipts"]) ||
+    const legacyKeys = exactKeys(value, ["status", "scope", "previewHost", "commit", "stage", "receipts"]);
+    const diagnosticKeys = exactKeys(value, ["status", "scope", "previewHost", "commit", "stage", "diagnostic", "receipts"]);
+    let diagnostic = null;
+    try { diagnostic = diagnosticKeys ? parseLiveJourneyDiagnostic(value.diagnostic) : null; }
+    catch { fail("The live cleanup diagnostic is malformed.", "live_receipt_invalid"); }
+    if (result.status !== 1 || (!legacyKeys && !diagnosticKeys) ||
         typeof value.stage !== "string" || !/^[A-Za-z0-9_-]{1,80}$/.test(value.stage)) {
       fail("The live cleanup-failure receipt is not accepted.", "live_receipt_invalid");
     }
+    if (diagnostic && (diagnostic.cleanupStage === null || diagnostic.cleanupStage !== value.stage)) {
+      fail("The live cleanup diagnostic contradicts its status.", "live_receipt_invalid");
+    }
     return { status: "FAIL_CLEANUP", scope: value.scope, previewHost: value.previewHost, commit: value.commit, receipts,
-      stage: value.stage };
+      stage: value.stage, ...(diagnostic ? { diagnostic } : {}) };
+  }
+  if (value.status === "FAIL") {
+    const receipts = parseLiveReceipts(value.receipts, expected.scope, { allowPartialPrefix: true });
+    let diagnostic;
+    try { diagnostic = parseLiveJourneyDiagnostic(value.diagnostic); }
+    catch { fail("The live failure diagnostic is malformed.", "live_receipt_invalid"); }
+    if (result.status !== 1 || !exactKeys(value, ["status", "scope", "previewHost", "commit", "diagnostic", "receipts"]) ||
+        diagnostic.primaryStatus !== "failed" || diagnostic.primaryStage === null || diagnostic.cleanupStage !== null) {
+      fail("The live FAIL receipt is not accepted.", "live_receipt_invalid");
+    }
+    return { status: "FAIL", scope: value.scope, previewHost: value.previewHost, commit: value.commit, receipts, diagnostic };
   }
   fail("The live child returned an unsupported status.", "live_receipt_invalid");
 }

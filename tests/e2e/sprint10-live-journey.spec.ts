@@ -38,6 +38,8 @@ import {
   validateSprint10AnalysisEvidencePath,
   writeSprint10AnalysisResultEvidence
 } from "./helpers/sprint10-analysis-result-evidence";
+// @ts-expect-error The diagnostics module is an operator-only JavaScript contract checked by its offline suite.
+import { LIVE_JOURNEY_CLEANUP_STAGES, LIVE_JOURNEY_STEPS, encodeLiveJourneyDiagnostic } from "../../scripts/sprint10-live-journey-diagnostics.mjs";
 
 test.use({ trace: "off", screenshot: "off", video: "off", serviceWorkers: "block" });
 test.describe.configure({ mode: "serial", retries: 0 });
@@ -72,6 +74,35 @@ type LiveConfiguration = {
 
 function guard(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
+}
+
+type LiveProgress = {
+  start: (step: string) => void;
+  complete: (step: string) => void;
+  current: () => string;
+  completed: () => string[];
+};
+
+function createLiveProgress(): LiveProgress {
+  let active = "anonymous_protection";
+  const completed: string[] = [];
+  return {
+    start(step) {
+      guard(LIVE_JOURNEY_STEPS.includes(step), "The live diagnostic step is not allowlisted.");
+      active = step;
+    },
+    complete(step) {
+      guard(step === active && LIVE_JOURNEY_STEPS.includes(step), "The live diagnostic step order is invalid.");
+      if (!completed.includes(step)) completed.push(step);
+    },
+    current: () => active,
+    completed: () => [...completed]
+  };
+}
+
+function cleanupStage(error: unknown): string {
+  const match = error instanceof Error ? /^LIVE_JOURNEY_CLEANUP_FAILED: ([a-z_]+)$/.exec(error.message) : null;
+  return match && LIVE_JOURNEY_CLEANUP_STAGES.includes(match[1]) ? match[1] : "logout_unknown";
 }
 
 function required(name: string): string {
@@ -449,18 +480,26 @@ async function logoutVerified(page: Page, expectedUserId: string) {
   const initial = await browserSessionState(page, expectedUserId);
   if (initial === "anonymous") return;
   if (initial !== "authenticated") throw new Error("LIVE_JOURNEY_CLEANUP_FAILED: logout_session_precheck");
-  await page.goto("/profile");
+  try { await page.goto("/profile", { waitUntil: "domcontentloaded", timeout: 60_000 }); }
+  catch { throw new Error("LIVE_JOURNEY_CLEANUP_FAILED: logout_profile_navigation"); }
   const button = page.getByRole("button", { name: "Sign out", exact: true });
-  if (!await button.isVisible().catch(() => false)) throw new Error("LIVE_JOURNEY_CLEANUP_FAILED: logout_action_missing");
-  const responsePromise = page.waitForResponse((response) =>
-    response.request().method() === "POST" && new URL(response.url()).pathname === "/api/auth/logout", { timeout: 30_000 });
-  await button.click();
-  const response = await responsePromise;
+  try { await expect(button).toBeVisible({ timeout: 30_000 }); }
+  catch { throw new Error("LIVE_JOURNEY_CLEANUP_FAILED: logout_action_missing"); }
+  let response: Response;
+  try {
+    const responsePromise = page.waitForResponse((candidate) =>
+      candidate.request().method() === "POST" && new URL(candidate.url()).pathname === "/api/auth/logout", { timeout: 30_000 });
+    await button.click();
+    response = await responsePromise;
+  } catch {
+    throw new Error("LIVE_JOURNEY_CLEANUP_FAILED: logout_response");
+  }
   const payload: unknown = await response.json().catch(() => null);
   if (response.status() !== 200 || !record(payload) || payload.ok !== true || payload.status !== "signed_out") {
     throw new Error("LIVE_JOURNEY_CLEANUP_FAILED: logout_response");
   }
-  await expect.poll(() => browserSessionState(page, expectedUserId), { timeout: 30_000 }).toBe("anonymous");
+  try { await expect.poll(() => browserSessionState(page, expectedUserId), { timeout: 30_000 }).toBe("anonymous"); }
+  catch { throw new Error("LIVE_JOURNEY_CLEANUP_FAILED: logout_session"); }
 }
 
 type ArtifactKind = "analyse" | "find" | "create";
@@ -603,7 +642,8 @@ async function reopenSavedArtifact(
   assertNoReplay(before, policy.snapshotJourneyRequests());
 }
 
-async function runDubaiAnalyse(page: Page, configuration: LiveConfiguration, policy: NetworkPolicy, budget: ReturnType<typeof installBudgetGate>) {
+async function runDubaiAnalyse(page: Page, configuration: LiveConfiguration, policy: NetworkPolicy, budget: ReturnType<typeof installBudgetGate>, progress: LiveProgress) {
+  progress.start("analyse_source_suggest");
   await page.goto("/prototype/point-to-object");
   await page.getByTestId("point-object-city-select").selectOption("dubai");
   const suggestResponse = page.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/point-to-object/suggest"), { timeout: 30_000 });
@@ -619,8 +659,10 @@ async function runDubaiAnalyse(page: Page, configuration: LiveConfiguration, pol
   const chosen = chosenIndex >= 0 ? resultRecords[chosenIndex] : undefined;
   guard(chosen && typeof chosen.id === "string" && /^(node|way|relation)\/[1-9]\d{0,19}$/.test(chosen.id),
     "The exact Dubai source candidate was not returned; no fallback candidate was used.");
+  progress.complete("analyse_source_suggest");
   const option = page.locator(`#point-object-search-result-${chosenIndex}`);
   await expect(option).toBeVisible();
+  progress.start("analyse_source_context");
   const contextResponse = page.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/point-to-object/context"), { timeout: 45_000 });
   await option.click();
   const context = await contextResponse;
@@ -628,20 +670,28 @@ async function runDubaiAnalyse(page: Page, configuration: LiveConfiguration, pol
   guard(context.status() === 200 && record(contextPayload) && contextPayload.mode === "resolved" && contextPayload.schemaVersion === 2 &&
     record(contextPayload.subject) && contextPayload.subject.sourceFeatureId === chosen.id,
   "The selected Dubai source identity was not resolved to the exact structured object.");
+  progress.complete("analyse_source_context");
   await expect(page.getByRole("button", { name: "Analyze", exact: true })).toBeEnabled({ timeout: 45_000 });
   await page.locator("#point-object-question").fill(SPRINT10_PUBLIC_ANALYSIS_QUESTION);
+  progress.start("analyse_paid_response");
   const responsePromise = page.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/point-to-object/ai"), { timeout: 180_000 });
   await page.getByRole("button", { name: "Analyze", exact: true }).click();
   const response = await responsePromise;
   const payload: unknown = await response.json();
+  progress.complete("analyse_paid_response");
+  progress.start("analyse_paid_terminal");
   await budget.waitForTerminalReceipts();
+  progress.complete("analyse_paid_terminal");
+  progress.start("analyse_result_contract");
   guard(response.status() === 200 && record(payload) && payload.mode === "openai" && payload.schemaVersion === 6 &&
     typeof payload.evidencePackId === "string" && typeof payload.evidencePackHash === "string" && /^[a-f0-9]{64}$/.test(payload.evidencePackHash) &&
     record(payload.request) && payload.request.depth === "standard" && payload.request.role === "developer" && payload.request.scenario === "unspecified" &&
     record(payload.subject) && payload.subject.sourceFeatureId === chosen.id && payload.subject.sourceLabel === "© OpenStreetMap contributors" &&
     record(payload.content) && payload.content.caveat === CAVEAT && record(payload.content.depthReview) && payload.content.depthReview.depth === "standard",
   "The Dubai Analyse response did not preserve current V10 depth, role/scenario provenance and source identity.");
+  progress.complete("analyse_result_contract");
   if (configuration.analysisEvidencePath) {
+    progress.start("analyse_evidence_capture");
     const submittedRequest: unknown = response.request().postDataJSON();
     writeSprint10AnalysisResultEvidence(configuration.analysisEvidencePath, {
       response: payload,
@@ -658,24 +708,30 @@ async function runDubaiAnalyse(page: Page, configuration: LiveConfiguration, pol
         schemaVersion: 6
       }
     });
+    progress.complete("analyse_evidence_capture");
   }
   await expect(page.getByTestId("ai-success")).toBeVisible();
   await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
   const expectedDomainIdentity = JSON.stringify({ sourceFeatureId: chosen.id, evidencePackHash: payload.evidencePackHash });
+  progress.start("analyse_local_save");
   await expect.poll(async () => (await localArtifactState(page, configuration.userId, "analyse"))?.domainIdentity ?? null).toBe(expectedDomainIdentity);
   const saved = await requireLocalArtifactState(page, configuration.userId, "analyse");
   expect(saved.marketKey).toBe("dubai");
   expect(saved.role).toBe("developer");
   expect(saved.scenario).toBe("unspecified");
+  progress.complete("analyse_local_save");
   const paidBeforeReopen = budget.paidDispatchCount();
+  progress.start("analyse_local_reopen");
   await reopenSavedArtifact(page, configuration.userId, "analyse", policy, saved, async () => {
     await expect(page.getByTestId("ai-success")).toBeVisible();
     await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
   });
   expect(budget.paidDispatchCount()).toBe(paidBeforeReopen);
+  progress.complete("analyse_local_reopen");
 }
 
-async function runSingaporeAnalyse(page: Page, configuration: LiveConfiguration, policy: NetworkPolicy, budget: ReturnType<typeof installBudgetGate>) {
+async function runSingaporeAnalyse(page: Page, configuration: LiveConfiguration, policy: NetworkPolicy, budget: ReturnType<typeof installBudgetGate>, progress: LiveProgress) {
+  progress.start("analyse_source_suggest");
   await page.goto("/prototype/point-to-object");
   await page.getByTestId("point-object-city-select").selectOption("singapore");
   const suggestResponse = page.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/point-to-object/suggest"), { timeout: 30_000 });
@@ -691,8 +747,10 @@ async function runSingaporeAnalyse(page: Page, configuration: LiveConfiguration,
   const chosen = chosenIndex >= 0 ? resultRecords[chosenIndex] : undefined;
   guard(chosen && typeof chosen.id === "string" && /^(node|way|relation)\/[1-9]\d{0,19}$/.test(chosen.id),
     "The exact Singapore source candidate was not returned; no fallback candidate was used.");
+  progress.complete("analyse_source_suggest");
   const option = page.locator(`#point-object-search-result-${chosenIndex}`);
   await expect(option).toBeVisible();
+  progress.start("analyse_source_context");
   const contextResponse = page.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/point-to-object/context"), { timeout: 45_000 });
   await option.click();
   const context = await contextResponse;
@@ -700,33 +758,44 @@ async function runSingaporeAnalyse(page: Page, configuration: LiveConfiguration,
   guard(context.status() === 200 && record(contextPayload) && contextPayload.mode === "resolved" && contextPayload.schemaVersion === 2 &&
     record(contextPayload.subject) && contextPayload.subject.sourceFeatureId === chosen.id,
   "The selected Singapore source identity was not resolved to the exact structured object.");
+  progress.complete("analyse_source_context");
   await expect(page.getByRole("button", { name: "Analyze", exact: true })).toBeEnabled({ timeout: 45_000 });
   await page.locator("#point-object-question").fill(SPRINT10_PUBLIC_ANALYSIS_QUESTION);
+  progress.start("analyse_paid_response");
   const responsePromise = page.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/point-to-object/ai"), { timeout: 180_000 });
   await page.getByRole("button", { name: "Analyze", exact: true }).click();
   const response = await responsePromise;
   const payload: unknown = await response.json();
+  progress.complete("analyse_paid_response");
+  progress.start("analyse_paid_terminal");
   await budget.waitForTerminalReceipts();
+  progress.complete("analyse_paid_terminal");
+  progress.start("analyse_result_contract");
   guard(response.status() === 200 && record(payload) && payload.mode === "openai" && payload.schemaVersion === 6 &&
     typeof payload.evidencePackId === "string" && typeof payload.evidencePackHash === "string" && /^[a-f0-9]{64}$/.test(payload.evidencePackHash) &&
     record(payload.request) && payload.request.depth === "standard" && payload.request.role === "developer" && payload.request.scenario === "unspecified" &&
     record(payload.subject) && payload.subject.sourceFeatureId === chosen.id && payload.subject.sourceLabel === "© OpenStreetMap contributors" &&
     record(payload.content) && payload.content.caveat === CAVEAT && record(payload.content.depthReview) && payload.content.depthReview.depth === "standard",
   "The Singapore Analyse response did not preserve current V10 depth, role/scenario provenance and source identity.");
+  progress.complete("analyse_result_contract");
   await expect(page.getByTestId("ai-success")).toBeVisible();
   await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
   const expectedDomainIdentity = JSON.stringify({ sourceFeatureId: chosen.id, evidencePackHash: payload.evidencePackHash });
+  progress.start("analyse_local_save");
   await expect.poll(async () => (await localArtifactState(page, configuration.userId, "analyse"))?.domainIdentity ?? null).toBe(expectedDomainIdentity);
   const saved = await requireLocalArtifactState(page, configuration.userId, "analyse");
   expect(saved.marketKey).toBe("singapore");
   expect(saved.role).toBe("developer");
   expect(saved.scenario).toBe("unspecified");
+  progress.complete("analyse_local_save");
   const paidBeforeReopen = budget.paidDispatchCount();
+  progress.start("analyse_local_reopen");
   await reopenSavedArtifact(page, configuration.userId, "analyse", policy, saved, async () => {
     await expect(page.getByTestId("ai-success")).toBeVisible();
     await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
   });
   expect(budget.paidDispatchCount()).toBe(paidBeforeReopen);
+  progress.complete("analyse_local_reopen");
 }
 
 class InconclusiveLiveCoverageError extends Error {
@@ -736,7 +805,8 @@ class InconclusiveLiveCoverageError extends Error {
   }
 }
 
-async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy: NetworkPolicy, budget: ReturnType<typeof installBudgetGate>) {
+async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy: NetworkPolicy, budget: ReturnType<typeof installBudgetGate>, progress: LiveProgress) {
+  progress.start("find_source_response");
   await page.goto("/prototype/point-to-object");
   await page.getByTestId("point-object-city-select").selectOption("dubai");
   await page.getByRole("tab", { name: "Find", exact: true }).click();
@@ -761,6 +831,8 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
     payload.source.runtimeNetworkUsed === true && payload.source.persistenceUsed === false && payload.source.officialStatus === "open_context_not_official" &&
     record(payload.coverage) && payload.coverage.completeInventory === false && payload.ordering === "source_identity_ascending_not_ranked" && payload.caveat === CAVEAT,
   "The Dubai Find response did not preserve the bounded open-map source contract.");
+  progress.complete("find_source_response");
+  progress.start("find_candidate_count");
   const candidates = payload.candidates as Array<Record<string, unknown>>;
   if (candidates.length < 2) {
     throw new InconclusiveLiveCoverageError(`Dubai Find returned ${candidates.length} usable candidate(s); Compare requires at least two.`);
@@ -768,8 +840,10 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
   const identities = candidates.slice(0, 2).map((candidate) => candidate.sourceFeatureId);
   guard(identities.every((value) => typeof value === "string" && /^(node|way|relation)\/[1-9]\d{0,19}$/.test(value)) && new Set(identities).size === 2,
     "Dubai Find did not return two distinct exact source identities.");
+  progress.complete("find_candidate_count");
   const items = page.getByTestId("find-scroll-region").getByRole("listitem");
   await expect(items).toHaveCount(candidates.length);
+  progress.start("find_compare");
   const beforeLocalComparison = policy.snapshotJourneyRequests();
   await items.nth(0).getByRole("button", { name: "Compare", exact: true }).click();
   await items.nth(1).getByRole("button", { name: "Compare", exact: true }).click();
@@ -783,24 +857,30 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
   }).toBe("2:dashboard");
   await stableLocalBarrier(page);
   assertNoReplay(beforeLocalComparison, policy.snapshotJourneyRequests());
+  progress.complete("find_compare");
   const expectedDomainIdentity = JSON.stringify({
     candidateIds: candidates.map((candidate) => candidate.sourceFeatureId),
     shortlistIds: identities
   });
+  progress.start("find_local_save");
   await expect.poll(async () => (await localArtifactState(page, configuration.userId, "find"))?.domainIdentity ?? null).toBe(expectedDomainIdentity);
   const saved = await requireLocalArtifactState(page, configuration.userId, "find");
   expect(saved.marketKey).toBe("dubai");
   expect(saved.role).toBe("consultant_broker");
   expect(saved.scenario).toBe("b2b_hotel_development");
+  progress.complete("find_local_save");
   const paidBeforeReopen = budget.paidDispatchCount();
+  progress.start("find_local_reopen");
   await reopenSavedArtifact(page, configuration.userId, "find", policy, saved, async () => {
     await expect(page.getByTestId("find-full-comparison-dashboard")).toBeVisible();
     for (const identity of identities) await expect(page.getByText(String(identity), { exact: true })).toBeVisible();
   });
   expect(budget.paidDispatchCount()).toBe(paidBeforeReopen);
+  progress.complete("find_local_reopen");
 }
 
-async function runSingaporeFind(page: Page, configuration: LiveConfiguration, policy: NetworkPolicy, budget: ReturnType<typeof installBudgetGate>) {
+async function runSingaporeFind(page: Page, configuration: LiveConfiguration, policy: NetworkPolicy, budget: ReturnType<typeof installBudgetGate>, progress: LiveProgress) {
+  progress.start("find_source_response");
   await page.goto("/prototype/point-to-object");
   await page.getByTestId("point-object-city-select").selectOption("singapore");
   await page.getByRole("tab", { name: "Find", exact: true }).click();
@@ -830,6 +910,8 @@ async function runSingaporeFind(page: Page, configuration: LiveConfiguration, po
     payload.source.runtimeNetworkUsed === true && payload.source.persistenceUsed === false && payload.source.officialStatus === "open_context_not_official" &&
     record(payload.coverage) && payload.coverage.completeInventory === false && payload.ordering === "source_identity_ascending_not_ranked" && payload.caveat === CAVEAT,
   "The Singapore Find response did not preserve the exact bounded request and open-map source contract.");
+  progress.complete("find_source_response");
+  progress.start("find_candidate_count");
   const candidates = payload.candidates as Array<Record<string, unknown>>;
   if (candidates.length < 2) {
     throw new InconclusiveLiveCoverageError(`Singapore Find returned ${candidates.length} usable candidate(s); Compare requires at least two.`);
@@ -837,8 +919,10 @@ async function runSingaporeFind(page: Page, configuration: LiveConfiguration, po
   const identities = candidates.slice(0, 2).map((candidate) => candidate.sourceFeatureId);
   guard(identities.every((value) => typeof value === "string" && /^(node|way|relation)\/[1-9]\d{0,19}$/.test(value)) && new Set(identities).size === 2,
     "Singapore Find did not return two distinct exact source identities.");
+  progress.complete("find_candidate_count");
   const items = page.getByTestId("find-scroll-region").getByRole("listitem");
   await expect(items).toHaveCount(candidates.length);
+  progress.start("find_compare");
   const beforeLocalComparison = policy.snapshotJourneyRequests();
   await items.nth(0).getByRole("button", { name: "Compare", exact: true }).click();
   await items.nth(1).getByRole("button", { name: "Compare", exact: true }).click();
@@ -852,21 +936,26 @@ async function runSingaporeFind(page: Page, configuration: LiveConfiguration, po
   }).toBe("2:dashboard");
   await stableLocalBarrier(page);
   assertNoReplay(beforeLocalComparison, policy.snapshotJourneyRequests());
+  progress.complete("find_compare");
   const expectedDomainIdentity = JSON.stringify({
     candidateIds: candidates.map((candidate) => candidate.sourceFeatureId),
     shortlistIds: identities
   });
+  progress.start("find_local_save");
   await expect.poll(async () => (await localArtifactState(page, configuration.userId, "find"))?.domainIdentity ?? null).toBe(expectedDomainIdentity);
   const saved = await requireLocalArtifactState(page, configuration.userId, "find");
   expect(saved.marketKey).toBe("singapore");
   expect(saved.role).toBe("consultant_broker");
   expect(saved.scenario).toBe("b2b_commercial_real_estate");
+  progress.complete("find_local_save");
   const paidBeforeReopen = budget.paidDispatchCount();
+  progress.start("find_local_reopen");
   await reopenSavedArtifact(page, configuration.userId, "find", policy, saved, async () => {
     await expect(page.getByTestId("find-full-comparison-dashboard")).toBeVisible();
     for (const identity of identities) await expect(page.getByText(String(identity), { exact: true })).toBeVisible();
   });
   expect(budget.paidDispatchCount()).toBe(paidBeforeReopen);
+  progress.complete("find_local_reopen");
 }
 
 type LiveCreateCase = {
@@ -881,8 +970,10 @@ async function runMarketCreate(
   configuration: LiveConfiguration,
   policy: NetworkPolicy,
   budget: ReturnType<typeof installBudgetGate>,
-  input: LiveCreateCase
+  input: LiveCreateCase,
+  progress: LiveProgress
 ) {
+  progress.start("create_source_context");
   await page.goto("/prototype/point-to-object");
   await page.getByTestId("point-object-city-select").selectOption(input.marketKey);
   await page.getByRole("tab", { name: "Create", exact: true }).click();
@@ -907,13 +998,19 @@ async function runMarketCreate(
     (contextPayload.source.observedAt === null || isoTimestamp(contextPayload.source.observedAt)) && contextPayload.source.runtimeNetworkUsed === true &&
     contextPayload.source.persistenceUsed === false && contextPayload.caveat === CAVEAT,
   `The ${input.label} AOI did not return accepted bounded Overpass evidence.`);
+  progress.complete("create_source_context");
   await page.getByRole("button", { name: /^Business towers/ }).click();
   await expect(page.getByTestId("create-generate-action")).toBeEnabled();
+  progress.start("create_paid_response");
   const responsePromise = page.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/point-to-object/create"), { timeout: 180_000 });
   await page.getByTestId("create-generate-action").click();
   const response = await responsePromise;
   const payload: unknown = await response.json();
+  progress.complete("create_paid_response");
+  progress.start("create_paid_terminal");
   await budget.waitForTerminalReceipts();
+  progress.complete("create_paid_terminal");
+  progress.start("create_result_contract");
   const submitted: unknown = response.request().postDataJSON();
   guard(record(submitted) && submitted.marketKey === input.marketKey && submitted.locale === "en" && submitted.depth === "standard" &&
     submitted.templateId === "commercial_hub" &&
@@ -924,6 +1021,7 @@ async function runMarketCreate(
     payload.promptVersion === SPRINT10_CREATE_PROMPT_VERSION && Array.isArray(payload.alternatives) && payload.alternatives.length === 2 &&
     payload.alternatives.every((item) => record(item) && (item.id === "A" || item.id === "B")) && payload.caveat === CAVEAT,
   `The ${input.label} Create response did not return one strict current A/B concept.`);
+  progress.complete("create_result_contract");
   await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
   const paidAfterGeneration = budget.paidDispatchCount();
   const beforeLocalViews = policy.snapshotJourneyRequests();
@@ -938,6 +1036,7 @@ async function runMarketCreate(
   }).toBe("B");
   await stableLocalBarrier(page);
   assertNoReplay(beforeLocalViews, policy.snapshotJourneyRequests());
+  progress.start("create_local_save");
   const saved = await requireLocalArtifactState(page, configuration.userId, "create");
   expect(saved.marketKey).toBe(input.marketKey);
   const savedDomain: unknown = JSON.parse(saved.domainIdentity);
@@ -946,6 +1045,8 @@ async function runMarketCreate(
     Array.isArray(savedDomain.alternativeIds) && JSON.stringify(savedDomain.alternativeIds) ===
       JSON.stringify((payload.alternatives as Array<Record<string, unknown>>).map((alternative) => alternative.id)),
   "The saved Create artifact is not bound to the generated AOI/A/B result identity.");
+  progress.complete("create_local_save");
+  progress.start("create_local_reopen");
   await reopenSavedArtifact(page, configuration.userId, "create", policy, saved, async () => {
     await expect(page.getByTestId("create-full-result-dashboard")).toBeVisible();
     await expect(page.getByTestId("create-result-kpis")).toHaveAttribute("data-active-variant", "B");
@@ -959,9 +1060,10 @@ async function runMarketCreate(
   assertSameArtifact(saved, reloaded);
   assertNoReplay(beforeReload, policy.snapshotJourneyRequests());
   expect(budget.paidDispatchCount()).toBe(paidAfterGeneration);
+  progress.complete("create_local_reopen");
 }
 
-async function runSingaporeCreate(page: Page, configuration: LiveConfiguration, policy: NetworkPolicy, budget: ReturnType<typeof installBudgetGate>) {
+async function runSingaporeCreate(page: Page, configuration: LiveConfiguration, policy: NetworkPolicy, budget: ReturnType<typeof installBudgetGate>, progress: LiveProgress) {
   await runMarketCreate(page, configuration, policy, budget, {
     marketKey: "singapore",
     coordinates: [[
@@ -973,10 +1075,10 @@ async function runSingaporeCreate(page: Page, configuration: LiveConfiguration, 
     ]],
     fileName: "sprint10-singapore-live-aoi.geojson",
     label: "Singapore"
-  });
+  }, progress);
 }
 
-async function runDubaiCreate(page: Page, configuration: LiveConfiguration, policy: NetworkPolicy, budget: ReturnType<typeof installBudgetGate>) {
+async function runDubaiCreate(page: Page, configuration: LiveConfiguration, policy: NetworkPolicy, budget: ReturnType<typeof installBudgetGate>, progress: LiveProgress) {
   await runMarketCreate(page, configuration, policy, budget, {
     marketKey: "dubai",
     coordinates: [[
@@ -988,7 +1090,7 @@ async function runDubaiCreate(page: Page, configuration: LiveConfiguration, poli
     ]],
     fileName: "sprint10-dubai-live-aoi.geojson",
     label: "Dubai"
-  });
+  }, progress);
 }
 
 test("root-authorized protected Preview source-to-decision journey", async ({ page, baseURL }) => {
@@ -1001,55 +1103,95 @@ test("root-authorized protected Preview source-to-decision journey", async ({ pa
   const budget = installBudgetGate(page, configuration);
   await budget.ready;
   await page.setViewportSize({ width: 1440, height: 1000 });
-  let delayedInconclusive: InconclusiveLiveCoverageError | null = null;
+  const progress = createLiveProgress();
+  let delayedInconclusiveStage: string | null = null;
+  let primaryStatus: "failed" | "inconclusive" | null = null;
+  let primaryStage: string | null = null;
+  let cleanupFailureStage: string | null = null;
   let loginAttempted = false;
   try {
+    progress.start("anonymous_protection");
     await verifyAnonymousProtection(configuration);
+    progress.complete("anonymous_protection");
+    progress.start("exact_preview");
     await verifyExactPreview(page, configuration);
+    progress.complete("exact_preview");
     loginAttempted = true;
+    progress.start("auth_login");
     await login(page, configuration);
+    progress.complete("auth_login");
     if (configuration.scope === "journey" || configuration.scope === "dubai-analyse") {
-      await runDubaiAnalyse(page, configuration, policy, budget);
+      await runDubaiAnalyse(page, configuration, policy, budget, progress);
     }
     if (configuration.scope === "journey" || configuration.scope === "dubai-find") {
-      try { await runDubaiFind(page, configuration, policy, budget); }
+      try { await runDubaiFind(page, configuration, policy, budget, progress); }
       catch (error) {
-        if (error instanceof InconclusiveLiveCoverageError) delayedInconclusive = error;
+        if (error instanceof InconclusiveLiveCoverageError) delayedInconclusiveStage = "find_candidate_count";
         else throw error;
       }
     }
     if (configuration.scope === "journey" || configuration.scope === "singapore-create") {
-      await runSingaporeCreate(page, configuration, policy, budget);
+      await runSingaporeCreate(page, configuration, policy, budget, progress);
     }
     if (configuration.scope === "singapore-analyse") {
-      await runSingaporeAnalyse(page, configuration, policy, budget);
+      await runSingaporeAnalyse(page, configuration, policy, budget, progress);
     }
     if (configuration.scope === "singapore-find") {
-      try { await runSingaporeFind(page, configuration, policy, budget); }
+      try { await runSingaporeFind(page, configuration, policy, budget, progress); }
       catch (error) {
-        if (error instanceof InconclusiveLiveCoverageError) delayedInconclusive = error;
+        if (error instanceof InconclusiveLiveCoverageError) delayedInconclusiveStage = "find_candidate_count";
         else throw error;
       }
     }
     if (configuration.scope === "dubai-create") {
-      await runDubaiCreate(page, configuration, policy, budget);
+      await runDubaiCreate(page, configuration, policy, budget, progress);
     }
+    progress.start("paid_terminal");
     await budget.waitForTerminalReceipts();
+    progress.complete("paid_terminal");
+    progress.start("scope_paid_counts");
     budget.assertExpectedScopeCounts();
+    progress.complete("scope_paid_counts");
+    progress.start("network_policy");
     policy.assertClean();
-    if (delayedInconclusive) throw delayedInconclusive;
+    progress.complete("network_policy");
+    if (delayedInconclusiveStage) {
+      primaryStatus = "inconclusive";
+      primaryStage = delayedInconclusiveStage;
+    }
+  } catch (error) {
+    primaryStatus = error instanceof InconclusiveLiveCoverageError ? "inconclusive" : "failed";
+    primaryStage = progress.current();
   } finally {
-    let terminalFailure: unknown = null;
-    try { await budget.finalize(); } catch (error) { terminalFailure = error; }
-    if (loginAttempted) {
-      try { await logoutVerified(page, configuration.userId); }
-      catch (error) {
-        terminalFailure = error instanceof Error && error.message.startsWith("LIVE_JOURNEY_CLEANUP_FAILED:")
-          ? error
-          : new Error("LIVE_JOURNEY_CLEANUP_FAILED: logout");
+    progress.start("paid_finalize");
+    try {
+      await budget.finalize();
+      progress.complete("paid_finalize");
+    }
+    catch {
+      if (primaryStatus === null) {
+        primaryStatus = "failed";
+        primaryStage = "paid_finalize";
       }
     }
-    try { policy.assertClean(); } catch (error) { terminalFailure ??= error; }
-    if (terminalFailure) throw terminalFailure;
+    if (loginAttempted) {
+      try { await logoutVerified(page, configuration.userId); }
+      catch (error) { cleanupFailureStage = cleanupStage(error); }
+    }
+    try { policy.assertClean(); }
+    catch {
+      if (primaryStatus !== "failed") {
+        primaryStatus = "failed";
+        primaryStage = "network_policy";
+      }
+    }
+  }
+  if (primaryStatus || cleanupFailureStage) {
+    throw new Error(encodeLiveJourneyDiagnostic({
+      primaryStatus,
+      primaryStage,
+      cleanupStage: cleanupFailureStage,
+      completedSteps: progress.completed()
+    }));
   }
 });

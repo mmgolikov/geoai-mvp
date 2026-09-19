@@ -27,6 +27,7 @@ import {
   SPRINT10_ANALYSIS_EVIDENCE_CAPTURE_OPT_IN,
   validateSprint10AnalysisEvidencePath
 } from "../tests/e2e/helpers/sprint10-analysis-result-evidence.ts";
+import { findLiveJourneyDiagnostic } from "./sprint10-live-journey-diagnostics.mjs";
 
 const exactDevelopmentProjectRef = "pphdqkurxneyagvnnjdt";
 const exactLedgerId = "5aa405b3-bbda-48aa-aeea-ca3357be4042";
@@ -374,6 +375,85 @@ function receiptSummary(config) {
   }));
 }
 
+export function classifyLiveJourneyReport(report, resultStatus, config, receipts) {
+  const diagnostic = findLiveJourneyDiagnostic(report);
+  if (diagnostic) {
+    if (resultStatus === 0) fail("A live diagnostic failure marker cannot accompany a successful child exit.");
+    const common = {
+      scope: config.scope,
+      previewHost: config.host,
+      commit: config.commit,
+      diagnostic,
+      receipts
+    };
+    if (diagnostic.cleanupStage !== null) {
+      return {
+        exitCode: 1,
+        receipt: { status: "FAIL_CLEANUP", ...common, stage: diagnostic.cleanupStage }
+      };
+    }
+    if (diagnostic.primaryStatus === "inconclusive") {
+      return {
+        exitCode: 2,
+        receipt: {
+          status: "INCONCLUSIVE",
+          ...common,
+          reason: "Find returned fewer than two usable candidates for Compare."
+        }
+      };
+    }
+    return { exitCode: 1, receipt: { status: "FAIL", ...common } };
+  }
+
+  const cleanupFailure = findCleanupFailure(report);
+  if (cleanupFailure) {
+    return {
+      exitCode: 1,
+      receipt: {
+        status: "FAIL_CLEANUP",
+        scope: config.scope,
+        previewHost: config.host,
+        commit: config.commit,
+        stage: cleanupFailure,
+        receipts
+      }
+    };
+  }
+  const inconclusive = findInconclusive(report);
+  if (inconclusive) {
+    return {
+      exitCode: 2,
+      receipt: {
+        status: "INCONCLUSIVE",
+        scope: config.scope,
+        previewHost: config.host,
+        commit: config.commit,
+        reason: inconclusive,
+        receipts
+      }
+    };
+  }
+  const stats = report?.stats ?? {};
+  const passed = Number(stats.expected ?? -1);
+  const skipped = Number(stats.skipped ?? -1);
+  const failed = Number(stats.unexpected ?? -1);
+  const flaky = Number(stats.flaky ?? -1);
+  if (resultStatus !== 0 || passed !== 1 || skipped !== 0 || failed !== 0 || flaky !== 0) {
+    fail(`The bounded live receipt was not accepted (passed=${passed}, skipped=${skipped}, failed=${failed}, flaky=${flaky}).`);
+  }
+  return {
+    exitCode: 0,
+    receipt: {
+      status: "PASS",
+      scope: config.scope,
+      previewHost: config.host,
+      commit: config.commit,
+      browserLocalPersistenceOnly: true,
+      receipts
+    }
+  };
+}
+
 function run() {
   const repositoryRoot = fileURLToPath(new URL("..", import.meta.url));
   const config = preflight(repositoryRoot);
@@ -470,49 +550,10 @@ module.exports = defineConfig({
     });
     if (result.error || result.signal) fail("The live child exceeded its bounded execution window; logout is not verified and operator action is required.");
     const report = parseJsonReport(result, "live journey");
-    const stats = report?.stats ?? {};
-    const passed = Number(stats.expected ?? -1);
-    const skipped = Number(stats.skipped ?? -1);
-    const failed = Number(stats.unexpected ?? -1);
-    const flaky = Number(stats.flaky ?? -1);
     const receipts = receiptSummary(config);
-    const cleanupFailure = findCleanupFailure(report);
-    if (cleanupFailure) {
-      console.log(JSON.stringify({
-        status: "FAIL_CLEANUP",
-        scope: config.scope,
-        previewHost: config.host,
-        commit: config.commit,
-        stage: cleanupFailure,
-        receipts
-      }));
-      process.exitCode = 1;
-      return;
-    }
-    const inconclusive = findInconclusive(report);
-    if (inconclusive) {
-      console.log(JSON.stringify({
-        status: "INCONCLUSIVE",
-        scope: config.scope,
-        previewHost: config.host,
-        commit: config.commit,
-        reason: inconclusive,
-        receipts
-      }));
-      process.exitCode = 2;
-      return;
-    }
-    if (result.error || result.status !== 0 || passed !== 1 || skipped !== 0 || failed !== 0 || flaky !== 0) {
-      fail(`The bounded live receipt was not accepted (passed=${passed}, skipped=${skipped}, failed=${failed}, flaky=${flaky}).`);
-    }
-    console.log(JSON.stringify({
-      status: "PASS",
-      scope: config.scope,
-      previewHost: config.host,
-      commit: config.commit,
-      browserLocalPersistenceOnly: true,
-      receipts
-    }));
+    const classified = classifyLiveJourneyReport(report, result.status, config, receipts);
+    console.log(JSON.stringify(classified.receipt));
+    process.exitCode = classified.exitCode;
   } finally {
     try { rmSync(temporaryDirectory, { recursive: true, force: true }); }
     finally { if (lease) releaseRunLease(lease); }
