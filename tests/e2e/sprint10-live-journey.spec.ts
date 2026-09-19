@@ -45,6 +45,7 @@ import {
 import {
   SPRINT10_DEPTH_CYCLE_EVIDENCE_CAPTURE_OPT_IN,
   SPRINT10_DEVELOPMENT_SCREENING_QUESTION,
+  validateSprint10DepthCycleTransportIdentity,
   validateSprint10DepthCycleEvidencePath,
   writeSprint10DepthCycleEvidence,
   type Sprint10DepthCycleEvidenceInput
@@ -896,6 +897,7 @@ async function runDubaiDepthCycle(page: Page, configuration: LiveConfiguration, 
   progress.complete("analyse_paid_terminal");
   progress.start("analyse_result_contract");
   const baselineSubmitted: unknown = baselineResponse.request().postDataJSON();
+  const baselineTransportIdentity = validateSprint10DepthCycleTransportIdentity(baselineSubmitted, chosen.id);
   guard(baselineResponse.status() === 200 && record(baselinePayload) && baselinePayload.mode === "openai" && baselinePayload.schemaVersion === 6 &&
     typeof baselinePayload.evidencePackHash === "string" && /^[a-f0-9]{64}$/.test(baselinePayload.evidencePackHash) &&
     baselinePayload.evidencePackId === `p2o_live_evidence_${baselinePayload.evidencePackHash.slice(0, 24)}` &&
@@ -903,7 +905,10 @@ async function runDubaiDepthCycle(page: Page, configuration: LiveConfiguration, 
     baselineSubmitted.perspective === "developer" && baselineSubmitted.horizon === "current" &&
     baselineSubmitted.question === SPRINT10_PUBLIC_ANALYSIS_QUESTION && baselineSubmitted.locale === "en" &&
     baselineSubmitted.role === "developer" && baselineSubmitted.scenario === "unspecified" &&
-    baselineSubmitted.expectedSourceFeatureId === chosen.id &&
+    baselineSubmitted.expectedSourceFeatureId === chosen.id && baselineSubmitted.consent === true &&
+    baselineTransportIdentity.caseKey === "dubai" &&
+    baselineTransportIdentity.longitude === chosen.longitude && baselineTransportIdentity.latitude === chosen.latitude &&
+    coordinatesMatchPointObjectMarket("dubai", baselineTransportIdentity.longitude, baselineTransportIdentity.latitude) &&
     record(baselinePayload.request) && baselinePayload.request.depth === "standard" && baselinePayload.request.goal === "custom" &&
     baselinePayload.request.perspective === "developer" && baselinePayload.request.horizon === "current" &&
     baselinePayload.request.question === SPRINT10_PUBLIC_ANALYSIS_QUESTION && baselinePayload.request.locale === "en" &&
@@ -945,11 +950,15 @@ async function runDubaiDepthCycle(page: Page, configuration: LiveConfiguration, 
     await run.click();
     const request = await requestPromise;
     const submittedRequest: unknown = request.postDataJSON();
+    const transportIdentity = validateSprint10DepthCycleTransportIdentity(submittedRequest, chosen.id);
     guard(record(submittedRequest) && submittedRequest.depth === depth && submittedRequest.goal === "development_screening" &&
       submittedRequest.perspective === "developer" && submittedRequest.horizon === "current" &&
       submittedRequest.question === SPRINT10_DEVELOPMENT_SCREENING_QUESTION && submittedRequest.locale === "en" &&
       submittedRequest.role === "developer" && submittedRequest.scenario === "unspecified" &&
-      submittedRequest.expectedSourceFeatureId === chosen.id,
+      submittedRequest.expectedSourceFeatureId === chosen.id && submittedRequest.consent === true &&
+      transportIdentity.caseKey === baselineTransportIdentity.caseKey &&
+      transportIdentity.longitude === baselineTransportIdentity.longitude &&
+      transportIdentity.latitude === baselineTransportIdentity.latitude,
     `The submitted ${depth} screening request changed a fixed non-depth input or source identity.`);
     await expect(state).toHaveAttribute("data-in-flight-depth", depth);
     await expect(state).toHaveAttribute("data-completed-depth", previousDepth);

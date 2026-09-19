@@ -40,6 +40,12 @@ type JsonRecord = Record<string, unknown>;
 
 export type Sprint10DepthCycleEvidenceInput = Sprint10AnalysisEvidenceInput;
 
+export type Sprint10DepthCycleTransportIdentity = {
+  caseKey: "dubai";
+  longitude: number;
+  latitude: number;
+};
+
 export type Sprint10DepthCycleEvidence = {
   schemaVersion: typeof SPRINT10_DEPTH_CYCLE_EVIDENCE_SCHEMA;
   captureKind: "three_synthetic_public_dubai_screening_responses";
@@ -75,6 +81,30 @@ function exactKeys(value: JsonRecord, keys: readonly string[]): boolean {
   return Object.keys(value).sort().join("\u0000") === [...keys].sort().join("\u0000");
 }
 
+export function validateSprint10DepthCycleTransportIdentity(
+  submittedRequest: unknown,
+  expectedSourceFeatureId: unknown
+): Sprint10DepthCycleTransportIdentity {
+  if (!record(submittedRequest) || !exactKeys(submittedRequest, SUBMITTED_KEYS)) {
+    fail("one submitted request has an unexpected shape.");
+  }
+  if (submittedRequest.caseKey !== "dubai" ||
+      typeof submittedRequest.longitude !== "number" || !Number.isFinite(submittedRequest.longitude) ||
+      submittedRequest.longitude < -180 || submittedRequest.longitude > 180 ||
+      typeof submittedRequest.latitude !== "number" || !Number.isFinite(submittedRequest.latitude) ||
+      submittedRequest.latitude < -90 || submittedRequest.latitude > 90 ||
+      typeof expectedSourceFeatureId !== "string" ||
+      submittedRequest.expectedSourceFeatureId !== expectedSourceFeatureId ||
+      submittedRequest.consent !== true) {
+    fail("the public source transport identity is invalid.");
+  }
+  return {
+    caseKey: "dubai",
+    longitude: submittedRequest.longitude,
+    latitude: submittedRequest.latitude
+  };
+}
+
 function pathEntry(path: string): ReturnType<typeof lstatSync> | null {
   try { return lstatSync(path); }
   catch (error) {
@@ -87,11 +117,9 @@ function validateAndSanitize(input: Sprint10DepthCycleEvidenceInput, expectedDep
   if (!record(input) || !exactKeys(input, ["response", "submittedRequest", "expectedSourceFeatureId", "telemetryIdentity"])) {
     fail("one result input has an unexpected shape.");
   }
-  if (!record(input.response) || !record(input.response.request) || !record(input.submittedRequest) ||
-      !exactKeys(input.submittedRequest, SUBMITTED_KEYS)) {
-    fail("one submitted request has an unexpected shape.");
-  }
-  const submitted = input.submittedRequest;
+  if (!record(input.response) || !record(input.response.request)) fail("one response has an unexpected shape.");
+  const transportIdentity = validateSprint10DepthCycleTransportIdentity(input.submittedRequest, input.expectedSourceFeatureId);
+  const submitted = record(input.submittedRequest) ? input.submittedRequest : fail("one submitted request has an unexpected shape.");
   const receipt = input.response.request;
   const compared = ["role", "scenario", "depth", "goal", "perspective", "horizon", "locale", "question"] as const;
   if (compared.some((key) => receipt[key] !== submitted[key]) || receipt.focused !== true ||
@@ -109,17 +137,28 @@ function validateAndSanitize(input: Sprint10DepthCycleEvidenceInput, expectedDep
   const validationResponse = structuredClone(input.response) as JsonRecord;
   (validationResponse.request as JsonRecord).question = SPRINT10_PUBLIC_ANALYSIS_QUESTION;
   const validationSubmitted = { ...submitted, question: SPRINT10_PUBLIC_ANALYSIS_QUESTION };
-  return buildSprint10AnalysisResultEvidence({
-    ...input,
-    response: validationResponse,
-    submittedRequest: validationSubmitted
-  });
+  return {
+    transportIdentity,
+    evidence: buildSprint10AnalysisResultEvidence({
+      ...input,
+      response: validationResponse,
+      submittedRequest: validationSubmitted
+    })
+  };
 }
 
 export function buildSprint10DepthCycleEvidence(inputs: unknown): Sprint10DepthCycleEvidence {
   if (!Array.isArray(inputs) || inputs.length !== 3) fail("exactly three screening responses are required.");
-  const results = DEPTHS.map((depth, index) => validateAndSanitize(inputs[index] as Sprint10DepthCycleEvidenceInput, depth)) as
+  const validated = DEPTHS.map((depth, index) => validateAndSanitize(inputs[index] as Sprint10DepthCycleEvidenceInput, depth));
+  const results = validated.map((item) => item.evidence) as
     [Sprint10AnalysisResultEvidence, Sprint10AnalysisResultEvidence, Sprint10AnalysisResultEvidence];
+  const publicTransportIdentity = validated[0].transportIdentity;
+  if (validated.slice(1).some(({ transportIdentity }) =>
+    transportIdentity.caseKey !== publicTransportIdentity.caseKey ||
+    transportIdentity.longitude !== publicTransportIdentity.longitude ||
+    transportIdentity.latitude !== publicTransportIdentity.latitude)) {
+    fail("public source transport identity changed across the depth cycle.");
+  }
   const sourceFeatureId = results[0].sourceFeatureId;
   if (results.some((result) => result.sourceFeatureId !== sourceFeatureId)) fail("source identity changed across the depth cycle.");
   const [first, ...rest] = results.map((result) => result.submitted);

@@ -106,6 +106,17 @@ function fixtures(hashCharacters: [string, string, string] = ["a", "a", "a"]) {
 }
 
 try {
+  const liveSpec = readFileSync(new URL("../tests/e2e/sprint10-live-journey.spec.ts", import.meta.url), "utf8");
+  const depthFlow = /async function runDubaiDepthCycle[\s\S]*?\n}\n\nasync function runSingaporeAnalyse/.exec(liveSpec)?.[0] ?? "";
+  const transportChecks = [...depthFlow.matchAll(/validateSprint10DepthCycleTransportIdentity\(/g)].map((match) => match.index);
+  const captureGate = depthFlow.indexOf("if (configuration.depthCycleEvidencePath)");
+  assert.equal(transportChecks.length, 2,
+    "the actual UI flow must validate the baseline and every looped screening transport independently of capture");
+  assert.ok(transportChecks.every((index) => index < captureGate),
+    "capture-off UI transport acceptance must enforce the public source tuple before optional evidence handling");
+  assert.match(depthFlow, /baselineTransportIdentity[.]longitude === chosen[.]longitude[\s\S]*baselineTransportIdentity[.]latitude === chosen[.]latitude/);
+  assert.match(depthFlow, /transportIdentity[.]caseKey === baselineTransportIdentity[.]caseKey[\s\S]*transportIdentity[.]longitude === baselineTransportIdentity[.]longitude[\s\S]*transportIdentity[.]latitude === baselineTransportIdentity[.]latitude/);
+
   const built = buildSprint10DepthCycleEvidence(fixtures());
   assert.equal(built.schemaVersion, SPRINT10_DEPTH_CYCLE_EVIDENCE_SCHEMA);
   assert.equal(built.rawSourcePackCaptured, false);
@@ -115,8 +126,12 @@ try {
   assert.deepEqual(built.results.map((result) => result.submitted.depth), depths);
   assert.equal(built.evidencePackComparison.status, "COMPARABLE");
   const serialized = JSON.stringify(built);
+  assert.equal(new Set(fixtures().map((item) => item.submittedRequest.challenge)).size, 3,
+    "one-time challenges are expected to differ and must not affect comparability");
   assert.doesNotMatch(serialized, /synthetic-private-challenge|resp_private/,
     "private request challenge and provider request IDs must not enter the capture");
+  assert.doesNotMatch(serialized, /"(?:caseKey|longitude|latitude)"/,
+    "the in-memory public transport comparison must not add case or coordinate fields to the capture");
 
   const changedPack = buildSprint10DepthCycleEvidence(fixtures(["a", "b", "a"]));
   assert.equal(changedPack.evidencePackComparison.status, "NOT_COMPARABLE");
@@ -134,6 +149,24 @@ try {
   changedInput[2].submittedRequest = { ...changedInput[2].submittedRequest, horizon: "long_term" } as any;
   changedInput[2].response.request.horizon = "long_term";
   assert.throws(() => buildSprint10DepthCycleEvidence(changedInput), /non-depth screening inputs changed/);
+  const changedCase = fixtures();
+  changedCase[1].submittedRequest = { ...changedCase[1].submittedRequest, caseKey: "singapore" } as any;
+  assert.throws(() => buildSprint10DepthCycleEvidence(changedCase), /public source transport identity is invalid/,
+    "a different case must fail even when all response pack hashes still match");
+  const changedLongitude = fixtures();
+  changedLongitude[1].submittedRequest = { ...changedLongitude[1].submittedRequest, longitude: 55.271 } as any;
+  assert.throws(() => buildSprint10DepthCycleEvidence(changedLongitude), /public source transport identity changed/,
+    "a different longitude must fail even when all response pack hashes still match");
+  const changedLatitude = fixtures();
+  changedLatitude[2].submittedRequest = { ...changedLatitude[2].submittedRequest, latitude: 25.201 } as any;
+  assert.throws(() => buildSprint10DepthCycleEvidence(changedLatitude), /public source transport identity changed/,
+    "a different latitude must fail even when all response pack hashes still match");
+  const changedSource = fixtures();
+  changedSource[1].submittedRequest = { ...changedSource[1].submittedRequest, expectedSourceFeatureId: "way/91011" } as any;
+  assert.throws(() => buildSprint10DepthCycleEvidence(changedSource), /public source transport identity is invalid/);
+  const withdrawnConsent = fixtures();
+  withdrawnConsent[1].submittedRequest = { ...withdrawnConsent[1].submittedRequest, consent: false } as any;
+  assert.throws(() => buildSprint10DepthCycleEvidence(withdrawnConsent), /public source transport identity is invalid/);
   const privateField = fixtures();
   privateField[0].submittedRequest = { ...privateField[0].submittedRequest, userId: "private-user" } as any;
   assert.throws(() => buildSprint10DepthCycleEvidence(privateField), /unexpected shape/,
