@@ -29,6 +29,10 @@ function guard(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
 
+function progress(stage: string) {
+  test.info().annotations.push({ type: "geoai_cloud_stage", description: stage });
+}
+
 function canonical(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
   if (typeof value === "object" && value !== null) {
@@ -174,10 +178,14 @@ test("writer saves, clean context reopens, outsider is denied", async ({ browser
     const originalBytes = fixtureStore(personaA.userId);
     const aResponses: number[] = [];
     first.page.on("response", (response) => { if (new URL(response.url()).pathname === cloudPath) aResponses.push(response.status()); });
+    progress("writer_login");
     await login(first.page, personaA, originalBytes);
+    progress("writer_cloud_read");
     await expect(first.page.getByText("Cloud projects are available on this device.", { exact: true })).toBeVisible();
     const put = first.page.waitForResponse((response) => response.request().method() === "PUT" && new URL(response.url()).pathname === cloudPath);
+    progress("writer_save");
     await first.page.getByRole("button", { name: "Save to cloud", exact: true }).click();
+    progress("writer_save_201");
     expect((await put).status()).toBe(201);
     await expect(first.page.getByText(/selected project is saved to the protected cloud test environment/i)).toBeVisible();
     expect(await first.page.evaluate((key) => localStorage.getItem(key), storageKey(personaA.userId))).toBe(originalBytes);
@@ -187,12 +195,14 @@ test("writer saves, clean context reopens, outsider is denied", async ({ browser
     const second = await newContext(browser); contexts.push(second.context);
     let secondPuts = 0;
     second.page.on("request", (request) => { if (request.method() === "PUT" && new URL(request.url()).pathname === cloudPath) secondPuts += 1; });
+    progress("writer_clean_reopen");
     await login(second.page, personaA, null);
     await expect(second.page.getByRole("heading", { name: "Public synthetic cloud project", exact: true })).toBeVisible();
     await expect(second.page.getByText("Public synthetic cloud result", { exact: true })).toBeVisible();
     const imported = await second.page.evaluate((key) => localStorage.getItem(key), storageKey(personaA.userId));
     guard(imported !== null, "Clean A context did not import the artifact.");
     expect(JSON.parse(imported).projects[0].artifacts[0]).toEqual(fixtureArtifact());
+    progress("writer_map");
     await Promise.all([
       second.page.waitForURL((url) => url.pathname === "/prototype/point-to-object"),
       second.page.getByRole("button", { name: "Show on map", exact: true }).click()
@@ -206,7 +216,9 @@ test("writer saves, clean context reopens, outsider is denied", async ({ browser
     const outsiderStatuses: number[] = [];
     outsider.page.on("response", (response) => { if (new URL(response.url()).pathname === cloudPath) outsiderStatuses.push(response.status()); });
     const outsiderBytes = fixtureStore(personaB.userId);
+    progress("outsider_login");
     await login(outsider.page, personaB, outsiderBytes);
+    progress("outsider_assertion");
     await expect(outsider.page.getByText("Cloud sync is not authorized for this project.", { exact: true })).toBeVisible();
     await expect(outsider.page.getByRole("button", { name: "Save to cloud", exact: true })).toBeDisabled();
     expect(outsiderStatuses).toContain(403);
@@ -224,12 +236,16 @@ test("viewer cannot save", async ({ browser }) => {
     const viewer = await newContext(browser); contexts.push(viewer.context);
     await verifyPreview(viewer.page);
     const originalBytes = fixtureStore(personaB.userId);
+    progress("viewer_login");
     await login(viewer.page, personaB, originalBytes);
+    progress("viewer_cloud_read");
     await expect(viewer.page.getByText("Cloud projects are available on this device.", { exact: true })).toBeVisible();
     const button = viewer.page.getByRole("button", { name: "Save to cloud", exact: true });
     await expect(button).toBeEnabled();
     const put = viewer.page.waitForResponse((response) => response.request().method() === "PUT" && new URL(response.url()).pathname === cloudPath);
+    progress("viewer_save");
     await button.click();
+    progress("viewer_assertion");
     expect((await put).status()).toBe(403);
     await expect(viewer.page.getByRole("alert")).toContainText("not saved completely");
     expect(await viewer.page.evaluate((key) => localStorage.getItem(key), storageKey(personaB.userId))).toBe(originalBytes);

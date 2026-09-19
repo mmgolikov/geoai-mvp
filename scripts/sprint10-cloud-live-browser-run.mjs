@@ -8,6 +8,14 @@ import { spawnSync } from "node:child_process";
 
 const PROJECT_REF = "pphdqkurxneyagvnnjdt";
 const phases = new Set(["writer_outsider", "viewer_denial"]);
+export const browserProgressStages = Object.freeze({
+  writer_outsider: Object.freeze([
+    "writer_login", "writer_cloud_read", "writer_save", "writer_save_201",
+    "writer_clean_reopen", "writer_map", "outsider_login", "outsider_assertion"
+  ]),
+  viewer_denial: Object.freeze(["viewer_login", "viewer_cloud_read", "viewer_save", "viewer_assertion"])
+});
+const browserRunnerStages = new Set(["browser_preflight", "browser_process_unconfirmed", "browser_report_invalid"]);
 const forbiddenProductionHosts = new Set([
   "geoai-mvp.vercel.app",
   "geoai-id0xnwco2-geoaidev.vercel.app",
@@ -52,24 +60,61 @@ function collectSpecs(suites) {
   ]);
 }
 
-export function validateBrowserReport(report, expectedTitle) {
+function exactKeys(value, keys) {
+  return !!value && typeof value === "object" && !Array.isArray(value) &&
+    Object.keys(value).sort().join("|") === [...keys].sort().join("|");
+}
+
+export function browserTitlePattern(title) {
+  return `${title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`;
+}
+
+export function isBrowserFailureStage(stage, phase) {
+  return browserRunnerStages.has(stage) || browserProgressStages[phase]?.includes(stage) === true;
+}
+
+export function parseBrowserReport(report, expectedTitle, expectedPhase) {
   const projects = report?.config?.projects;
   const specs = collectSpecs(report?.suites);
   const tests = specs.flatMap((spec) => Array.isArray(spec.tests) ? spec.tests.map((test) => ({ spec, test })) : []);
   const stats = report?.stats;
+  const selected = tests[0];
+  const result = selected?.test?.results?.[0];
   if (!Array.isArray(projects) || projects.length !== 1 || projects[0]?.name !== "sprint10-cloud-live" ||
-      tests.length !== 1 || tests[0].spec?.title !== expectedTitle || tests[0].test?.projectName !== "sprint10-cloud-live" ||
-      tests[0].test?.expectedStatus !== "passed" || !Array.isArray(tests[0].test?.results) ||
-      tests[0].test.results.length !== 1 || tests[0].test.results[0]?.status !== "passed" || tests[0].test.results[0]?.retry !== 0 ||
-      stats?.expected !== 1 || stats?.skipped !== 0 || stats?.flaky !== 0 || stats?.unexpected !== 0 ||
-      !Array.isArray(report?.errors) || report.errors.length !== 0) {
-    throw new Error("Browser JSON report did not prove one exact non-skipped passing test.");
+      tests.length !== 1 || selected.spec?.title !== expectedTitle || selected.test?.projectName !== "sprint10-cloud-live" ||
+      selected.test?.expectedStatus !== "passed" || !Array.isArray(selected.test?.results) ||
+      selected.test.results.length !== 1 || result?.retry !== 0 ||
+      !Array.isArray(result?.stdout) || result.stdout.length !== 0 || !Array.isArray(result?.stderr) || result.stderr.length !== 0 ||
+      !Array.isArray(result?.attachments) || result.attachments.length !== 0 ||
+      !Array.isArray(report?.errors) || report.errors.length !== 0 || stats?.skipped !== 0 || stats?.flaky !== 0) {
+    throw new Error("Browser JSON report did not prove one exact non-skipped test.");
   }
-  return 1;
+  const expectedStages = browserProgressStages[expectedPhase];
+  const annotations = result.annotations;
+  if (!expectedStages || !Array.isArray(annotations) || annotations.length === 0 || annotations.length > expectedStages.length ||
+      !annotations.every((annotation, index) => exactKeys(annotation, ["type", "description"]) &&
+        annotation.type === "geoai_cloud_stage" && annotation.description === expectedStages[index]) ||
+      JSON.stringify(selected.test.annotations) !== JSON.stringify(annotations)) {
+    throw new Error("Browser progress annotations are not the exact safe enum prefix.");
+  }
+  const passed = result.status === "passed" && selected.spec.ok === true && selected.test.status === "expected" &&
+    stats?.expected === 1 && stats?.unexpected === 0 && annotations.length === expectedStages.length;
+  const failed = ["failed", "timedOut"].includes(result.status) && selected.spec.ok === false &&
+    selected.test.status === "unexpected" && stats?.expected === 0 && stats?.unexpected === 1 &&
+    annotations.length <= expectedStages.length;
+  if (!passed && !failed) throw new Error("Browser JSON report status disagrees with its safe progress sequence.");
+  return { status: passed ? "PASS" : "FAIL", tests: 1, progressStage: annotations.at(-1).description };
+}
+
+export function validateBrowserReport(report, expectedTitle, expectedPhase) {
+  const parsed = parseBrowserReport(report, expectedTitle, expectedPhase);
+  if (parsed.status !== "PASS") throw new Error("Browser JSON report did not prove one exact non-skipped passing test.");
+  return parsed.tests;
 }
 
 function main() {
-  let phase = "unknown";
+  let phase = phases.has(process.env.GEOAI_CLOUD_LIVE_PHASE) ? process.env.GEOAI_CLOUD_LIVE_PHASE : "unknown";
+  let safeStage = "browser_preflight";
   let temporaryDirectory = null;
   try {
     phase = preflight();
@@ -89,22 +134,29 @@ module.exports = defineConfig({
 });
 `, { encoding: "utf8", mode: 0o600 });
     const title = phase === "writer_outsider" ? "writer saves, clean context reopens, outsider is denied" : "viewer cannot save";
+    safeStage = "browser_process_unconfirmed";
     const result = spawnSync(process.execPath, [
       playwrightCli, "test", "tests/e2e/sprint10-cloud-live-acceptance.spec.ts",
-      `--config=${configPath}`, "--project=sprint10-cloud-live", `--grep=^${title}$`, "--reporter=json", "--workers=1", "--retries=0"
+      `--config=${configPath}`, "--project=sprint10-cloud-live", `--grep=${browserTitlePattern(title)}`, "--reporter=json", "--workers=1", "--retries=0"
     ], { cwd: root, env: process.env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 390_000, maxBuffer: 16 * 1024 * 1024 });
+    if (result.error || result.signal) throw new Error("Browser phase was unconfirmed.");
     let report;
     try { report = JSON.parse(result.stdout || ""); } catch { report = null; }
-    if (result.error || result.signal || result.status !== 0) throw new Error("Browser phase failed.");
-    const tests = validateBrowserReport(report, title);
+    safeStage = "browser_report_invalid";
+    const parsed = parseBrowserReport(report, title, phase);
+    if (result.status !== (parsed.status === "PASS" ? 0 : 1)) throw new Error("Browser process status disagrees with report.");
+    if (parsed.status !== "PASS") {
+      safeStage = parsed.progressStage;
+      throw new Error("Browser phase failed at a bounded progress stage.");
+    }
     console.log(JSON.stringify({
       schemaVersion: "geoai.sprint10.cloud-live-browser-receipt.v1",
-      status: "PASS", phase, tests, secretMaterialEmitted: false
+      status: "PASS", phase, tests: parsed.tests, secretMaterialEmitted: false
     }));
   } catch {
     console.error(JSON.stringify({
       schemaVersion: "geoai.sprint10.cloud-live-browser-receipt.v1",
-      status: "FAIL", phase, rawOutputSuppressed: true, secretMaterialEmitted: false
+      status: "FAIL", phase, stage: safeStage, rawOutputSuppressed: true, secretMaterialEmitted: false
     }));
     process.exitCode = 1;
   } finally {

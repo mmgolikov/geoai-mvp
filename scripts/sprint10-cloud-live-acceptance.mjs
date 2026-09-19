@@ -5,6 +5,7 @@ import { lstatSync, readFileSync, realpathSync } from "node:fs";
 import { dirname, isAbsolute, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
+import { isBrowserFailureStage } from "./sprint10-cloud-live-browser-run.mjs";
 
 const PROJECT_REF = "pphdqkurxneyagvnnjdt";
 const MIGRATION_VERSION = "20260918203424";
@@ -272,7 +273,18 @@ export function runBrowserPhase(config, target, personas, phase, { env = process
     cwd: repositoryRoot, env: browserEnvironment(env, config, target, personas, phase), encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"], timeout: 420_000, maxBuffer: 256 * 1024
   });
-  if (result.error || result.signal || result.status !== 0) fail("Cloud-live browser phase failed; output suppressed.", `browser_${phase}`);
+  if (result.error || result.signal) fail("Cloud-live browser phase was unconfirmed; output suppressed.", "browser_process_unconfirmed");
+  if (result.status !== 0) {
+    let failureReceipt;
+    try { failureReceipt = JSON.parse(result.stderr.trim()); } catch { failureReceipt = null; }
+    if (!exactKeys(failureReceipt, ["schemaVersion", "status", "phase", "stage", "rawOutputSuppressed", "secretMaterialEmitted"]) ||
+        failureReceipt.schemaVersion !== "geoai.sprint10.cloud-live-browser-receipt.v1" || failureReceipt.status !== "FAIL" ||
+        failureReceipt.phase !== phase || !isBrowserFailureStage(failureReceipt.stage, phase) ||
+        failureReceipt.rawOutputSuppressed !== true || failureReceipt.secretMaterialEmitted !== false) {
+      fail("Cloud-live browser failure receipt was invalid; output suppressed.", "browser_report_invalid");
+    }
+    fail("Cloud-live browser phase failed at a bounded progress stage; output suppressed.", failureReceipt.stage);
+  }
   let receipt;
   try { receipt = JSON.parse(result.stdout.trim()); } catch { fail("Cloud-live browser receipt is invalid.", `browser_${phase}`); }
   if (!exactKeys(receipt, ["schemaVersion", "status", "phase", "tests", "secretMaterialEmitted"]) ||
@@ -311,8 +323,19 @@ export function runCloudAcceptance(config, personas, target, dependencies = {}) 
       }
     }
   }
-  if (evidence.cleanup === "unconfirmed_action_required") fail("Cloud-live operator cleanup is unconfirmed.", "operator_cleanup_unconfirmed");
-  if (primaryError) throw primaryError;
+  if (evidence.cleanup === "unconfirmed_action_required") {
+    const error = new Error("Cloud-live operator cleanup is unconfirmed.");
+    error.code = "operator_cleanup_unconfirmed";
+    error.cloudCleanup = evidence.cleanup;
+    throw error;
+  }
+  if (primaryError) {
+    const error = new Error("Cloud-live operator or browser stage failed; raw output suppressed.");
+    error.code = typeof primaryError?.code === "string" && /^[a-z0-9_]{1,80}$/.test(primaryError.code)
+      ? primaryError.code : "operator_or_browser";
+    error.cloudCleanup = evidence.cleanup;
+    throw error;
+  }
   return evidence;
 }
 
@@ -363,11 +386,13 @@ export async function main(options = {}) {
   } catch (error) {
     const code = typeof error?.code === "string" && /^[a-z0-9_]{1,80}$/.test(error.code) ? error.code : failureStage;
     const actionRequired = code === "operator_cleanup_unconfirmed" || authReceipt?.status === "FAIL_ACTION_REQUIRED";
+    const verifiedCleanup = error?.cloudCleanup === "scope_disabled_memberships_disabled_artifact_retained" ||
+      error?.cloudCleanup === "unconfirmed_action_required" ? error.cloudCleanup : null;
     console.error(JSON.stringify({
       schemaVersion: "geoai.sprint10.cloud-live-acceptance-receipt.v1",
       status: actionRequired ? "FAIL_ACTION_REQUIRED" : "FAIL",
       stage: code,
-      cloudCleanup: cloudEvidence?.cleanup ?? "not_reached",
+      cloudCleanup: cloudEvidence?.cleanup ?? verifiedCleanup ?? "not_reached",
       authRetirement: authReceipt?.retirement ?? "handled_by_existing_hosted_probe_lifecycle",
       automaticReplayForbidden: true,
       rawOutputSuppressed: true,

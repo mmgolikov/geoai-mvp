@@ -4,13 +4,21 @@ import assert from "node:assert/strict";
 import { chmodSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { spawnSync } from "node:child_process";
 import {
+  main as runCloudLiveMain,
   operatorSql,
   parseOperatorReceipt,
+  runBrowserPhase,
   runCloudAcceptance,
   validateCloudLiveConfig
 } from "./sprint10-cloud-live-acceptance.mjs";
-import { validateBrowserReport } from "./sprint10-cloud-live-browser-run.mjs";
+import {
+  browserProgressStages,
+  browserTitlePattern,
+  parseBrowserReport,
+  validateBrowserReport
+} from "./sprint10-cloud-live-browser-run.mjs";
 import { runHostedProbe } from "./sprint10-hosted-auth-probe.mjs";
 
 const root = resolve(new URL("..", import.meta.url).pathname);
@@ -60,6 +68,32 @@ for (const invalid of [
 }
 assert.throws(() => parseOperatorReceipt(JSON.stringify([{ ...preflightReceipt, extra: true }]), "preflight"));
 
+const browserFailureReceipt = {
+  schemaVersion: "geoai.sprint10.cloud-live-browser-receipt.v1", status: "FAIL", phase: "writer_outsider",
+  stage: "writer_save", rawOutputSuppressed: true, secretMaterialEmitted: false
+};
+let browserFailure;
+try {
+  runBrowserPhase({ expectedCommitSha: "a".repeat(40) }, target, personas, "writer_outsider", {
+    env: {}, spawn: () => ({ status: 1, signal: null, error: undefined, stdout: "", stderr: JSON.stringify(browserFailureReceipt) })
+  });
+} catch (error) {
+  browserFailure = error;
+}
+assert.equal(browserFailure?.code, "writer_save");
+assert.doesNotMatch(browserFailure?.message ?? "", /password|payload|stderr/i);
+let invalidBrowserFailure;
+try {
+  runBrowserPhase({ expectedCommitSha: "a".repeat(40) }, target, personas, "writer_outsider", {
+    env: {}, spawn: () => ({ status: 1, signal: null, error: undefined, stdout: "", stderr: JSON.stringify({
+      ...browserFailureReceipt, stage: "raw customer value", extra: true
+    }) })
+  });
+} catch (error) {
+  invalidBrowserFailure = error;
+}
+assert.equal(invalidBrowserFailure?.code, "browser_report_invalid");
+
 const calls = [];
 const pass = runCloudAcceptance({ expectedCommitSha: "a".repeat(40) }, personas, target, {
   runOperator(stage) { calls.push(`operator:${stage}`); return { stage, ok: true }; },
@@ -72,11 +106,19 @@ assert.deepEqual(calls, [
 assert.equal(pass.cleanup, "scope_disabled_memberships_disabled_artifact_retained");
 
 const failureCalls = [];
-assert.throws(() => runCloudAcceptance({ expectedCommitSha: "a".repeat(40) }, personas, target, {
-  runOperator(stage) { failureCalls.push(`operator:${stage}`); return { stage, ok: true }; },
-  runBrowserPhase() { failureCalls.push("browser:writer_outsider"); throw new Error("offline fault"); }
-}));
+let cloudFailure;
+try {
+  runCloudAcceptance({ expectedCommitSha: "a".repeat(40) }, personas, target, {
+    runOperator(stage) { failureCalls.push(`operator:${stage}`); return { stage, ok: true }; },
+    runBrowserPhase() { failureCalls.push("browser:writer_outsider"); throw new Error("offline raw fault"); }
+  });
+} catch (error) {
+  cloudFailure = error;
+}
 assert.deepEqual(failureCalls, ["operator:preflight", "operator:activate_writer", "browser:writer_outsider", "operator:cleanup"]);
+assert.equal(cloudFailure?.code, "operator_or_browser");
+assert.equal(cloudFailure?.cloudCleanup, "scope_disabled_memberships_disabled_artifact_retained");
+assert.doesNotMatch(cloudFailure?.message ?? "", /offline raw fault/);
 
 const privateRoot = mkdtempSync(join(realpathSync(tmpdir()), "geoai-cloud-live-static-"));
 try {
@@ -109,6 +151,39 @@ try {
   };
   assert.equal(validateCloudLiveConfig(env, authConfig).projectKey, target.projectKey);
   assert.throws(() => validateCloudLiveConfig({ ...env, GEOAI_CLOUD_LIVE_PROJECT_KEY: "private-project" }, authConfig));
+  let terminalFailure;
+  const previousError = console.error;
+  const previousExitCode = process.exitCode;
+  console.error = (line) => { terminalFailure = JSON.parse(line); };
+  process.exitCode = undefined;
+  try {
+    await runCloudLiveMain({
+      env,
+      async runHostedProbe({ operations, onTerminalResult }) {
+        try {
+          operations.runExistingPreviewHarness(authConfig, personas);
+        } catch (error) {
+          onTerminalResult({ status: "FAIL", retirement: { safelyRetired: true } });
+          throw error;
+        }
+      },
+      dependencies: {
+        runOperator(stage) { return { stage, ok: true }; },
+        runBrowserPhase() {
+          const error = new Error("raw browser detail must not escape");
+          error.code = "writer_save";
+          throw error;
+        }
+      }
+    });
+  } finally {
+    console.error = previousError;
+    process.exitCode = previousExitCode;
+  }
+  assert.equal(terminalFailure.stage, "writer_save");
+  assert.equal(terminalFailure.cloudCleanup, "scope_disabled_memberships_disabled_artifact_retained");
+  assert.equal(terminalFailure.rawOutputSuppressed, true);
+  assert.doesNotMatch(JSON.stringify(terminalFailure), /raw browser detail/);
   const writeBackup = (createdAt, expiresAt) => writeFileSync(backupPath, JSON.stringify({
     schemaVersion: "geoai.sprint10.cloud-live-backup-receipt.v1",
     projectRef: "pphdqkurxneyagvnnjdt",
@@ -130,22 +205,69 @@ try {
 }
 
 const reportTitle = "writer saves, clean context reopens, outsider is denied";
-const passingReport = {
-  config: { projects: [{ name: "sprint10-cloud-live" }] },
-  suites: [{ specs: [{ title: reportTitle, tests: [{
-    projectName: "sprint10-cloud-live", expectedStatus: "passed",
-    results: [{ status: "passed", retry: 0 }]
-  }] }] }],
-  stats: { expected: 1, skipped: 0, flaky: 0, unexpected: 0 }, errors: []
-};
-assert.equal(validateBrowserReport(passingReport, reportTitle), 1);
-assert.throws(() => validateBrowserReport({
-  ...passingReport,
-  suites: [{ specs: [{ title: reportTitle, tests: [{
-    projectName: "sprint10-cloud-live", expectedStatus: "skipped", results: []
-  }] }] }],
-  stats: { expected: 0, skipped: 1, flaky: 0, unexpected: 0 }
-}, reportTitle), /non-skipped passing test/);
+const progressAnnotations = (phase, count = browserProgressStages[phase].length) =>
+  browserProgressStages[phase].slice(0, count).map((description) => ({ type: "geoai_cloud_stage", description }));
+function browserReport({ phase = "writer_outsider", status = "passed", count, stdout = [], expectedStatus = "passed" } = {}) {
+  const annotations = progressAnnotations(phase, count);
+  const passed = status === "passed";
+  return {
+    config: { projects: [{ name: "sprint10-cloud-live" }] },
+    suites: [{ specs: [{ title: reportTitle, ok: passed, tests: [{
+      projectName: "sprint10-cloud-live", expectedStatus, status: passed ? "expected" : "unexpected", annotations,
+      results: [{ status, retry: 0, annotations, stdout, stderr: [], attachments: [], errors: passed ? [] : [{ message: "raw ignored" }] }]
+    }] }] }],
+    stats: { expected: passed ? 1 : 0, skipped: 0, flaky: 0, unexpected: passed ? 0 : 1 }, errors: []
+  };
+}
+const passingReport = browserReport();
+assert.equal(validateBrowserReport(passingReport, reportTitle, "writer_outsider"), 1);
+assert.deepEqual(parseBrowserReport(browserReport({ status: "failed", count: 3 }), reportTitle, "writer_outsider"),
+  { status: "FAIL", tests: 1, progressStage: "writer_save" });
+const rawProgress = browserReport({ status: "failed", count: 3 });
+rawProgress.suites[0].specs[0].tests[0].annotations[2].description = "raw database payload";
+rawProgress.suites[0].specs[0].tests[0].results[0].annotations[2].description = "raw database payload";
+assert.throws(() => parseBrowserReport(rawProgress, reportTitle, "writer_outsider"), /safe enum prefix/);
+const extraProgress = browserReport();
+extraProgress.suites[0].specs[0].tests[0].annotations.push({ type: "geoai_cloud_stage", description: "extra" });
+extraProgress.suites[0].specs[0].tests[0].results[0].annotations.push({ type: "geoai_cloud_stage", description: "extra" });
+assert.throws(() => parseBrowserReport(extraProgress, reportTitle, "writer_outsider"));
+assert.throws(() => parseBrowserReport(browserReport({ status: "failed", count: 3, stdout: [{ text: "raw" }] }),
+  reportTitle, "writer_outsider"), /non-skipped test/);
+assert.throws(() => parseBrowserReport(browserReport({ status: "skipped", count: 1, expectedStatus: "skipped" }),
+  reportTitle, "writer_outsider"), /non-skipped test/);
+
+const discoveryRoot = mkdtempSync(join(realpathSync(tmpdir()), "geoai-cloud-live-discovery-"));
+try {
+  chmodSync(discoveryRoot, 0o700);
+  const configPath = join(discoveryRoot, "playwright.config.cjs");
+  writeFileSync(configPath, `
+const { defineConfig } = require(${JSON.stringify(resolve(root, "node_modules/@playwright/test/index.js"))});
+module.exports = defineConfig({
+  testDir: ${JSON.stringify(resolve(root, "tests/e2e"))}, reporter: [["json"]],
+  projects: [{ name: "sprint10-cloud-live" }]
+});
+`, { mode: 0o600 });
+  const titles = [reportTitle, "viewer cannot save"];
+  for (const title of titles) {
+    const discovery = spawnSync(process.execPath, [
+      resolve(root, "node_modules/@playwright/test/cli.js"), "test", "tests/e2e/sprint10-cloud-live-acceptance.spec.ts",
+      `--config=${configPath}`, "--project=sprint10-cloud-live", `--grep=${browserTitlePattern(title)}`, "--reporter=json", "--list"
+    ], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 30_000 });
+    assert.equal(discovery.error, undefined);
+    assert.equal(discovery.signal, null);
+    assert.equal(discovery.status, 0);
+    const report = JSON.parse(discovery.stdout);
+    const discoveredTitles = [];
+    const visit = (suites) => (Array.isArray(suites) ? suites : []).forEach((suite) => {
+      for (const spec of Array.isArray(suite.specs) ? suite.specs : []) discoveredTitles.push(spec.title);
+      visit(suite.suites);
+    });
+    visit(report.suites);
+    assert.deepEqual(discoveredTitles, [title]);
+  }
+} finally {
+  rmSync(discoveryRoot, { recursive: true, force: true });
+}
 
 function callbackPersona(lane, ordinal) {
   return {
@@ -229,10 +351,15 @@ assert.match(harness, /STATIC_ONLY_NO_HOSTED_OR_LOCAL_CALLS[\s\S]*--run-live/);
 assert.doesNotMatch(harness, /createPersona\s*\(|retirePersona\s*\(/);
 assert.match(harness, /paidAiCalls: 0/);
 assert.match(runner, /trace: "off", screenshot: "off", video: "off"/);
+assert.match(runner, /--grep=\$\{browserTitlePattern\(title\)\}/);
+assert.doesNotMatch(runner, /--grep=\^\$\{title\}\$/);
 assert.match(spec, /writer saves, clean context reopens, outsider is denied/);
 assert.match(spec, /viewer cannot save/);
+for (const stage of [...browserProgressStages.writer_outsider, ...browserProgressStages.viewer_denial]) {
+  assert.match(spec, new RegExp(`progress\\("${stage}"\\)`));
+}
 assert.match(spec, /localStorage\.getItem\(key\)[\s\S]*toBe\(originalBytes\)/);
 assert.match(spec, /expect\(\(await put\)\.status\(\)\)\.toBe\(403\)/);
 assert.doesNotMatch(`${harness}\n${runner}\n${spec}`, /console\.(?:log|error)\([^\n]*(?:PASSWORD|BYPASS|ADMIN_SECRET|PUBLISHABLE)/);
 
-console.log("Cloud-live acceptance static contract passed: existing Auth lifecycle reused; exact Preview/project/backup gates; writer/reopen, outsider and viewer personas; row-preserving root cleanup; no paid AI or secret files.");
+console.log("Cloud-live acceptance static contract passed: exactly one offline-discovered test per phase; safe progress enums; existing Auth lifecycle reused; row-preserving root cleanup; no paid AI or secret files.");
