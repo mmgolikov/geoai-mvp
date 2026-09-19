@@ -187,6 +187,7 @@ async function installNetworkPolicy(page: Page): Promise<NetworkPolicy> {
     "/profile",
     "/projects",
     "/prototype/point-to-object",
+    "/brand/geoai-identity-symbol-32.svg",
     "/favicon.svg"
   ]);
   let unexpectedExternalRequests = 0;

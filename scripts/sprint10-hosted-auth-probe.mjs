@@ -24,6 +24,10 @@ import {
   LIVE_SCOPE_RECEIPT_PLAN,
   validateLiveLedgerPreflight
 } from "./sprint10-live-journey-run.mjs";
+import {
+  hostedPreviewFailureStage,
+  parseAuthDiagnostic
+} from "./sprint10-real-password-auth-diagnostics.mjs";
 
 const exactProjectRef = "pphdqkurxneyagvnnjdt";
 const exactSupabaseOrigin = `https://${exactProjectRef}.supabase.co`;
@@ -32,6 +36,22 @@ const exactPreviewSeamOptIn = "run-existing-real-password-preview-harness";
 const exactLiveJourneySeamOptIn = "run-reviewed-sprint10-live-journey-before-retirement";
 const exactLedgerId = "5aa405b3-bbda-48aa-aeea-ca3357be4042";
 const acceptedLiveScopes = new Set(["journey", "dubai-analyse", "dubai-find", "singapore-create"]);
+const acceptedPreviewFailureStages = new Set([
+  "preview_preflight",
+  "preview_discovery_spawn",
+  "preview_discovery_parse",
+  "preview_discovery_contract",
+  "preview_browser_spawn",
+  "preview_child_timeout",
+  "preview_report_parse",
+  "preview_test_execution_none",
+  "preview_test_execution_primary_continuity",
+  "preview_test_execution_dual_session_isolation",
+  "preview_report_contract",
+  "preview_outer_timeout",
+  "preview_runner_spawn",
+  "preview_runner_report_contract"
+]);
 const forbiddenProductionHosts = new Set([
   "geoai-mvp.vercel.app",
   "geoai-id0xnwco2-geoaidev.vercel.app",
@@ -809,13 +829,19 @@ export function runExistingPreviewHarness(config, personas, { env = process.env,
     env: childEnvironment,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
-    timeout: 240_000,
+    timeout: 450_000,
     maxBuffer: 16 * 1024 * 1024
   });
-  if (result.error || result.status !== 0) {
-    fail("The optional existing real-password Preview harness failed closed; its secret-bearing output was suppressed.");
+  if (result?.error?.code === "ETIMEDOUT" || result?.signal === "SIGTERM") {
+    return { status: "failed_existing_reviewed_runner", stage: "preview_outer_timeout" };
   }
-  return "passed_existing_reviewed_runner";
+  if (result.error) return { status: "failed_existing_reviewed_runner", stage: "preview_runner_spawn" };
+  let diagnostic;
+  try { diagnostic = parseAuthDiagnostic(result.stdout, result.status); }
+  catch { return { status: "failed_existing_reviewed_runner", stage: "preview_runner_report_contract" }; }
+  return diagnostic.status === "PASS"
+    ? "passed_existing_reviewed_runner"
+    : { status: "failed_existing_reviewed_runner", stage: hostedPreviewFailureStage(diagnostic) };
 }
 
 function exactKeys(value, keys) {
@@ -1269,7 +1295,19 @@ export async function runHostedProbe(options = {}) {
         lifecycleCheckpointInput(config, runId, personas, "active"), { replace: true });
       operations.onEvent("checkpoint_active", { personas, config });
     }
-    previewHarness = operations.runExistingPreviewHarness(config, personas);
+    const previewResult = operations.runExistingPreviewHarness(config, personas);
+    if (typeof previewResult === "string") {
+      previewHarness = previewResult;
+    } else {
+      if (!exactKeys(previewResult, ["status", "stage"]) ||
+          previewResult?.status !== "failed_existing_reviewed_runner" ||
+          !acceptedPreviewFailureStages.has(previewResult?.stage)) {
+        fail("The optional existing real-password Preview harness returned an unaccepted failure stage.");
+      }
+      previewHarness = "failed_existing_reviewed_runner";
+      liveJourney = { status: "FAIL", stage: previewResult.stage };
+      fail("The optional existing real-password Preview harness failed closed; only its fixed safe failure stage was retained.");
+    }
     operations.onEvent("preview_child_complete", { personas, config });
     if (config.liveJourney) {
       liveJourney = operations.runReviewedLiveJourney(config, personas, runId, { invocationState: liveInvocationState });

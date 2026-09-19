@@ -361,8 +361,9 @@ const lifecycleFaults = [
   ...retirementStages.flatMap((stage) => [`A_retirement_${stage}`, `B_retirement_${stage}`])
 ];
 
-async function runLifecycleFixture(faultAt = null, liveStatus = "PASS") {
-  const suffix = String(faultAt ?? liveStatus).replaceAll(/[^A-Za-z0-9_-]/g, "_");
+async function runLifecycleFixture(faultAt = null, liveStatus = "PASS", previewOutcome = "passed_existing_reviewed_runner") {
+  const suffix = String(faultAt ?? `${liveStatus}-${typeof previewOutcome === "string" ? previewOutcome : previewOutcome.stage}`)
+    .replaceAll(/[^A-Za-z0-9_-]/g, "_");
   const path = join(privateRoot, `lifecycle-${suffix}.json`);
   const fixtureConfig = {
     ...config,
@@ -425,7 +426,7 @@ async function runLifecycleFixture(faultAt = null, liveStatus = "PASS") {
     async verifyAnonymousDenial() {},
     runExistingPreviewHarness() {
       counters.preview += 1;
-      return "passed_existing_reviewed_runner";
+      return previewOutcome;
     },
     runReviewedLiveJourney() {
       counters.live += 1;
@@ -508,6 +509,16 @@ assert.equal(integratedPass.receipt.retirement.finalFutureBanReadback, 2);
 const integratedInconclusive = await runLifecycleFixture(null, "INCONCLUSIVE");
 assert.equal(integratedInconclusive.receipt.status, "INCONCLUSIVE");
 assert.equal(integratedInconclusive.exit, 2);
+const integratedPreviewFailure = await runLifecycleFixture(null, "PASS", {
+  status: "failed_existing_reviewed_runner",
+  stage: "preview_test_execution_primary_continuity"
+});
+assert.equal(integratedPreviewFailure.receipt.status, "FAIL");
+assert.equal(integratedPreviewFailure.receipt.observed.previewHarness, "failed_existing_reviewed_runner");
+assert.deepEqual(integratedPreviewFailure.receipt.liveJourney,
+  { status: "FAIL", stage: "preview_test_execution_primary_continuity" });
+assert.equal(integratedPreviewFailure.counters.live, 0, "a failed Preview must stop before the paid live child");
+assert.equal(integratedPreviewFailure.counters.retire, 2, "a failed Preview must still retire both synthetic personas");
 for (const faultAt of lifecycleFaults) {
   const outcome = await runLifecycleFixture(faultAt);
   assert.equal(outcome.exit, 1);
@@ -560,6 +571,10 @@ const ownedSources = [
   handoff,
   readFileSync(new URL("./sprint10-hosted-auth-probe-check.mjs", import.meta.url), "utf8"),
   readFileSync(new URL("./sprint10-hosted-auth-live-check.mjs", import.meta.url), "utf8"),
+  readFileSync(new URL("./sprint10-real-password-auth-diagnostics.mjs", import.meta.url), "utf8"),
+  readFileSync(new URL("./sprint10-real-password-auth-diagnostics-check.mjs", import.meta.url), "utf8"),
+  readFileSync(new URL("./sprint10-real-password-auth-run.mjs", import.meta.url), "utf8"),
+  readFileSync(new URL("../tests/e2e/sprint10-real-password-auth.spec.ts", import.meta.url), "utf8"),
   readFileSync(new URL("./sprint10-live-journey-run.mjs", import.meta.url), "utf8"),
   readFileSync(new URL("./sprint10-live-journey-runner-offline-check.mjs", import.meta.url), "utf8")
 ];

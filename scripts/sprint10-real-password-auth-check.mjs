@@ -4,6 +4,7 @@ import { readdirSync, readFileSync } from "node:fs";
 const spec = readFileSync(new URL("../tests/e2e/sprint10-real-password-auth.spec.ts", import.meta.url), "utf8");
 const handoff = readFileSync(new URL("../docs/sprint10/REAL_PASSWORD_AUTH_TEST_HANDOFF.md", import.meta.url), "utf8");
 const runner = readFileSync(new URL("./sprint10-real-password-auth-run.mjs", import.meta.url), "utf8");
+const diagnostics = readFileSync(new URL("./sprint10-real-password-auth-diagnostics.mjs", import.meta.url), "utf8");
 const packageJson = readFileSync(new URL("../package.json", import.meta.url), "utf8");
 const workflowDirectory = new URL("../.github/workflows/", import.meta.url);
 const workflows = readdirSync(workflowDirectory, { withFileTypes: true })
@@ -64,6 +65,10 @@ assert.match(spec, /page\.route\("\*\*\/\*"/,
 assert.match(spec, /const allowedApplicationReadPaths = new Set\(\[/,
   "Preview reads must use a named path allowlist rather than any-origin safe-method continuation.");
 assert.match(spec, /allowedApplicationReadPaths\.has\(url\.pathname\) \|\| url\.pathname\.startsWith\("\/_next\/"\)/);
+assert.match(spec, /"\/brand\/geoai-identity-symbol-32[.]svg"/,
+  "The observed same-origin identity symbol must be allowed as one exact GET/HEAD path.");
+assert.doesNotMatch(spec, /startsWith\("\/brand\/"\)|\/brand\/[*]/,
+  "The identity-symbol correction must not widen the policy to a brand path family.");
 assert.match(spec, /\["password", "refresh_token"\]\.includes/,
   "Supabase token traffic must be limited to existing-password and refresh grants.");
 assert.match(spec, /method === "GET" && url\.pathname === "\/auth\/v1\/user"/);
@@ -114,13 +119,25 @@ assert.match(runner, /projects: \[\{ name:/);
 assert.match(runner, /`--project=\$\{projectName\}`/,
   "The live command must select exactly the runner-owned Playwright project.");
 assert.match(runner, /"--list"/);
+assert.match(runner, /const discoveryTimeoutMs = 30_000/);
+assert.match(runner, /const browserTimeoutMs = 390_000/,
+  "The browser child must cover two sequential 180-second tests plus bounded teardown.");
 assert.match(runner, /discoveredProjects\.length !== 1/);
 assert.match(runner, /discoveredTestCount !== expectedTestCount/,
   "Offline discovery must reconcile the selected scope before network execution.");
 assert.match(runner, /rmSync\(temporaryDirectory, \{ recursive: true, force: true \}\)/,
   "The ephemeral config and any test output must be deleted on every outcome.");
-assert.match(runner, /passed !== expectedTestCount \|\| skipped !== 0 \|\| failed !== 0 \|\| flaky !== 0/,
+assert.match(runner, /counts\.passed !== expectedTestCount \|\| counts\.skipped !== 0/);
+assert.match(runner, /counts\.unexpected !== 0 \|\| counts\.flaky !== 0/,
   "The explicit runner must reject missing, skipped, failed or flaky selected-scope evidence.");
+assert.match(runner, /console\.log\(JSON\.stringify\(diagnostic\)\)/,
+  "The runner must emit only its strict sanitized diagnostic receipt.");
+assert.doesNotMatch(runner, /console[.](?:error|warn)|error[.]message|error[.]stack|result[.]stderr/,
+  "The runner must never forward raw child errors, stacks or stderr.");
+assert.match(diagnostics, /const STAGES = new Set/);
+assert.match(diagnostics, /const LANES = new Set/);
+assert.doesNotMatch(diagnostics, /["'](?:headers|cookies|password|authorization|requestUrl|responseBody)["']\s*:/i,
+  "The sanitized diagnostic schema must not contain credential or raw transport fields.");
 assert.match(spec, /page\.close\(\{ runBeforeUnload: false \}\)/,
   "Credential-bearing pages must close before Playwright failure-context collection.");
 assert.doesNotMatch(packageJson, /sprint10-real-password-auth-(?:run|check)|sprint10-real-password-auth\.spec/,

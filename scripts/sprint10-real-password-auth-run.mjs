@@ -3,9 +3,17 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  emptyAuthDiagnosticCounts,
+  fixedFailedTestLane,
+  makeAuthDiagnostic,
+  safeAuthProcessOutcome
+} from "./sprint10-real-password-auth-diagnostics.mjs";
 
 const exactDevelopmentProjectRef = "pphdqkurxneyagvnnjdt";
 const exactExplicitRunApproval = "existing-password-only-live-acceptance";
+const discoveryTimeoutMs = 30_000;
+const browserTimeoutMs = 390_000;
 const forbiddenProductionHosts = new Set([
   "geoai-mvp.vercel.app",
   "geoai-id0xnwco2-geoaidev.vercel.app",
@@ -132,11 +140,11 @@ function preflight() {
   return { expectedTestCount: scope === "primary" ? 1 : 2 };
 }
 
-function parseJsonReport(result, phase) {
+function parseJsonReport(result) {
   try {
     return JSON.parse(result.stdout || "");
   } catch {
-    fail(`The ${phase} did not produce a valid machine-readable Playwright receipt.`);
+    return null;
   }
 }
 
@@ -147,8 +155,26 @@ function countReportTests(suites) {
       countReportTests(suite.suites), 0);
 }
 
+function failedDiagnostic(stage, counts, result, { testLane = "none", httpStatus = null, timeoutMs = 0 } = {}) {
+  const outcome = result ? safeAuthProcessOutcome(result) : { processOutcome: "not_started", errorCode: null };
+  return makeAuthDiagnostic({
+    status: "FAIL",
+    stage,
+    testLane,
+    httpStatus,
+    counts,
+    ...outcome,
+    timeoutMs
+  });
+}
+
 function run() {
-  const { expectedTestCount } = preflight();
+  let expectedTestCount = 0;
+  try {
+    ({ expectedTestCount } = preflight());
+  } catch {
+    return failedDiagnostic("preflight", emptyAuthDiagnosticCounts(), null);
+  }
   const repositoryRoot = fileURLToPath(new URL("..", import.meta.url));
   const playwrightCli = fileURLToPath(new URL("../node_modules/@playwright/test/cli.js", import.meta.url));
   const playwrightEntry = fileURLToPath(new URL("../node_modules/@playwright/test/index.js", import.meta.url));
@@ -196,47 +222,85 @@ module.exports = defineConfig({
     "--workers=1"
   ];
   try {
+    let counts = emptyAuthDiagnosticCounts(expectedTestCount);
     const discovery = spawnSync(process.execPath, [...commonArguments, "--list"], {
       cwd: repositoryRoot,
       env: childEnvironment,
       encoding: "utf8",
+      timeout: discoveryTimeoutMs,
       maxBuffer: 16 * 1024 * 1024
     });
-    const discoveryReport = parseJsonReport(discovery, "offline project/test discovery");
+    if (discovery.error || discovery.signal || discovery.status !== 0) {
+      return failedDiagnostic("discovery_spawn", counts, discovery, { timeoutMs: discoveryTimeoutMs });
+    }
+    const discoveryReport = parseJsonReport(discovery);
+    if (!discoveryReport) {
+      return failedDiagnostic("discovery_parse", counts, discovery, { timeoutMs: discoveryTimeoutMs });
+    }
     const discoveredProjects = Array.isArray(discoveryReport?.config?.projects)
       ? discoveryReport.config.projects.map((project) => project?.name)
       : [];
     const discoveredTestCount = countReportTests(discoveryReport?.suites);
-    if (discovery.error || discovery.status !== 0 || discoveredProjects.length !== 1 ||
-        discoveredProjects[0] !== projectName || discoveredTestCount !== expectedTestCount ||
+    counts = {
+      ...counts,
+      discoveredProjects: discoveredProjects.length,
+      discoveredTests: discoveredTestCount
+    };
+    if (discoveredProjects.length !== 1 || discoveredProjects[0] !== projectName || discoveredTestCount !== expectedTestCount ||
         (Array.isArray(discoveryReport?.errors) && discoveryReport.errors.length > 0)) {
-      fail(`The bounded discovery receipt was not accepted (projects=${discoveredProjects.length}, tests=${discoveredTestCount}, expected=${expectedTestCount}).`);
+      return failedDiagnostic("discovery_contract", counts, discovery, { timeoutMs: discoveryTimeoutMs });
     }
 
     const result = spawnSync(process.execPath, commonArguments, {
       cwd: repositoryRoot,
       env: childEnvironment,
       encoding: "utf8",
+      timeout: browserTimeoutMs,
       maxBuffer: 16 * 1024 * 1024
     });
-    const report = parseJsonReport(result, "live harness");
-    const stats = report?.stats;
-    const passed = Number(stats?.expected ?? -1);
-    const skipped = Number(stats?.skipped ?? -1);
-    const failed = Number(stats?.unexpected ?? -1);
-    const flaky = Number(stats?.flaky ?? -1);
-    if (result.error || result.status !== 0 || passed !== expectedTestCount || skipped !== 0 || failed !== 0 || flaky !== 0) {
-      fail(`The bounded live receipt was not accepted (expected=${expectedTestCount}, passed=${passed}, skipped=${skipped}, failed=${failed}, flaky=${flaky}).`);
+    const outcome = safeAuthProcessOutcome(result);
+    if (outcome.processOutcome === "timeout") {
+      return failedDiagnostic("child_timeout", counts, result, { timeoutMs: browserTimeoutMs });
     }
-    console.log(`Sprint 10 real-password Auth acceptance passed (${passed}/${expectedTestCount}, skipped=0, failed=0, flaky=0).`);
+    if (outcome.processOutcome === "spawn_error") {
+      return failedDiagnostic("browser_spawn", counts, result, { timeoutMs: browserTimeoutMs });
+    }
+    const report = parseJsonReport(result);
+    if (!report) {
+      return failedDiagnostic("report_parse", counts, result, { timeoutMs: browserTimeoutMs });
+    }
+    const stats = report?.stats;
+    const reportCounts = [stats?.expected, stats?.skipped, stats?.unexpected, stats?.flaky];
+    if (!reportCounts.every((value) => Number.isInteger(value) && value >= 0 && value <= expectedTestCount)) {
+      return failedDiagnostic("report_contract", counts, result, { timeoutMs: browserTimeoutMs });
+    }
+    counts = {
+      ...counts,
+      passed: stats.expected,
+      skipped: stats.skipped,
+      unexpected: stats.unexpected,
+      flaky: stats.flaky
+    };
+    const testLane = fixedFailedTestLane(report);
+    if (result.status !== 0 || counts.passed !== expectedTestCount || counts.skipped !== 0 ||
+        counts.unexpected !== 0 || counts.flaky !== 0) {
+      return failedDiagnostic("test_execution", counts, result, { testLane, timeoutMs: browserTimeoutMs });
+    }
+    return makeAuthDiagnostic({
+      status: "PASS",
+      stage: "complete",
+      counts,
+      processOutcome: "success",
+      errorCode: null,
+      timeoutMs: browserTimeoutMs
+    });
   } finally {
     rmSync(temporaryDirectory, { recursive: true, force: true });
   }
 }
 
-try {
-  run();
-} catch (error) {
-  console.error(error instanceof Error ? error.message : "The bounded live Auth runner failed closed.");
-  process.exitCode = 1;
-}
+let diagnostic;
+try { diagnostic = run(); }
+catch { diagnostic = failedDiagnostic("report_contract", emptyAuthDiagnosticCounts(), null); }
+console.log(JSON.stringify(diagnostic));
+process.exitCode = diagnostic.status === "PASS" ? 0 : 1;

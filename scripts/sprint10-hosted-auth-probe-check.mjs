@@ -20,6 +20,10 @@ import {
   unknownCreateFailure,
   validateRuntimeConfig
 } from "./sprint10-hosted-auth-probe.mjs";
+import {
+  emptyAuthDiagnosticCounts,
+  makeAuthDiagnostic
+} from "./sprint10-real-password-auth-diagnostics.mjs";
 
 const operator = await readFile(new URL("./sprint10-hosted-auth-probe.mjs", import.meta.url), "utf8");
 const handoff = await readFile(new URL("../docs/sprint10/HOSTED_AUTH_PROBE_HANDOFF.md", import.meta.url), "utf8");
@@ -115,16 +119,62 @@ assert.equal(previewChildEnvironment.GEOAI_HOSTED_AUTH_PROBE_PUBLISHABLE_KEY, un
 assert.equal(previewChildEnvironment.UNRELATED_RUNTIME_SECRET, undefined);
 assert.equal(previewChildEnvironment.GEOAI_REAL_PASSWORD_AUTH_PREVIEW_BYPASS_SECRET, "allowed-preview-bypass");
 let previewChildSpawn = null;
+const previewPassDiagnostic = makeAuthDiagnostic({
+  status: "PASS",
+  stage: "complete",
+  counts: {
+    ...emptyAuthDiagnosticCounts(2),
+    discoveredProjects: 1,
+    discoveredTests: 2,
+    passed: 2
+  },
+  processOutcome: "success",
+  timeoutMs: 390_000
+});
 const previewResult = runExistingPreviewHarness(previewChildConfig, previewChildPersonas, {
   env: previewChildSourceEnv,
   spawn: (_command, _args, options) => {
     previewChildSpawn = options;
-    return { status: 0, stdout: "", stderr: "" };
+    return { status: 0, signal: null, error: null, stdout: JSON.stringify(previewPassDiagnostic), stderr: "" };
   }
 });
 assert.equal(previewResult, "passed_existing_reviewed_runner");
+assert.equal(previewChildSpawn.timeout, 450_000);
 assert.equal(previewChildSpawn.env.GEOAI_HOSTED_AUTH_PROBE_ADMIN_SECRET_KEY, undefined);
 assert.equal(previewChildSpawn.env.UNRELATED_RUNTIME_SECRET, undefined);
+
+const plantedChildSecret = "planted-child-secret-never-forward";
+const outerTimeout = runExistingPreviewHarness(previewChildConfig, previewChildPersonas, {
+  env: previewChildSourceEnv,
+  spawn: () => ({ status: null, signal: "SIGTERM", error: { code: "ETIMEDOUT", message: plantedChildSecret },
+    stdout: plantedChildSecret, stderr: plantedChildSecret })
+});
+assert.deepEqual(outerTimeout, { status: "failed_existing_reviewed_runner", stage: "preview_outer_timeout" });
+assert(!JSON.stringify(outerTimeout).includes(plantedChildSecret));
+
+const malformedPreview = runExistingPreviewHarness(previewChildConfig, previewChildPersonas, {
+  env: previewChildSourceEnv,
+  spawn: () => ({ status: 1, signal: null, error: null, stdout: plantedChildSecret, stderr: plantedChildSecret })
+});
+assert.deepEqual(malformedPreview,
+  { status: "failed_existing_reviewed_runner", stage: "preview_runner_report_contract" });
+
+const executionFailureDiagnostic = makeAuthDiagnostic({
+  status: "FAIL",
+  stage: "test_execution",
+  testLane: "primary_continuity",
+  counts: { ...emptyAuthDiagnosticCounts(2), discoveredProjects: 1, discoveredTests: 2, passed: 1, unexpected: 1 },
+  processOutcome: "nonzero",
+  timeoutMs: 390_000
+});
+const nonzeroPreview = runExistingPreviewHarness(previewChildConfig, previewChildPersonas, {
+  env: previewChildSourceEnv,
+  spawn: () => ({ status: 1, signal: null, error: null, stdout: JSON.stringify(executionFailureDiagnostic),
+    stderr: plantedChildSecret })
+});
+assert.deepEqual(nonzeroPreview,
+  { status: "failed_existing_reviewed_runner", stage: "preview_test_execution_primary_continuity" });
+assert(!JSON.stringify(nonzeroPreview).includes(plantedChildSecret));
 
 const dispatched = [];
 const response = (status, payload = {}) => new Response(status === 204 ? null : JSON.stringify(payload), {
@@ -399,12 +449,15 @@ assert.match(operator, /ban_duration: permanentBanDuration/);
 assert.match(operator, /auth[.]refreshSession/);
 assert.match(operator, /admin[.]auth[.]admin[.]getUserById/);
 assert.match(operator, /scripts\/sprint10-real-password-auth-run[.]mjs/);
-assert.match(operator, /secret-bearing output was suppressed/);
+assert.match(operator, /only its fixed safe failure stage was retained/);
 assert.match(operator, /A non-allowlisted hosted Auth probe request was blocked before dispatch/);
-assert.doesNotMatch(operator.slice(
+const previewHarnessSource = operator.slice(
   operator.indexOf("function runExistingPreviewHarness"),
   operator.indexOf("export async function runBestEffortStages")
-), /\.\.\.process[.]env/,
+);
+assert.doesNotMatch(previewHarnessSource, /result[.]stderr|error[.]message|error[.]stack/,
+  "The hosted seam must not forward raw child diagnostics.");
+assert.doesNotMatch(previewHarnessSource, /\.\.\.process[.]env/,
 "The optional child must not inherit the root process environment or Admin secret wholesale.");
 
 for (const prohibited of [
