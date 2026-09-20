@@ -11,6 +11,7 @@ import {
 // @ts-expect-error Node's strip-types runner requires the explicit TypeScript extension.
 } from "../tests/e2e/helpers/sprint10-live-budget.ts";
 import {
+  DUBAI_CREATE_PROGRAMME_SCOPES,
   dispatchSprint10PaidRequest,
   SPRINT10_LIVE_PAID_SCOPE_MATRIX,
   sprint10PaidPostDecision,
@@ -105,6 +106,7 @@ async function run() {
     "singapore-analyse": { ai: 1, create: 0 },
     "singapore-find": { ai: 0, create: 0 },
     "dubai-create": { ai: 0, create: 1 },
+    ...Object.fromEntries(DUBAI_CREATE_PROGRAMME_SCOPES.map(scope => [scope, { ai: 0, create: 1 }])),
     "dubai-depth-cycle": { ai: 4, create: 0 },
     "dubai-profile-depth-cycle": { ai: 4, create: 0 },
     "dubai-redevelopment-depth-cycle": { ai: 4, create: 0 },
@@ -127,6 +129,11 @@ async function run() {
   assert.deepEqual(sprint10PaidPostDecision("dubai-create", "create", 1), { ok: true });
   assert.deepEqual(sprint10PaidPostDecision("dubai-create", "ai", 1), { ok: false, reason: "route_disallowed" });
   assert.deepEqual(sprint10PaidPostDecision("dubai-create", "create", 2), { ok: false, reason: "occurrence_exceeded" });
+  for (const scope of DUBAI_CREATE_PROGRAMME_SCOPES) {
+    assert.deepEqual(sprint10PaidPostDecision(scope, "create", 1), { ok: true });
+    assert.deepEqual(sprint10PaidPostDecision(scope, "ai", 1), { ok: false, reason: "route_disallowed" });
+    assert.deepEqual(sprint10PaidPostDecision(scope, "create", 2), { ok: false, reason: "occurrence_exceeded" });
+  }
   assert.deepEqual(sprint10PaidPostDecision("dubai-depth-cycle", "ai", 1), { ok: true });
   assert.deepEqual(sprint10PaidPostDecision("dubai-depth-cycle", "ai", 4), { ok: true });
   assert.deepEqual(sprint10PaidPostDecision("dubai-depth-cycle", "ai", 5), { ok: false, reason: "occurrence_exceeded" });
@@ -176,6 +183,7 @@ async function run() {
   assert.match(liveSpec, /if \(configuration[.]scope === "singapore-analyse"\)/);
   assert.match(liveSpec, /if \(configuration[.]scope === "singapore-find"\)/);
   assert.match(liveSpec, /if \(configuration[.]scope === "dubai-create"\)/);
+  assert.match(liveSpec, /DUBAI_CREATE_PROGRAMME_SCOPES[.]includes\(configuration[.]scope/);
   assert.match(liveSpec, /if \(configuration[.]scope === "dubai-depth-cycle"\)/);
   const depthCycleBody = /async function runDubaiDepthCycle[\s\S]*?\n}\n\nasync function runSingaporeAnalyse/.exec(liveSpec)?.[0] ?? "";
   assert.match(depthCycleBody, /screeningDepths = \["standard", "deep", "quick"\]/,

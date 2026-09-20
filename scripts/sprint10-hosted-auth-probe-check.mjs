@@ -20,6 +20,7 @@ import {
   unknownCreateFailure,
   validateRuntimeConfig
 } from "./sprint10-hosted-auth-probe.mjs";
+import { DUBAI_CREATE_PROGRAMME_SCOPES } from "../tests/e2e/helpers/sprint10-live-journey-gate.ts";
 import {
   emptyAuthDiagnosticCounts,
   makeAuthDiagnostic
@@ -454,6 +455,8 @@ assert.match(operator, /A non-allowlisted hosted Auth probe request was blocked 
 for (const scope of ["singapore-analyse", "singapore-find", "dubai-create", "dubai-depth-cycle"]) {
   assert.match(operator, new RegExp(`"${scope}"`), `${scope} must be an explicit hosted seam scope, never a wildcard`);
 }
+assert.match(operator, /[.][.][.]DUBAI_CREATE_PROGRAMME_SCOPES/);
+assert.equal(DUBAI_CREATE_PROGRAMME_SCOPES.length, 6);
 const previewHarnessSource = operator.slice(
   operator.indexOf("function runExistingPreviewHarness"),
   operator.indexOf("export async function runBestEffortStages")

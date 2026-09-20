@@ -64,7 +64,16 @@ import { loadQuality20Selection, quality20Hash, quality20RequestKey, validateQua
   validateQuality20PaidBody, validateQuality20AnalysisResult, validateQuality20Ledger,
   type Quality20Selection } from "./helpers/quality20-frozen-case";
 import { loadQuality20Acquisition, writeQuality20Acquisition, type Quality20Acquisition } from "./helpers/quality20-acquisition";
-import { DUBAI_CREATE_GOLDEN, assertDubaiCreateRequest, assertDubaiCreateGeometry } from "./helpers/sprint20-live-create";
+import {
+  DUBAI_CREATE_GOLDEN,
+  DUBAI_CREATE_PROGRAMME_SCOPES,
+  assertDubaiCreateRequest,
+  assertDubaiCreateGeometry,
+  assertDubaiCreateProgrammeGeometry,
+  assertDubaiCreateProgrammeRequest,
+  dubaiCreateProgrammeCase,
+  type DubaiCreateProgrammeScope
+} from "./helpers/sprint20-live-create";
 
 test.use({ trace: "off", screenshot: "off", video: "off", serviceWorkers: "block" });
 test.describe.configure({ mode: "serial", retries: 0 });
@@ -75,6 +84,7 @@ const EXPECTED_LEDGER_ID = "5aa405b3-bbda-48aa-aeea-ca3357be4042";
 const LIVE_SCOPES: readonly Sprint10LiveScope[] = [
   "journey", "dubai-analyse", "dubai-find", "dubai-find-analysis", "singapore-create",
   "singapore-analyse", "singapore-find", "dubai-create", "dubai-depth-cycle",
+  ...DUBAI_CREATE_PROGRAMME_SCOPES,
   "dubai-profile-depth-cycle", "dubai-redevelopment-depth-cycle", "dubai-diligence-depth-cycle",
   "quality20-analyse", "quality20-find", "quality20-create", "quality20-acquire"
 ] as const;
@@ -553,6 +563,13 @@ function installBudgetGate(page: Page, configuration: LiveConfiguration) {
       try { assertDubaiCreateRequest(body); }
       catch {
         fatal = "Dubai Create golden AOI/controls contract rejected the request before reservation.";
+        return route.abort("blockedbyclient");
+      }
+    }
+    if (DUBAI_CREATE_PROGRAMME_SCOPES.includes(configuration.scope as DubaiCreateProgrammeScope)) {
+      try { assertDubaiCreateProgrammeRequest(configuration.scope as DubaiCreateProgrammeScope, body); }
+      catch {
+        fatal = "Dubai Create programme/AOI contract rejected the request before reservation.";
         return route.abort("blockedbyclient");
       }
     }
@@ -1864,6 +1881,7 @@ type LiveCreateCase = {
   programme?: string;
   prompt?: string;
   controls?: typeof DUBAI_CREATE_GOLDEN.controls;
+  assertGeometry?: typeof assertDubaiCreateGeometry;
 };
 
 async function assertCreateMap(page: Page, expected: unknown, dimension: "2d" | "3d") {
@@ -1905,7 +1923,8 @@ async function assertCreateMap(page: Page, expected: unknown, dimension: "2d" | 
   }), { timeout: 30_000 }).toEqual({ geometry: expected, framed: true, context: true, massing: true, pitch: dimension === "3d" ? 50 : 0 });
 }
 
-async function assertSavedCreateGeometry(page: Page, userId: string, expected: unknown) {
+async function assertSavedCreateGeometry(page: Page, userId: string, expected: unknown,
+  coordinates: number[][][], areaContext: unknown, assertGeometry: typeof assertDubaiCreateGeometry) {
   const stored = await page.evaluate((id) => {
     const raw = localStorage.getItem(`geoai:point-to-object:projects:v1:${encodeURIComponent(`user:${id}`)}`);
     const store = raw ? JSON.parse(raw) : null;
@@ -1913,11 +1932,12 @@ async function assertSavedCreateGeometry(page: Page, userId: string, expected: u
     return artifacts.find((a: { kind: string }) => a.kind === "create")?.payload ?? null;
   }, userId);
   guard(record(stored) && record(stored.aoi), "Saved Create geometry is missing.");
-  expect(stored.aoi.coordinates).toEqual(DUBAI_CREATE_GOLDEN.coordinates);
+  expect(stored.aoi.coordinates).toEqual(coordinates);
+  expect(stored.areaContext).toEqual(areaContext);
   // areaContextUsed belongs to the wire envelope; the saved domain keeps its
   // context separately. Every canonical concept field must remain identical.
-  expect(stored.generated).toEqual(assertDubaiCreateGeometry(expected));
-  assertDubaiCreateGeometry(stored.generated);
+  expect(stored.generated).toEqual(assertGeometry(expected));
+  assertGeometry(stored.generated);
 }
 
 async function runMarketCreate(
@@ -2066,8 +2086,10 @@ async function runMarketCreate(
     payload.alternatives.every((item) => record(item) && (item.id === "A" || item.id === "B")) && payload.caveat === CAVEAT,
   `The ${input.label} Create response did not return one strict current A/B concept.`);
   progress.complete("create_result_contract");
-  const goldenConcept = input.controls ? assertDubaiCreateGeometry(payload) : null;
-  if (input.controls) assertDubaiCreateRequest(submitted);
+  const assertGeometry = input.assertGeometry ?? (input.controls ? assertDubaiCreateGeometry : null);
+  const goldenConcept = input.assertGeometry ? input.assertGeometry(payload)
+    : input.controls ? assertDubaiCreateGeometry(payload) : null;
+  if (input.controls && !input.assertGeometry) assertDubaiCreateRequest(submitted);
   await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
   const renderedMs = Date.now() - paidStartedAt;
   const paidAfterGeneration = budget.paidDispatchCount();
@@ -2115,13 +2137,13 @@ async function runMarketCreate(
   if (configuration.quality20) guard(savedDomain.aoiId === configuration.quality20.binding.create?.aoiId,
     "Saved Create AOI identity differs from the frozen input; no parity workaround is applied.");
   progress.complete("create_local_save");
-  if (goldenConcept) await assertSavedCreateGeometry(page, configuration.userId, payload);
+  if (goldenConcept) await assertSavedCreateGeometry(page, configuration.userId, payload, input.coordinates, contextPayload, assertGeometry!);
   progress.start("create_local_reopen");
   await reopenSavedArtifact(page, configuration.userId, "create", policy, saved, async () => {
     await expect(page.getByTestId("create-full-result-dashboard")).toBeVisible();
     await expect(page.getByTestId("create-result-kpis")).toHaveAttribute("data-active-variant", "B");
     if (goldenConcept) {
-      await assertSavedCreateGeometry(page, configuration.userId, payload);
+      await assertSavedCreateGeometry(page, configuration.userId, payload, input.coordinates, contextPayload, assertGeometry!);
       await assertCreateMap(page, goldenConcept.alternatives!.find(a => a.id === "B")!.massing.featureCollection, "3d");
     }
   });
@@ -2133,7 +2155,7 @@ async function runMarketCreate(
   const reloaded = await requireLocalArtifactState(page, configuration.userId, "create");
   assertSameArtifact(saved, reloaded);
   if (goldenConcept) {
-    await assertSavedCreateGeometry(page, configuration.userId, payload);
+    await assertSavedCreateGeometry(page, configuration.userId, payload, input.coordinates, contextPayload, assertGeometry!);
     await assertCreateMap(page, goldenConcept.alternatives!.find(a => a.id === "B")!.massing.featureCollection, "2d");
   }
   assertNoReplay(beforeReload, policy.snapshotJourneyRequests());
@@ -2168,6 +2190,15 @@ async function runDubaiCreate(page: Page, configuration: LiveConfiguration, poli
     controls: DUBAI_CREATE_GOLDEN.controls,
     fileName: "quality20-dubai-golden-large-L.geojson",
     label: "Dubai synthetic golden large-L"
+  }, progress);
+}
+
+async function runDubaiCreateProgramme(page: Page, configuration: LiveConfiguration, policy: NetworkPolicy,
+  budget: ReturnType<typeof installBudgetGate>, progress: LiveProgress, scope: DubaiCreateProgrammeScope) {
+  const input = dubaiCreateProgrammeCase(scope);
+  await runMarketCreate(page, configuration, policy, budget, {
+    ...input,
+    assertGeometry: (payload) => assertDubaiCreateProgrammeGeometry(scope, payload)
   }, progress);
 }
 
@@ -2480,6 +2511,10 @@ test("root-authorized protected Preview source-to-decision journey", async ({ pa
     }
     if (configuration.scope === "dubai-create") {
       await runDubaiCreate(page, configuration, policy, budget, progress);
+    }
+    if (DUBAI_CREATE_PROGRAMME_SCOPES.includes(configuration.scope as DubaiCreateProgrammeScope)) {
+      await runDubaiCreateProgramme(page, configuration, policy, budget, progress,
+        configuration.scope as DubaiCreateProgrammeScope);
     }
     progress.start("paid_terminal");
     await budget.waitForTerminalReceipts();

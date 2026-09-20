@@ -26,6 +26,7 @@ import {
   validateRuntimeConfig,
   writeActivePersonaCheckpoint
 } from "./sprint10-hosted-auth-probe.mjs";
+import { DUBAI_CREATE_PROGRAMME_SCOPES } from "../tests/e2e/helpers/sprint10-live-journey-gate.ts";
 import { LIVE_JOURNEY_DIAGNOSTIC_SCHEMA } from "./sprint10-live-journey-diagnostics.mjs";
 import { makeAuthDiagnostic, emptyAuthDiagnosticCounts } from "./sprint10-real-password-auth-diagnostics.mjs";
 
@@ -104,7 +105,8 @@ assert.equal(earlyLedgerValidations, 1, "live opt-in must validate the existing 
 assert.equal(config.liveJourney.scope, "journey");
 assert.equal(config.liveJourney.checkpointPath, checkpointPath);
 
-for (const scope of ["singapore-analyse", "singapore-find", "dubai-create", "dubai-depth-cycle"]) {
+for (const scope of ["singapore-analyse", "singapore-find", "dubai-create", "dubai-depth-cycle",
+  ...DUBAI_CREATE_PROGRAMME_SCOPES]) {
   const scopedConfig = validateRuntimeConfig({
     ...baseEnvironment,
     GEOAI_HOSTED_AUTH_PROBE_LIVE_JOURNEY_SCOPE: scope,
@@ -363,7 +365,8 @@ for (const patch of [
   { mapDiagnostics: [{ ...mapDiagnostic, stage: "find_compare_geometry", failureKind: "geometry_probe_timeout" }] },
   { diagnostic: undefined }, { diagnostic: { ...mapFailure.diagnostic, primaryStatus: "inconclusive" } }
 ]) assert.throws(() => parseLiveJourneyChildReceipt(childResult(1, { ...mapFailure, ...patch }), { ...childTuple, scope: "dubai-find" }));
-for (const scope of ["journey", "singapore-find", "dubai-create", "dubai-profile-depth-cycle"]) {
+for (const scope of ["journey", "singapore-find", "dubai-create", "dubai-profile-depth-cycle",
+  ...DUBAI_CREATE_PROGRAMME_SCOPES]) {
   assert.throws(() => parseLiveJourneyChildReceipt(childResult(1, { ...mapFailure, scope }), { ...childTuple, scope }));
 }
 for (const [status, value] of [[0, { ...passValue, scope: "dubai-find", receipts: [] }],
@@ -377,6 +380,7 @@ for (const [scope, receipts] of [
   ["singapore-analyse", [paidReceipts[0]]],
   ["singapore-find", []],
   ["dubai-create", [paidReceipts[1]]],
+  ...DUBAI_CREATE_PROGRAMME_SCOPES.map((scope) => [scope, [paidReceipts[1]]]),
   ["dubai-depth-cycle", [
     paidReceipts[0],
     { ...paidReceipts[0], id: 2 },

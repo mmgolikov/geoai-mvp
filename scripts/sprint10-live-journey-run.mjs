@@ -38,6 +38,7 @@ import { loadQuality20Acquisition } from "../tests/e2e/helpers/quality20-acquisi
 import { validateGoalDepthCaptureEnvironment } from "../tests/e2e/helpers/sprint10-goal-depth-evidence.ts";
 import { validateFindAnalysisCaptureEnvironment } from "../tests/e2e/helpers/sprint10-find-analysis-evidence.ts";
 import { comparisonMapDiagnosticsFromReport } from "../tests/e2e/helpers/sprint10-map-diagnostics.ts";
+import { DUBAI_CREATE_PROGRAMME_SCOPES } from "../tests/e2e/helpers/sprint10-live-journey-gate.ts";
 
 const exactDevelopmentProjectRef = "pphdqkurxneyagvnnjdt";
 const exactLedgerId = "5aa405b3-bbda-48aa-aeea-ca3357be4042";
@@ -45,10 +46,14 @@ const exactExplicitRun = "root-paid-live-journey-2026-09-18";
 const acceptedScopes = new Set([
   "journey", "dubai-analyse", "dubai-find", "dubai-find-analysis", "singapore-create",
   "singapore-analyse", "singapore-find", "dubai-create", "dubai-depth-cycle",
+  ...DUBAI_CREATE_PROGRAMME_SCOPES,
   "dubai-profile-depth-cycle", "dubai-redevelopment-depth-cycle", "dubai-diligence-depth-cycle",
   "quality20-analyse", "quality20-find", "quality20-create", "quality20-acquire"
 ]);
 export const LIVE_SCOPE_RECEIPT_PLAN = Object.freeze({
+  ...Object.fromEntries(DUBAI_CREATE_PROGRAMME_SCOPES.map((scope) => [scope,
+    Object.freeze([Object.freeze({ route: "create", depth: "standard", reserveUsd: RESERVE_USD.create })])
+  ])),
   ...Object.fromEntries(["dubai-profile-depth-cycle", "dubai-redevelopment-depth-cycle", "dubai-diligence-depth-cycle"].map((scope) => [scope,
     Object.freeze(["standard", "standard", "deep", "quick"].map((depth) => Object.freeze({ route: "ai", depth, reserveUsd: RESERVE_USD.ai })))
   ])),

@@ -37,6 +37,7 @@ import { parseLiveJourneyDiagnostic } from "./sprint10-live-journey-diagnostics.
 import { parseComparisonMapDiagnostic } from "../tests/e2e/helpers/sprint10-map-diagnostics.ts";
 import { loadQuality20Selection, quality20ApprovalSuffix, validateQuality20Ledger } from "../tests/e2e/helpers/quality20-frozen-case.ts";
 import { loadQuality20Acquisition } from "../tests/e2e/helpers/quality20-acquisition.ts";
+import { DUBAI_CREATE_PROGRAMME_SCOPES } from "../tests/e2e/helpers/sprint10-live-journey-gate.ts";
 
 const exactProjectRef = "pphdqkurxneyagvnnjdt";
 const exactSupabaseOrigin = `https://${exactProjectRef}.supabase.co`;
@@ -49,6 +50,7 @@ const acceptedLiveScopes = new Set([
   "dubai-profile-depth-cycle", "dubai-redevelopment-depth-cycle", "dubai-diligence-depth-cycle",
   "journey", "dubai-analyse", "dubai-find", "singapore-create",
   "singapore-analyse", "singapore-find", "dubai-create", "dubai-depth-cycle",
+  ...DUBAI_CREATE_PROGRAMME_SCOPES,
   "quality20-analyse", "quality20-find", "quality20-create", "quality20-acquire"
 ]);
 const acceptedPreviewFailureStages = new Set([

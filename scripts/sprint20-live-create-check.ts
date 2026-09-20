@@ -5,7 +5,16 @@ registerHooks({ resolve(s, c, next) {
   if (s.startsWith(".") && !/\.[cm]?[jt]s$/.test(s)) { try { return next(`${s}.ts`, c); } catch { /* normal resolution */ } }
   return next(s, c);
 } });
-const { DUBAI_CREATE_GOLDEN: fixture, DUBAI_CREATE_GOLDEN_AOI: aoi, assertDubaiCreateRequest, assertDubaiCreateGeometry } =
+const {
+  DUBAI_CREATE_GOLDEN: fixture,
+  DUBAI_CREATE_GOLDEN_AOI: aoi,
+  DUBAI_CREATE_PROGRAMME_SCOPES: programmeScopes,
+  assertDubaiCreateRequest,
+  assertDubaiCreateGeometry,
+  assertDubaiCreateProgrammeGeometry,
+  assertDubaiCreateProgrammeRequest,
+  dubaiCreateProgrammeCase
+} =
   await import("../tests/e2e/helpers/sprint20-live-create");
 const { preflightPointObjectCreate } = await import("../src/lib/prototype/point-to-object-create-orchestration");
 const { POINT_OBJECT_CREATE_RESULT_CAVEAT } = await import("../src/lib/prototype/point-to-object-create-result");
@@ -47,5 +56,23 @@ const duplicate = structuredClone(payload); duplicate.alternatives[1] = structur
 assert.throws(() => assertDubaiCreateGeometry(duplicate));
 const wrongCoverage = structuredClone(payload); wrongCoverage.alternatives[1].massing.achievedSiteCoveragePct = 15;
 assert.throws(() => assertDubaiCreateGeometry(wrongCoverage));
+for (const scope of programmeScopes) {
+  const scenario = dubaiCreateProgrammeCase(scope);
+  const request = { marketKey: scenario.marketKey, locale: "en" as const, depth: "standard", templateId: scenario.programme,
+    customPrompt: null, controls: scenario.controls, lockedControlKeys: Object.keys(scenario.controls), aoiCoordinates: scenario.coordinates };
+  assertDubaiCreateProgrammeRequest(scope, request);
+  const checked = preflightPointObjectCreate({ ...request,
+    lockedControlKeys: Object.keys(scenario.controls) as Array<keyof typeof scenario.controls>,
+    aoiHash: createHash("sha256").update(JSON.stringify(scenario.coordinates)).digest("hex") });
+  assert.equal(checked.kind, "ready", `${scope} must fit before any provider call`);
+  if (checked.kind !== "ready") throw new Error(`Invalid Create programme fixture: ${scope}`);
+  const result = { ...payload, program: checked.program, massing: checked.alternatives[0].massing, alternatives: checked.alternatives };
+  assertDubaiCreateProgrammeGeometry(scope, result);
+  assert.throws(() => assertDubaiCreateProgrammeRequest(scope, { ...request, templateId: fixture.templateId === scenario.programme ? "commercial_hub" : fixture.templateId }));
+}
+assert.equal(new Set(programmeScopes.map(scope => JSON.stringify(dubaiCreateProgrammeCase(scope).coordinates))).size, 2,
+  "The six scopes must reuse exactly two distinct AOIs");
+assert.equal(new Set(programmeScopes.map(scope => dubaiCreateProgrammeCase(scope).programme)).size, 3,
+  "The six scopes must cover all three current programmes");
 console.log(JSON.stringify({ result: "PASS offline only", areaSqM: aoi.areaSqM, coordinates: fixture.coordinates,
-  controls: fixture.controls, variants: preflight.alternatives.map(a => a.id), providerCalls: 0 }));
+  controls: fixture.controls, variants: preflight.alternatives.map(a => a.id), programmeScopes, providerCalls: 0 }));

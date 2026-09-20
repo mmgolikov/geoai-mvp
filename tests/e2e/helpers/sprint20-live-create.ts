@@ -1,7 +1,18 @@
 import assert from "node:assert/strict";
 import { calculatePolygonMeasurements } from "../../../src/lib/polygon-aoi";
-import { validateConceptMassingGeometry, type PointObjectCreateAoi } from "../../../src/lib/prototype/point-to-object-create";
+import {
+  conceptTemplate,
+  validateConceptMassingGeometry,
+  type ConceptPosition,
+  type ConceptTemplateId,
+  type PointObjectCreateAoi
+} from "../../../src/lib/prototype/point-to-object-create";
 import { parsePointObjectGeneratedConcept } from "../../../src/lib/prototype/point-to-object-create-result";
+import {
+  DUBAI_CREATE_PROGRAMME_SCOPES,
+  type DubaiCreateProgrammeScope
+} from "./sprint10-live-journey-gate";
+export { DUBAI_CREATE_PROGRAMME_SCOPES, type DubaiCreateProgrammeScope };
 
 // Exact largeL construction from scripts/sprint20-create-geometry-check.ts.
 // Synthetic analogue, not the recovered founder parcel or official site evidence.
@@ -19,6 +30,86 @@ export const DUBAI_CREATE_GOLDEN_AOI: PointObjectCreateAoi = {
   id: "create-aoi-quality20-large-L", coordinates: DUBAI_CREATE_GOLDEN.coordinates,
   ...calculatePolygonMeasurements(vertices), vertexCount: vertices.length
 };
+
+const programmeByCode = {
+  rm: "residential_mixed_use",
+  ch: "commercial_hub",
+  cg: "civic_green"
+} as const satisfies Record<string, ConceptTemplateId>;
+const businessBayRectangle: ConceptPosition[][] = [[
+  [55.2675, 25.1830], [55.2715, 25.1830], [55.2715, 25.1870],
+  [55.2675, 25.1870], [55.2675, 25.1830]
+]];
+const alKhairanToGeo = (scale: number): [number, number][] => metres.map(([x, y]) =>
+  [55.35 + x * scale / (111320 * Math.cos(25.2 * Math.PI / 180)), 25.2 + y * scale / 110540]);
+const alKhairanVertices = alKhairanToGeo(Math.sqrt(749860 / calculatePolygonMeasurements(alKhairanToGeo(1)).areaSqM));
+const alKhairanConcave: ConceptPosition[][] = [[...alKhairanVertices, alKhairanVertices[0]]];
+
+function controlsFor(templateId: ConceptTemplateId) {
+  const programme = conceptTemplate(templateId, "en");
+  return {
+    blockCount: programme.blockCount,
+    levelsMin: programme.levelsMin,
+    levelsMax: programme.levelsMax,
+    targetSiteCoveragePct: programme.targetSiteCoveragePct,
+    openSpacePct: programme.openSpacePct,
+    setbackM: programme.setbackM
+  };
+}
+
+export function dubaiCreateProgrammeCase(scope: DubaiCreateProgrammeScope) {
+  const match = /^dubai-create-(rm|ch|cg)-(rectangle|concave)$/.exec(scope);
+  assert.ok(match, "Create programme scope is not registered");
+  const templateId = programmeByCode[match[1] as keyof typeof programmeByCode];
+  const shape = match[2] as "rectangle" | "concave";
+  return {
+    marketKey: "dubai" as const,
+    coordinates: shape === "rectangle" ? businessBayRectangle : alKhairanConcave,
+    programme: templateId,
+    controls: controlsFor(templateId),
+    fileName: `${scope}.geojson`,
+    label: shape === "rectangle" ? `Dubai Business Bay ${templateId}` : `Dubai Al Khairan ${templateId}`
+  };
+}
+
+export function assertDubaiCreateProgrammeRequest(scope: DubaiCreateProgrammeScope, body: unknown) {
+  assert.ok(body && typeof body === "object" && !Array.isArray(body));
+  const input = body as Record<string, unknown>;
+  const expected = dubaiCreateProgrammeCase(scope);
+  assert.equal(input.marketKey, expected.marketKey);
+  assert.equal(input.locale, "en");
+  assert.equal(input.depth, "standard");
+  assert.equal(input.templateId, expected.programme);
+  assert.equal(input.customPrompt, null);
+  assert.deepEqual(input.aoiCoordinates, expected.coordinates);
+  assert.deepEqual(input.controls, expected.controls);
+  assert.ok(Array.isArray(input.lockedControlKeys));
+  assert.deepEqual([...input.lockedControlKeys as string[]].sort(), Object.keys(expected.controls).sort());
+}
+
+export function assertDubaiCreateProgrammeGeometry(scope: DubaiCreateProgrammeScope, payload: unknown) {
+  const expected = dubaiCreateProgrammeCase(scope);
+  const vertices = expected.coordinates[0].slice(0, -1) as [number, number][];
+  const measurements = calculatePolygonMeasurements(vertices);
+  const aoi: PointObjectCreateAoi = {
+    id: `live-${scope}`, coordinates: expected.coordinates,
+    ...measurements, vertexCount: vertices.length
+  };
+  const concept = parsePointObjectGeneratedConcept(payload, aoi);
+  assert.ok(concept, "Create must return a complete parseable result");
+  assert.equal(concept.program.templateId, expected.programme);
+  for (const [key, value] of Object.entries(expected.controls)) {
+    assert.equal(concept.program[key as keyof typeof expected.controls], value, `Requested ${key} changed`);
+  }
+  assert.deepEqual(concept.alternatives?.map(item => item.id).sort(), ["A", "B"]);
+  assert.notDeepEqual(concept.alternatives![0].massing.featureCollection.features.map(item => item.geometry),
+    concept.alternatives![1].massing.featureCollection.features.map(item => item.geometry), "A/B must differ geometrically");
+  for (const { massing } of concept.alternatives!) {
+    assert.deepEqual(validateConceptMassingGeometry(expected.coordinates, concept.program, massing), []);
+    assert.equal(massing.generatedBlockCount, expected.controls.blockCount);
+  }
+  return concept;
+}
 
 export function assertDubaiCreateRequest(body: unknown) {
   assert.ok(body && typeof body === "object");

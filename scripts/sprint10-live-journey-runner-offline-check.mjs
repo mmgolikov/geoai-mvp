@@ -37,6 +37,7 @@ import {
   validateLiveLedgerPreflight,
   validateLiveLedgerScopeHeadroom
 } from "./sprint10-live-journey-run.mjs";
+import { DUBAI_CREATE_PROGRAMME_SCOPES } from "../tests/e2e/helpers/sprint10-live-journey-gate.ts";
 
 const ledgerId = "5aa405b3-bbda-48aa-aeea-ca3357be4042";
 const root = realpathSync(mkdtempSync(join(tmpdir(), "geoai-sprint10-runner-check-")));
@@ -85,6 +86,9 @@ try {
     "singapore-analyse": [{ route: "ai", depth: "standard", reserveUsd: RESERVE_USD.ai }],
     "singapore-find": [],
     "dubai-create": [{ route: "create", depth: "standard", reserveUsd: RESERVE_USD.create }],
+    ...Object.fromEntries(DUBAI_CREATE_PROGRAMME_SCOPES.map((scope) => [scope,
+      [{ route: "create", depth: "standard", reserveUsd: RESERVE_USD.create }]
+    ])),
     "dubai-depth-cycle": [
       { route: "ai", depth: "standard", reserveUsd: RESERVE_USD.ai },
       { route: "ai", depth: "standard", reserveUsd: RESERVE_USD.ai },
@@ -124,7 +128,8 @@ try {
     GEOAI_SPRINT10_LIVE_PASSWORD: "must-not-propagate",
     OPENAI_API_KEY: "must-not-propagate"
   };
-  for (const scope of ["dubai-find", "singapore-create", "singapore-analyse", "singapore-find", "dubai-create"]) {
+  for (const scope of ["dubai-find", "singapore-create", "singapore-analyse", "singapore-find", "dubai-create",
+    ...DUBAI_CREATE_PROGRAMME_SCOPES]) {
     assert.throws(() => validateAnalysisEvidenceCaptureEnvironment(requestedEvidence, scope), /available only/);
   }
   assert.deepEqual(validateAnalysisEvidenceCaptureEnvironment(requestedEvidence, "journey"), {
@@ -158,7 +163,8 @@ try {
     GEOAI_SPRINT10_DEPTH_CYCLE_EVIDENCE_CAPTURE: SPRINT10_DEPTH_CYCLE_EVIDENCE_CAPTURE_OPT_IN,
     GEOAI_SPRINT10_DEPTH_CYCLE_EVIDENCE_PATH: depthEvidencePath
   });
-  for (const scope of ["journey", "dubai-analyse", "dubai-find", "singapore-create", "singapore-analyse", "singapore-find", "dubai-create"]) {
+  for (const scope of ["journey", "dubai-analyse", "dubai-find", "singapore-create", "singapore-analyse", "singapore-find", "dubai-create",
+    ...DUBAI_CREATE_PROGRAMME_SCOPES]) {
     assert.throws(() => validateDepthCycleEvidenceCaptureEnvironment(requestedDepthEvidence, scope), /available only/);
   }
   assert.throws(() => validateDepthCycleEvidenceCaptureEnvironment({
@@ -194,7 +200,8 @@ try {
   assert.equal(validateLedger(root, ledgerPath).ledgerId, ledgerId);
   for (const scope of [
     "journey", "dubai-analyse", "dubai-find", "singapore-create",
-    "singapore-analyse", "singapore-find", "dubai-create", "dubai-depth-cycle"
+    "singapore-analyse", "singapore-find", "dubai-create", "dubai-depth-cycle",
+    ...DUBAI_CREATE_PROGRAMME_SCOPES
   ]) {
     assert.equal(validateLiveLedgerPreflight(root, ledgerPath, scope).ledgerId, ledgerId);
   }

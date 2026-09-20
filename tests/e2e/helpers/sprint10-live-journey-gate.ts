@@ -2,6 +2,13 @@ export type Sprint10PaidDispatchReservation<T> = {
   receipt: T;
 };
 
+export const DUBAI_CREATE_PROGRAMME_SCOPES = [
+  "dubai-create-rm-rectangle", "dubai-create-rm-concave",
+  "dubai-create-ch-rectangle", "dubai-create-ch-concave",
+  "dubai-create-cg-rectangle", "dubai-create-cg-concave"
+] as const;
+export type DubaiCreateProgrammeScope = typeof DUBAI_CREATE_PROGRAMME_SCOPES[number];
+
 export const SPRINT10_LIVE_PAID_SCOPE_MATRIX = {
   journey: { ai: 1, create: 1 },
   "dubai-analyse": { ai: 1, create: 0 },
@@ -11,6 +18,12 @@ export const SPRINT10_LIVE_PAID_SCOPE_MATRIX = {
   "singapore-analyse": { ai: 1, create: 0 },
   "singapore-find": { ai: 0, create: 0 },
   "dubai-create": { ai: 0, create: 1 },
+  "dubai-create-rm-rectangle": { ai: 0, create: 1 },
+  "dubai-create-rm-concave": { ai: 0, create: 1 },
+  "dubai-create-ch-rectangle": { ai: 0, create: 1 },
+  "dubai-create-ch-concave": { ai: 0, create: 1 },
+  "dubai-create-cg-rectangle": { ai: 0, create: 1 },
+  "dubai-create-cg-concave": { ai: 0, create: 1 },
   "dubai-depth-cycle": { ai: 4, create: 0 },
   "dubai-profile-depth-cycle": { ai: 4, create: 0 },
   "dubai-redevelopment-depth-cycle": { ai: 4, create: 0 },
