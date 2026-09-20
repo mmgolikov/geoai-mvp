@@ -144,7 +144,7 @@ async function login(page: Page, persona: Persona, rawStore: string | null) {
   await page.goto("/login?next=%2Fprojects");
   await expect(page.getByRole("heading", { name: "Sign in to GeoAI" })).toBeVisible();
   if (rawStore !== null) await page.evaluate(({ key, value }) => localStorage.setItem(key, value), { key: storageKey(persona.userId), value: rawStore });
-  await page.getByLabel(/^Email(?: or phone)?$/).fill(persona.email);
+  await page.locator("#login-identifier").fill(persona.email);
   await page.getByLabel("Password").fill(persona.password);
   await Promise.all([
     page.waitForURL((url) => url.pathname === "/projects"),

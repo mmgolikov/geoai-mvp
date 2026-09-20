@@ -671,7 +671,7 @@ async function verifyExactPreview(page: Page, configuration: LiveConfiguration) 
 async function login(page: Page, configuration: LiveConfiguration) {
   await page.goto("/login?next=%2Fprototype%2Fpoint-to-object");
   await expect(page.getByRole("heading", { name: "Sign in to GeoAI" })).toBeVisible();
-  await page.getByLabel(/^Email(?: or phone)?$/).fill(configuration.email);
+  await page.locator("#login-identifier").fill(configuration.email);
   await page.getByLabel("Password").fill(configuration.password);
   await Promise.all([
     page.waitForURL((url) => url.pathname === "/prototype/point-to-object" || url.pathname === "/profile"),

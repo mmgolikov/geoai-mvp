@@ -100,11 +100,11 @@ const anonymousCheck = spec.slice(
 assert.doesNotMatch(anonymousCheck, /protection-bypass|previewBypassSecret/,
   "The anonymous protection challenge must not carry or reference the bypass credential.");
 
-assert.ok(spec.includes('getByLabel(/^Email(?: or phone)?$/).fill(persona.email)'),
-  "Real password login must support the exact Email label in closed MVP and Email or phone in the legacy mode.");
+assert.ok(spec.includes('locator("#login-identifier").fill(persona.email)'),
+  "Real password login must target the stable existing account field regardless of associated helper text.");
 assert.match(spec, /getByRole\("group", \{ name: "Sign-in method" \}\)\)\.toHaveCount\(0\)/,
   "Closed MVP must not offer alternate sign-in methods.");
-assert.match(spec, /getByLabel\("Password", \{ exact: true \}\)\)\.toHaveAttribute\("required", ""\)/,
+assert.match(spec, /locator\("#login-password"\)\)\.toHaveAttribute\("required", ""\)/,
   "Closed MVP must require a password, not dispatch email sign-in.");
 assert.match(spec, /getByLabel\("Password"\)\.fill\(persona\.password\)/);
 assert.match(spec, /body\?\.sessionStatus === "supabase_user_with_profile"/);

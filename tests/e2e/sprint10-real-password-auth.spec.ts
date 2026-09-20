@@ -312,10 +312,11 @@ async function loginWithExistingPassword(page: Page, persona: Persona) {
   await page.goto("/login?next=%2Fprofile");
   await expect(page.getByRole("heading", { name: "Sign in to GeoAI" })).toBeVisible();
   await seedLocalSample(page);
-  await page.getByLabel(/^Email(?: or phone)?$/).fill(persona.email);
-  if (await page.getByLabel("Email", { exact: true }).count()) {
+  await expect(page.locator('label[for="login-identifier"]')).toContainText("Email");
+  await page.locator("#login-identifier").fill(persona.email);
+  if (await page.getByRole("group", { name: "Sign-in method" }).count() === 0) {
     await expect(page.getByRole("group", { name: "Sign-in method" })).toHaveCount(0);
-    await expect(page.getByLabel("Password", { exact: true })).toHaveAttribute("required", "");
+    await expect(page.locator("#login-password")).toHaveAttribute("required", "");
   }
   await page.getByLabel("Password").fill(persona.password);
   await Promise.all([
