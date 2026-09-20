@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import {
   emptyAuthDiagnosticCounts,
   fixedFailedTestLane,
+  fixedFailedAuthStep,
   makeAuthDiagnostic,
   safeAuthProcessOutcome
 } from "./sprint10-real-password-auth-diagnostics.mjs";
@@ -155,12 +156,13 @@ function countReportTests(suites) {
       countReportTests(suite.suites), 0);
 }
 
-function failedDiagnostic(stage, counts, result, { testLane = "none", httpStatus = null, timeoutMs = 0 } = {}) {
+function failedDiagnostic(stage, counts, result, { testLane = "none", httpStatus = null, timeoutMs = 0, failedStep = undefined } = {}) {
   const outcome = result ? safeAuthProcessOutcome(result) : { processOutcome: "not_started", errorCode: null };
   return makeAuthDiagnostic({
     status: "FAIL",
     stage,
     testLane,
+    failedStep,
     httpStatus,
     counts,
     ...outcome,
@@ -284,7 +286,8 @@ module.exports = defineConfig({
     const testLane = fixedFailedTestLane(report);
     if (result.status !== 0 || counts.passed !== expectedTestCount || counts.skipped !== 0 ||
         counts.unexpected !== 0 || counts.flaky !== 0) {
-      return failedDiagnostic("test_execution", counts, result, { testLane, timeoutMs: browserTimeoutMs });
+      return failedDiagnostic("test_execution", counts, result, { testLane, timeoutMs: browserTimeoutMs,
+        failedStep: fixedFailedAuthStep(report, testLane) });
     }
     return makeAuthDiagnostic({
       status: "PASS",

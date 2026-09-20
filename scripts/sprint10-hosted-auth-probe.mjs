@@ -877,7 +877,8 @@ export function runExistingPreviewHarness(config, personas, { env = process.env,
   catch { return { status: "failed_existing_reviewed_runner", stage: "preview_runner_report_contract" }; }
   return diagnostic.status === "PASS"
     ? "passed_existing_reviewed_runner"
-    : { status: "failed_existing_reviewed_runner", stage: hostedPreviewFailureStage(diagnostic) };
+    : { status: "failed_existing_reviewed_runner", stage: hostedPreviewFailureStage(diagnostic),
+      ...(diagnostic.failedStep ? { authDiagnostic: diagnostic } : {}) };
 }
 
 function exactKeys(value, keys) {
@@ -1411,13 +1412,21 @@ export async function runHostedProbe(options = {}) {
     if (typeof previewResult === "string") {
       previewHarness = previewResult;
     } else {
-      if (!exactKeys(previewResult, ["status", "stage"]) ||
+      const hasAuthDiagnostic = Object.hasOwn(previewResult ?? {}, "authDiagnostic");
+      if (!exactKeys(previewResult, ["status", "stage", ...(hasAuthDiagnostic ? ["authDiagnostic"] : [])]) ||
           previewResult?.status !== "failed_existing_reviewed_runner" ||
           !acceptedPreviewFailureStages.has(previewResult?.stage)) {
         fail("The optional existing real-password Preview harness returned an unaccepted failure stage.");
       }
+      if (hasAuthDiagnostic) {
+        const diagnostic = parseAuthDiagnostic(JSON.stringify(previewResult.authDiagnostic), 1);
+        if (diagnostic.status !== "FAIL" || hostedPreviewFailureStage(diagnostic) !== previewResult.stage) {
+          fail("The optional Preview Auth diagnostic contradicts its failure stage.");
+        }
+      }
       previewHarness = "failed_existing_reviewed_runner";
-      liveJourney = { status: "FAIL", stage: previewResult.stage };
+      liveJourney = { status: "FAIL", stage: previewResult.stage,
+        ...(hasAuthDiagnostic ? { authDiagnostic: previewResult.authDiagnostic } : {}) };
       fail("The optional existing real-password Preview harness failed closed; only its fixed safe failure stage was retained.");
     }
     operations.onEvent("preview_child_complete", { personas, config });

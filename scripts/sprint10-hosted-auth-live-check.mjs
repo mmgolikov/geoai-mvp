@@ -20,12 +20,14 @@ import {
   buildLiveJourneyChildEnvironment,
   parseLiveJourneyChildReceipt,
   runHostedProbe,
+  runExistingPreviewHarness,
   runReviewedLiveJourney,
   sanitizedCleanupFailures,
   validateRuntimeConfig,
   writeActivePersonaCheckpoint
 } from "./sprint10-hosted-auth-probe.mjs";
 import { LIVE_JOURNEY_DIAGNOSTIC_SCHEMA } from "./sprint10-live-journey-diagnostics.mjs";
+import { makeAuthDiagnostic, emptyAuthDiagnosticCounts } from "./sprint10-real-password-auth-diagnostics.mjs";
 
 const exactLedgerId = "5aa405b3-bbda-48aa-aeea-ca3357be4042";
 const exactCycleId = "GEOAI_FOUR_SPRINTS_2026_09_18";
@@ -570,8 +572,9 @@ const lifecycleFaults = [
   ...retirementStages.flatMap((stage) => [`A_retirement_${stage}`, `B_retirement_${stage}`])
 ];
 
+let lifecycleFixtureSequence = 0;
 async function runLifecycleFixture(faultAt = null, liveStatus = "PASS", previewOutcome = "passed_existing_reviewed_runner") {
-  const suffix = String(faultAt ?? `${liveStatus}-${typeof previewOutcome === "string" ? previewOutcome : previewOutcome.stage}`)
+  const suffix = String(`${++lifecycleFixtureSequence}-${faultAt ?? `${liveStatus}-${typeof previewOutcome === "string" ? previewOutcome : previewOutcome.stage}`}`)
     .replaceAll(/[^A-Za-z0-9_-]/g, "_");
   const path = join(privateRoot, `lifecycle-${suffix}.json`);
   const fixtureConfig = {
@@ -744,6 +747,27 @@ assert.deepEqual(integratedPreviewFailure.receipt.liveJourney,
   { status: "FAIL", stage: "preview_test_execution_primary_continuity" });
 assert.equal(integratedPreviewFailure.counters.live, 0, "a failed Preview must stop before the paid live child");
 assert.equal(integratedPreviewFailure.counters.retire, 2, "a failed Preview must still retire both synthetic personas");
+const authDiagnostic = makeAuthDiagnostic({ status: "FAIL", stage: "test_execution", testLane: "primary_continuity",
+  failedStep: "login_ui", counts: { ...emptyAuthDiagnosticCounts(2), discoveredProjects: 1, discoveredTests: 2, passed: 1, unexpected: 1 },
+  processOutcome: "nonzero", timeoutMs: 390_000 });
+const projectedPreviewFailure = runExistingPreviewHarness(config, personas, {
+  env: baseEnvironment, spawn: () => childResult(1, authDiagnostic)
+});
+assert.deepEqual(projectedPreviewFailure, { status: "failed_existing_reviewed_runner",
+  stage: "preview_test_execution_primary_continuity", authDiagnostic });
+const checkpointFailure = await runLifecycleFixture(null, "PASS", projectedPreviewFailure);
+assert.deepEqual(checkpointFailure.receipt.liveJourney, { status: "FAIL",
+  stage: "preview_test_execution_primary_continuity", authDiagnostic });
+assert.equal(checkpointFailure.counters.live, 0);
+assert.equal(checkpointFailure.counters.retire, 2);
+for (const diagnostic of [{ ...authDiagnostic, failedStep: "private-secret" }, { ...authDiagnostic, rawError: "private-secret" },
+  { ...authDiagnostic, status: "PASS" }, { ...authDiagnostic, testLane: "dual_session_isolation" }]) {
+  const rejected = await runLifecycleFixture(null, "PASS", { ...projectedPreviewFailure, authDiagnostic: diagnostic });
+  assert.equal(rejected.counters.live, 0);
+  assert.equal(rejected.counters.retire, 2);
+  assert.equal(Object.hasOwn(rejected.receipt.liveJourney, "authDiagnostic"), false);
+  assert(!JSON.stringify(rejected.receipt).includes("private-secret"));
+}
 const integratedPreviewFailureUnknownLane = await runLifecycleFixture(null, "PASS", {
   status: "failed_existing_reviewed_runner",
   stage: "preview_test_execution_none"

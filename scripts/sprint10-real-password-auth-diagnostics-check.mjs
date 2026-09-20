@@ -3,13 +3,17 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
+import { stripTypeScriptTypes } from "node:module";
 import {
   emptyAuthDiagnosticCounts,
   fixedFailedTestLane,
   hostedPreviewFailureStage,
   makeAuthDiagnostic,
   parseAuthDiagnostic,
-  safeAuthProcessOutcome
+  safeAuthProcessOutcome,
+  AUTH_FAILURE_STEPS,
+  fixedFailedAuthStep
 } from "./sprint10-real-password-auth-diagnostics.mjs";
 
 const secret = "planted-password-never-forward";
@@ -43,6 +47,42 @@ const serialized = JSON.stringify(failure);
 assert(!serialized.includes(secret));
 assert.equal(hostedPreviewFailureStage(failure), "preview_test_execution_dual_session_isolation");
 assert.deepEqual(parseAuthDiagnostic(serialized, 1), failure);
+assert.equal(fixedFailedAuthStep(report, "dual_session_isolation"), undefined);
+const checkpointReport = (description) => ({ suites: [{ specs: [{ ...report.suites[0].specs[0], tests: [{
+  ...report.suites[0].specs[0].tests[0], annotations: [{ type: "auth-failed-step", description }]
+}] }] }] });
+for (const failedStep of AUTH_FAILURE_STEPS) {
+  assert.equal(fixedFailedAuthStep(checkpointReport(failedStep), "dual_session_isolation"), failedStep);
+  const diagnostic = makeAuthDiagnostic({ ...failure, failedStep });
+  assert.deepEqual(parseAuthDiagnostic(JSON.stringify(diagnostic), 1), diagnostic);
+  assert(!JSON.stringify(diagnostic).includes(secret));
+}
+for (const failedStep of [secret, "https://private.invalid", null, 1, {}, "unknown"]) {
+  assert.throws(() => fixedFailedAuthStep(checkpointReport(failedStep), "dual_session_isolation"));
+  assert.throws(() => parseAuthDiagnostic(JSON.stringify({ ...failure, failedStep }), 1));
+}
+for (const patch of [{ status: "PASS" }, { stage: "preflight" }, { testLane: "none" }]) {
+  assert.throws(() => makeAuthDiagnostic({ ...failure, failedStep: "login_ui", ...patch }));
+}
+const duplicate = checkpointReport("login_ui");
+duplicate.suites[0].specs[0].tests[0].annotations.push({ type: "auth-failed-step", description: "logout" });
+assert.throws(() => fixedFailedAuthStep(duplicate, "dual_session_isolation"));
+assert.equal(fixedFailedAuthStep(checkpointReport("login_ui"), "primary_continuity"), undefined);
+const passing = checkpointReport("login_ui");
+passing.suites[0].specs[0].tests[0].status = "expected";
+assert.equal(fixedFailedAuthStep(passing, "dual_session_isolation"), undefined);
+const specSource = readFileSync(new URL("../tests/e2e/sprint10-real-password-auth.spec.ts", import.meta.url), "utf8");
+const helperSource = specSource.slice(specSource.indexOf("async function authStep<"), specSource.indexOf("function canonicalOrigin"));
+const annotations = [];
+const authStep = new Function("test", `${stripTypeScriptTypes(helperSource)}; return authStep;`)({ info: () => ({ annotations }) });
+assert.equal(await authStep("login_ui", () => 7), 7);
+assert.deepEqual(annotations, [], "Successful checkpoints emit nothing.");
+const originalFailure = new Error(secret);
+await assert.rejects(authStep("session_initial", () => { throw originalFailure; }), (error) => error === originalFailure);
+await assert.rejects(authStep("cleanup", () => { throw new Error(secret); }));
+assert.deepEqual(annotations, [{ type: "auth-failed-step", description: "session_initial" }], "Cleanup must not overwrite the first failure.");
+assert(!JSON.stringify(annotations).includes(secret));
+for (const [, step] of specSource.matchAll(/authStep\("([a-z_]+)"/g)) assert(AUTH_FAILURE_STEPS.includes(step));
 assert.equal(hostedPreviewFailureStage({ ...failure, testLane: "none" }), "preview_test_execution_none");
 
 const timeout = makeAuthDiagnostic({
@@ -110,6 +150,9 @@ console.log(JSON.stringify({
   cases: {
     plantedSecretExcluded: 1,
     fixedFailureLane: 1,
+    fixedFailureSteps: AUTH_FAILURE_STEPS.length,
+    checkpointPrivacyAndStatusDenials: 16,
+    checkpointProducerFirstFailurePreserved: 1,
     unknownFailureLaneProjection: 1,
     timeoutProjection: 1,
     discoveryProjection: 1,

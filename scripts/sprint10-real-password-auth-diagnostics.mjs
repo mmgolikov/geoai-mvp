@@ -13,6 +13,11 @@ const STAGES = new Set([
   "complete"
 ]);
 const LANES = new Set(["none", "primary_continuity", "dual_session_isolation"]);
+export const AUTH_FAILURE_STEPS = Object.freeze([
+  "anonymous_protection", "exact_preview", "login_ui", "session_initial", "guarded_api",
+  "local_sample_login", "profile_reload", "session_reload", "local_sample_reload", "logout",
+  "local_sample_logout", "network_policy", "session_isolation", "local_sample_isolation", "cleanup"
+]);
 const OUTCOMES = new Set(["not_started", "success", "nonzero", "timeout", "spawn_error"]);
 const ERROR_CODES = new Set([null, "ETIMEDOUT", "ENOBUFS", "ENOENT", "OTHER"]);
 const TEST_LANES_BY_TITLE = new Map([
@@ -70,7 +75,7 @@ export function fixedFailedTestLane(report) {
 }
 
 export function makeAuthDiagnostic({ status, stage, testLane = "none", httpStatus = null, counts,
-  processOutcome = "not_started", errorCode = null, timeoutMs }) {
+  processOutcome = "not_started", errorCode = null, timeoutMs, failedStep = undefined }) {
   const value = {
     schemaVersion: REAL_PASSWORD_AUTH_DIAGNOSTIC_SCHEMA,
     status,
@@ -80,14 +85,16 @@ export function makeAuthDiagnostic({ status, stage, testLane = "none", httpStatu
     counts,
     processOutcome,
     errorCode,
-    timeoutMs
+    timeoutMs,
+    ...(failedStep === undefined ? {} : { failedStep })
   };
   return validateAuthDiagnostic(value);
 }
 
 export function validateAuthDiagnostic(value, exitStatus) {
+  const stepPresent = Object.hasOwn(value ?? {}, "failedStep");
   if (!exactKeys(value, ["schemaVersion", "status", "stage", "testLane", "httpStatus", "counts",
-    "processOutcome", "errorCode", "timeoutMs"]) || value.schemaVersion !== REAL_PASSWORD_AUTH_DIAGNOSTIC_SCHEMA ||
+    "processOutcome", "errorCode", "timeoutMs", ...(stepPresent ? ["failedStep"] : [])]) || value.schemaVersion !== REAL_PASSWORD_AUTH_DIAGNOSTIC_SCHEMA ||
       !["PASS", "FAIL"].includes(value.status) || !STAGES.has(value.stage) || !LANES.has(value.testLane) ||
       !(value.httpStatus === null || (Number.isInteger(value.httpStatus) && value.httpStatus >= 100 && value.httpStatus <= 599)) ||
       !exactKeys(value.counts, COUNT_KEYS) || !COUNT_KEYS.every((key) => boundedCount(value.counts[key])) ||
@@ -95,6 +102,8 @@ export function validateAuthDiagnostic(value, exitStatus) {
       !Number.isInteger(value.timeoutMs) || value.timeoutMs < 0 || value.timeoutMs > 450_000) {
     throw new Error("The real-password Auth diagnostic report contract was not accepted.");
   }
+  if (stepPresent && (value.status !== "FAIL" || value.stage !== "test_execution" || value.testLane === "none" ||
+      !AUTH_FAILURE_STEPS.includes(value.failedStep))) throw new Error("The Auth failure checkpoint was not accepted.");
   if (value.status === "PASS") {
     if (value.stage !== "complete" || value.testLane !== "none" || value.httpStatus !== null ||
         value.processOutcome !== "success" || value.errorCode !== null || value.counts.expectedProjects !== 1 ||
@@ -108,6 +117,35 @@ export function validateAuthDiagnostic(value, exitStatus) {
     throw new Error("The real-password Auth FAIL diagnostic was not accepted.");
   }
   return value;
+}
+
+/** Project only a fixed checkpoint annotation, never error messages, stacks or values. */
+export function fixedFailedAuthStep(report, lane) {
+  if (!LANES.has(lane) || lane === "none") return undefined;
+  const steps = [];
+  let visited = 0;
+  const visit = (suites, depth = 0) => {
+    if (depth > 20) throw new Error("Auth checkpoint traversal exceeded its bound.");
+    for (const suite of Array.isArray(suites) ? suites : []) {
+      if (++visited > 1000) throw new Error("Auth checkpoint traversal exceeded its bound.");
+      for (const spec of Array.isArray(suite?.specs) ? suite.specs : []) {
+        if (TEST_LANES_BY_TITLE.get(spec?.title) !== lane) continue;
+        for (const test of Array.isArray(spec.tests) ? spec.tests : []) {
+          if (test?.status !== "unexpected") continue;
+          for (const annotation of Array.isArray(test.annotations) ? test.annotations : []) {
+            if (annotation?.type !== "auth-failed-step") continue;
+            if (!exactKeys(annotation, ["type", "description"]) || !AUTH_FAILURE_STEPS.includes(annotation.description) || steps.length) {
+              throw new Error("Auth checkpoint annotation is malformed or ambiguous.");
+            }
+            steps.push(annotation.description);
+          }
+        }
+      }
+      visit(suite?.suites, depth + 1);
+    }
+  };
+  visit(report?.suites);
+  return steps[0];
 }
 
 export function parseAuthDiagnostic(stdout, exitStatus) {

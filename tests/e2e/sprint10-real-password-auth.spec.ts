@@ -55,6 +55,21 @@ function guard(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
 
+type AuthFailureStep = "anonymous_protection" | "exact_preview" | "login_ui" | "session_initial" | "guarded_api" |
+  "local_sample_login" | "profile_reload" | "session_reload" | "local_sample_reload" | "logout" |
+  "local_sample_logout" | "network_policy" | "session_isolation" | "local_sample_isolation" | "cleanup";
+
+async function authStep<T>(step: AuthFailureStep, run: () => T | Promise<T>): Promise<T> {
+  try { return await run(); }
+  catch (error) {
+    // First failure wins even if browser cleanup also fails; no raw error data.
+    if (!test.info().annotations.some((annotation) => annotation.type === "auth-failed-step")) {
+      test.info().annotations.push({ type: "auth-failed-step", description: step });
+    }
+    throw error;
+  }
+}
+
 function canonicalOrigin(value: string): string | null {
   try {
     const url = new URL(value);
@@ -435,34 +450,38 @@ test.describe("Sprint 10 existing-user password Auth acceptance harness", () => 
 
   test("verifies exact Preview, SSR continuity, guarded API and logout without data mutations", async ({ page, context }) => {
     await context.clearCookies();
-    await verifyAnonymousPreviewProtection();
+    await authStep("anonymous_protection", verifyAnonymousPreviewProtection);
     const policy = await installNetworkPolicy(page);
     try {
-      await verifyExactPreview(page);
-      await loginWithExistingPassword(page, primaryPersona);
-      assertAuthenticatedSession(await readSessionEvidence(page, primaryPersona.expectedUserId));
-      assertAuthenticatedGuardedApi(await readGuardedApiEvidence(page));
-      guard(await localSampleIsUnchanged(page), "Browser-local sample bytes changed during password login.");
+      await authStep("exact_preview", () => verifyExactPreview(page));
+      await authStep("login_ui", () => loginWithExistingPassword(page, primaryPersona));
+      await authStep("session_initial", async () => assertAuthenticatedSession(await readSessionEvidence(page, primaryPersona.expectedUserId)));
+      await authStep("guarded_api", async () => assertAuthenticatedGuardedApi(await readGuardedApiEvidence(page)));
+      await authStep("local_sample_login", async () => guard(await localSampleIsUnchanged(page), "Browser-local sample bytes changed during password login."));
 
-      await page.reload({ waitUntil: "domcontentloaded" });
-      await expect(page.getByRole("heading", { name: "Your profile" })).toBeVisible();
-      assertAuthenticatedSession(await readSessionEvidence(page, primaryPersona.expectedUserId));
-      guard(await localSampleIsUnchanged(page), "Browser-local sample bytes changed during session reload.");
+      await authStep("profile_reload", async () => {
+        await page.reload({ waitUntil: "domcontentloaded" });
+        await expect(page.getByRole("heading", { name: "Your profile" })).toBeVisible();
+      });
+      await authStep("session_reload", async () => assertAuthenticatedSession(await readSessionEvidence(page, primaryPersona.expectedUserId)));
+      await authStep("local_sample_reload", async () => guard(await localSampleIsUnchanged(page), "Browser-local sample bytes changed during session reload."));
 
-      await signOutAndVerify(page);
-      guard(await localSampleIsUnchanged(page), "Browser-local sample bytes changed during logout.");
-      policy.assertClean();
+      await authStep("logout", () => signOutAndVerify(page));
+      await authStep("local_sample_logout", async () => guard(await localSampleIsUnchanged(page), "Browser-local sample bytes changed during logout."));
+      await authStep("network_policy", () => policy.assertClean());
     } finally {
-      await removeLocalSample(page);
-      await context.clearCookies();
-      await page.close({ runBeforeUnload: false }).catch(() => undefined);
+      await authStep("cleanup", async () => {
+        await removeLocalSample(page);
+        await context.clearCookies();
+        await page.close({ runBeforeUnload: false }).catch(() => undefined);
+      });
     }
   });
 
   if (selectedScope === "primary_and_secondary") {
     test("keeps two existing-user browser cookie sessions isolated", async ({ browser }) => {
       const contexts: BrowserContext[] = [];
-      await verifyAnonymousPreviewProtection();
+      await authStep("anonymous_protection", verifyAnonymousPreviewProtection);
       try {
         const firstContext = await browser.newContext({ baseURL: previewUrl, serviceWorkers: "block" });
         const secondContext = await browser.newContext({ baseURL: previewUrl, serviceWorkers: "block" });
@@ -472,24 +491,23 @@ test.describe("Sprint 10 existing-user password Auth acceptance harness", () => 
         const firstPolicy = await installNetworkPolicy(firstPage);
         const secondPolicy = await installNetworkPolicy(secondPage);
 
-        await verifyExactPreview(firstPage);
-        await loginWithExistingPassword(firstPage, primaryPersona);
-        await loginWithExistingPassword(secondPage, secondaryPersona);
-        assertAuthenticatedSession(await readSessionEvidence(firstPage, primaryPersona.expectedUserId));
-        assertAuthenticatedSession(await readSessionEvidence(secondPage, secondaryPersona.expectedUserId));
+        await authStep("exact_preview", () => verifyExactPreview(firstPage));
+        await authStep("login_ui", () => loginWithExistingPassword(firstPage, primaryPersona));
+        await authStep("login_ui", () => loginWithExistingPassword(secondPage, secondaryPersona));
+        await authStep("session_initial", async () => assertAuthenticatedSession(await readSessionEvidence(firstPage, primaryPersona.expectedUserId)));
+        await authStep("session_initial", async () => assertAuthenticatedSession(await readSessionEvidence(secondPage, secondaryPersona.expectedUserId)));
 
-        await signOutAndVerify(firstPage);
-        assertAuthenticatedSession(await readSessionEvidence(secondPage, secondaryPersona.expectedUserId));
-        guard(await localSampleIsUnchanged(firstPage) && await localSampleIsUnchanged(secondPage),
-          "Browser-local sample bytes changed during the two-context isolation check.");
-        firstPolicy.assertClean();
-        secondPolicy.assertClean();
+        await authStep("logout", () => signOutAndVerify(firstPage));
+        await authStep("session_isolation", async () => assertAuthenticatedSession(await readSessionEvidence(secondPage, secondaryPersona.expectedUserId)));
+        await authStep("local_sample_isolation", async () => guard(await localSampleIsUnchanged(firstPage) && await localSampleIsUnchanged(secondPage),
+          "Browser-local sample bytes changed during the two-context isolation check."));
+        await authStep("network_policy", () => { firstPolicy.assertClean(); secondPolicy.assertClean(); });
       } finally {
-        await Promise.all(contexts.map(async (context) => {
+        await authStep("cleanup", () => Promise.all(contexts.map(async (context) => {
           for (const page of context.pages()) await removeLocalSample(page);
           await context.clearCookies();
           await context.close();
-        }));
+        })));
       }
     });
   }
