@@ -62,6 +62,8 @@ const definitions: RouteDefinition[] = [
       return source.replace(/import \{\s*buildLivePointObjectEvidencePack,\s*LivePointEvidenceError\s*\} from "@\/src\/lib\/prototype\/point-to-object-live-evidence";/,
         `class LivePointEvidenceError extends Error { constructor(message) { super(message); } }
          const buildLivePointObjectEvidencePack = async () => { globalThis.__geoaiSourceCalls.context += 1; return {
+           evidencePackHash: "a".repeat(64),
+           source: { sourceResponseHash: "b".repeat(64), acquiredAt: "2026-09-20T12:34:56.000Z" },
            selectedObject: { name: "Offline object", displayAddress: "Offline address", featureClass: "building", sourceFeatureId: "way/123", geometryType: "Polygon", addressParts: {}, tags: {}, metrics: {} },
            resolution: { coordinateAssociation: "inside", resultCentroidDistanceM: 0 }, geoContext: null, linkedEntity: null
          }; };`);
@@ -185,6 +187,14 @@ for (const definition of definitions) {
   const first = await route.POST(request(definition, validBody, "https://production.example.test"));
   assert.equal(first.status, 200, `${definition.name} must run with only the explicit Production surface flag.`);
   assert.match(first.headers.get("Cache-Control") ?? "", /no-store/);
+  if (definition.name === "context") {
+    const payload = await first.json() as { evidenceReceipt?: unknown };
+    assert.deepEqual(payload.evidenceReceipt, {
+      evidencePackHash: "a".repeat(64),
+      sourceResponseHash: "b".repeat(64),
+      acquiredAt: "2026-09-20T12:34:56.000Z"
+    }, "Context must expose the exact receipt from the server-acquired evidence pack.");
+  }
 
   for (let index = 1; index < definition.clientRateLimit; index += 1) {
     const allowed = await route.POST(request(definition, validBody, "https://production.example.test"));

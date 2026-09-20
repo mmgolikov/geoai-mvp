@@ -203,12 +203,12 @@ assert.match(sourceObserver, /page[.]on\("requestfailed", onRequestFailed\)/,
 assert.match(sourceObserver, /setTimeout\(\(\) => finish\(\{ kind: "timeout" \}\), timeoutMs\)/,
   "the source observer must retain a bounded timeout outcome");
 const createBody = liveSpec.split("async function runMarketCreate")[1]?.split("\nasync function runDubaiCreate")[0] ?? "";
-assert.equal((createBody.match(/SOURCE_REQUEST_HARNESS_TIMEOUT_MS/g) ?? []).length, 2,
-  "area-context request and response observation must both use the shared 60-second source envelope");
 assert.match(createBody, /page[.]goto\("\/prototype\/point-to-object"\);[\s\S]*?main\[data-project-restoration="ready"\][\s\S]*?point-object-city-select[\s\S]*?Upload GeoJSON/,
   "Create must wait for project restoration readiness before city selection and upload");
 assert.match(createBody, /const contextResponseDeadlineAt = Date[.]now\(\) \+ SOURCE_REQUEST_HARNESS_TIMEOUT_MS;[\s\S]*?waitForRequest\([\s\S]*?timeout: SOURCE_REQUEST_HARNESS_TIMEOUT_MS[\s\S]*?observeExactSourceRequestResponse\(contextRequest, contextResponseDeadlineAt\)/,
   "Create must spend only the remainder of one shared 60-second request/response envelope on the exact request");
+assert.match(createBody, /const sourceLatencyMs = Date[.]now\(\) - \(contextResponseDeadlineAt - SOURCE_REQUEST_HARNESS_TIMEOUT_MS\);/,
+  "Create source latency must derive from the same shared request/response envelope without starting another timeout");
 assert.doesNotMatch(createBody, /observeSourcePostResponse\(/,
   "Create must not let a stale area-context response or failure settle its current exact-request observation");
 
