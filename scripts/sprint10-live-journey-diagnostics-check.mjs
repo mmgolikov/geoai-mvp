@@ -25,6 +25,29 @@ const config = {
 const receipts = [{ id: 1, route: "ai", depth: "standard", state: "settled", estimatedUsd: 0.041167 }];
 const runnerSource = readFileSync(new URL("./sprint10-live-journey-run.mjs", import.meta.url), "utf8");
 const liveSpecSource = readFileSync(new URL("../tests/e2e/sprint10-live-journey.spec.ts", import.meta.url), "utf8");
+const paidEntrySource = liveSpecSource.slice(liveSpecSource.indexOf("async function observePaidAnalyseEntry("), liveSpecSource.indexOf("async function runDubaiAnalyse("));
+assert.match(paidEntrySource, /observeSourcePostResponse\(page, "\/api\/prototype\/point-to-object\/ai", 180_000\)/);
+assert.match(paidEntrySource, /getByRole\("button", \{ name: "Analyze", exact: true \}\)[.]click\(\)/);
+assert.match(paidEntrySource, /finally\s*\{\s*observation[.]cancel\(\)/);
+for (const [name, next, responseName] of [["runDubaiAnalyse", "runDubaiDepthCycle", "response"], ["runDubaiDepthCycle", "runSingaporeAnalyse", "baselineResponse"]]) {
+  const body = liveSpecSource.split(`async function ${name}`)[1].split(`async function ${next}`)[0];
+  assert.ok(body.includes(`const ${responseName} = await observePaidAnalyseEntry(page, progress);`));
+}
+for (const [kind, expectedStage] of [["aborted", "analyse_paid_aborted"], ["network_failed", "analyse_paid_network_failed"], ["timeout", "analyse_paid_response_timeout"], ["response", null]]) {
+  let cancelled = 0;
+  let clicks = 0;
+  let stage = "analyse_paid_response";
+  const response = { status: () => 200, request: () => ({ method: () => "POST" }) };
+  const observe = new Function("observeSourcePostResponse", `${stripTypeScriptTypes(paidEntrySource, { mode: "transform", sourceMap: false })}; return observePaidAnalyseEntry;`)(
+    (_page, pathname, timeoutMs) => {
+      assert.equal(pathname, "/api/prototype/point-to-object/ai"); assert.equal(timeoutMs, 180_000);
+      return { result: Promise.resolve({ kind, response }), cancel: () => { cancelled++; } };
+    });
+  const result = observe({ getByRole: () => ({ click: async () => { clicks++; } }) }, { start: value => { stage = value; } });
+  if (expectedStage) await assert.rejects(result, /^Error: The paid analysis response did not complete[.]$/);
+  else assert.equal(await result, response, "actual HTTP response must pass unchanged to existing status/body/identity checks");
+  assert.equal(stage, expectedStage ?? "analyse_paid_response"); assert.equal(cancelled, 1); assert.equal(clicks, 1);
+}
 const findBody = liveSpecSource.split("async function runDubaiFind")[1].split("async function runSingaporeFind")[0];
 const reopenBody = liveSpecSource.split("async function reopenSavedArtifact")[1].split("async function runDubaiAnalyse")[0];
 const diagnosticBindings = [

@@ -1123,6 +1123,23 @@ async function reopenSavedArtifact(
   findReturnProgress?.complete("find_return_saved_no_replay");
 }
 
+async function observePaidAnalyseEntry(page: Page, progress: LiveProgress): Promise<Response> {
+  const observation = observeSourcePostResponse(page, "/api/prototype/point-to-object/ai", 180_000);
+  let observed: SourceResponseObservation;
+  try {
+    await page.getByRole("button", { name: "Analyze", exact: true }).click();
+    observed = await observation.result;
+  } finally {
+    observation.cancel();
+  }
+  if (observed.kind !== "response") {
+    progress.start(observed.kind === "aborted" ? "analyse_paid_aborted" :
+      observed.kind === "network_failed" ? "analyse_paid_network_failed" : "analyse_paid_response_timeout");
+    throw new Error("The paid analysis response did not complete.");
+  }
+  return observed.response;
+}
+
 async function runDubaiAnalyse(page: Page, configuration: LiveConfiguration, policy: NetworkPolicy, budget: ReturnType<typeof installBudgetGate>, progress: LiveProgress) {
   const { chosen, chosenIndex } = await runAnalyseSourceSuggest(page, {
     marketKey: "dubai",
@@ -1144,9 +1161,7 @@ async function runDubaiAnalyse(page: Page, configuration: LiveConfiguration, pol
   await expect(page.getByRole("button", { name: "Analyze", exact: true })).toBeEnabled({ timeout: 45_000 });
   await page.locator("#point-object-question").fill(SPRINT10_PUBLIC_ANALYSIS_QUESTION);
   progress.start("analyse_paid_response");
-  const responsePromise = page.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/point-to-object/ai"), { timeout: 180_000 });
-  await page.getByRole("button", { name: "Analyze", exact: true }).click();
-  const response = await responsePromise;
+  const response = await observePaidAnalyseEntry(page, progress);
   const payload: unknown = await response.json();
   progress.complete("analyse_paid_response");
   progress.start("analyse_paid_terminal");
@@ -1243,9 +1258,7 @@ async function runDubaiDepthCycle(page: Page, configuration: LiveConfiguration, 
   await expect(page.getByRole("button", { name: "Analyze", exact: true })).toBeEnabled({ timeout: 45_000 });
   await page.locator("#point-object-question").fill(SPRINT10_PUBLIC_ANALYSIS_QUESTION);
   progress.start("analyse_paid_response");
-  const baselineResponsePromise = page.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/point-to-object/ai"), { timeout: 180_000 });
-  await page.getByRole("button", { name: "Analyze", exact: true }).click();
-  const baselineResponse = await baselineResponsePromise;
+  const baselineResponse = await observePaidAnalyseEntry(page, progress);
   const baselinePayload: unknown = await boundedLiveJourneyResponseJson(baselineResponse, 10_000);
   progress.complete("analyse_paid_response");
   progress.start("analyse_paid_terminal");
