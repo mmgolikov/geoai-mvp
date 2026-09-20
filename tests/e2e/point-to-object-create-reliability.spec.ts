@@ -37,7 +37,20 @@ async function json(route: Route, body: unknown, status = 200) {
   await route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
 }
 
-function massing(variantId: "A" | "B", generation: number, controls: Record<string, number>, templateId: string) {
+function fixtureAoiAreaSqM(value: unknown): number {
+  const ring = (value as Array<Array<[number, number]>>)[0];
+  const latitude = ring.reduce((sum, point) => sum + point[1], 0) / ring.length;
+  const longitudeScale = 111_320 * Math.cos(latitude * Math.PI / 180);
+  const latitudeScale = 110_540;
+  let doubleArea = 0;
+  for (let index = 0; index < ring.length - 1; index += 1) {
+    doubleArea += ring[index][0] * longitudeScale * ring[index + 1][1] * latitudeScale -
+      ring[index + 1][0] * longitudeScale * ring[index][1] * latitudeScale;
+  }
+  return Math.abs(doubleArea) / 2;
+}
+
+function massing(variantId: "A" | "B", generation: number, controls: Record<string, number>, templateId: string, aoiAreaSqM: number) {
   const count = controls.blockCount;
   const features = Array.from({ length: count }, (_, index) => {
     const orderedIndex = variantId === "A" ? index : count - index - 1;
@@ -81,8 +94,8 @@ function massing(variantId: "A" | "B", generation: number, controls: Record<stri
     requestedBlockCount: controls.blockCount,
     generatedBlockCount: controls.blockCount,
     generatedFeatureCount: features.length,
-    aoiAreaSqM: 2_500,
-    generatedFootprintAreaSqM: controls.targetSiteCoveragePct * 25,
+    aoiAreaSqM,
+    generatedFootprintAreaSqM: controls.targetSiteCoveragePct * aoiAreaSqM / 100,
     achievedSiteCoveragePct: controls.targetSiteCoveragePct,
     estimatedFloorAreaSqM: generation * 1_000 + (variantId === "B" ? 500 : 0),
     minGeneratedLevels: controls.levelsMin,
@@ -94,8 +107,9 @@ function massing(variantId: "A" | "B", generation: number, controls: Record<stri
 function conceptResponse(request: Record<string, unknown>, generation: number) {
   const controls = request.controls as Record<string, number>;
   const templateId = String(request.templateId);
-  const a = massing("A", generation, controls, templateId);
-  const b = massing("B", generation, controls, templateId);
+  const aoiAreaSqM = fixtureAoiAreaSqM(request.aoiCoordinates);
+  const a = massing("A", generation, controls, templateId, aoiAreaSqM);
+  const b = massing("B", generation, controls, templateId, aoiAreaSqM);
   return {
     mode: "openai_concept",
     generatedAt: "2026-09-05T12:00:00.000Z",
@@ -532,8 +546,8 @@ for (const width of [390, 430]) {
     await page.getByLabel("Upload GeoJSON").setInputFiles({
       name: "sprint06-public-fixture.geojson", mimeType: "application/geo+json",
       buffer: Buffer.from(JSON.stringify({ type: "Polygon", coordinates: [[
-        [55.27015, 25.20515], [55.27065, 25.20515], [55.27065, 25.20565],
-        [55.27015, 25.20565], [55.27015, 25.20515]
+        [55.26955, 25.20455], [55.27065, 25.20455], [55.27065, 25.20565],
+        [55.26955, 25.20565], [55.26955, 25.20455]
       ]] }))
     });
     await expect(page.getByText("Area context is temporarily unavailable.")).toBeVisible();
@@ -542,23 +556,31 @@ for (const width of [390, 430]) {
     await expect(page.getByTestId("generated-concept-summary")).toContainText("Generation 1 committed result.");
     await page.getByTestId("create-open-result-dashboard").click();
     await expect(page.getByTestId("create-full-result-dashboard")).toBeVisible();
-    await expect(page.getByTestId("create-result-preview")).toBeVisible();
+    await expect(page.getByTestId("create-preview-mode-2d")).toHaveAttribute("aria-pressed", "true");
+    const resultPreview = page.getByTestId("create-result-preview-3d");
+    await expect(resultPreview).toBeVisible();
+    await expect(resultPreview).toHaveAttribute("data-preview-status", "ready");
+    await expect(resultPreview).toHaveAttribute("data-preview-variant", "A");
+    await expect(resultPreview).toHaveAttribute("data-preview-feature-count", "6");
+    await expect(resultPreview).toHaveAttribute("data-preview-max-height-m", "27.2");
+    const previewCanvas = page.getByTestId("create-result-preview-3d-canvas");
+    await expect(previewCanvas).toBeVisible();
+    const previewCanvasBox = await previewCanvas.boundingBox();
+    expect(previewCanvasBox?.width).toBeGreaterThan(0);
+    expect(previewCanvasBox?.height).toBeGreaterThan(0);
     await expect(page.getByRole("heading", { name: "Geometric KPIs" })).toBeVisible();
-    await expect(page.getByText("2D massing plan", { exact: true })).toBeVisible();
+    await expect(page.getByTestId("create-result-kpis")).toHaveAttribute("data-active-variant", "A");
+    await expect(page.getByTestId("create-result-kpis")).toHaveAttribute("data-estimated-floor-area-sqm", "1000");
+    await expect(page.getByText("Saved concept · 2D", { exact: true })).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath("create-full-result-dashboard-en.png"), fullPage: true });
     await expect(page.getByRole("button", { name: "Back to parameters", exact: true })).toBeFocused();
-    const previewRatio = await page.getByTestId("create-preview-aoi").evaluate((element) => {
-      const box = (element as SVGGraphicsElement).getBBox();
-      return box.width / box.height;
-    });
-    expect(previewRatio).toBeGreaterThan(0.86);
-    expect(previewRatio).toBeLessThan(0.96);
-    const previewBuilding = page.getByTestId("create-preview-building").first();
-    await expect(previewBuilding).toHaveAttribute("fill-rule", "evenodd");
     const dashboardAlternativeB = page.getByTestId("create-dashboard-alternative-b");
     await dashboardAlternativeB.press("Enter");
     await expect(dashboardAlternativeB).toHaveAttribute("aria-selected", "true");
     await expect(dashboardAlternativeB).toBeFocused();
+    await expect(resultPreview).toHaveAttribute("data-preview-variant", "B");
+    await expect(page.getByTestId("create-result-kpis")).toHaveAttribute("data-active-variant", "B");
+    await expect(page.getByTestId("create-result-kpis")).toHaveAttribute("data-estimated-floor-area-sqm", "1500");
     expect(createPosts).toHaveLength(1);
     expect(challengeGets).toBe(1);
     await page.getByRole("button", { name: "Back to parameters", exact: true }).click();
@@ -626,11 +648,11 @@ test("Create separates draft from committed geometry and never spends on local-o
     buffer: Buffer.from(JSON.stringify({
       type: "Polygon",
       coordinates: [[
-        [55.27015, 25.20515],
-        [55.27065, 25.20515],
+        [55.26955, 25.20455],
+        [55.27065, 25.20455],
         [55.27065, 25.20565],
-        [55.27015, 25.20565],
-        [55.27015, 25.20515]
+        [55.26955, 25.20565],
+        [55.26955, 25.20455]
       ]]
     }))
   });
@@ -772,7 +794,7 @@ test("Security06 reapplies the latest Create alternative after pending source wo
   await page.getByRole("tab", { name: "Create" }).click();
   await page.getByLabel("Upload GeoJSON").setInputFiles({
     name: "pending-source.geojson", mimeType: "application/geo+json",
-    buffer: Buffer.from(JSON.stringify({ type: "Polygon", coordinates: [[[55.27015, 25.20515], [55.27065, 25.20515], [55.27065, 25.20565], [55.27015, 25.20565], [55.27015, 25.20515]]] }))
+    buffer: Buffer.from(JSON.stringify({ type: "Polygon", coordinates: [[[55.26955, 25.20455], [55.27065, 25.20455], [55.27065, 25.20565], [55.26955, 25.20565], [55.26955, 25.20455]]] }))
   });
   await expect(page.getByText("Area context is temporarily unavailable.")).toBeVisible();
   await installSpatialReplacementFixture(page);
@@ -818,11 +840,11 @@ test("actual MapLibre rendering hides only the internal target and retains outsi
     buffer: Buffer.from(JSON.stringify({
       type: "Polygon",
       coordinates: [[
-        [55.27015, 25.20515],
-        [55.27065, 25.20515],
+        [55.26955, 25.20455],
+        [55.27065, 25.20455],
         [55.27065, 25.20565],
-        [55.27015, 25.20565],
-        [55.27015, 25.20515]
+        [55.26955, 25.20565],
+        [55.26955, 25.20455]
       ]]
     }))
   });
@@ -1013,8 +1035,8 @@ test("Create coverage proposal is explicit and applying it preserves the committ
     name: "coverage-proposal-ui-fixture.geojson",
     mimeType: "application/geo+json",
     buffer: Buffer.from(JSON.stringify({ type: "Polygon", coordinates: [[
-      [55.27015, 25.20515], [55.27065, 25.20515], [55.27065, 25.20565],
-      [55.27015, 25.20565], [55.27015, 25.20515]
+      [55.26955, 25.20455], [55.27065, 25.20455], [55.27065, 25.20565],
+      [55.26955, 25.20565], [55.26955, 25.20455]
     ]] }))
   });
   await page.getByRole("button", { name: "Public campus" }).click();
@@ -1046,4 +1068,46 @@ test("Create coverage proposal is explicit and applying it preserves the committ
   await expect(generate).toHaveText("Already generated");
   await expect(generate).toBeDisabled();
   await page.screenshot({ path: testInfo.outputPath("coverage-proposal-applied.png") });
+});
+
+test("Create preserves the draft and last result when the local preflight worker is unavailable", async ({ page }) => {
+  createPosts.length = 0;
+  challengeGets = 0;
+  await installRoutes(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/prototype/point-to-object");
+  await page.getByRole("tab", { name: "Create" }).click();
+  await page.getByLabel("Upload GeoJSON").setInputFiles({
+    name: "worker-retry-fixture.geojson",
+    mimeType: "application/geo+json",
+    buffer: Buffer.from(JSON.stringify({ type: "Polygon", coordinates: [[
+      [55.26955, 25.20455], [55.27065, 25.20455], [55.27065, 25.20565],
+      [55.26955, 25.20565], [55.26955, 25.20455]
+    ]] }))
+  });
+  await page.getByRole("button", { name: "Public campus" }).click();
+  await expect(page.getByTestId("create-local-preflight")).toHaveAttribute("data-preflight-kind", "ready");
+  await page.getByTestId("create-generate-action").click();
+  await expect(page.getByTestId("generated-concept-summary")).toContainText("Generation 1 committed result.");
+
+  await page.evaluate(() => {
+    window.Worker = class UnavailableWorker {
+      constructor() {
+        throw new DOMException("Synthetic worker startup failure.", "NotSupportedError");
+      }
+    } as unknown as typeof Worker;
+  });
+
+  await page.getByText("Concept parameters", { exact: true }).click();
+  const coverage = page.getByRole("slider", { name: "Site coverage" });
+  await coverage.press("ArrowRight");
+  await expect(page.getByTestId("create-local-preflight")).toContainText("placement check is unavailable");
+  await expect(coverage).toHaveValue("29");
+  await expect(page.getByTestId("generated-concept-summary")).toContainText("Generation 1 committed result.");
+  await page.getByTestId("create-local-preflight-retry").click();
+  await expect(page.getByTestId("create-local-preflight")).toContainText("placement check is unavailable");
+  await expect(coverage).toHaveValue("29");
+  await expect(page.getByTestId("generated-concept-summary")).toContainText("Generation 1 committed result.");
+  expect(createPosts).toHaveLength(1);
+  expect(challengeGets).toBe(1);
 });

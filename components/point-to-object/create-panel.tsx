@@ -177,7 +177,7 @@ function RangeControl({
     <label className="rounded-xl border border-[#d7e0dd] bg-white p-3 text-xs font-semibold text-[#344054]">
       <span className="flex items-center justify-between gap-3">
         <span className="min-w-0">{label}</span>
-        <span className="tabular-nums text-[#087f70]">{value}{suffix}</span>
+        <span className="tabular-nums text-[#087f8c]">{value}{suffix}</span>
       </span>
       <input
         type="range"
@@ -185,7 +185,7 @@ function RangeControl({
         max={maximum}
         value={value}
         onChange={(event) => onChange(Number(event.target.value))}
-        className="mt-3 w-full accent-[#087f70]"
+        className="mt-3 w-full accent-[#087f8c]"
       />
     </label>
   );
@@ -207,6 +207,7 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
     suggestion?: PointObjectCreateCoverageSuggestion;
     code?: string;
   } | null>(null);
+  const [preflightAttempt, setPreflightAttempt] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [coverageSuggestion, setCoverageSuggestion] = useState<{
     error: string;
@@ -257,10 +258,10 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
         }, 15_000);
         worker.postMessage({ aoiCoordinates: aoi.coordinates, locale,
           templateId, customPrompt: customPrompt.trim() || null, controls, lockedControlKeys: [...lockedControlKeys] });
-      } catch { setLocalPreflight({ key: draftKey, kind: "failed" }); }
+      } catch { setLocalPreflight({ key: draftKey, kind: "failed", code: "worker_unavailable" }); }
     }, 250);
     return () => { window.clearTimeout(timer); window.clearTimeout(deadline); worker?.terminate(); };
-  }, [draftKey, aoi.coordinates, aoi.id, controls, customPrompt, locale, lockedControlKeys, templateId]);
+  }, [draftKey, aoi.coordinates, aoi.id, controls, customPrompt, locale, lockedControlKeys, preflightAttempt, templateId]);
 
   useEffect(() => {
     editorSnapshotCallbackRef.current = onEditorSnapshotChange;
@@ -451,9 +452,13 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
     updateControl("targetSiteCoveragePct", coverageSuggestion.suggestion.suggestedValue);
   }
 
+  function retryLocalPreflight() {
+    setPreflightAttempt((attempt) => attempt + 1);
+  }
+
   return (
-    <section className="rounded-[18px] border border-[#cfe0da] bg-[#f4faf7] p-4" aria-labelledby="create-panel-title">
-      <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#087f70]">{copy.eyebrow}</p>
+    <section className="rounded-[18px] border border-[#cfe0da] bg-[#f4fbfb] p-4" aria-labelledby="create-panel-title">
+      <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#087f8c]">{copy.eyebrow}</p>
       <h2 id="create-panel-title" className="mt-1 text-lg font-bold tracking-[-0.02em] text-[#173b35]">{copy.title}</h2>
       <p className="mt-2 text-xs leading-5 text-[#536963]">{copy.intro}</p>
       <p className="mt-3 rounded-lg bg-white/80 px-3 py-2 text-xs font-semibold text-[#345c54]">
@@ -469,7 +474,7 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
             type="button"
             onClick={() => selectTemplate(template.templateId)}
             aria-pressed={templateId === template.templateId}
-            className={`rounded-xl border p-3 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f70] ${templateId === template.templateId ? "border-[#48a99a] bg-white text-[#164b42] shadow-sm" : "border-[#d7e0dd] bg-white/70 text-[#475467] hover:border-[#8ebdb4]"}`}
+            className={`rounded-xl border p-3 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] ${templateId === template.templateId ? "border-[#48a99a] bg-white text-[#164b42] shadow-sm" : "border-[#d7e0dd] bg-white/70 text-[#475467] hover:border-[#8ebdb4]"}`}
           >
             <span className="block text-xs font-bold">{templateLabel(template.templateId, locale)}</span>
             <span className="mt-1 block text-[11px] leading-4 text-[#667085]">{template.summary}</span>
@@ -479,7 +484,7 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
 
       <details className="mt-4 rounded-xl border border-[#d7e0dd] bg-white/80 p-3">
         <summary className="cursor-pointer text-xs font-bold text-[#345c54]">{locale === "ru" ? "Параметры концепции" : "Concept parameters"}</summary>
-        {controlsDifferFromTemplate ? <div className="mt-3 flex justify-end"><button type="button" onClick={resetEditedControls} className="min-h-11 rounded-lg px-2 text-[11px] font-bold text-[#087f70] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f70]" data-testid="reset-edited-create-controls">{copy.resetParameters}</button></div> : null}
+        {controlsDifferFromTemplate ? <div className="mt-3 flex justify-end"><button type="button" onClick={resetEditedControls} className="min-h-11 rounded-lg px-2 text-[11px] font-bold text-[#087f8c] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]" data-testid="reset-edited-create-controls">{copy.resetParameters}</button></div> : null}
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
           <RangeControl label={copy.blocks} value={controls.blockCount} minimum={1} maximum={12} onChange={(value) => updateControl("blockCount", value)} />
           <RangeControl label={copy.coverage} value={controls.targetSiteCoveragePct} minimum={8} maximum={60} suffix="%" onChange={(value) => updateControl("targetSiteCoveragePct", value)} />
@@ -500,7 +505,7 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
         }}
         rows={3}
         placeholder={copy.placeholder}
-        className="mt-2 w-full resize-none rounded-xl border border-[#cbd8d4] bg-white p-3 text-sm leading-5 outline-none focus:border-[#087f70] focus:ring-2 focus:ring-[#bde7df]"
+        className="mt-2 w-full resize-none rounded-xl border border-[#cbd8d4] bg-white p-3 text-sm leading-5 outline-none focus:border-[#087f8c] focus:ring-2 focus:ring-[#bde7df]"
       />
 
       {draftChangedAfterGeneration ? <p className="mt-3 text-[11px] font-bold text-[#79520d]" data-testid="create-draft-status">{copy.draftChanged}</p> : null}
@@ -509,23 +514,27 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
           : preflightCurrent.kind === "ready" ? (locale === "ru" ? "Размещение найдено с заданными параметрами. Это геометрическая проверка, не согласование проекта." : "A layout fits the requested parameters. This checks geometry, not project approval.")
           : preflightCurrent.kind === "not_applicable" ? (locale === "ru" ? "Свободный запрос требует уточнения программы; геометрия будет проверена после её получения." : "The custom request needs programme resolution; geometry will be checked once the programme is defined.")
           : preflightCurrent.code === "program_invalid" ? (locale === "ru" ? "Параметры противоречат друг другу: проверьте диапазон этажности и сумму застройки с открытым пространством (не более 100%)." : "The parameters conflict: check the level range and coverage plus open-space target (at most 100%).")
+          : preflightCurrent.code === "worker_unavailable" ? (locale === "ru" ? "Проверка размещения сейчас недоступна. Параметры и предыдущий результат сохранены; повторите проверку." : "The placement check is unavailable. Your parameters and previous result are preserved; retry the check.")
+          : preflightCurrent.code === "solver_timeout" ? (locale === "ru" ? "Время проверки размещения истекло. Это не означает, что размещение невозможно. Параметры и предыдущий результат сохранены; повторите проверку." : "The placement check timed out. This does not mean the layout is impossible. Your parameters and previous result are preserved; retry the check.")
+          : preflightCurrent.code === "geometry_validation_failed" ? (locale === "ru" ? "Проверку размещения не удалось завершить из-за ошибки обработки геометрии. Это не вывод о возможности размещения; повторите проверку." : "The placement check could not complete because geometry processing failed. This is not a conclusion about layout feasibility; retry the check.")
           : (locale === "ru" ? "Ограниченный поиск не нашёл размещение с этими параметрами. Это не доказанный предел участка; измените число корпусов, отступ или программу." : "The bounded search found no layout for these parameters. This is not a proven site limit; adjust block count, setback or programme.")}
         {preflightCurrent?.suggestion ? <button type="button" className="mt-2 block min-h-11 rounded-lg border border-[#b8cbc6] px-3 font-bold" data-testid="create-local-apply-preset" onClick={() => updateControl("targetSiteCoveragePct", preflightCurrent.suggestion!.suggestedValue)}>{locale === "ru" ? "Применить проверенный вариант" : "Apply validated preset"}: {controls.targetSiteCoveragePct}% → {preflightCurrent.suggestion.suggestedValue}%</button> : null}
+        {preflightCurrent?.kind === "failed" && ["worker_unavailable", "solver_timeout", "geometry_validation_failed"].includes(preflightCurrent.code ?? "") ? <button type="button" className="mt-2 block min-h-11 rounded-lg border border-[#b8cbc6] px-3 font-bold" data-testid="create-local-preflight-retry" onClick={retryLocalPreflight}>{locale === "ru" ? "Повторить проверку" : "Retry check"}</button> : null}
       </div>
       {error ? <p className="mt-3 rounded-lg border border-[#e6bd74] bg-[#fff9ed] px-3 py-2 text-xs leading-5 text-[#79520d]" role="alert" data-testid="create-generation-error">{error}{generated ? ` ${copy.errorPreserved}` : ""}</p> : null}
-      {coverageSuggestion ? <div className="mt-3 rounded-lg border border-[#e6bd74] bg-[#fff9ed] p-3 text-xs leading-5 text-[#79520d]" role="alert" data-testid="create-coverage-suggestion"><p>{coverageSuggestion.error}{generated ? ` ${copy.errorPreserved}` : ""}</p><p className="mt-1 font-semibold tabular-nums">{coverageSuggestion.suggestion.requestedValue}% → {coverageSuggestion.suggestion.suggestedValue}%</p><button type="button" onClick={applySuggestedCoverage} className="mt-2 min-h-11 rounded-lg border border-[#d6b36e] bg-white px-3 font-bold text-[#65450f] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f70]" data-testid="create-apply-suggested-coverage">{copy.applySuggestedCoverage}</button></div> : null}
+      {coverageSuggestion ? <div className="mt-3 rounded-lg border border-[#e6bd74] bg-[#fff9ed] p-3 text-xs leading-5 text-[#79520d]" role="alert" data-testid="create-coverage-suggestion"><p>{coverageSuggestion.error}{generated ? ` ${copy.errorPreserved}` : ""}</p><p className="mt-1 font-semibold tabular-nums">{coverageSuggestion.suggestion.requestedValue}% → {coverageSuggestion.suggestion.suggestedValue}%</p><button type="button" onClick={applySuggestedCoverage} className="mt-2 min-h-11 rounded-lg border border-[#d6b36e] bg-white px-3 font-bold text-[#65450f] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]" data-testid="create-apply-suggested-coverage">{copy.applySuggestedCoverage}</button></div> : null}
       {generated ? (
         <div className="mt-3 rounded-xl border border-[#98d1c4] bg-white p-3" data-testid="generated-concept-summary">
-          {generated.alternatives && generated.alternatives.length > 1 ? <div className="mb-3 grid grid-cols-2 gap-1 rounded-lg bg-[#e8efed] p-1" role="tablist" aria-label={locale === "ru" ? "Варианты концепции" : "Concept options"}>{generated.alternatives.map((alternative) => <button key={alternative.id} type="button" role="tab" aria-selected={alternative.id === activeAlternativeId} data-testid={`create-alternative-${alternative.id.toLowerCase()}`} onClick={() => onAlternativeChange(alternative.id)} className={`min-h-11 rounded-lg px-3 text-xs font-bold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f70] ${alternative.id === activeAlternativeId ? "bg-[#087f70] text-white shadow-sm" : "bg-transparent text-[#52606a] hover:bg-white"}`}>{generatedLanguageMatches && alternative.label ? alternative.label : `${copy.option} ${alternative.id}`}</button>)}</div> : null}
+          {generated.alternatives && generated.alternatives.length > 1 ? <div className="mb-3 grid grid-cols-2 gap-1 rounded-lg bg-[#e8efed] p-1" role="tablist" aria-label={locale === "ru" ? "Варианты концепции" : "Concept options"}>{generated.alternatives.map((alternative) => <button key={alternative.id} type="button" role="tab" aria-selected={alternative.id === activeAlternativeId} data-testid={`create-alternative-${alternative.id.toLowerCase()}`} onClick={() => onAlternativeChange(alternative.id)} className={`min-h-11 rounded-lg px-3 text-xs font-bold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] ${alternative.id === activeAlternativeId ? "bg-[#087f8c] text-white shadow-sm" : "bg-transparent text-[#52606a] hover:bg-white"}`}>{generatedLanguageMatches && alternative.label ? alternative.label : `${copy.option} ${alternative.id}`}</button>)}</div> : null}
           {generatedLanguageMatches ? <p className="text-xs leading-5 text-[#475467]">{generated.program.summary}</p> : <p className="text-xs leading-5 text-[#79520d]" data-testid="create-result-language-stale">{copy.resultLanguageChanged}</p>}
           <dl className="mt-3 grid grid-cols-2 gap-2 text-[11px]" data-testid="generated-concept-metrics">
-            <div className="rounded-lg bg-[#f4faf7] p-2"><dt className="text-[#667085]">{copy.generatedBlocks}</dt><dd className="mt-1 font-bold tabular-nums text-[#176548]">{generatedBlocks}</dd></div>
-            <div className="rounded-lg bg-[#f4faf7] p-2"><dt className="text-[#667085]">{copy.levels}</dt><dd className="mt-1 font-bold tabular-nums text-[#176548]">{generatedLevels}</dd></div>
-            <div className="rounded-lg bg-[#f4faf7] p-2"><dt className="text-[#667085]">{copy.targetCoverage}</dt><dd className="mt-1 font-bold tabular-nums text-[#176548]">{generated.program.targetSiteCoveragePct}%</dd></div>
-            <div className="rounded-lg bg-[#f4faf7] p-2"><dt className="text-[#667085]">{copy.achievedCoverage}</dt><dd className="mt-1 font-bold tabular-nums text-[#176548]">{activeMassing?.achievedSiteCoveragePct ?? 0}%</dd></div>
-            <div className="rounded-lg bg-[#f4faf7] p-2"><dt className="text-[#667085]">{copy.openSpace}</dt><dd className="mt-1 font-bold tabular-nums text-[#176548]">{generated.program.openSpacePct}%</dd></div>
-            <div className="rounded-lg bg-[#f4faf7] p-2"><dt className="text-[#667085]">{copy.setback}</dt><dd className="mt-1 font-bold tabular-nums text-[#176548]">{generated.program.setbackM} {locale === "ru" ? "м" : "m"}</dd></div>
-            {typeof activeMassing?.estimatedFloorAreaSqM === "number" ? <div className="col-span-2 rounded-lg bg-[#f4faf7] p-2"><dt className="text-[#667085]">{copy.estimatedArea}</dt><dd className="mt-1 font-bold tabular-nums text-[#176548]">{Math.round(activeMassing.estimatedFloorAreaSqM).toLocaleString(locale)} {locale === "ru" ? "м²" : "m²"}</dd></div> : null}
+            <div className="rounded-lg bg-[#f4fbfb] p-2"><dt className="text-[#667085]">{copy.generatedBlocks}</dt><dd className="mt-1 font-bold tabular-nums text-[#176548]">{generatedBlocks}</dd></div>
+            <div className="rounded-lg bg-[#f4fbfb] p-2"><dt className="text-[#667085]">{copy.levels}</dt><dd className="mt-1 font-bold tabular-nums text-[#176548]">{generatedLevels}</dd></div>
+            <div className="rounded-lg bg-[#f4fbfb] p-2"><dt className="text-[#667085]">{copy.targetCoverage}</dt><dd className="mt-1 font-bold tabular-nums text-[#176548]">{generated.program.targetSiteCoveragePct}%</dd></div>
+            <div className="rounded-lg bg-[#f4fbfb] p-2"><dt className="text-[#667085]">{copy.achievedCoverage}</dt><dd className="mt-1 font-bold tabular-nums text-[#176548]">{activeMassing?.achievedSiteCoveragePct ?? 0}%</dd></div>
+            <div className="rounded-lg bg-[#f4fbfb] p-2"><dt className="text-[#667085]">{copy.openSpace}</dt><dd className="mt-1 font-bold tabular-nums text-[#176548]">{generated.program.openSpacePct}%</dd></div>
+            <div className="rounded-lg bg-[#f4fbfb] p-2"><dt className="text-[#667085]">{copy.setback}</dt><dd className="mt-1 font-bold tabular-nums text-[#176548]">{generated.program.setbackM} {locale === "ru" ? "м" : "m"}</dd></div>
+            {typeof activeMassing?.estimatedFloorAreaSqM === "number" ? <div className="col-span-2 rounded-lg bg-[#f4fbfb] p-2"><dt className="text-[#667085]">{copy.estimatedArea}</dt><dd className="mt-1 font-bold tabular-nums text-[#176548]">{Math.round(activeMassing.estimatedFloorAreaSqM).toLocaleString(locale)} {locale === "ru" ? "м²" : "m²"}</dd></div> : null}
           </dl>
         </div>
       ) : null}
@@ -536,7 +545,7 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
           onClick={() => void generate()}
           disabled={loading || generatedFromCurrentDraft || preflightBlocked}
           data-testid="create-generate-action"
-          className="min-h-11 rounded-xl bg-[#087f70] px-4 text-sm font-bold text-white transition hover:bg-[#06695e] disabled:cursor-not-allowed disabled:bg-[#a8c7c0] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f70] focus-visible:ring-offset-2"
+          className="min-h-11 rounded-xl bg-[#087f8c] px-4 text-sm font-bold text-white transition hover:bg-[#066b76] disabled:cursor-not-allowed disabled:bg-[#a8c7c0] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] focus-visible:ring-offset-2"
         >
           {loading ? copy.generating : generatedFromCurrentDraft ? copy.upToDate : generated ? copy.regenerate : copy.generate}
         </button>
