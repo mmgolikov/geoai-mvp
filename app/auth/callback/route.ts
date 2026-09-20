@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isPasswordOnlyAuthEnabled } from "@/src/lib/auth/password-only-policy";
 import { getSafeAuthRedirectPath } from "@/src/lib/auth/redirect-path";
 import { applyPrivateNoStore } from "@/src/lib/http/private-no-store";
 import { createRequestScopedSupabaseClient } from "@/src/lib/supabase/ssr-server";
@@ -16,6 +17,10 @@ export async function GET(request: Request) {
   const next = getSafeAuthRedirectPath(requestUrl.searchParams.get("next"));
   if (!code || code.length > 2048) {
     return redirect(requestUrl, "/login?auth_error=invalid_callback");
+  }
+  if (isPasswordOnlyAuthEnabled()) {
+    const params = new URLSearchParams({ auth_error: "password_only_required", next });
+    return redirect(requestUrl, `/login?${params.toString()}`);
   }
 
   const supabase = await createRequestScopedSupabaseClient();
