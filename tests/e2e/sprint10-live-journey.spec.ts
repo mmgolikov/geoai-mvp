@@ -58,7 +58,7 @@ import {
   type Sprint10DepthCycleEvidenceInput
 } from "./helpers/sprint10-depth-cycle-evidence";
 // @ts-expect-error The diagnostics module is an operator-only JavaScript contract checked by its offline suite.
-import { LIVE_JOURNEY_CLEANUP_STAGES, LIVE_JOURNEY_STEPS, analyseSuggestionCorrelationChecks, boundedLiveJourneyResponseJson, encodeLiveJourneyDiagnostic, primaryAfterFinalizeFailure } from "../../scripts/sprint10-live-journey-diagnostics.mjs";
+import { LIVE_JOURNEY_CLEANUP_STAGES, LIVE_JOURNEY_STEPS, analyseSuggestionCorrelationChecks, boundedLiveJourneyResponseJson, canonicalLiveJourneyCompletedSteps, encodeLiveJourneyDiagnostic, primaryAfterFinalizeFailure } from "../../scripts/sprint10-live-journey-diagnostics.mjs";
 import { POINT_OBJECT_SOURCE_HARNESS_RESPONSE_TIMEOUT_MS as SOURCE_REQUEST_HARNESS_TIMEOUT_MS } from "../../src/lib/prototype/source-request-deadline";
 import { loadQuality20Selection, quality20Hash, quality20RequestKey, validateQuality20Context,
   validateQuality20PaidBody, validateQuality20AnalysisResult, validateQuality20Ledger,
@@ -151,7 +151,7 @@ function createLiveProgress(): LiveProgress {
       if (!completed.includes(step)) completed.push(step);
     },
     current: () => active,
-    completed: () => [...completed]
+    completed: () => canonicalLiveJourneyCompletedSteps(completed)
   };
 }
 
@@ -1686,10 +1686,20 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
     if (runCandidateAnalysis) {
       await page.locator("#point-object-question").fill(SPRINT10_PUBLIC_ANALYSIS_QUESTION);
       progress.start("analyse_paid_response");
-      const aiResponsePromise = page.waitForResponse((response) => response.request().method() === "POST" &&
-        new URL(response.url()).pathname === "/api/prototype/point-to-object/ai", { timeout: 180_000 });
-      await page.getByRole("button", { name: "Analyze", exact: true }).click();
-      const aiResponse = await aiResponsePromise;
+      const aiObservation = observeSourcePostResponse(page, "/api/prototype/point-to-object/ai", 180_000);
+      let observed: SourceResponseObservation;
+      try {
+        await page.getByRole("button", { name: "Analyze", exact: true }).click();
+        observed = await aiObservation.result;
+      } finally {
+        aiObservation.cancel();
+      }
+      if (observed.kind !== "response") {
+        progress.start(observed.kind === "aborted" ? "analyse_paid_aborted" :
+          observed.kind === "network_failed" ? "analyse_paid_network_failed" : "analyse_paid_response_timeout");
+        throw new Error("The paid analysis response did not complete.");
+      }
+      const aiResponse = observed.response;
       const aiPayload: unknown = await boundedLiveJourneyResponseJson(aiResponse, 10_000);
       const aiSubmitted: unknown = aiResponse.request().postDataJSON();
       validateSprint10FindAnalysisRequest(aiSubmitted, index + 1, analysisSources);
