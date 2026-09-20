@@ -10,6 +10,7 @@ const originalNodeEnv = process.env.NODE_ENV;
 
 let persona = "member";
 let projectAccessCalls = 0;
+let identityAttempts = 0;
 const userId = "00000000-0000-4000-8000-000000000001";
 const profileId = "00000000-0000-4000-8000-000000000002";
 const projectId = "00000000-0000-4000-8000-000000000003";
@@ -17,8 +18,18 @@ const organizationId = "00000000-0000-4000-8000-000000000004";
 
 const fakeClient = {
   auth: {
-    getClaims: async () => ({ data: { claims: { sub: userId, is_anonymous: false } }, error: null }),
-    getUser: async () => ({ data: { user: { id: userId, is_anonymous: false } }, error: null })
+    getClaims: async () => {
+      identityAttempts += 1;
+      if (persona === "transient_unverified" && identityAttempts === 1) {
+        return { data: { claims: null }, error: { code: "synthetic_unverified" } };
+      }
+      const isAnonymous = persona === "transient_anonymous" && identityAttempts === 1;
+      return { data: { claims: { sub: userId, is_anonymous: isAnonymous } }, error: null };
+    },
+    getUser: async () => {
+      const isAnonymous = persona === "transient_anonymous" && identityAttempts === 1;
+      return { data: { user: { id: userId, is_anonymous: isAnonymous } }, error: null };
+    }
   },
   schema(name) {
     assert.equal(name, "api");
@@ -106,6 +117,17 @@ try {
   }
   persona = "outsider";
   await assert.rejects(page.requirePilotPageIdentity("/prototype/point-to-object"), /REDIRECT:\/request-access/);
+
+  for (const transientPersona of ["transient_unverified", "transient_anonymous"]) {
+    persona = transientPersona;
+    identityAttempts = 0;
+    await assert.rejects(
+      page.requirePilotPageIdentity("/prototype/point-to-object"),
+      /REDIRECT:\/login\?next=%2Fprototype%2Fpoint-to-object/,
+      `${transientPersona} must terminate at login instead of retrying into a verified context`
+    );
+    assert.equal(identityAttempts, 1, `${transientPersona} must not receive a second Auth/context attempt`);
+  }
 
   persona = "dependency";
   assert.equal((await identity.requirePilotIdentity(request("POST"))).response.status, 503);

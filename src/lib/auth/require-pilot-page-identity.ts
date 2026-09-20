@@ -23,9 +23,11 @@ export async function requirePilotPageIdentity(nextPath: string): Promise<void> 
     if (membership.required) {
       if (membership.allowed) return;
       if (membership.status === 503) throw new ProductionPointObjectMembershipUnavailableError();
-      if (membership.status === 403 && membership.code !== "request_identity_unverified") {
-        redirect("/request-access");
+      if (membership.status === 401 || membership.code === "request_identity_unverified") {
+        const next = getSafeAuthRedirectPath(nextPath);
+        redirect(`/login?${new URLSearchParams({ next }).toString()}`);
       }
+      redirect("/request-access");
     }
   }
 
