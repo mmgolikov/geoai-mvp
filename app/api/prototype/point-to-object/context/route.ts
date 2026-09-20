@@ -155,6 +155,13 @@ export async function POST(request: Request) {
     return NextResponse.json({
       mode: "resolved",
       schemaVersion: 2,
+      // Actual server-acquired evidence provenance, not a client-inferred
+      // freshness claim. Allows comparing analyses against the same evidence.
+      evidenceReceipt: {
+        evidencePackHash: evidencePack.evidencePackHash,
+        sourceResponseHash: evidencePack.source.sourceResponseHash,
+        acquiredAt: evidencePack.source.acquiredAt
+      },
       subject: {
         name: evidencePack.selectedObject.name,
         address: evidencePack.selectedObject.displayAddress,

@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { stripTypeScriptTypes } from "node:module";
 import { resolve } from "node:path";
 
-const integrationRoot = resolve(process.argv[2] ?? "/private/tmp/geoai-four-sprints-20260918");
+const integrationRoot = resolve(process.argv[2] ?? process.cwd());
 const routePath = `${integrationRoot}/app/api/prototype/point-to-object/context/route.ts`;
 const original = readFileSync(routePath, "utf8");
 
