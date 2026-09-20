@@ -10,6 +10,7 @@ import {
   main as runCloudLiveMain,
   browserEnvironment,
   cloudLiveArtifactExpectation,
+  cloudLiveContinuationMode,
   operatorSql,
   parseOperatorReceipt,
   preflightCloudLiveArtifactInput,
@@ -130,6 +131,7 @@ assert.deepEqual(calls, [
   "operator:preflight", "operator:activate_writer", "browser:writer_outsider",
   "operator:activate_viewer", "browser:viewer_denial", "operator:cleanup"
 ]);
+assert.equal(pass.mode, "new_artifact_writer");
 assert.equal(pass.cleanup, "scope_disabled_memberships_disabled_artifact_retained");
 
 const failureCalls = [];
@@ -213,12 +215,27 @@ try {
   const viewerEnvironment = browserEnvironment(artifactEnv, authConfig, target, browserPersonas, "viewer_denial");
   assert.equal(Object.hasOwn(viewerEnvironment, "GEOAI_QUALITY20_CLOUD_ARTIFACT_PATH"), false);
   assert.equal(Object.hasOwn(viewerEnvironment, "GEOAI_QUALITY20_CLOUD_ARTIFACT_SHA256"), false);
+  const continuationApproval = `cloud-live-existing-artifact:pphdqkurxneyagvnnjdt:${target.previewHost}:${authConfig.expectedCommitSha}:artifact-public-analysis:${"a".repeat(64)}`;
+  const continuationEnv = {
+    ...artifactEnv,
+    GEOAI_CLOUD_LIVE_CONTINUE_EXISTING_ARTIFACT: "continue-existing-artifact-v1",
+    GEOAI_CLOUD_LIVE_CONTINUE_APPROVAL: continuationApproval
+  };
+  const artifactInput = preflightCloudLiveArtifactInput(continuationEnv);
+  assert.equal(cloudLiveContinuationMode(continuationEnv, artifactInput), true);
+  assert.throws(() => cloudLiveContinuationMode({ ...continuationEnv, GEOAI_CLOUD_LIVE_CONTINUE_APPROVAL: undefined }, artifactInput), /exact/);
+  assert.throws(() => cloudLiveContinuationMode({ ...continuationEnv, GEOAI_CLOUD_LIVE_CONTINUE_APPROVAL: `${continuationApproval}-other` }, artifactInput), /exact/);
+  assert.throws(() => cloudLiveContinuationMode({ ...continuationEnv, GEOAI_QUALITY20_CLOUD_ARTIFACT_PATH: undefined }, null), /exact input/);
+  const continuationEnvironment = browserEnvironment(continuationEnv, authConfig, target, browserPersonas, "continue_existing_outsider");
+  assert.equal(continuationEnvironment.GEOAI_QUALITY20_CLOUD_ARTIFACT_PATH, artifactPath);
+  assert.equal(continuationEnvironment.GEOAI_QUALITY20_CLOUD_ARTIFACT_SHA256, artifactEnv.GEOAI_QUALITY20_CLOUD_ARTIFACT_SHA256);
   const dynamicOperatorTargets = [];
-  runCloudAcceptance(authConfig, personas, target, {
+  const dynamicPass = runCloudAcceptance(authConfig, personas, target, {
     env: artifactEnv,
     runOperator(stage, operatorTarget) { dynamicOperatorTargets.push({ stage, operatorTarget }); return { stage, ok: true }; },
     runBrowserPhase(_config, _target, _personas, phase) { return { phase, status: "PASS" }; }
   });
+  assert.equal(dynamicPass.mode, "new_artifact_writer");
   assert.deepEqual(dynamicOperatorTargets.map(({ stage, operatorTarget }) => ({
     stage,
     artifactId: operatorTarget.expectedArtifactId,
@@ -228,6 +245,27 @@ try {
     artifactId: "artifact-public-analysis",
     payloadHash: "a".repeat(64)
   })));
+  const continuationCalls = [];
+  const continuationPass = runCloudAcceptance(authConfig, personas, target, {
+    env: continuationEnv,
+    runOperator(stage, operatorTarget) { continuationCalls.push({ kind: "operator", stage, operatorTarget }); return { stage, ok: true }; },
+    runBrowserPhase(_config, _target, _personas, browserPhase) { continuationCalls.push({ kind: "browser", phase: browserPhase }); return { phase: browserPhase, status: "PASS" }; }
+  });
+  assert.equal(continuationPass.mode, "existing_artifact_continuation");
+  assert.deepEqual(continuationCalls.map((call) => call.kind === "operator" ? `operator:${call.stage}` : `browser:${call.phase}`), [
+    "operator:preflight", "operator:activate_writer", "browser:continue_existing_outsider",
+    "operator:activate_viewer", "browser:viewer_denial", "operator:cleanup"
+  ]);
+  const continuationTargets = continuationCalls.filter((call) => call.kind === "operator").map((call) => call.operatorTarget);
+  assert.equal(continuationTargets.every((operatorTarget) => operatorTarget.continueExistingArtifact === true &&
+    operatorTarget.expectedArtifactId === "artifact-public-analysis" && operatorTarget.expectedArtifactPayloadHash === "a".repeat(64)), true);
+  assert.equal(continuationTargets.at(-1).requireArtifact, true);
+  const continuationPreflight = operatorSql("preflight", continuationTargets[0], personas);
+  assert.match(continuationPreflight, /exact existing artifact is unavailable/);
+  assert.match(continuationPreflight, /artifact_id = 'artifact-public-analysis' and client_payload_hash = '[a]{64}'/);
+  const continuationViewer = operatorSql("activate_viewer", continuationTargets[2], personas);
+  assert.match(continuationViewer, /artifact_id = 'artifact-public-analysis' and client_payload_hash = '[a]{64}'/);
+  assert.doesNotMatch(continuationViewer, /artifact_id = 'artifact-public-analysis'[^;]*created_by/);
   assert.equal(validateCloudLiveConfig(env, authConfig).projectKey, target.projectKey);
   assert.throws(() => validateCloudLiveConfig({ ...env, GEOAI_CLOUD_LIVE_PROJECT_KEY: "private-project" }, authConfig));
   let terminalFailure;
@@ -316,6 +354,7 @@ function browserReport({ phase = "writer_outsider", status = "passed", count, st
 }
 const passingReport = browserReport();
 assert.equal(validateBrowserReport(passingReport, reportTitle, "writer_outsider"), 1);
+assert.equal(validateBrowserReport(browserReport({ phase: "continue_existing_outsider" }), reportTitle, "continue_existing_outsider"), 1);
 assert.deepEqual(parseBrowserReport(browserReport({ status: "failed", count: 3 }), reportTitle, "writer_outsider"),
   { status: "FAIL", tests: 1, progressStage: "writer_save" });
 const rawProgress = browserReport({ status: "failed", count: 3 });
@@ -338,6 +377,10 @@ assert.throws(() => parseBrowserReport(browserReport({ status: "failed", count: 
   reportTitle, "writer_outsider"), (error) => error?.code === "raw_test_output_present");
 assert.throws(() => parseBrowserReport(browserReport({ status: "skipped", count: 1, expectedStatus: "skipped" }),
   reportTitle, "writer_outsider"), (error) => error?.code === "invalid_report_identity");
+assert.match(spec, /"\/prototype\/point-to-object\/analysis"/);
+assert.match(spec, /phase !== "continue_existing_outsider" && method === "PUT"/);
+assert.match(spec, /waitForURL\(\(url\) => url\.pathname === "\/prototype\/point-to-object\/analysis"\)/);
+assert.match(spec, /getByTestId\("ai-success"\)/);
 
 let reporterParitySummary;
 const discoveryRoot = mkdtempSync(join(realpathSync(tmpdir()), "geoai-cloud-live-discovery-"));

@@ -8,12 +8,17 @@ import { spawnSync } from "node:child_process";
 import { readCloudLiveRealArtifactInput } from "./sprint10-cloud-live-artifact-input.mjs";
 
 const PROJECT_REF = "pphdqkurxneyagvnnjdt";
-const phases = new Set(["writer_outsider", "viewer_denial"]);
+const phases = new Set(["writer_outsider", "continue_existing_outsider", "viewer_denial"]);
 export const browserProgressStages = Object.freeze({
   writer_outsider: Object.freeze([
     "writer_login", "writer_cloud_read", "writer_save", "writer_save_201",
     "writer_clean_reopen", "writer_map_navigation", "writer_map_canvas", "writer_map_ready",
     "writer_map_no_put", "writer_map_network_clean", "outsider_login", "outsider_assertion"
+  ]),
+  continue_existing_outsider: Object.freeze([
+    "continuation_login", "continuation_cloud_read", "continuation_import",
+    "continuation_result_navigation", "continuation_result_ready", "continuation_no_ai",
+    "continuation_no_put", "continuation_network_clean", "outsider_login", "outsider_assertion"
   ]),
   viewer_denial: Object.freeze([
     "viewer_login", "viewer_cloud_read", "viewer_save", "viewer_assertion",
@@ -59,7 +64,8 @@ function preflight() {
     }
   }
   const artifactInput = readCloudLiveRealArtifactInput(process.env, head, preview.hostname);
-  if (artifactInput && phase !== "writer_outsider") throw new Error("Real artifact input is restricted to the writer phase.");
+  if (artifactInput && !["writer_outsider", "continue_existing_outsider"].includes(phase)) throw new Error("Real artifact input is restricted to an analyst phase.");
+  if (!artifactInput && phase === "continue_existing_outsider") throw new Error("Existing-artifact continuation requires an exact artifact input.");
   return { phase, artifactInput };
 }
 
@@ -163,7 +169,7 @@ module.exports = defineConfig({
   projects: [{ name: "sprint10-cloud-live" }]
 });
 `, { encoding: "utf8", mode: 0o600 });
-    const title = phase === "writer_outsider" ? "writer saves, clean context reopens, outsider is denied" : "viewer cannot save";
+    const title = phase === "viewer_denial" ? "viewer cannot save" : "writer saves, clean context reopens, outsider is denied";
     safeStage = "browser_process_unconfirmed";
     const result = spawnSync(process.execPath, [
       playwrightCli, "test", "tests/e2e/sprint10-cloud-live-acceptance.spec.ts",

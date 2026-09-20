@@ -11,6 +11,7 @@ import { readCloudLiveRealArtifactInput } from "./sprint10-cloud-live-artifact-i
 const PROJECT_REF = "pphdqkurxneyagvnnjdt";
 const MIGRATION_VERSION = "20260918203424";
 const EXPLICIT_RUN = "root-only-cloud-live-acceptance-v1";
+const CONTINUATION_OPT_IN = "continue-existing-artifact-v1";
 const MAX_BACKUP_AGE_MS = 30 * 60 * 1_000;
 const DEFAULT_ARTIFACT_ID = "artifact-cloud-live-public-1";
 const DEFAULT_ARTIFACT_PAYLOAD_HASH = "cc8cdc0c9e255d1ec8b0145a6401ee3af1a78a7962d05f79bc7f205c2a0352c0";
@@ -117,8 +118,11 @@ export function operatorSql(stage, target, personas) {
   assert(typeof expectedArtifactId === "string" && expectedArtifactId.length <= 160 && expectedArtifactId.trim().length > 0 &&
     expectedArtifactId === expectedArtifactId.trim() && !/[\u0000-\u001f\u007f]/.test(expectedArtifactId));
   assert.match(expectedArtifactPayloadHash, /^[a-f0-9]{64}$/);
-  const expectedArtifactExact = `project_id = ${sqlLiteral(target.projectId)}::uuid and created_by = ${sqlLiteral(a.profileId)}::uuid ` +
+  const expectedArtifactProjectExact = `project_id = ${sqlLiteral(target.projectId)}::uuid ` +
     `and artifact_id = ${sqlLiteral(expectedArtifactId)} and client_payload_hash = ${sqlLiteral(expectedArtifactPayloadHash)}`;
+  const expectedArtifactExact = target.continueExistingArtifact === true
+    ? expectedArtifactProjectExact
+    : `${expectedArtifactProjectExact} and created_by = ${sqlLiteral(a.profileId)}::uuid`;
   const scopeExact = `organization_id = ${sqlLiteral(target.organizationId)}::uuid and project_id = ${sqlLiteral(target.projectId)}::uuid and project_key = ${sqlLiteral(target.projectKey)}`;
   if (stage === "preflight") return operatorEnvelope(stage, `
 do $check$
@@ -149,6 +153,9 @@ begin
       and created_by in (${sqlLiteral(a.profileId)}::uuid, ${sqlLiteral(b.profileId)}::uuid)) then
     raise exception 'fresh persona scope is not pristine';
   end if;
+  ${target.continueExistingArtifact === true ? `if (select count(*) from public.point_object_project_artifacts where ${expectedArtifactExact}) <> 1 then
+    raise exception 'exact existing artifact is unavailable';
+  end if;` : ""}
 end
 $check$;
 `);
@@ -264,6 +271,20 @@ export function cloudLiveArtifactExpectation(artifactInput) {
   return { expectedArtifactId, expectedArtifactPayloadHash };
 }
 
+export function cloudLiveContinuationMode(env, artifactInput) {
+  const optIn = env.GEOAI_CLOUD_LIVE_CONTINUE_EXISTING_ARTIFACT;
+  const approval = env.GEOAI_CLOUD_LIVE_CONTINUE_APPROVAL;
+  if (optIn === undefined && approval === undefined) return false;
+  if (optIn !== CONTINUATION_OPT_IN || !artifactInput) fail("Existing-artifact continuation requires its exact input and opt-in.", "preflight");
+  const commit = required(env, "GEOAI_HOSTED_AUTH_PROBE_EXPECTED_COMMIT_SHA").trim().toLowerCase();
+  const host = new URL(required(env, "GEOAI_REAL_PASSWORD_AUTH_PREVIEW_URL")).hostname;
+  const { artifactId, payloadHash } = artifactInput.envelope.artifact;
+  if (approval !== `cloud-live-existing-artifact:${PROJECT_REF}:${host}:${commit}:${artifactId}:${payloadHash}`) {
+    fail("Existing-artifact continuation approval is not exact.", "preflight");
+  }
+  return true;
+}
+
 export function runOperator(stage, target, personas, { env = process.env, spawn = spawnSync } = {}) {
   const cli = resolve(repositoryRoot, "node_modules/.bin/supabase");
   const result = spawn(cli, ["db", "query", "--linked", operatorSql(stage, target, personas), "--output", "json"], {
@@ -294,7 +315,7 @@ export function browserEnvironment(env, config, target, personas, phase) {
     GEOAI_CLOUD_LIVE_B_EMAIL: personas[1].email,
     GEOAI_CLOUD_LIVE_B_PASSWORD: personas[1].password,
     GEOAI_CLOUD_LIVE_B_USER_ID: personas[1].userId,
-    ...(phase === "writer_outsider" && artifactInput ? {
+    ...(["writer_outsider", "continue_existing_outsider"].includes(phase) && artifactInput ? {
       GEOAI_QUALITY20_CLOUD_ARTIFACT_PATH: artifactInput.path,
       GEOAI_QUALITY20_CLOUD_ARTIFACT_SHA256: artifactInput.sha256
     } : {})
@@ -332,9 +353,14 @@ export function runCloudAcceptance(config, personas, target, dependencies = {}) 
   const runOperatorStage = dependencies.runOperator ?? runOperator;
   const runBrowser = dependencies.runBrowserPhase ?? runBrowserPhase;
   const environment = dependencies.env ?? process.env;
-  const artifactExpectation = cloudLiveArtifactExpectation(preflightCloudLiveArtifactInput(environment));
-  const operatorTarget = { ...target, ...artifactExpectation };
-  const evidence = { operatorStages: [], browserPhases: [], viewerDenial: "not_attempted", cleanup: "not_attempted" };
+  const artifactInput = preflightCloudLiveArtifactInput(environment);
+  const artifactExpectation = cloudLiveArtifactExpectation(artifactInput);
+  const continueExistingArtifact = cloudLiveContinuationMode(environment, artifactInput);
+  const operatorTarget = { ...target, ...artifactExpectation, continueExistingArtifact };
+  const evidence = {
+    mode: continueExistingArtifact ? "existing_artifact_continuation" : "new_artifact_writer",
+    operatorStages: [], browserPhases: [], viewerDenial: "not_attempted", cleanup: "not_attempted"
+  };
   let activationAttempted = false;
   let writerPassed = false;
   let primaryError = null;
@@ -342,7 +368,8 @@ export function runCloudAcceptance(config, personas, target, dependencies = {}) 
     evidence.operatorStages.push(runOperatorStage("preflight", operatorTarget, personas));
     activationAttempted = true;
     evidence.operatorStages.push(runOperatorStage("activate_writer", operatorTarget, personas));
-    evidence.browserPhases.push(runBrowser(config, target, personas, "writer_outsider", { env: environment }));
+    evidence.browserPhases.push(runBrowser(config, target, personas,
+      continueExistingArtifact ? "continue_existing_outsider" : "writer_outsider", { env: environment }));
     writerPassed = true;
     evidence.operatorStages.push(runOperatorStage("activate_viewer", operatorTarget, personas));
     evidence.browserPhases.push(runBrowser(config, target, personas, "viewer_denial", { env: environment }));
@@ -352,7 +379,10 @@ export function runCloudAcceptance(config, personas, target, dependencies = {}) 
   } finally {
     if (activationAttempted) {
       try {
-        evidence.operatorStages.push(runOperatorStage("cleanup", { ...operatorTarget, requireArtifact: writerPassed }, personas));
+        evidence.operatorStages.push(runOperatorStage("cleanup", {
+          ...operatorTarget,
+          requireArtifact: writerPassed || continueExistingArtifact
+        }, personas));
         evidence.cleanup = "scope_disabled_memberships_disabled_artifact_retained";
       } catch {
         evidence.cleanup = "unconfirmed_action_required";
@@ -382,7 +412,8 @@ export async function main(options = {}) {
   let target = null;
   let failureStage = "preflight";
   try {
-    preflightCloudLiveArtifactInput(environment);
+    const earlyArtifactInput = preflightCloudLiveArtifactInput(environment);
+    cloudLiveContinuationMode(environment, earlyArtifactInput);
     const hostedProbe = options.runHostedProbe ??
       (await import("./sprint10-hosted-auth-probe.mjs")).runHostedProbe;
     await hostedProbe({
@@ -409,7 +440,8 @@ export async function main(options = {}) {
       publicSyntheticProject: target.projectKey,
       checks: {
         authLifecycleReused: true,
-        writerSaveAndCleanContextReopen: true,
+        writerSaveAndCleanContextReopen: cloudEvidence.mode === "new_artifact_writer",
+        existingArtifactCleanContextReopen: cloudEvidence.mode === "existing_artifact_continuation",
         outsiderDenied: true,
         viewerWriteDenied: cloudEvidence.viewerDenial === "passed",
         originalBrowserBytesPreserved: true,

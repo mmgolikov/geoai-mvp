@@ -115,7 +115,8 @@ async function installNetworkPolicy(page: Page) {
   let unexpected = 0;
   const allowedApplicationReads = new Set([
     "/", "/api/health", "/api/auth/session", "/api/prototype/point-to-object/ai", "/login", "/profile",
-    "/projects", "/prototype/point-to-object", "/brand/geoai-identity-symbol-32.svg", "/favicon.svg"
+    "/projects", "/prototype/point-to-object", "/prototype/point-to-object/analysis",
+    "/brand/geoai-identity-symbol-32.svg", "/favicon.svg"
   ]);
   await page.route("**/*", async (route: Route) => {
     const request = route.request();
@@ -128,7 +129,7 @@ async function installNetworkPolicy(page: Page) {
       const cloudRead = method === "GET" && url.pathname === cloudPath && url.searchParams.get("limit") === "4" &&
         [...url.searchParams.keys()].every((key) => key === "limit" || key === "cursor") &&
         (!url.searchParams.has("cursor") || /^[A-Za-z0-9_-]{1,256}$/.test(url.searchParams.get("cursor") ?? ""));
-      const cloudWrite = method === "PUT" && url.pathname === cloudPath && !url.search;
+      const cloudWrite = phase !== "continue_existing_outsider" && method === "PUT" && url.pathname === cloudPath && !url.search;
       if (!safeRead && !cloudRead && !cloudWrite) { unexpected += 1; return route.abort("blockedbyclient"); }
       return route.continue({ headers: { ...request.headers(), "x-vercel-protection-bypass": previewBypass } });
     }
@@ -184,17 +185,70 @@ async function close(contexts: BrowserContext[]) {
   await Promise.all(contexts.map((context) => context.close().catch(() => undefined)));
 }
 
+async function verifyOutsider(browser: Browser, contexts: BrowserContext[]) {
+  const outsider = await newContext(browser); contexts.push(outsider.context);
+  const outsiderStatuses: number[] = [];
+  outsider.page.on("response", (response) => { if (new URL(response.url()).pathname === cloudPath) outsiderStatuses.push(response.status()); });
+  const outsiderBytes = fixtureStore(personaB.userId);
+  progress("outsider_login");
+  await login(outsider.page, personaB, outsiderBytes);
+  progress("outsider_assertion");
+  await expect(outsider.page.getByText("Cloud sync is not authorized for this project.", { exact: true })).toBeVisible();
+  await expect(outsider.page.getByRole("button", { name: "Save to cloud", exact: true })).toBeDisabled();
+  expect(outsiderStatuses).toContain(403);
+  expect(await outsider.page.evaluate((key) => localStorage.getItem(key), storageKey(personaB.userId))).toBe(outsiderBytes);
+  outsider.assertNetworkClean();
+}
+
 test.beforeAll(() => {
-  guard(active && ["writer_outsider", "viewer_denial"].includes(phase), "Cloud-live spec is disabled by default.");
+  guard(active && ["writer_outsider", "continue_existing_outsider", "viewer_denial"].includes(phase), "Cloud-live spec is disabled by default.");
   guard(previewBypass.length >= 16 && previewUrl.startsWith("https://"), "Protected Preview settings are incomplete.");
 });
 
 test("writer saves, clean context reopens, outsider is denied", async ({ browser }) => {
-  test.skip(phase !== "writer_outsider", "Wrong bounded phase.");
+  test.skip(!["writer_outsider", "continue_existing_outsider"].includes(phase), "Wrong bounded phase.");
   const contexts: BrowserContext[] = [];
   try {
     const artifact = await readConfiguredArtifact() ?? fixtureArtifact();
     const isRealAnalysis = artifact.kind === "analyse";
+    if (phase === "continue_existing_outsider") {
+      guard(isRealAnalysis && artifactPath.length > 0, "Continuation requires the exact real Analyse artifact.");
+      const analyst = await newContext(browser); contexts.push(analyst.context);
+      await verifyPreview(analyst.page);
+      let puts = 0;
+      let aiPosts = 0;
+      analyst.page.on("request", (request) => {
+        const pathname = new URL(request.url()).pathname;
+        if (request.method() === "PUT" && pathname === cloudPath) puts += 1;
+        if (request.method() === "POST" && pathname === "/api/prototype/point-to-object/ai") aiPosts += 1;
+      });
+      progress("continuation_login");
+      await login(analyst.page, personaA, null);
+      progress("continuation_cloud_read");
+      await expect(analyst.page.getByText("Cloud projects are available on this device.", { exact: true })).toBeVisible();
+      await expect(analyst.page.getByText(artifact.label, { exact: true })).toBeVisible();
+      const imported = await analyst.page.evaluate((key) => localStorage.getItem(key), storageKey(personaA.userId));
+      guard(imported !== null, "Fresh analyst context did not import the existing artifact.");
+      const importedArtifacts = JSON.parse(imported).projects.flatMap((project: { artifacts?: unknown[] }) => project.artifacts ?? []);
+      expect(importedArtifacts.find((candidate: { artifactId?: unknown }) => candidate.artifactId === artifact.artifactId)).toEqual(artifact);
+      progress("continuation_import");
+      const card = analyst.page.getByTestId("saved-result-card").filter({ hasText: artifact.label });
+      progress("continuation_result_navigation");
+      await Promise.all([
+        analyst.page.waitForURL((url) => url.pathname === "/prototype/point-to-object/analysis"),
+        card.getByRole("button", { name: "Open result", exact: true }).click()
+      ]);
+      progress("continuation_result_ready");
+      await expect(analyst.page.getByTestId("ai-success")).toBeVisible();
+      progress("continuation_no_ai");
+      expect(aiPosts).toBe(0);
+      progress("continuation_no_put");
+      expect(puts).toBe(0);
+      progress("continuation_network_clean");
+      analyst.assertNetworkClean();
+      await verifyOutsider(browser, contexts);
+      return;
+    }
     const first = await newContext(browser); contexts.push(first.context);
     await verifyPreview(first.page);
     const originalBytes = fixtureStore(personaA.userId, artifact);
@@ -236,12 +290,13 @@ test("writer saves, clean context reopens, outsider is denied", async ({ browser
     });
     progress("writer_map_navigation");
     const card = second.page.getByTestId("saved-result-card").filter({ hasText: artifact.label });
+    const expectedPath = isRealAnalysis ? "/prototype/point-to-object/analysis" : "/prototype/point-to-object";
     await Promise.all([
-      second.page.waitForURL((url) => url.pathname === "/prototype/point-to-object"),
+      second.page.waitForURL((url) => url.pathname === expectedPath),
       card.getByRole("button", { name: isRealAnalysis ? "Open result" : "Show on map", exact: true }).click()
     ]);
     progress("writer_map_canvas");
-    await expect(second.page.getByTestId("live-map-canvas")).toBeVisible();
+    if (!isRealAnalysis) await expect(second.page.getByTestId("live-map-canvas")).toBeVisible();
     progress("writer_map_ready");
     if (isRealAnalysis) await expect(second.page.getByTestId("ai-success")).toBeVisible();
     else await expect(second.page.getByText("Live map ready. Set criteria and search the visible area.", { exact: true })).toBeAttached();
@@ -251,18 +306,7 @@ test("writer saves, clean context reopens, outsider is denied", async ({ browser
     progress("writer_map_network_clean");
     second.assertNetworkClean();
 
-    const outsider = await newContext(browser); contexts.push(outsider.context);
-    const outsiderStatuses: number[] = [];
-    outsider.page.on("response", (response) => { if (new URL(response.url()).pathname === cloudPath) outsiderStatuses.push(response.status()); });
-    const outsiderBytes = fixtureStore(personaB.userId);
-    progress("outsider_login");
-    await login(outsider.page, personaB, outsiderBytes);
-    progress("outsider_assertion");
-    await expect(outsider.page.getByText("Cloud sync is not authorized for this project.", { exact: true })).toBeVisible();
-    await expect(outsider.page.getByRole("button", { name: "Save to cloud", exact: true })).toBeDisabled();
-    expect(outsiderStatuses).toContain(403);
-    expect(await outsider.page.evaluate((key) => localStorage.getItem(key), storageKey(personaB.userId))).toBe(outsiderBytes);
-    outsider.assertNetworkClean();
+    await verifyOutsider(browser, contexts);
   } finally {
     await close(contexts);
   }
