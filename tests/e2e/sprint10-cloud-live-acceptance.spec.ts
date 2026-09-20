@@ -94,7 +94,7 @@ function fixtureArtifact() {
   };
 }
 
-function fixtureStore(userId: string, artifact = fixtureArtifact()) {
+function fixtureStore(userId: string, artifact: SavedPointObjectArtifact | ReturnType<typeof fixtureArtifact> = fixtureArtifact()) {
   return JSON.stringify({
     schemaVersion: 1, identityKey: `user:${userId}`, activeProjectId: "project-cloud-live-public-1",
     projects: [{
