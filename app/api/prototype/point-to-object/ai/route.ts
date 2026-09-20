@@ -360,7 +360,8 @@ export async function POST(request: Request) {
         mode: "unavailable",
         code: error.code,
         error: error.message,
-        retryable: error.httpStatus === 429 || error.httpStatus >= 500
+        retryable: error.httpStatus === 429 || error.httpStatus >= 500,
+        ...(error.telemetry ? { telemetry: error.telemetry } : {})
       }, {
         status: error.httpStatus,
         headers: clearChallengeHeader(request)

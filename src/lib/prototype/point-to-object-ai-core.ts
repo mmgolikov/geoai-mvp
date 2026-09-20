@@ -3115,11 +3115,30 @@ function recoveredFocusedAnswerPlan(
 }
 
 /**
- * Salvages an otherwise valid strict decision plan when only the model-authored
- * focused answer fails evidence binding. The replacement is rendered entirely
- * from canonically bound server evidence and is revalidated through the same
- * strict contract before it can reach the client.
+ * Normalizes only Quick's server-prescribed criteria after the strict validator
+ * identifies a depth-selection error; every other constraint remains in force.
  */
+export function recoverPointObjectAiQuickCriteriaDetailed(
+  value: unknown,
+  evidencePack: GroundablePointObjectEvidencePack,
+  request: PointObjectAnalysisRequest
+): PointObjectAiValidationResult {
+  const original = validatePointObjectAiContentDetailed(value, evidencePack, request);
+  if (original.ok || request.depth !== "quick" || original.detail !== "depth_review_selection" ||
+      !isRecord(value) || !isRecord(value.depthPlan)) return original;
+  const support = evidenceSupport(evidencePack);
+  const criteriaSignalCodes = depthCriteriaDefaults(request)
+    .filter((code) => signalRefs(code, support).length > 0)
+    .slice(0, pointObjectAnalysisDepthContract(request.depth).reviewCounts.criteria);
+  // Quick's criteria are prescribed by the server, not a model choice. Keep
+  // every other selection and all authored text intact, then revalidate all of it.
+  return validatePointObjectAiContentDetailed({
+    ...value,
+    depthPlan: { ...value.depthPlan, criteriaSignalCodes }
+  }, evidencePack, request);
+}
+
+/** Replace rejected model prose with canonical evidence, then fully revalidate. */
 export function recoverPointObjectAiFocusedContentDetailed(
   value: unknown,
   evidencePack: GroundablePointObjectEvidencePack,
@@ -3145,7 +3164,7 @@ export function recoverPointObjectAiFocusedContentDetailed(
   if (!focusedAnswer) {
     return { ok: false, code: "EVIDENCE_INSUFFICIENT", detail: "focused_recovery_plan" };
   }
-  return validatePointObjectAiContentDetailed({
+  return recoverPointObjectAiQuickCriteriaDetailed({
     ...value,
     answerCode: fallbackCode,
     focusedAnswer

@@ -8,9 +8,9 @@ import {
   extractResponsesText,
   extractResponsesUsage,
   recoverPointObjectAiFocusedContentDetailed,
+  recoverPointObjectAiQuickCriteriaDetailed,
   responseCompletionState,
   summarizePointObjectAiAttemptUsage,
-  validatePointObjectAiContentDetailed,
   type PointObjectAiAttemptUsageInput,
   type PointObjectAiResult,
   type PointObjectAiValidationCode,
@@ -134,7 +134,8 @@ export class PointObjectAiServiceError extends Error {
   constructor(
     public readonly code: PointObjectAiErrorCode,
     public readonly httpStatus: number,
-    message: string
+    message: string,
+    public readonly telemetry?: PointObjectAiResult["telemetry"]
   ) {
     super(message);
     this.name = "PointObjectAiServiceError";
@@ -229,7 +230,8 @@ async function requestOpenAi(
     throw new PointObjectAiServiceError("AI_PROVIDER_REJECTED", 502, "AI analysis could not be reached safely.");
   }
 
-  const requestId = response.headers.get("x-request-id");
+  const rawRequestId = response.headers.get("x-request-id");
+  const requestId = rawRequestId && /^[a-zA-Z0-9_-]{1,200}$/.test(rawRequestId) ? rawRequestId : null;
   if (!response.ok) {
     throw new PointObjectAiServiceError(
       "AI_PROVIDER_REJECTED",
@@ -267,7 +269,7 @@ function validateCompletedOutput(
 ): PointObjectAiValidationResult {
   try {
     const parsed: unknown = JSON.parse(extractResponsesText(payload));
-    return validatePointObjectAiContentDetailed(parsed, evidencePack, analysisRequest);
+    return recoverPointObjectAiQuickCriteriaDetailed(parsed, evidencePack, analysisRequest);
   } catch {
     return { ok: false, code: "SHAPE_INVALID", detail: "json_parse" };
   }
@@ -288,7 +290,8 @@ function isRepairableValidationCode(code: PointObjectAiValidationCode): boolean 
 
 function isDeterministicFocusedRecovery(detail: string | undefined): boolean {
   return detail === "focused_answer_context_value_mismatch" ||
-    detail === "focused_answer_context_without_context_receipt";
+    detail === "focused_answer_context_without_context_receipt" ||
+    detail === "focused_answer_novel_number";
 }
 
 export async function generatePointObjectAiAnalysis(
@@ -320,82 +323,34 @@ export async function generatePointObjectAiAnalysis(
 
   const initialKind: AttemptKind = analysisRequest.question ? "focused" : "initial";
   let profile = profileFor(analysisRequest, initialKind);
-  attempts += 1;
-  let attempt = await requestOpenAi(apiKey, evidencePack, analysisRequest, profile, deadline, null);
-  requestId = attempt.requestId;
-  attemptUsages.push({
-    purpose: initialKind,
+  const telemetry = (): PointObjectAiResult["telemetry"] => ({
+    provider: "openai",
+    schemaVersion: POINT_OBJECT_AI_RESULT_SCHEMA_VERSION,
     model: profile.model,
     reasoningEffort: profile.reasoningEffort,
-    requestId: attempt.requestId,
-    usage: extractResponsesUsage(attempt.payload)
+    depth: analysisRequest.depth,
+    promptVersion: POINT_OBJECT_AI_PROMPT_VERSION,
+    requestId,
+    latencyMs: Date.now() - startedAt,
+    attempts,
+    ...summarizePointObjectAiAttemptUsage(attemptUsages),
+    stored: false,
+    toolCalls: 0
   });
-  assertCompleteResponse(attempt.payload);
-  let validation = validateCompletedOutput(attempt.payload, evidencePack, analysisRequest);
-
-  if (!validation.ok && isDeterministicFocusedRecovery(validation.detail)) {
-    const recovered = recoverPointObjectAiFocusedContentDetailed(
-      parseCompletedOutput(attempt.payload),
-      evidencePack,
-      analysisRequest
-    );
-    if (recovered.ok) {
-      console.warn("point_object_ai_focused_answer_recovered", {
-        rejectedDetail: validation.detail,
-        attempt: attempts,
-        model: profile.model,
-        promptVersion: POINT_OBJECT_AI_PROMPT_VERSION
-      });
-      validation = recovered;
-    } else {
-      console.warn("point_object_ai_focused_answer_recovery_rejected", {
-        rejectedDetail: validation.detail,
-        recoveryCode: recovered.code,
-        recoveryDetail: recovered.detail ?? "not_available",
-        attempt: attempts,
-        model: profile.model,
-        promptVersion: POINT_OBJECT_AI_PROMPT_VERSION
-      });
-    }
-  }
-
-  if (!validation.ok) {
-    console.warn("point_object_ai_validation_rejected", {
-      code: validation.code,
-      detail: validation.detail ?? "not_available",
-      attempt: attempts,
-      model: profile.model,
-      promptVersion: POINT_OBJECT_AI_PROMPT_VERSION
-    });
-    if (!isRepairableValidationCode(validation.code)) {
-      throw new PointObjectAiServiceError(
-        "AI_OUTPUT_INVALID",
-        502,
-        "AI analysis returned a plan outside the bounded coded contract. Please try again."
-      );
-    }
-    const repairCode = validation.code;
-    profile = profileFor(analysisRequest, "repair");
+  try {
     attempts += 1;
-    attempt = await requestOpenAi(
-      apiKey,
-      evidencePack,
-      analysisRequest,
-      profile,
-      deadline,
-      repairCode,
-      validation.detail ?? null
-    );
+    let attempt = await requestOpenAi(apiKey, evidencePack, analysisRequest, profile, deadline, null);
     requestId = attempt.requestId;
     attemptUsages.push({
-      purpose: "repair",
+      purpose: initialKind,
       model: profile.model,
       reasoningEffort: profile.reasoningEffort,
       requestId: attempt.requestId,
       usage: extractResponsesUsage(attempt.payload)
     });
     assertCompleteResponse(attempt.payload);
-    validation = validateCompletedOutput(attempt.payload, evidencePack, analysisRequest);
+    let validation = validateCompletedOutput(attempt.payload, evidencePack, analysisRequest);
+
     if (!validation.ok && isDeterministicFocusedRecovery(validation.detail)) {
       const recovered = recoverPointObjectAiFocusedContentDetailed(
         parseCompletedOutput(attempt.payload),
@@ -421,6 +376,7 @@ export async function generatePointObjectAiAnalysis(
         });
       }
     }
+
     if (!validation.ok) {
       console.warn("point_object_ai_validation_rejected", {
         code: validation.code,
@@ -429,58 +385,110 @@ export async function generatePointObjectAiAnalysis(
         model: profile.model,
         promptVersion: POINT_OBJECT_AI_PROMPT_VERSION
       });
-      throw new PointObjectAiServiceError(
-        "AI_OUTPUT_INVALID",
-        502,
-        "AI analysis could not produce a verified result. Please try again."
+      if (!isRepairableValidationCode(validation.code)) {
+        throw new PointObjectAiServiceError(
+          "AI_OUTPUT_INVALID",
+          502,
+          "AI analysis returned a plan outside the bounded coded contract. Please try again."
+        );
+      }
+      const repairCode = validation.code;
+      profile = profileFor(analysisRequest, "repair");
+      attempts += 1;
+      attempt = await requestOpenAi(
+        apiKey,
+        evidencePack,
+        analysisRequest,
+        profile,
+        deadline,
+        repairCode,
+        validation.detail ?? null
       );
+      requestId = attempt.requestId;
+      attemptUsages.push({
+        purpose: "repair",
+        model: profile.model,
+        reasoningEffort: profile.reasoningEffort,
+        requestId: attempt.requestId,
+        usage: extractResponsesUsage(attempt.payload)
+      });
+      assertCompleteResponse(attempt.payload);
+      validation = validateCompletedOutput(attempt.payload, evidencePack, analysisRequest);
+      if (!validation.ok && isDeterministicFocusedRecovery(validation.detail)) {
+        const recovered = recoverPointObjectAiFocusedContentDetailed(
+          parseCompletedOutput(attempt.payload),
+          evidencePack,
+          analysisRequest
+        );
+        if (recovered.ok) {
+          console.warn("point_object_ai_focused_answer_recovered", {
+            rejectedDetail: validation.detail,
+            attempt: attempts,
+            model: profile.model,
+            promptVersion: POINT_OBJECT_AI_PROMPT_VERSION
+          });
+          validation = recovered;
+        } else {
+          console.warn("point_object_ai_focused_answer_recovery_rejected", {
+            rejectedDetail: validation.detail,
+            recoveryCode: recovered.code,
+            recoveryDetail: recovered.detail ?? "not_available",
+            attempt: attempts,
+            model: profile.model,
+            promptVersion: POINT_OBJECT_AI_PROMPT_VERSION
+          });
+        }
+      }
+      if (!validation.ok) {
+        console.warn("point_object_ai_validation_rejected", {
+          code: validation.code,
+          detail: validation.detail ?? "not_available",
+          attempt: attempts,
+          model: profile.model,
+          promptVersion: POINT_OBJECT_AI_PROMPT_VERSION
+        });
+        throw new PointObjectAiServiceError(
+          "AI_OUTPUT_INVALID",
+          502,
+          "AI analysis could not produce a verified result. Please try again."
+        );
+      }
     }
-  }
 
-  const usageSummary = summarizePointObjectAiAttemptUsage(attemptUsages);
-  const roleScenario = pointObjectAnalysisRoleScenarioOrUnspecified(
-    analysisRequest.role,
-    analysisRequest.scenario
-  );
+    const roleScenario = pointObjectAnalysisRoleScenarioOrUnspecified(
+      analysisRequest.role,
+      analysisRequest.scenario
+    );
 
-  return {
-    mode: "openai",
-    schemaVersion: POINT_OBJECT_AI_RESULT_SCHEMA_VERSION,
-    generatedAt: new Date().toISOString(),
-    evidencePackId: evidencePack.evidencePackId,
-    evidencePackHash: evidencePack.evidencePackHash,
-    request: {
-      role: roleScenario.role,
-      scenario: roleScenario.scenario,
-      depth: analysisRequest.depth,
-      goal: analysisRequest.goal,
-      perspective: analysisRequest.perspective,
-      horizon: analysisRequest.horizon,
-      question: analysisRequest.question,
-      focused: Boolean(analysisRequest.question),
-      locale: analysisRequest.locale
-    },
-    content: validation.content,
-    telemetry: {
-      provider: "openai",
+    return {
+      mode: "openai",
       schemaVersion: POINT_OBJECT_AI_RESULT_SCHEMA_VERSION,
-      model: profile.model,
-      reasoningEffort: profile.reasoningEffort,
-      depth: analysisRequest.depth,
-      promptVersion: POINT_OBJECT_AI_PROMPT_VERSION,
-      requestId,
-      latencyMs: Date.now() - startedAt,
-      attempts,
-      attemptTrace: usageSummary.attemptTrace,
-      inputTokens: usageSummary.inputTokens,
-      cachedInputTokens: usageSummary.cachedInputTokens,
-      cacheWriteTokens: usageSummary.cacheWriteTokens,
-      outputTokens: usageSummary.outputTokens,
-      totalTokens: usageSummary.totalTokens,
-      estimatedCostUsd: usageSummary.estimatedCostUsd,
-      costRateSource: usageSummary.costRateSource,
-      stored: false,
-      toolCalls: 0
+      generatedAt: new Date().toISOString(),
+      evidencePackId: evidencePack.evidencePackId,
+      evidencePackHash: evidencePack.evidencePackHash,
+      request: {
+        role: roleScenario.role,
+        scenario: roleScenario.scenario,
+        depth: analysisRequest.depth,
+        goal: analysisRequest.goal,
+        perspective: analysisRequest.perspective,
+        horizon: analysisRequest.horizon,
+        question: analysisRequest.question,
+        focused: Boolean(analysisRequest.question),
+        locale: analysisRequest.locale
+      },
+      content: validation.content,
+      telemetry: telemetry()
+    };
+  } catch (error) {
+    // A dispatched attempt without a complete usage receipt may still have been
+    // billed. Never represent its missing cost as zero or a partial total.
+    if (error instanceof PointObjectAiServiceError && attempts > 0 && attemptUsages.length === attempts) {
+      const measured = telemetry();
+      if (measured.estimatedCostUsd !== null && measured.costRateSource !== null) {
+        throw new PointObjectAiServiceError(error.code, error.httpStatus, error.message, measured);
+      }
     }
-  };
+    throw error;
+  }
 }
