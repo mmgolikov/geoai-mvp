@@ -163,4 +163,83 @@ const custom = core.recoverPointObjectAiFocusedContentDetailed(plan(), genericBu
 assert.equal(custom.ok, true, custom.detail);
 assert.equal(custom.content.answerToQuestion.missingEvidence.length, 0);
 checks += 1;
+// Regression for Find's public capture 1. Reconstructed receipts/coordinates are
+// synthetic: only the listed public identity, attributes and aggregate values
+// reproduce the capture; this is not a replay of its withheld raw source pack.
+const findPack = JSON.parse(JSON.stringify(genericBuilding())
+  .replaceAll("way/101", "relation/14604314").replaceAll("Harbour Hotel", "25hours Hotel Dubai One Central"));
+findPack.selectedObject.tags["tag.building:levels"] = "9";
+findPack.selectedObject.tags["tag.start_date"] = "2021";
+delete findPack.selectedObject.tags["tag.height"];
+findPack.evidence.find((item: any) => item.id === "EVD-ALLOWED-FIELDS").value = JSON.stringify({ sourceFeatureId: "relation/14604314", tags: findPack.selectedObject.tags });
+findPack.geoContext = {
+  radiusM: 400, coverage: "available", sampleSize: 118, capReached: false,
+  groups: [
+    { group: "access", count: 26, sharePct: 22, nearestDistanceM: 78 },
+    { group: "open_space", count: 15, sharePct: 12.7, nearestDistanceM: 108 },
+    { group: "retail_daily_needs", count: 13, sharePct: 11, nearestDistanceM: 242 },
+    { group: "commercial", count: 9, sharePct: 7.6, nearestDistanceM: 89 },
+    { group: "hospitality", count: 6, sharePct: 5.1, nearestDistanceM: 0 },
+    { group: "civic_culture", count: 1, sharePct: 0.8, nearestDistanceM: 270 },
+    { group: "construction", count: 2, sharePct: 1.7, nearestDistanceM: 199 },
+    { group: "other_built", count: 46, sharePct: 39, nearestDistanceM: 166 }
+  ], mappedBuildingCount: 59, mappedLevelsKnownCount: 14, medianMappedLevels: 10.5,
+  nearestTransitM: null, nearestMajorRoadM: 78,
+  districtCharacter: { code: "mixed_use_urban", confidence: "medium", ruleVersion: "POINT_OBJECT_DISTRICT_RULE_V1", driverGroups: ["open_space", "retail_daily_needs", "commercial"] }
+};
+const { districtCharacter: findDistrict, ...findSummary } = findPack.geoContext;
+findPack.evidence.find((item: any) => item.id === "EVD-CONTEXT-SUMMARY").value = JSON.stringify(findSummary);
+findPack.evidence.find((item: any) => item.id === "EVD-DISTRICT-PROFILE").value = JSON.stringify({ summaryHash: createHash("sha256").update(JSON.stringify(canonicalize(findSummary))).digest("hex"), districtCharacter: findDistrict });
+const findQuestion = "What evidence supports this screening result, and what must be validated before a redevelopment decision?";
+const missingCodes = ["official_identity", "parcel_boundary", "title_rights", "planning_controls", "physical_baseline", "current_market", "cost_financials"];
+function focused(statement: string, status = "answered", missingEvidenceCodes: string[] = []) {
+  return { status, scope: "screening_implication", perspective: "developer", horizon: "one_to_three_years", statement,
+    evidenceRefs: ["EVD-OSM-OBJECT", "EVD-CLASSIFICATION", "EVD-ALLOWED-FIELDS", "EVD-GEOMETRY", "EVD-CONTEXT-SUMMARY", "EVD-SOURCE"],
+    confidence: "low", missingEvidenceCodes, unsupportedReasonCode: null };
+}
+for (const locale of ["en", "ru"] as const) {
+  const req = { ...request(locale, "custom", locale === "en" ? findQuestion : "Какие данные подтверждают результат скрининга и что необходимо проверить перед решением о редевелопменте?"), horizon: "one_to_three_years" };
+  const rejectedCapture = { ...plan(), answerCode: "identity_rights_planning_first", focusedAnswer: focused("25hours Hotel Dubai One Central is mapped as building:yes. First confirm object and official parcel identity, then obtain title, permitted-use, planning-control and approval evidence before advancing.") };
+  assert.equal(core.validatePointObjectAiContentDetailed(rejectedCapture, findPack, req).detail, "focused_answer_missing_source_gate");
+  const recovered = core.recoverPointObjectAiFocusedContentDetailed(rejectedCapture, findPack, req);
+  assert.equal(recovered.ok, true, recovered.detail);
+  const answer = recovered.content.answerToQuestion;
+  assert.equal(answer.status, "partial");
+  assert.equal(answer.missingEvidence.length, 7);
+  assert.match(answer.statement, /25hours Hotel Dubai One Central/);
+  assert.match(answer.statement, /9.*2021.*400.*15.*13/);
+  assert.match(answer.statement, locale === "en" ? /Implication:.*Hypothesis:/ : /Вывод:.*Гипотеза:/);
+  assert.doesNotMatch(answer.statement, /building:yes|355|987654321/);
+  assert.ok(answer.evidenceRefs.includes("EVD-CONTEXT-SUMMARY"));
+  const unbound = structuredClone(findPack);
+  unbound.evidence.find((item: any) => item.id === "EVD-ALLOWED-FIELDS").sourceId = "way/999";
+  const noAttributes = core.recoverPointObjectAiFocusedContentDetailed(rejectedCapture, unbound, req);
+  assert.equal(noAttributes.ok, true, noAttributes.detail);
+  assert.doesNotMatch(noAttributes.content.answerToQuestion.statement, /2021|9 mapped levels|этажность по карте: 9/);
+  const narrow = { ...req, question: locale === "en" ? "What is the mapped name for this redevelopment screening object?" : "Как называется объект этого скрининга редевелопмента?" };
+  assert.equal(core.recoverPointObjectAiFocusedContentDetailed(plan(), findPack, narrow).content.answerToQuestion.status, "answered");
+  checks += 4;
+}
+const findRequest = { ...request("en", "custom", findQuestion), horizon: "one_to_three_years" };
+const novel = core.validatePointObjectAiContentDetailed({ ...plan(), answerCode: "identity_rights_planning_first", focusedAnswer: focused("The mapped hotel has 987654321 levels, supporting an initial existing-asset screen subject to validation.", "partial", missingCodes) }, findPack, findRequest);
+assert.equal(novel.detail, "focused_answer_novel_number");
+for (const statement of ["The hotel is owned by Example Holdings, which supports redevelopment after the remaining checks.", "The hotel is valued at AED 9000000, which supports redevelopment after the remaining checks."]) {
+  const unsafe = core.validatePointObjectAiContentDetailed({ ...plan(), answerCode: "identity_rights_planning_first", focusedAnswer: focused(statement, "partial", missingCodes) }, findPack, findRequest);
+  assert.equal(unsafe.detail, "focused_answer_forbidden_claim");
+  checks += 1;
+}
+const narrowCustom = core.validatePointObjectAiContentDetailed({ ...plan(), answerCode: "source_evidence_only", focusedAnswer: {
+  ...focused("The mapped building records 9 levels in the available OpenStreetMap evidence."), scope: "mapped_form", evidenceRefs: ["EVD-ALLOWED-FIELDS"]
+} }, findPack, { ...findRequest, question: "How many levels are mapped for this redevelopment candidate?" });
+assert.equal(narrowCustom.ok, true, narrowCustom.detail);
+assert.equal(narrowCustom.content.answerToQuestion.status, "answered");
+checks += 1;
+const courty = JSON.parse(JSON.stringify(findPack).replaceAll("relation/14604314", "way/1083733024").replaceAll("25hours Hotel Dubai One Central", "Courtyard by Marriott World Trade Centre"));
+courty.selectedObject.tags["tag.building:levels"] = "10";
+courty.evidence.find((item: any) => item.id === "EVD-ALLOWED-FIELDS").value = JSON.stringify({ sourceFeatureId: "way/1083733024", tags: courty.selectedObject.tags });
+const goodCapture = "The open-map identity, hotel classification, mapped 10-level building form, 2021 lifecycle marker and bounded surrounding context support continuing an existing-hotel redevelopment screen, but not making a redevelopment decision; official asset and parcel identity, title and rights, planning controls, physical and operational baselines, and current market, cost and financial evidence must be validated first.";
+const good = core.validatePointObjectAiContentDetailed({ ...plan(), answerCode: "identity_rights_planning_first", focusedAnswer: focused(goodCapture, "partial", [...missingCodes, "transaction_comparables"]) }, courty, findRequest);
+assert.equal(good.ok, true, good.detail);
+assert.equal(good.content.answerToQuestion.statement, goodCapture, "Preserve grounded provider synthesis");
+checks += 2;
 console.log(`quality20-analysis-content-check: PASS (${checks} synthetic cases; no API calls)`);

@@ -2800,6 +2800,15 @@ function isBroadObjectProfile(question: string, goal?: PointObjectAnalysisGoal):
   return goal === "object_profile" && /(?:decision-oriented profile|profile of (?:this |the )?object|составь[^.?!]*профиль объекта)/i.test(question.normalize("NFKC"));
 }
 
+function isBroadCustomDevelopmentReview(question: string, goal?: PointObjectAnalysisGoal): boolean {
+  if (goal !== "custom") return false;
+  const normalized = question.normalize("NFKC").toLocaleLowerCase("en-US");
+  const developmentTopic = /\b(?:screening|redevelopment|repositioning|development decision)\b|(?:скрининг|редевелопмент|репозиционирован|решени[^.?!]*развити)/.test(normalized);
+  const evidenceReview = /\b(?:what evidence|what (?:must|should|needs to) be (?:validated|verified|checked)|assess whether)\b|(?:какие (?:данные|доказательства)|что (?:нужно|необходимо|следует) (?:проверить|подтвердить)|оцени[^.?!]*(?:возможност|целесообразност))/.test(normalized);
+  // A development-related name/height question alone is still a narrow fact.
+  return developmentTopic && evidenceReview;
+}
+
 function requiredMissingEvidence(
   question: string,
   support: PointObjectEvidenceSupport,
@@ -2813,7 +2822,7 @@ function requiredMissingEvidence(
   // Broad preset questions may name no individual evidence domain. Their goal
   // still requires these absent non-map sources; a narrow fact keeps its own gate.
   const broadReview = /\b(?:screen|screening|assess whether|due[ -]diligence plan|opportunities and risks)\b|(?:предварительн[^.?!]*оценк|проверять гипотезу|план\s+due\s+diligence|возможности и риски)/i.test(normalized);
-  if (isBroadObjectProfile(question, goal) || (broadReview && (goal === "development_screening" || goal === "redevelopment" || goal === "due_diligence"))) {
+  if (isBroadObjectProfile(question, goal) || isBroadCustomDevelopmentReview(question, goal) || (broadReview && (goal === "development_screening" || goal === "redevelopment" || goal === "due_diligence"))) {
     add("official_identity", "parcel_boundary", "title_rights", "planning_controls", "physical_baseline", "current_market", "cost_financials");
   }
   if (/\b(?:parcel|cadast|boundary|plot)\b|(?:участ|кадастр|границ|земл)/.test(normalized)) add("parcel_boundary", "official_identity");
@@ -2993,7 +3002,7 @@ function recoveredFocusedAnswerPlan(
   if (!question) return null;
 
   const requiredMissing = requiredMissingEvidence(question, support, request.goal);
-  if (isBroadObjectProfile(question, request.goal)) {
+  if (isBroadObjectProfile(question, request.goal) || isBroadCustomDevelopmentReview(question, request.goal)) {
     const locale = request.locale;
     const selected = support.projection.selectedObject;
     const tags = selected.structuredAttributes;
