@@ -2392,7 +2392,9 @@ function renderRisk(
     geometry_not_parcel: "high"
   };
   const severityRank: Record<PointObjectRisk["severity"], number> = { low: 0, medium: 1, high: 2 };
-  const severity = severityRank[risk.severity] >= severityRank[minimumSeverity[risk.code]]
+  const severity = risk.code === "non_official_source"
+    ? RISK_DEFAULT_RATINGS.non_official_source.severity
+    : severityRank[risk.severity] >= severityRank[minimumSeverity[risk.code]]
     ? risk.severity
     : minimumSeverity[risk.code];
   return { ...(locale === "ru" ? ruCopy[risk.code] : copy[risk.code]), evidenceRefs, severity, confidence: risk.confidence };
@@ -2809,6 +2811,10 @@ function isBroadCustomDevelopmentReview(question: string, goal?: PointObjectAnal
   return developmentTopic && evidenceReview;
 }
 
+function isBroadPresetReview(question: string): boolean {
+  return /\b(?:screen|screening|assess whether|due[ -]diligence plan|opportunities and risks)\b|(?:предварительн[^.?!]*оценк|проверять гипотезу|план\s+due\s+diligence|возможности и риски)/i.test(question.normalize("NFKC"));
+}
+
 function requiredMissingEvidence(
   question: string,
   support: PointObjectEvidenceSupport,
@@ -2821,7 +2827,7 @@ function requiredMissingEvidence(
   };
   // Broad preset questions may name no individual evidence domain. Their goal
   // still requires these absent non-map sources; a narrow fact keeps its own gate.
-  const broadReview = /\b(?:screen|screening|assess whether|due[ -]diligence plan|opportunities and risks)\b|(?:предварительн[^.?!]*оценк|проверять гипотезу|план\s+due\s+diligence|возможности и риски)/i.test(normalized);
+  const broadReview = isBroadPresetReview(normalized);
   if (isBroadObjectProfile(question, goal) || isBroadCustomDevelopmentReview(question, goal) || (broadReview && (goal === "development_screening" || goal === "redevelopment" || goal === "due_diligence"))) {
     add("official_identity", "parcel_boundary", "title_rights", "planning_controls", "physical_baseline", "current_market", "cost_financials");
   }
@@ -3002,7 +3008,8 @@ function recoveredFocusedAnswerPlan(
   if (!question) return null;
 
   const requiredMissing = requiredMissingEvidence(question, support, request.goal);
-  if (isBroadObjectProfile(question, request.goal) || isBroadCustomDevelopmentReview(question, request.goal)) {
+  if (isBroadObjectProfile(question, request.goal) || isBroadCustomDevelopmentReview(question, request.goal) ||
+      (request.goal === "development_screening" && isBroadPresetReview(question))) {
     const locale = request.locale;
     const selected = support.projection.selectedObject;
     const tags = selected.structuredAttributes;

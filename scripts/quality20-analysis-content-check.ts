@@ -76,7 +76,7 @@ for (const locale of ["en", "ru"] as const) {
     assert.equal(result.ok, true, result.detail);
     assert.equal(result.content.answerToQuestion.status, "partial");
     assert.ok(result.content.answerToQuestion.missingEvidence.length >= 7);
-    if (goal === "object_profile") {
+    if (goal === "object_profile" || goal === "development_screening") {
       const answer = result.content.answerToQuestion;
       assert.match(answer.statement, /Harbour Hotel/);
       assert.match(answer.statement, /30/);
@@ -242,4 +242,63 @@ const good = core.validatePointObjectAiContentDetailed({ ...plan(), answerCode: 
 assert.equal(good.ok, true, good.detail);
 assert.equal(good.content.answerToQuestion.statement, goodCapture, "Preserve grounded provider synthesis");
 checks += 2;
+
+// Broad preset Development recovery must synthesize evidence at every depth,
+// while valid provider prose and narrow mapped questions keep their paths.
+for (const locale of ["en", "ru"] as const) {
+  for (const depth of ["quick", "standard", "deep"]) {
+    const req = { ...request(locale, "development_screening", questions[locale].development_screening), depth };
+    const pack = genericBuilding();
+    const recovered = core.recoverPointObjectAiFocusedContentDetailed(plan(), pack, req);
+    assert.equal(recovered.ok, true, recovered.detail);
+    const answer = recovered.content.answerToQuestion;
+    assert.equal(answer.status, "partial");
+    assert.equal(answer.missingEvidence.length, 7);
+    assert.match(answer.statement, /Harbour Hotel/);
+    assert.match(answer.statement, /30.*200.*400/);
+    assert.match(answer.statement, locale === "en" ? /hotel.*Implication:.*Hypothesis:/ : /отель.*Вывод:.*Гипотеза:/);
+    assert.ok(answer.statement.length <= 900);
+    const absent = genericBuilding();
+    absent.selectedObject.tags = {};
+    syncTags(absent);
+    const noAttributes = core.recoverPointObjectAiFocusedContentDetailed(plan(), absent, req);
+    assert.equal(noAttributes.ok, true, noAttributes.detail);
+    assert.match(noAttributes.content.answerToQuestion.statement, locale === "en" ? /Physical attributes were not returned/ : /Физические характеристики не получены/);
+    assert.doesNotMatch(noAttributes.content.answerToQuestion.statement, /30|200|— hotel\.|— отель\./);
+    const narrowReq = { ...req, question: locale === "en" ? "What is the mapped object name?" : "Как называется объект на карте?" };
+    const narrowName = core.recoverPointObjectAiFocusedContentDetailed(plan(), pack, narrowReq);
+    assert.equal(narrowName.ok, true, narrowName.detail);
+    assert.equal(narrowName.content.answerToQuestion.status, "answered");
+    assert.doesNotMatch(narrowName.content.answerToQuestion.statement, /Implication:|Вывод:/);
+    const narrowHeight = core.validatePointObjectAiContentDetailed({ ...plan(), answerCode: "source_evidence_only", focusedAnswer: {
+      ...focused("Mapped height: 200; the open-map value is not independently verified."), horizon: "current", scope: "mapped_form", evidenceRefs: ["EVD-ALLOWED-FIELDS"]
+    } }, pack, { ...req, question: locale === "en" ? "What is the height?" : "Какова высота?" });
+    assert.equal(narrowHeight.ok, true, narrowHeight.detail);
+    assert.equal(narrowHeight.content.answerToQuestion.status, "answered");
+    assert.equal(narrowHeight.content.answerToQuestion.missingEvidence.length, 0);
+    for (const severity of ["low", "medium", "high"]) {
+      const riskPlan = { ...plan(), risks: ["non_official_source", "identity_uncertainty", "geometry_not_parcel"].map(code => ({ code, severity, confidence: "low" })) };
+      const result = core.validatePointObjectAiContentDetailed(riskPlan, pack, { ...req, question: null });
+      assert.equal(result.ok, true, result.detail);
+      const sourceRisk = result.content.risks.find((risk: any) => risk.evidenceRefs.includes("EVD-SOURCE") && !risk.evidenceRefs.includes("EVD-GEOMETRY"));
+      assert.equal(sourceRisk.severity, "medium");
+      for (const risk of result.content.risks.filter((risk: any) => risk !== sourceRisk)) assert.equal(risk.severity, "high");
+      const rights = core.validatePointObjectAiContentDetailed({ ...plan(), risks: [{ code: "rights_and_planning_unknown", severity, confidence: "low" }] }, pack, { ...req, question: null });
+      assert.equal(rights.ok, true, rights.detail);
+      assert.equal(rights.content.risks[0].severity, "high");
+      checks += 1;
+    }
+    const statement = locale === "en"
+      ? "The mapped hotel supports an existing-asset repositioning hypothesis, not a feasibility conclusion; verify identity, rights, planning, condition, market and cost evidence before commitment."
+      : "Картографические данные отеля дают основу для гипотезы репозиционирования, но не подтверждают реализуемость; до решения проверьте идентичность, права, регламенты, состояние, рынок и затраты.";
+    const validPlan = { ...plan(), answerCode: "identity_rights_planning_first", focusedAnswer: { ...focused(statement, "partial", missingCodes), horizon: "current", evidenceRefs: ["EVD-OSM-OBJECT", "EVD-CLASSIFICATION", "EVD-ALLOWED-FIELDS", "EVD-SOURCE"] } };
+    const valid = core.validatePointObjectAiContentDetailed(validPlan, pack, req);
+    assert.equal(valid.ok, true, valid.detail);
+    assert.equal(valid.content.answerToQuestion.statement, statement);
+    const novelPlan = structuredClone(validPlan);
+    novelPlan.focusedAnswer.statement += " 987654321.";
+    assert.equal(core.validatePointObjectAiContentDetailed(novelPlan, pack, req).detail, "focused_answer_novel_number");
+    checks += 6;
+  }
+}
 console.log(`quality20-analysis-content-check: PASS (${checks} synthetic cases; no API calls)`);
