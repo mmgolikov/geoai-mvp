@@ -1,5 +1,8 @@
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { expect, test, type Browser, type BrowserContext, type Page, type Route } from "@playwright/test";
+import { parseQuality20RealArtifactExport } from "./helpers/quality20-real-artifact";
+import type { SavedPointObjectArtifact } from "@/src/lib/prototype/point-object-projects-contract";
 
 test.use({ trace: "off", screenshot: "off", video: "off", serviceWorkers: "block" });
 
@@ -10,6 +13,8 @@ const previewBypass = process.env.GEOAI_REAL_PASSWORD_AUTH_PREVIEW_BYPASS_SECRET
 const phase = process.env.GEOAI_CLOUD_LIVE_PHASE ?? "";
 const active = process.env.GEOAI_CLOUD_LIVE_BROWSER_ACTIVE === "1";
 const caveat = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
+const artifactPath = process.env.GEOAI_QUALITY20_CLOUD_ARTIFACT_PATH ?? "";
+const artifactSha256 = process.env.GEOAI_QUALITY20_CLOUD_ARTIFACT_SHA256 ?? "";
 
 test.skip(!active, "Root-only cloud-live acceptance is absent from default browser execution.");
 
@@ -39,6 +44,22 @@ function canonical(value: unknown): string {
     return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonical((value as Record<string, unknown>)[key])}`).join(",")}}`;
   }
   return JSON.stringify(value);
+}
+
+async function readConfiguredArtifact(): Promise<SavedPointObjectArtifact | null> {
+  guard(Boolean(artifactPath) === Boolean(artifactSha256), "Real artifact path and SHA-256 must be supplied together.");
+  if (!artifactPath) return null;
+  const bytes = readFileSync(artifactPath);
+  guard(createHash("sha256").update(bytes).digest("hex") === artifactSha256, "Real artifact SHA-256 changed after preflight.");
+  let value: unknown;
+  try { value = JSON.parse(bytes.toString("utf8")); }
+  catch { throw new Error("Real artifact export is not JSON."); }
+  const parsed = await parseQuality20RealArtifactExport(value, {
+    candidateCommit: process.env.GEOAI_CLOUD_LIVE_EXPECTED_COMMIT_SHA ?? "",
+    candidateHost: new URL(previewUrl).hostname
+  });
+  guard(parsed !== null, "Real artifact export failed its canonical contract.");
+  return parsed.artifact;
 }
 
 function fixtureArtifact() {
@@ -73,8 +94,7 @@ function fixtureArtifact() {
   };
 }
 
-function fixtureStore(userId: string) {
-  const artifact = fixtureArtifact();
+function fixtureStore(userId: string, artifact = fixtureArtifact()) {
   return JSON.stringify({
     schemaVersion: 1, identityKey: `user:${userId}`, activeProjectId: "project-cloud-live-public-1",
     projects: [{
@@ -173,10 +193,16 @@ test("writer saves, clean context reopens, outsider is denied", async ({ browser
   test.skip(phase !== "writer_outsider", "Wrong bounded phase.");
   const contexts: BrowserContext[] = [];
   try {
+    const artifact = await readConfiguredArtifact() ?? fixtureArtifact();
+    const isRealAnalysis = artifact.kind === "analyse";
     const first = await newContext(browser); contexts.push(first.context);
     await verifyPreview(first.page);
-    const originalBytes = fixtureStore(personaA.userId);
+    const originalBytes = fixtureStore(personaA.userId, artifact);
     const aResponses: number[] = [];
+    let firstPuts = 0;
+    first.page.on("request", (request) => {
+      if (request.method() === "PUT" && new URL(request.url()).pathname === cloudPath) firstPuts += 1;
+    });
     first.page.on("response", (response) => { if (new URL(response.url()).pathname === cloudPath) aResponses.push(response.status()); });
     progress("writer_login");
     await login(first.page, personaA, originalBytes);
@@ -189,6 +215,7 @@ test("writer saves, clean context reopens, outsider is denied", async ({ browser
     expect((await put).status()).toBe(201);
     await expect(first.page.getByText(/selected project is saved to the protected cloud test environment/i)).toBeVisible();
     expect(await first.page.evaluate((key) => localStorage.getItem(key), storageKey(personaA.userId))).toBe(originalBytes);
+    expect(firstPuts).toBe(1);
     expect(aResponses.filter((status) => status === 201)).toHaveLength(1);
     first.assertNetworkClean();
 
@@ -198,21 +225,29 @@ test("writer saves, clean context reopens, outsider is denied", async ({ browser
     progress("writer_clean_reopen");
     await login(second.page, personaA, null);
     await expect(second.page.getByRole("heading", { name: "Public synthetic cloud project", exact: true })).toBeVisible();
-    await expect(second.page.getByText("Public synthetic cloud result", { exact: true })).toBeVisible();
+    await expect(second.page.getByText(artifact.label, { exact: true })).toBeVisible();
     const imported = await second.page.evaluate((key) => localStorage.getItem(key), storageKey(personaA.userId));
     guard(imported !== null, "Clean A context did not import the artifact.");
-    expect(JSON.parse(imported).projects[0].artifacts[0]).toEqual(fixtureArtifact());
+    const importedArtifacts = JSON.parse(imported).projects.flatMap((project: { artifacts?: unknown[] }) => project.artifacts ?? []);
+    expect(importedArtifacts.find((candidate: { artifactId?: unknown }) => candidate.artifactId === artifact.artifactId)).toEqual(artifact);
+    let secondAiPosts = 0;
+    second.page.on("request", (request) => {
+      if (request.method() === "POST" && new URL(request.url()).pathname === "/api/prototype/point-to-object/ai") secondAiPosts += 1;
+    });
     progress("writer_map_navigation");
+    const card = second.page.getByTestId("saved-result-card").filter({ hasText: artifact.label });
     await Promise.all([
       second.page.waitForURL((url) => url.pathname === "/prototype/point-to-object"),
-      second.page.getByRole("button", { name: "Show on map", exact: true }).click()
+      card.getByRole("button", { name: isRealAnalysis ? "Open result" : "Show on map", exact: true }).click()
     ]);
     progress("writer_map_canvas");
     await expect(second.page.getByTestId("live-map-canvas")).toBeVisible();
     progress("writer_map_ready");
-    await expect(second.page.getByText("Live map ready. Set criteria and search the visible area.", { exact: true })).toBeAttached();
+    if (isRealAnalysis) await expect(second.page.getByTestId("ai-success")).toBeVisible();
+    else await expect(second.page.getByText("Live map ready. Set criteria and search the visible area.", { exact: true })).toBeAttached();
     progress("writer_map_no_put");
     expect(secondPuts).toBe(0);
+    expect(secondAiPosts).toBe(0);
     progress("writer_map_network_clean");
     second.assertNetworkClean();
 

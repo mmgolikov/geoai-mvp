@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
+import { readCloudLiveRealArtifactInput } from "./sprint10-cloud-live-artifact-input.mjs";
 
 const PROJECT_REF = "pphdqkurxneyagvnnjdt";
 const phases = new Set(["writer_outsider", "viewer_denial"]);
@@ -57,7 +58,9 @@ function preflight() {
       throw new Error("Synthetic persona contract invalid.");
     }
   }
-  return phase;
+  const artifactInput = readCloudLiveRealArtifactInput(process.env, head, preview.hostname);
+  if (artifactInput && phase !== "writer_outsider") throw new Error("Real artifact input is restricted to the writer phase.");
+  return { phase, artifactInput };
 }
 
 function collectSpecs(suites) {
@@ -144,7 +147,7 @@ function main() {
   let safeStage = "browser_preflight";
   let temporaryDirectory = null;
   try {
-    phase = preflight();
+    ({ phase } = preflight());
     temporaryDirectory = mkdtempSync(join(tmpdir(), "geoai-cloud-live-browser-"));
     const configPath = join(temporaryDirectory, "playwright.config.cjs");
     const playwrightEntry = resolve(root, "node_modules/@playwright/test/index.js");
