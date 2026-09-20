@@ -174,7 +174,13 @@ const selectionCard = client.slice(selectionCardStart, selectionCardEnd);
 assert.doesNotMatch(selectionCard, /sourceFeatureId|field\.osmObject|field\.relation|relationLabel/, "Selection summary must not expose raw object or relation identifiers");
 assert.doesNotMatch(client, /t\("question\.optional"\)/, "Prototype controls must not render Optional badges");
 assert.match(client, /event\.metaKey \|\| event\.ctrlKey/);
-assert.doesNotMatch(analysis, /analysis\.telemetry\.model|analysis\.telemetry\.attemptTrace|analysis\.evidencePackId/, "Analysis evidence disclosure must not expose implementation telemetry");
+const decisionCardsLifecycleKey = 'key={`${analysis.evidencePackId}:${analysis.generatedAt}`}';
+assert.equal(analysis.split(decisionCardsLifecycleKey).length - 1, 1,
+  "The server-evidence identity may appear exactly once as the PointObjectDecisionCards lifecycle key");
+assert.match(analysis, /<PointObjectDecisionCards key=\{`\$\{analysis\.evidencePackId\}:\$\{analysis\.generatedAt\}`\}/,
+  "The allowed evidence identity use must remain the non-rendered React lifecycle key");
+const analysisWithoutDecisionCardsLifecycleKey = analysis.replace(decisionCardsLifecycleKey, "");
+assert.doesNotMatch(analysisWithoutDecisionCardsLifecycleKey, /analysis\.telemetry\.model|analysis\.telemetry\.attemptTrace|analysis\.evidencePackId/, "Analysis evidence disclosure must not expose implementation telemetry");
 assert.doesNotMatch(analysis, /analysis\.evidenceMethod|analysis\.methodBoundary|analysis\.methodText/, "Analysis must not restore the removed generic methodology disclosure");
 assert.match(analysis, /data-testid="analysis-caveat">\{content\.caveat\}/, "Decision output must retain one exact response-bound caveat");
 assert.match(map, /data-testid="map-dimension-control"/);
