@@ -26,11 +26,14 @@ const allKeys = Object.keys(controls);
 const negative = [[[37.62, 55.75], [37.62063845, 55.75], [37.62063845, 55.75036186], [37.62, 55.75036186], [37.62, 55.75]]];
 const feasible = [[[37.62, 55.75], [37.621596, 55.75], [37.621596, 55.750905], [37.62, 55.750905], [37.62, 55.75]]];
 const fixtureGlobal = globalThis as typeof globalThis & {
+  __geoaiCreateAuthAllowed?: boolean;
   __geoaiCreateSourceCalls?: number;
   __geoaiCreateRuntimeStatus?: () => { enabled: boolean };
   __geoaiCreateOversizedInput?: boolean;
 };
+const previousAuthAllowed = fixtureGlobal.__geoaiCreateAuthAllowed;
 const previousSourceCalls = fixtureGlobal.__geoaiCreateSourceCalls;
+fixtureGlobal.__geoaiCreateAuthAllowed = true;
 fixtureGlobal.__geoaiCreateSourceCalls = 0;
 fixtureGlobal.__geoaiCreateRuntimeStatus = () => ({
   enabled: resolvePointObjectRuntimePolicy(process.env, {
@@ -51,6 +54,11 @@ const source = readFileSync(new URL("app/api/prototype/point-to-object/create/ro
   `)
   .replace('import { getPointObjectUpstreamStatus } from "@/src/lib/ai/openai-upstream-gate";',
     'const getPointObjectUpstreamStatus = () => globalThis.__geoaiCreateRuntimeStatus();')
+  .replace('import { requirePilotIdentity, requirePilotMutationOrigin } from "@/src/lib/auth/require-pilot-identity";',
+    `import { requirePilotMutationOrigin } from "@/src/lib/auth/require-pilot-identity";
+     const requirePilotIdentity = async () => globalThis.__geoaiCreateAuthAllowed
+       ? ({ allowed: true, mode: "supabase_auth", context: null })
+       : ({ allowed: false, response: Response.json({ ok: false, code: "authentication_required" }, { status: 401 }) });`)
   .replace('import { resolvePointObjectAreaContext } from "@/src/lib/prototype/point-to-object-area-context";',
     'const resolvePointObjectAreaContext = async () => { globalThis.__geoaiCreateSourceCalls += 1; return null; };')
   .replace(/from "@\/([^\"]+)";/g, (_match, relative: string) =>
@@ -91,6 +99,9 @@ function configure(environment: "preview" | "production", values: {
   key?: boolean;
 }) {
   process.env.VERCEL_ENV = environment;
+  process.env.NEXT_PUBLIC_AUTH_MODE = "supabase_auth";
+  process.env.NEXT_PUBLIC_SUPABASE_URL = "https://pphdqkurxneyagvnnjdt.supabase.co";
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = ["sb", "publishable", "synthetic_offline_fixture"].join("_");
   for (const name of [
     "GEOAI_ALLOW_POINT_OBJECT_PREVIEW_AI",
     "GEOAI_ALLOW_POINT_OBJECT_PRODUCTION_SURFACE",
@@ -118,6 +129,15 @@ async function invoke(aoiCoordinates: number[][][], ip: string, requestOrigin = 
 }
 
 try {
+  configure("production", { surface: "true", ai: "true", key: true });
+  fixtureGlobal.__geoaiCreateAuthAllowed = false;
+  const authDenied = await route.POST(new Request(url, { method: "POST", body: "{}" }));
+  assert.equal(authDenied.status, 401, "Create must reject an unauthenticated request before parsing or provider work.");
+  assert.equal((await authDenied.json()).code, "authentication_required");
+  assert.equal(providerCalls, 0);
+  assert.equal(fixtureGlobal.__geoaiCreateSourceCalls, 0);
+  fixtureGlobal.__geoaiCreateAuthAllowed = true;
+
   configure("production", { key: true });
   assert.equal((await route.GET(new Request(url))).status, 403, "Production must deny when both flags are absent.");
 
@@ -210,6 +230,8 @@ try {
 } finally {
   delete fixtureGlobal.__geoaiCreateOversizedInput;
   globalThis.fetch = originalFetch;
+  if (previousAuthAllowed === undefined) delete fixtureGlobal.__geoaiCreateAuthAllowed;
+  else fixtureGlobal.__geoaiCreateAuthAllowed = previousAuthAllowed;
   if (previousSourceCalls === undefined) delete fixtureGlobal.__geoaiCreateSourceCalls;
   else fixtureGlobal.__geoaiCreateSourceCalls = previousSourceCalls;
 }
