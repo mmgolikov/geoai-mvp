@@ -430,6 +430,7 @@ jobs:
           node --experimental-transform-types scripts/sprint10-live-journey-diagnostics-check.mjs | tee artifacts/sprint10-live-diagnostics-contract.txt
           node --experimental-transform-types scripts/quality20-real-artifact-check.ts | tee artifacts/quality20-real-artifact-check.txt
           node --experimental-transform-types scripts/quality20-construction-find-check.ts | tee artifacts/quality20-construction-find-check.txt
+          node --experimental-transform-types scripts/quality20-construction-copy-check.ts | tee artifacts/quality20-construction-copy-check.txt
           node scripts/sprint10-cloud-live-artifact-input-check.mjs | tee artifacts/sprint10-cloud-live-artifact-input-check.txt
           npm run test:point-to-object-source-deadline | tee artifacts/sprint10-source-deadline-contract.txt
           node --experimental-transform-types scripts/source-request-trace-check.mjs | tee artifacts/source-request-trace-contract.txt

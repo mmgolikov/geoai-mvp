@@ -1,5 +1,18 @@
 # QUALITY20 integration checkpoint
 
+## Current candidate checkpoint — 20 September 18:24 UTC
+
+Production and main remain unchanged. The release gate is **NOT ACCEPTED**. Current shared-account usage was56% at the last check; planned stop58%, absolute ceiling62%. API cap remains USD15.
+
+- Exact e12fc493 real ordinary Analyse passed source/AI/canonical local save/reopen without another paid call. The public-object artifact was exported with a fixed SHA and subsequently saved once to the approved closed Dubai Investment Screening cloud project. A clean browser imported the identical artifact. The full cloud run then failed because its test incorrectly expected the map route instead of the actual `/prototype/point-to-object/analysis` route. No second copy is authorized or necessary: the continuation test reads the exact existing artifact, forbids analyst PUT, separately verifies outsider/viewer denial and preserves the original row.
+- Six programme/AOI Create cases passed real generation, geometry, A/B,2D/3D and local persistence: RM rectangle/concave and CH rectangle on9082747; CH concave and CG rectangle/concave on e12fc493. Large concave geometry also passed on9082747. These are exact historical receipts, not a claim of five urban programmes or textured architectural generation.
+- Construction Find on e12 passed source/three-candidate comparison/map/local Find reopen and the first real AI save/reopen. The run failed on the uninstrumented return/next-candidate segment. A stale diagnostic stage was misleading; the exact failing assertion was not retained. Added fixed-enum checkpoints preserve all original assertions and do not certify the unresolved journey.
+- Independent content review accepted the ordinary hotel analysis within partial-source limits and found construction wording overstated current activity and industrial end use. Narrow server-owned labels/classification now retain mapped construction as an observation, not proof of active works or future industrial use. Focused EN/RU regressions pass; fresh affected live evidence is required.
+- The next depth-cycle baseline failed after dispatch, receipt49 unknown. Its full USD1.20 reserve remains held; no further paid request is authorized by prior per-receipt approvals. Server request logs show HTTP200 but do not include provider usage, which is not proof of client completion or cost. Exact consent to conservative accounting has been requested; independent cloud/CI work continues.
+- Integrated CI's obsolete static hotel-only oracle has been corrected to strictly bind both hotel and construction branches. Final exact CI remains required. All original failures are preserved.
+
+Full24-case depth/goal coverage,5 Find areas, frozen-source quality comparison, rendered Figma evidence and final Production post-deploy acceptance remain open. No MVP/release or full matrix PASS is claimed.
+
 ## Current candidate checkpoint — 20 September 16:15 UTC
 
 This section supersedes the checkpoints below. Production/main are unchanged. Shared account usage47%, absolute founder-approved ceiling62%, planned stop58%; API cap USD15 unchanged.
