@@ -35,6 +35,7 @@ import {
 import { findLiveJourneyDiagnostic } from "./sprint10-live-journey-diagnostics.mjs";
 import { loadQuality20Selection, quality20ApprovalSuffix, validateQuality20Ledger } from "../tests/e2e/helpers/quality20-frozen-case.ts";
 import { loadQuality20Acquisition } from "../tests/e2e/helpers/quality20-acquisition.ts";
+import { validateGoalDepthCaptureEnvironment } from "../tests/e2e/helpers/sprint10-goal-depth-evidence.ts";
 
 const exactDevelopmentProjectRef = "pphdqkurxneyagvnnjdt";
 const exactLedgerId = "5aa405b3-bbda-48aa-aeea-ca3357be4042";
@@ -42,9 +43,13 @@ const exactExplicitRun = "root-paid-live-journey-2026-09-18";
 const acceptedScopes = new Set([
   "journey", "dubai-analyse", "dubai-find", "singapore-create",
   "singapore-analyse", "singapore-find", "dubai-create", "dubai-depth-cycle",
+  "dubai-profile-depth-cycle", "dubai-redevelopment-depth-cycle", "dubai-diligence-depth-cycle",
   "quality20-analyse", "quality20-find", "quality20-create", "quality20-acquire"
 ]);
 export const LIVE_SCOPE_RECEIPT_PLAN = Object.freeze({
+  ...Object.fromEntries(["dubai-profile-depth-cycle", "dubai-redevelopment-depth-cycle", "dubai-diligence-depth-cycle"].map((scope) => [scope,
+    Object.freeze(["standard", "standard", "deep", "quick"].map((depth) => Object.freeze({ route: "ai", depth, reserveUsd: RESERVE_USD.ai })))
+  ])),
   "quality20-analyse": Object.freeze([Object.freeze({ route: "ai", depth: null, reserveUsd: RESERVE_USD.ai })]),
   "quality20-find": Object.freeze([]),
   "quality20-acquire": Object.freeze([]),
@@ -310,6 +315,7 @@ function preflight(repositoryRoot) {
   if (!acceptedScopes.has(scope)) fail("The selected bounded live scope is not accepted.");
   const analysisEvidenceEnvironment = validateAnalysisEvidenceCaptureEnvironment(process.env, scope);
   const depthCycleEvidenceEnvironment = validateDepthCycleEvidenceCaptureEnvironment(process.env, scope);
+  const goalDepthEvidenceEnvironment = validateGoalDepthCaptureEnvironment(process.env, scope);
   const previewUrl = canonicalOrigin(required("GEOAI_SPRINT10_LIVE_PREVIEW_URL"));
   const baseUrl = canonicalOrigin(required("GEOAI_E2E_BASE_URL"));
   if (!previewUrl || baseUrl !== previewUrl) fail("The base URL and Preview URL must be the same exact origin.");
@@ -363,7 +369,8 @@ function preflight(repositoryRoot) {
     ] : acquisition ? ["GEOAI_QUALITY20_ACQUISITION_PLAN_PATH", "GEOAI_QUALITY20_ACQUISITION_PLAN_SHA256", "GEOAI_QUALITY20_ACQUISITION_OUTPUT_PATH"] : [])
       .map((name) => [name, required(name)])),
     analysisEvidenceEnvironment,
-    depthCycleEvidenceEnvironment
+    depthCycleEvidenceEnvironment,
+    goalDepthEvidenceEnvironment
   };
 }
 
@@ -550,7 +557,7 @@ function run() {
 const { defineConfig } = require(${JSON.stringify(playwrightEntry)});
 module.exports = defineConfig({
   testDir: ${JSON.stringify(join(repositoryRoot, "tests/e2e"))},
-  timeout: ${config.scope === "dubai-depth-cycle" ? 1020000 : 720000},
+  timeout: ${config.scope.endsWith("depth-cycle") ? 1020000 : 720000},
   expect: { timeout: 45000 },
   fullyParallel: false,
   forbidOnly: true,
@@ -589,6 +596,7 @@ module.exports = defineConfig({
     ...Object.fromEntries(liveKeys.map((key) => [key, required(key)])),
     ...config.analysisEvidenceEnvironment,
     ...config.depthCycleEvidenceEnvironment,
+    ...config.goalDepthEvidenceEnvironment,
     ...config.quality20Environment,
     GEOAI_SPRINT10_LIVE_RUNNER_ACTIVE: "1"
   };
@@ -627,7 +635,7 @@ module.exports = defineConfig({
       env: liveEnvironment,
       encoding: "utf8",
       maxBuffer: 32 * 1024 * 1024,
-      timeout: config.scope === "dubai-depth-cycle" ? 1_080_000 : 750_000,
+      timeout: config.scope.endsWith("depth-cycle") ? 1_080_000 : 750_000,
       killSignal: "SIGTERM"
     });
     if (result.error || result.signal) fail("The live child exceeded its bounded execution window; logout is not verified and operator action is required.");

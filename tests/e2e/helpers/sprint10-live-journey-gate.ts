@@ -11,6 +11,9 @@ export const SPRINT10_LIVE_PAID_SCOPE_MATRIX = {
   "singapore-find": { ai: 0, create: 0 },
   "dubai-create": { ai: 0, create: 1 },
   "dubai-depth-cycle": { ai: 4, create: 0 },
+  "dubai-profile-depth-cycle": { ai: 4, create: 0 },
+  "dubai-redevelopment-depth-cycle": { ai: 4, create: 0 },
+  "dubai-diligence-depth-cycle": { ai: 4, create: 0 },
   "quality20-analyse": { ai: 1, create: 0 },
   "quality20-find": { ai: 0, create: 0 },
   "quality20-acquire": { ai: 0, create: 0 },
@@ -18,6 +21,53 @@ export const SPRINT10_LIVE_PAID_SCOPE_MATRIX = {
 } as const;
 
 export type Sprint10LiveScope = keyof typeof SPRINT10_LIVE_PAID_SCOPE_MATRIX;
+
+// A functional UI matrix: runtime evidence may differ between requests. This is
+// deliberately separate from the frozen-source comparative quality benchmark.
+export const SPRINT10_GOAL_DEPTH_PRESETS = [
+  { goal: "object_profile", label: "Object profile", question: "Build a concise decision-oriented profile of this object. Separate observed map evidence, derived implications and hypotheses, and identify the most material evidence gaps." },
+  { goal: "development_screening", label: "Development screening", question: "Screen this object from the selected perspective. Identify what the available evidence implies, the strongest preliminary opportunities and risks, and what must be validated before further commitment." },
+  { goal: "redevelopment", label: "Redevelopment", question: "Assess whether redevelopment or repositioning is a useful hypothesis to investigate for this object. Do not assume development rights, condition, demand or financial feasibility." },
+  { goal: "due_diligence", label: "Due diligence", question: "Turn the available evidence into a prioritized due-diligence plan. Explain which unknowns could change the decision most and which sources should be checked first." }
+] as const;
+
+export const SPRINT10_GOAL_DEPTH_SCOPES = {
+  "dubai-profile-depth-cycle": SPRINT10_GOAL_DEPTH_PRESETS[0],
+  "dubai-redevelopment-depth-cycle": SPRINT10_GOAL_DEPTH_PRESETS[2],
+  "dubai-diligence-depth-cycle": SPRINT10_GOAL_DEPTH_PRESETS[3]
+} as const;
+export type Sprint10GoalDepthScope = keyof typeof SPRINT10_GOAL_DEPTH_SCOPES;
+
+export function sprint10GoalDepthRecipe(scope: Sprint10GoalDepthScope) {
+  const { goal, question } = SPRINT10_GOAL_DEPTH_SCOPES[scope];
+  return [
+    { goal: "custom", depth: "standard", question: "What evidence supports this screening result, and what must be validated before a redevelopment decision?" },
+    ...(["standard", "deep", "quick"] as const).map((depth) => ({ goal, depth, question }))
+  ];
+}
+
+export type Sprint10GoalDepthSource = { sourceFeatureId: string; longitude: number; latitude: number };
+
+/** Reject a changed recipe/source before a request can reserve or dispatch. */
+export function validateSprint10GoalDepthRequest(body: unknown, occurrence: number, source: Sprint10GoalDepthSource | null, scope: Sprint10GoalDepthScope): void {
+  const expected = sprint10GoalDepthRecipe(scope)[occurrence - 1];
+  if (!source || !expected || !Number.isInteger(occurrence) || !body || typeof body !== "object" || Array.isArray(body)) {
+    throw new Error("Goal/depth matrix request is unarmed or outside its exact four-request recipe.");
+  }
+  const value = body as Record<string, unknown>;
+  const keys = ["caseKey", "longitude", "latitude", "locale", "role", "scenario", "question", "depth", "goal",
+    "perspective", "horizon", "expectedSourceFeatureId", "consent", "challenge"];
+  if (Object.keys(value).sort().join("|") !== keys.sort().join("|") ||
+      !/^(?:node|way|relation)\/[1-9]\d{0,19}$/.test(source.sourceFeatureId) ||
+      !Number.isFinite(source.longitude) || !Number.isFinite(source.latitude) ||
+      value.goal !== expected.goal || value.depth !== expected.depth || value.question !== expected.question ||
+      value.caseKey !== "dubai" || value.longitude !== source.longitude || value.latitude !== source.latitude ||
+      value.expectedSourceFeatureId !== source.sourceFeatureId || value.role !== "developer" || value.scenario !== "unspecified" ||
+      value.perspective !== "developer" || value.horizon !== "current" || value.locale !== "en" || value.consent !== true ||
+      typeof value.challenge !== "string" || value.challenge.length === 0) {
+    throw new Error("Goal/depth matrix request changed its exact goal, depth, public question, settings or source identity.");
+  }
+}
 
 export function sprint10PaidPostDecision(
   scope: Sprint10LiveScope,

@@ -36,6 +36,9 @@ import {
   type Sprint10LiveScope,
   sprint10LiveRequestKey
 } from "./helpers/sprint10-live-journey-gate";
+import { SPRINT10_GOAL_DEPTH_SCOPES, validateSprint10GoalDepthRequest,
+  type Sprint10GoalDepthScope, type Sprint10GoalDepthSource } from "./helpers/sprint10-live-journey-gate";
+import { validateGoalDepthCaptureEnvironment, writeSprint10GoalDepthEvidence } from "./helpers/sprint10-goal-depth-evidence";
 import {
   SPRINT10_ANALYSIS_EVIDENCE_CAPTURE_OPT_IN,
   SPRINT10_PUBLIC_ANALYSIS_QUESTION,
@@ -68,6 +71,7 @@ const EXPECTED_LEDGER_ID = "5aa405b3-bbda-48aa-aeea-ca3357be4042";
 const LIVE_SCOPES: readonly Sprint10LiveScope[] = [
   "journey", "dubai-analyse", "dubai-find", "singapore-create",
   "singapore-analyse", "singapore-find", "dubai-create", "dubai-depth-cycle",
+  "dubai-profile-depth-cycle", "dubai-redevelopment-depth-cycle", "dubai-diligence-depth-cycle",
   "quality20-analyse", "quality20-find", "quality20-create", "quality20-acquire"
 ] as const;
 const ANALYSE_SUGGESTION_RESPONSE_TIMEOUT_MS = 30_000;
@@ -103,6 +107,7 @@ type LiveConfiguration = {
   receiptPath: string;
   analysisEvidencePath: string | null;
   depthCycleEvidencePath: string | null;
+  goalDepthEvidencePrefix: string | null;
   quality20: Quality20Selection | null;
   acquisition: Quality20Acquisition | null;
 };
@@ -381,6 +386,7 @@ function loadConfiguration(baseURL: string | undefined): LiveConfiguration {
     guard(!evidenceRequested, "Single-response and depth-cycle evidence capture cannot be combined.");
     validateSprint10DepthCycleEvidencePath(depthEvidencePath);
   }
+  const goalCapture = validateGoalDepthCaptureEnvironment(process.env, selectedScope);
   return {
     scope: selectedScope,
     origin: preview.origin,
@@ -395,6 +401,7 @@ function loadConfiguration(baseURL: string | undefined): LiveConfiguration {
     receiptPath: required("GEOAI_SPRINT10_LIVE_DEPLOYMENT_RECEIPT_PATH"),
     analysisEvidencePath: evidenceRequested ? evidencePath! : null,
     depthCycleEvidencePath: depthEvidenceRequested ? depthEvidencePath! : null,
+    goalDepthEvidencePrefix: goalCapture.GEOAI_SPRINT10_GOAL_DEPTH_EVIDENCE_PREFIX ?? null,
     quality20: loadQuality20Selection(process.env, selectedScope, { commit, origin: preview.origin }),
     acquisition: selectedScope === "quality20-acquire" ? loadQuality20Acquisition(process.env, { commit, origin: preview.origin }) : null
   };
@@ -499,6 +506,7 @@ function installBudgetGate(page: Page, configuration: LiveConfiguration) {
   const receiptIds: number[] = [];
   let fatal: string | null = null;
   let frozenCaseArmed = configuration.quality20 === null;
+  let goalDepthSource: Sprint10GoalDepthSource | null = null;
 
   const markUnknown = (item: PendingPaidRequest, reason: "request_failed_after_dispatch" | "response_unreadable") => {
     if (item.terminal) return;
@@ -543,6 +551,10 @@ function installBudgetGate(page: Page, configuration: LiveConfiguration) {
         fatal = "QUALITY20_BLOCKED: frozen case identity/source/body/receipt gate rejected the paid request before reservation.";
         return route.abort("blockedbyclient");
       }
+    }
+    if (Object.hasOwn(SPRINT10_GOAL_DEPTH_SCOPES, configuration.scope)) {
+      try { validateSprint10GoalDepthRequest(body, occurrences[routeName], goalDepthSource, configuration.scope as Sprint10GoalDepthScope); }
+      catch { fatal = "Goal-depth recipe or source rejected before reservation."; return route.abort("blockedbyclient"); }
     }
     const depth = body?.depth;
     if (depth !== "quick" && depth !== "standard" && depth !== "deep") {
@@ -627,6 +639,7 @@ function installBudgetGate(page: Page, configuration: LiveConfiguration) {
 
   return {
     ready: registration,
+    armGoalDepthSource(source: Sprint10GoalDepthSource) { guard(!fatal && occurrences.ai === 0, "Goal-depth source must be armed before the first request."); goalDepthSource = source; },
     armFrozenCase() { guard(!fatal, "A previous gate failure blocks this case."); frozenCaseArmed = true; },
     paidDispatchCount: () => occurrences.ai + occurrences.create,
     receiptIds: () => [...receiptIds],
@@ -1121,7 +1134,8 @@ async function runDubaiAnalyse(page: Page, configuration: LiveConfiguration, pol
   progress.complete("analyse_local_reopen");
 }
 
-async function runDubaiDepthCycle(page: Page, configuration: LiveConfiguration, policy: NetworkPolicy, budget: ReturnType<typeof installBudgetGate>, progress: LiveProgress) {
+async function runDubaiDepthCycle(page: Page, configuration: LiveConfiguration, policy: NetworkPolicy, budget: ReturnType<typeof installBudgetGate>, progress: LiveProgress,
+  presetConfiguration: { goal: string; label: string; question: string } = { goal: "development_screening", label: "Development screening", question: SPRINT10_DEVELOPMENT_SCREENING_QUESTION }) {
   const { chosen, chosenIndex } = await runAnalyseSourceSuggest(page, {
     marketKey: "dubai",
     query: "Shangri-La Dubai",
@@ -1140,6 +1154,7 @@ async function runDubaiDepthCycle(page: Page, configuration: LiveConfiguration, 
   "The selected Dubai depth-cycle source identity was not resolved to the exact structured object.");
   progress.complete("analyse_source_context");
 
+  if (Object.hasOwn(SPRINT10_GOAL_DEPTH_SCOPES, configuration.scope)) budget.armGoalDepthSource({ sourceFeatureId: chosen.id, longitude: chosen.longitude, latitude: chosen.latitude });
   await expect(page.getByRole("button", { name: "Analyze", exact: true })).toBeEnabled({ timeout: 45_000 });
   await page.locator("#point-object-question").fill(SPRINT10_PUBLIC_ANALYSIS_QUESTION);
   progress.start("analyse_paid_response");
@@ -1179,15 +1194,16 @@ async function runDubaiDepthCycle(page: Page, configuration: LiveConfiguration, 
   await expect(page.getByTestId("analysis-request-state")).toHaveAttribute("data-completed-depth", "standard");
   await expect.poll(async () => (await localArtifactState(page, configuration.userId, "analyse"))?.count ?? 0).toBe(1);
 
-  const preset = page.getByRole("button", { name: "Development screening", exact: true });
+  const preset = page.getByRole("button", { name: presetConfiguration.label, exact: true });
   await expect(preset).toBeEnabled();
   await preset.click();
   await expect(preset).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator("#analysis-follow-up")).toHaveValue(SPRINT10_DEVELOPMENT_SCREENING_QUESTION);
+  await expect(page.locator("#analysis-follow-up")).toHaveValue(presetConfiguration.question);
 
   const captureInputs: Sprint10DepthCycleEvidenceInput[] = [];
   const screeningDepths = ["standard", "deep", "quick"] as const;
   let previousDepth: "standard" | "deep" | "quick" = "standard";
+  let previousGoal = "custom";
   let finalPayload: Record<string, unknown> | null = null;
   for (const [screeningIndex, depth] of screeningDepths.entries()) {
     const depthButton = page.getByRole("button", { name: depth === "standard" ? "Standard" : depth === "deep" ? "Deep" : "Quick", exact: true });
@@ -1197,19 +1213,25 @@ async function runDubaiDepthCycle(page: Page, configuration: LiveConfiguration, 
     await expect(state).toHaveAttribute("data-draft-depth", depth);
     await expect(state).toHaveAttribute("data-draft-role", "developer");
     await expect(state).toHaveAttribute("data-draft-scenario", "unspecified");
+    await expect(preset).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator("#analysis-follow-up")).toHaveValue(presetConfiguration.question);
+    const displayed = page.getByTestId("role-decision-cards");
+    await expect(displayed).toHaveAttribute("data-goal", previousGoal);
+    await expect(displayed).toHaveAttribute("data-depth", previousDepth);
     const run = page.getByRole("button", { name: "Run focused analysis", exact: true });
     await expect(run).toBeEnabled();
 
     progress.start("analyse_paid_response");
     const requestPromise = page.waitForRequest((request) => request.method() === "POST" && request.url().endsWith("/point-to-object/ai"), { timeout: 45_000 });
     const responsePromise = page.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/point-to-object/ai"), { timeout: 180_000 });
+    const startedAt = Date.now();
     await run.click();
     const request = await requestPromise;
     const submittedRequest: unknown = request.postDataJSON();
     const transportIdentity = validateSprint10DepthCycleTransportIdentity(submittedRequest, chosen.id);
-    guard(record(submittedRequest) && submittedRequest.depth === depth && submittedRequest.goal === "development_screening" &&
+    guard(record(submittedRequest) && submittedRequest.depth === depth && submittedRequest.goal === presetConfiguration.goal &&
       submittedRequest.perspective === "developer" && submittedRequest.horizon === "current" &&
-      submittedRequest.question === SPRINT10_DEVELOPMENT_SCREENING_QUESTION && submittedRequest.locale === "en" &&
+      submittedRequest.question === presetConfiguration.question && submittedRequest.locale === "en" &&
       submittedRequest.role === "developer" && submittedRequest.scenario === "unspecified" &&
       submittedRequest.expectedSourceFeatureId === chosen.id && submittedRequest.consent === true &&
       transportIdentity.caseKey === baselineTransportIdentity.caseKey &&
@@ -1217,6 +1239,10 @@ async function runDubaiDepthCycle(page: Page, configuration: LiveConfiguration, 
       transportIdentity.latitude === baselineTransportIdentity.latitude,
     `The submitted ${depth} screening request changed a fixed non-depth input or source identity.`);
     await expect(state).toHaveAttribute("data-in-flight-depth", depth);
+    await expect(state).toHaveAttribute("data-in-flight-role", "developer");
+    await expect(state).toHaveAttribute("data-in-flight-scenario", "unspecified");
+    await expect(displayed).toHaveAttribute("data-goal", previousGoal);
+    await expect(displayed).toHaveAttribute("data-depth", previousDepth);
     await expect(state).toHaveAttribute("data-completed-depth", previousDepth);
     await expect(page.getByTestId("ai-success")).toBeVisible();
     await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", previousDepth);
@@ -1233,9 +1259,9 @@ async function runDubaiDepthCycle(page: Page, configuration: LiveConfiguration, 
     guard(response.request() === request && response.status() === 200 && record(payload) && payload.mode === "openai" && payload.schemaVersion === 6 &&
       typeof payload.evidencePackHash === "string" && /^[a-f0-9]{64}$/.test(payload.evidencePackHash) &&
       payload.evidencePackId === `p2o_live_evidence_${payload.evidencePackHash.slice(0, 24)}` &&
-      record(payload.request) && payload.request.depth === depth && payload.request.goal === "development_screening" &&
+      record(payload.request) && payload.request.depth === depth && payload.request.goal === presetConfiguration.goal &&
       payload.request.perspective === "developer" && payload.request.horizon === "current" &&
-      payload.request.question === SPRINT10_DEVELOPMENT_SCREENING_QUESTION && payload.request.locale === "en" &&
+      payload.request.question === presetConfiguration.question && payload.request.locale === "en" &&
       payload.request.role === "developer" && payload.request.scenario === "unspecified" &&
       record(payload.subject) && payload.subject.sourceFeatureId === chosen.id && payload.subject.sourceLabel === "© OpenStreetMap contributors" &&
       record(payload.content) && payload.content.caveat === CAVEAT && record(payload.content.depthReview) && payload.content.depthReview.depth === depth,
@@ -1245,6 +1271,10 @@ async function runDubaiDepthCycle(page: Page, configuration: LiveConfiguration, 
     await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", depth);
     await expect(state).toHaveAttribute("data-in-flight-depth", "none");
     await expect(state).toHaveAttribute("data-completed-depth", depth);
+    await expect(state).toHaveAttribute("data-completed-role", "developer");
+    await expect(state).toHaveAttribute("data-completed-scenario", "unspecified");
+    await expect(displayed).toHaveAttribute("data-goal", presetConfiguration.goal);
+    await expect(displayed).toHaveAttribute("data-depth", depth);
     await expect.poll(async () => {
       const artifact = await localArtifactState(page, configuration.userId, "analyse");
       return artifact?.count === screeningIndex + 2
@@ -1268,6 +1298,19 @@ async function runDubaiDepthCycle(page: Page, configuration: LiveConfiguration, 
         }
       });
     }
+    if (configuration.goalDepthEvidencePrefix) {
+      writeSprint10GoalDepthEvidence(configuration.goalDepthEvidencePrefix, configuration.scope as Sprint10GoalDepthScope, screeningIndex + 2, {
+        response: payload, submittedRequest, expectedSourceFeatureId: chosen.id,
+        telemetryIdentity: { requestKey: sprint10LiveRequestKey(configuration.scope, "ai", screeningIndex + 2, configuration.commit),
+          phase: "S4", candidateHost: configuration.host, candidateCommit: configuration.commit, route: "ai", depth,
+          promptVersion: SPRINT10_ANALYSIS_PROMPT_VERSION, schemaVersion: 6 }
+      });
+    }
+    if (Object.hasOwn(SPRINT10_GOAL_DEPTH_SCOPES, configuration.scope)) test.info().annotations.push({
+      type: "functional-goal-depth", description: JSON.stringify({ scope: configuration.scope, goal: presetConfiguration.goal,
+        depth, evidencePackHash: payload.evidencePackHash, latencyMs: Date.now() - startedAt, comparativeBenchmark: false })
+    });
+    previousGoal = presetConfiguration.goal;
     previousDepth = depth;
     finalPayload = payload;
   }
@@ -1294,6 +1337,7 @@ async function runDubaiDepthCycle(page: Page, configuration: LiveConfiguration, 
   await reopenSavedArtifact(page, configuration.userId, "analyse", policy, saved, async () => {
     await expect(page.getByTestId("ai-success")).toBeVisible();
     await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "quick");
+    await expect(page.getByTestId("role-decision-cards")).toHaveAttribute("data-goal", presetConfiguration.goal);
   }, 4);
   expect(budget.paidDispatchCount()).toBe(paidBeforeReopen);
   progress.complete("analyse_local_reopen");
@@ -2123,7 +2167,7 @@ async function runQuality20Acquisition(page: Page, configuration: LiveConfigurat
 
 test("root-authorized protected Preview source-to-decision journey", async ({ page, baseURL }) => {
   test.skip(!runnerActive, "Live execution requires the fail-closed root-owned runner.");
-  test.setTimeout(selectedScope === "dubai-depth-cycle" ? 1_020_000 : 720_000);
+  test.setTimeout(selectedScope?.endsWith("depth-cycle") ? 1_020_000 : 720_000);
   const configuration = loadConfiguration(baseURL);
   const initialLedger = readSprint10SpendLedgerFile(configuration.ledgerRoot, configuration.ledgerPath);
   guard(initialLedger.ledgerId === EXPECTED_LEDGER_ID, "The existing cycle-root ledger identity is not accepted.");
@@ -2165,6 +2209,9 @@ test("root-authorized protected Preview source-to-decision journey", async ({ pa
     }
     if (configuration.scope === "dubai-depth-cycle") {
       await runDubaiDepthCycle(page, configuration, policy, budget, progress);
+    }
+    if (Object.hasOwn(SPRINT10_GOAL_DEPTH_SCOPES, configuration.scope)) {
+      await runDubaiDepthCycle(page, configuration, policy, budget, progress, SPRINT10_GOAL_DEPTH_SCOPES[configuration.scope as Sprint10GoalDepthScope]);
     }
     if (configuration.scope === "journey" || configuration.scope === "dubai-find") {
       try { await runDubaiFind(page, configuration, policy, budget, progress); }

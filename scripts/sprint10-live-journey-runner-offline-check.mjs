@@ -67,6 +67,9 @@ try {
     scope,
     plan.map(({ route, depth, reserveUsd }) => ({ route, depth, reserveUsd }))
   ])), {
+    ...Object.fromEntries(["dubai-profile-depth-cycle", "dubai-redevelopment-depth-cycle", "dubai-diligence-depth-cycle"].map((scope) => [scope,
+      ["standard", "standard", "deep", "quick"].map((depth) => ({ route: "ai", depth, reserveUsd: RESERVE_USD.ai }))
+    ])),
     "quality20-analyse": [{ route: "ai", depth: null, reserveUsd: RESERVE_USD.ai }],
     "quality20-find": [],
     "quality20-acquire": [],

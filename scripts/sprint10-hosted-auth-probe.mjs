@@ -20,6 +20,7 @@ import {
 } from "node:fs";
 import { basename, dirname, isAbsolute, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { validateGoalDepthCaptureEnvironment } from "../tests/e2e/helpers/sprint10-goal-depth-evidence.ts";
 import {
   LIVE_SCOPE_RECEIPT_PLAN,
   validateAnalysisEvidenceCaptureEnvironment,
@@ -42,6 +43,7 @@ const exactPreviewSeamOptIn = "run-existing-real-password-preview-harness";
 const exactLiveJourneySeamOptIn = "run-reviewed-sprint10-live-journey-before-retirement";
 const exactLedgerId = "5aa405b3-bbda-48aa-aeea-ca3357be4042";
 const acceptedLiveScopes = new Set([
+  "dubai-profile-depth-cycle", "dubai-redevelopment-depth-cycle", "dubai-diligence-depth-cycle",
   "journey", "dubai-analyse", "dubai-find", "singapore-create",
   "singapore-analyse", "singapore-find", "dubai-create", "dubai-depth-cycle",
   "quality20-analyse", "quality20-find", "quality20-create", "quality20-acquire"
@@ -284,6 +286,8 @@ export function validateRuntimeConfig(
     liveJourneySeam === exactLiveJourneySeamOptIn ? env.GEOAI_HOSTED_AUTH_PROBE_LIVE_JOURNEY_SCOPE : undefined);
   const depthCycleEvidenceEnvironment = validateDepthCycleEvidenceCaptureEnvironment(env,
     liveJourneySeam === exactLiveJourneySeamOptIn ? env.GEOAI_HOSTED_AUTH_PROBE_LIVE_JOURNEY_SCOPE : undefined);
+  const goalDepthEvidenceEnvironment = validateGoalDepthCaptureEnvironment(env,
+    liveJourneySeam === exactLiveJourneySeamOptIn ? env.GEOAI_HOSTED_AUTH_PROBE_LIVE_JOURNEY_SCOPE : undefined);
   let liveJourney = null;
   if (liveJourneySeam === exactLiveJourneySeamOptIn) {
     if (previewSeam !== exactPreviewSeamOptIn) {
@@ -331,7 +335,8 @@ export function validateRuntimeConfig(
       ] : acquisition ? ["GEOAI_QUALITY20_ACQUISITION_PLAN_PATH", "GEOAI_QUALITY20_ACQUISITION_PLAN_SHA256", "GEOAI_QUALITY20_ACQUISITION_OUTPUT_PATH"] : [])
         .map((name) => [name, required(env, name)])),
       analysisEvidenceEnvironment,
-      depthCycleEvidenceEnvironment
+      depthCycleEvidenceEnvironment,
+      goalDepthEvidenceEnvironment
     };
   }
   return {
@@ -908,6 +913,7 @@ export function buildLiveJourneyChildEnvironment(config, personas, env = process
     GEOAI_E2E_BASE_URL: env.GEOAI_E2E_BASE_URL,
     ...config.liveJourney.analysisEvidenceEnvironment,
     ...config.liveJourney.depthCycleEvidenceEnvironment,
+    ...config.liveJourney.goalDepthEvidenceEnvironment,
     ...config.liveJourney.quality20Environment,
     GEOAI_SPRINT10_LIVE_EXPLICIT_RUN: "root-paid-live-journey-2026-09-18",
     GEOAI_SPRINT10_LIVE_SCOPE: config.liveJourney.scope,
@@ -1075,7 +1081,7 @@ export function runReviewedLiveJourney(
     env: childEnvironment,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
-    timeout: config.liveJourney.scope === "dubai-depth-cycle" ? 1_140_000 : 810_000,
+    timeout: config.liveJourney.scope.endsWith("depth-cycle") ? 1_140_000 : 810_000,
     killSignal: "SIGTERM",
     maxBuffer: 256 * 1024
   });
