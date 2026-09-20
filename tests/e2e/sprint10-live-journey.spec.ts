@@ -1901,8 +1901,32 @@ async function runMarketCreate(
     for (const [name, value] of sliders) {
       const slider = page.getByRole("slider", { name });
       const current = Number(await slider.inputValue());
+      const minimum = Number(await slider.getAttribute("min") ?? "0");
+      const maximum = Number(await slider.getAttribute("max") ?? "100");
+      const step = Number(await slider.getAttribute("step") ?? "1");
+      guard(Number.isFinite(step) && step > 0 && value >= minimum && value <= maximum &&
+        Math.abs((value - current) / step - Math.round((value - current) / step)) < 1e-8,
+      "The requested Create slider value is not reachable through its native step.");
       await slider.focus();
-      for (let i = 0; i < Math.abs(value - current); i++) await page.keyboard.press(value > current ? "ArrowRight" : "ArrowLeft");
+      if (current === value) {
+        // Exercise onChange even for template defaults. Keep coupled height controls intact.
+        const isMinimumLevels = name.source === "^Minimum levels";
+        const isMaximumLevels = name.source === "^Maximum levels";
+        const pairedLevel = isMinimumLevels || isMaximumLevels ? Number(await page.getByRole("slider", {
+          name: isMinimumLevels ? /^Maximum levels/ : /^Minimum levels/
+        }).inputValue()) : null;
+        const neighbours = isMaximumLevels ? [current + step, current - step] : [current - step, current + step];
+        const neighbour = neighbours.find(candidate => candidate >= minimum && candidate <= maximum &&
+          (!isMinimumLevels || candidate <= pairedLevel!) && (!isMaximumLevels || candidate >= pairedLevel!));
+        guard(neighbour !== undefined, "The Create slider has no legal reversible neighbouring value.");
+        await page.keyboard.press(neighbour > current ? "ArrowRight" : "ArrowLeft");
+        await expect(slider).toHaveValue(String(neighbour));
+        await page.keyboard.press(neighbour > current ? "ArrowLeft" : "ArrowRight");
+      } else {
+        for (let i = 0; i < Math.round(Math.abs(value - current) / step); i++) {
+          await page.keyboard.press(value > current ? "ArrowRight" : "ArrowLeft");
+        }
+      }
       await expect(slider).toHaveValue(String(value));
     }
     await expect(page.getByTestId("create-local-preflight")).toHaveAttribute("data-preflight-kind", "ready", { timeout: 30_000 });
