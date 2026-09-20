@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { closeSync, constants, fstatSync, openSync, readFileSync, realpathSync } from "node:fs";
 import { isAbsolute } from "node:path";
 // @ts-expect-error The offline Node strip-types runner needs an explicit extension.
-import { parseSprint10SpendLedger, hasSprint10UnresolvedCharge, type Sprint10SpendLedger } from "./sprint10-live-budget.ts";
+import { parseSprint10SpendLedger, hasSprint10UnresolvedCharge, SPRINT10_MAX_RECEIPTS, type Sprint10SpendLedger } from "./sprint10-live-budget.ts";
 
 export const QUALITY20_AMENDMENT = "quality20-dubai-a01-a06-singapore-a07-a08-v1";
 export const QUALITY20_SCOPES = ["quality20-analyse", "quality20-find", "quality20-create"] as const;
@@ -210,7 +210,7 @@ export function validateQuality20Ledger(selection: Quality20Selection, input: Sp
   requireCondition(Array.isArray(input) || parsed, "Full spend ledger or conservative accounting is invalid.");
   const receipts = parsed ? parsed.receipts : input as readonly { identity?: { requestKey?: string }; state?: string }[];
   const paid = selection.definition.scope !== "quality20-find";
-  requireCondition(receipts.length >= 13 && receipts.length + Number(paid) <= 62, "Historic-inclusive 62-receipt execution ceiling reached or historic denominator missing.");
+  requireCondition(receipts.length >= 13 && receipts.length + Number(paid) <= SPRINT10_MAX_RECEIPTS, "Bounded historic-inclusive receipt journal is full or historic denominator missing.");
   requireCondition(parsed ? !hasSprint10UnresolvedCharge(parsed, true) : !receipts.some((receipt) => receipt.state === "reserved" || receipt.state === "unknown"), "Unsettled/unknown receipts block the next case.");
   requireCondition(!receipts.some((receipt) => receipt.identity?.requestKey?.startsWith(`Q20:${selection.definition.id}:`)), "Case already attempted; no automatic retry even under a revised manifest.");
 }

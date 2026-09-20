@@ -58,8 +58,10 @@ for (const change of [
 const receipts = Array.from({ length: 13 }, () => ({ state: "settled", identity: { requestKey: "HISTORICAL" } }));
 validateQuality20Ledger(selected, receipts);
 validateQuality20Ledger(selected, [...receipts, ...Array.from({ length: 48 }, () => ({ state: "settled" }))]);
+validateQuality20Ledger(selected, [...receipts, ...Array.from({ length: 59 }, () => ({ state: "settled" }))]);
+validateQuality20Ledger(selected, [...receipts, ...Array.from({ length: 146 }, () => ({ state: "settled" }))]);
 assert.throws(() => validateQuality20Ledger(selected, receipts.slice(1)));
-assert.throws(() => validateQuality20Ledger(selected, [...receipts, ...Array.from({ length: 49 }, () => ({ state: "settled" }))]));
+assert.throws(() => validateQuality20Ledger(selected, [...receipts, ...Array.from({ length: 147 }, () => ({ state: "settled" }))]));
 assert.throws(() => validateQuality20Ledger(selected, [...receipts, { state: "unknown" }]));
 assert.throws(() => validateQuality20Ledger(selected, [...receipts, { state: "reserved" }]));
 assert.throws(() => validateQuality20Ledger(selected, [...receipts, { state: "settled", identity: { requestKey: `Q20:A01-Q:AI:${"0".repeat(64)}` } }]));
@@ -107,4 +109,4 @@ assert.throws(() => validateQuality20AnalysisResult(selected, { ...result, reque
 assert.throws(() => validateQuality20AnalysisResult(selected, { ...result, subject: { ...result.subject, sourceFeatureId: "way/9999" } }));
 assert.equal(sprint10PaidPostDecision("quality20-acquire", "ai", 1).ok, false);
 assert.equal(sprint10PaidPostDecision("quality20-acquire", "create", 1).ok, false);
-console.log("PASS: offline frozen-case contract, 54 registered cases / 62 historic-inclusive planned receipts; NO live outcomes.");
+console.log("PASS: offline frozen-case contract, 54 registered cases / original 62 planned receipts; NIGHT21 bounded journal160 with history retained; NO live outcomes.");

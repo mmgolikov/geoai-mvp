@@ -148,7 +148,9 @@ const REQUEST_ID_PATTERN = /^[\x21-\x7e]{1,200}$/;
 const ISO_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 // Bounded journal capacity for the expanded, founder-approved acceptance matrix.
 // This is not a spending allowance: every reserve still shares the USD 15 cap.
-const MAX_RECEIPTS = 80;
+// NIGHT21 continues the same immutable USD15 ledger; this is journal capacity,
+// not money, retry permission, a fresh cycle or permission to discard history.
+export const SPRINT10_MAX_RECEIPTS = 160;
 const LOCK_WAIT_MS = 5_000;
 const LOCK_POLL_MS = 10;
 const SLEEP_ARRAY = new Int32Array(new SharedArrayBuffer(4));
@@ -451,7 +453,7 @@ export function parseSprint10SpendLedger(value: unknown): Sprint10SpendLedger | 
       value.cycleId !== SPRINT10_CYCLE_ID || typeof value.ledgerId !== "string" ||
       !LEDGER_ID_PATTERN.test(value.ledgerId) || !validIso(value.createdAt) ||
       value.ceilingUsd !== SPRINT10_LIVE_CEILING_USD || !integer(value.generation) ||
-      !Array.isArray(value.receipts) || value.receipts.length > MAX_RECEIPTS ||
+      !Array.isArray(value.receipts) || value.receipts.length > SPRINT10_MAX_RECEIPTS ||
       !finite(value.estimatedOrReservedUsd)) return null;
   const receipts = value.receipts.map((receipt, index) => parseReceipt(receipt, index + 1, value.ledgerId as string));
   if (receipts.some((receipt) => receipt === null)) return null;
@@ -501,7 +503,7 @@ export function reserveSprint10Spend(
     return { ok: false, reason: "The request identity was already reserved; external reruns require a new requestKey." };
   }
   const reserveUsd = RESERVE_USD[identity.route];
-  if (ledger.receipts.length >= MAX_RECEIPTS) {
+  if (ledger.receipts.length >= SPRINT10_MAX_RECEIPTS) {
     return { ok: false, reason: "The bounded cycle-root receipt journal is full." };
   }
   if (Number((sprint10LedgerCharge(ledger) + reserveUsd).toFixed(8)) > ledger.ceilingUsd) {

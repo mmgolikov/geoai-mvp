@@ -163,10 +163,18 @@ assert.deepEqual(sixtyFifth.ledger.receipts.slice(0, 64), sixtyFour.receipts);
 assert.equal(JSON.stringify(sixtyFour), historyBefore65, "Capacity expansion cannot rewrite original receipts.");
 const eighty = settledHistory(80);
 assert.ok(parseSprint10SpendLedger(eighty));
-assert.deepEqual(reserveSprint10Spend(eighty, identity({ requestKey: "S4.CAPACITY.81" }), reserveAt), {
+const historyBefore81 = JSON.stringify(eighty);
+const eightyFirst = reserveSprint10Spend(eighty, identity({ requestKey: "S4.CAPACITY.81" }), reserveAt);
+assert.ok(eightyFirst.ok, "NIGHT21 continues the same bounded journal without resetting spend.");
+assert.equal(eightyFirst.receipt.id, 81);
+assert.deepEqual(eightyFirst.ledger.receipts.slice(0, 80), eighty.receipts);
+assert.equal(JSON.stringify(eighty), historyBefore81);
+const full = settledHistory(160);
+assert.ok(parseSprint10SpendLedger(full));
+assert.deepEqual(reserveSprint10Spend(full, identity({ requestKey: "S4.CAPACITY.161" }), reserveAt), {
   ok: false, reason: "The bounded cycle-root receipt journal is full."
 });
-assert.equal(parseSprint10SpendLedger(settledHistory(81)), null, "Oversize journals remain invalid.");
+assert.equal(parseSprint10SpendLedger(settledHistory(161)), null, "Oversize journals remain invalid.");
 const historical = structuredClone(settledSeed);
 historical.receipts = Array.from({ length: 23 }, (_, index) => {
   const receipt = structuredClone(settledSeed.receipts[0]!);
