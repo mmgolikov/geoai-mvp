@@ -8,6 +8,7 @@ import {
   LIVE_JOURNEY_DIAGNOSTIC_SCHEMA,
   LIVE_JOURNEY_STEPS,
   canonicalLiveJourneyCompletedSteps,
+  analyseContextFailureStage,
   analyseSuggestionCorrelationChecks,
   boundedLiveJourneyResponseJson,
   encodeLiveJourneyDiagnostic,
@@ -25,6 +26,40 @@ const config = {
 const receipts = [{ id: 1, route: "ai", depth: "standard", state: "settled", estimatedUsd: 0.041167 }];
 const runnerSource = readFileSync(new URL("./sprint10-live-journey-run.mjs", import.meta.url), "utf8");
 const liveSpecSource = readFileSync(new URL("../tests/e2e/sprint10-live-journey.spec.ts", import.meta.url), "utf8");
+for (const [code, stage] of [
+  ["OBJECT_NOT_RESOLVED", "analyse_source_context_object_not_resolved"],
+  ["NOMINATIM_UNAVAILABLE", "analyse_source_context_nominatim_unavailable"],
+  ["NOMINATIM_RESPONSE_INVALID", "analyse_source_context_nominatim_invalid"],
+  ["NOMINATIM_RESPONSE_TOO_LARGE", "analyse_source_context_nominatim_too_large"],
+  ["OVERPASS_TIMEOUT", "analyse_source_context_overpass_timeout"],
+  ["OVERPASS_RATE_LIMITED", "analyse_source_context_overpass_rate_limited"],
+  ["OVERPASS_UNAVAILABLE", "analyse_source_context_overpass_unavailable"],
+  ["OVERPASS_RESPONSE_INVALID", "analyse_source_context_overpass_invalid"],
+  ["OVERPASS_RESPONSE_TOO_LARGE", "analyse_source_context_overpass_too_large"]
+]) {
+  assert.equal(analyseContextFailureStage(502, { code, error: "private-sentinel" }), stage);
+  const diagnostic = { schemaVersion: LIVE_JOURNEY_DIAGNOSTIC_SCHEMA, primaryStatus: "failed", primaryStage: stage, cleanupStage: null, completedSteps: [] };
+  assert.deepEqual(parseLiveJourneyDiagnostic(diagnostic), diagnostic);
+  const classified = classifyLiveJourneyReport({ errors: [{ message: encodeLiveJourneyDiagnostic(diagnostic) }] }, 1, config, []);
+  assert.equal(classified.receipt.status, "FAIL");
+  assert.equal(classified.receipt.diagnostic.primaryStage, stage);
+  assert.doesNotMatch(JSON.stringify(classified), /private-sentinel/);
+}
+for (const payload of [null, [], {}, { code: "__proto__" }, { code: "constructor" }, { code: "private-sentinel" }, { code: 7 }]) {
+  assert.equal(analyseContextFailureStage(502, payload), "analyse_source_context_http");
+  assert.equal(analyseContextFailureStage(200, payload), null, "success must still reach the existing exact-object contract checks");
+}
+const contextReaderSource = liveSpecSource.slice(liveSpecSource.indexOf("async function readAnalyseContextResponse("), liveSpecSource.indexOf("async function runDubaiAnalyse("));
+assert.match(contextReaderSource, /boundedLiveJourneyResponseJson\(response, 10_000\)/);
+assert.doesNotMatch(contextReaderSource, /fetch\(|console[.]|JSON[.]stringify|\.error\b|\.text\(/);
+for (const [status, payload, expectedStage] of [[502, { code: "OBJECT_NOT_RESOLVED", error: "private-sentinel" }, "analyse_source_context_object_not_resolved"], [502, { code: "secret-code" }, "analyse_source_context_http"], [200, { subject: "unchanged" }, "analyse_source_context_contract"]]) {
+  const reader = new Function("boundedLiveJourneyResponseJson", "analyseContextFailureStage", `${stripTypeScriptTypes(contextReaderSource, { mode: "transform", sourceMap: false })}; return readAnalyseContextResponse;`)(boundedLiveJourneyResponseJson, analyseContextFailureStage);
+  let stage;
+  const result = reader({ status: () => status, json: async () => payload }, { start: value => { stage = value; }, complete: value => assert.equal(value, stage) });
+  if (status === 200) assert.equal(await result, payload);
+  else await assert.rejects(result, /^Error: The selected source context returned a non-success response[.]$/);
+  assert.equal(stage, expectedStage);
+}
 const paidEntrySource = liveSpecSource.slice(liveSpecSource.indexOf("async function observePaidAnalyseEntry("), liveSpecSource.indexOf("async function runDubaiAnalyse("));
 assert.match(paidEntrySource, /observeSourcePostResponse\(page, "\/api\/prototype\/point-to-object\/ai", 180_000\)/);
 assert.match(paidEntrySource, /getByRole\("button", \{ name: "Analyze", exact: true \}\)[.]click\(\)/);

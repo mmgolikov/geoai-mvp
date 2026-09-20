@@ -60,7 +60,7 @@ import {
   type Sprint10DepthCycleEvidenceInput
 } from "./helpers/sprint10-depth-cycle-evidence";
 // @ts-expect-error The diagnostics module is an operator-only JavaScript contract checked by its offline suite.
-import { LIVE_JOURNEY_CLEANUP_STAGES, LIVE_JOURNEY_STEPS, analyseSuggestionCorrelationChecks, boundedLiveJourneyResponseJson, canonicalLiveJourneyCompletedSteps, encodeLiveJourneyDiagnostic, primaryAfterFinalizeFailure } from "../../scripts/sprint10-live-journey-diagnostics.mjs";
+import { LIVE_JOURNEY_CLEANUP_STAGES, LIVE_JOURNEY_STEPS, analyseContextFailureStage, analyseSuggestionCorrelationChecks, boundedLiveJourneyResponseJson, canonicalLiveJourneyCompletedSteps, encodeLiveJourneyDiagnostic, primaryAfterFinalizeFailure } from "../../scripts/sprint10-live-journey-diagnostics.mjs";
 import { POINT_OBJECT_SOURCE_HARNESS_RESPONSE_TIMEOUT_MS as SOURCE_REQUEST_HARNESS_TIMEOUT_MS } from "../../src/lib/prototype/source-request-deadline";
 import { loadQuality20Selection, quality20Hash, quality20RequestKey, validateQuality20Context,
   validateQuality20PaidBody, validateQuality20AnalysisResult, validateQuality20Ledger,
@@ -1145,6 +1145,19 @@ async function observePaidAnalyseEntry(page: Page, progress: LiveProgress): Prom
   return observed.response;
 }
 
+async function readAnalyseContextResponse(response: Response, progress: LiveProgress): Promise<unknown> {
+  progress.start("analyse_source_context_body");
+  const payload: unknown = await boundedLiveJourneyResponseJson(response, 10_000);
+  progress.complete("analyse_source_context_body");
+  const failedStage = analyseContextFailureStage(response.status(), payload);
+  if (failedStage !== null) {
+    progress.start(failedStage);
+    throw new Error("The selected source context returned a non-success response.");
+  }
+  progress.start("analyse_source_context_contract");
+  return payload;
+}
+
 async function runDubaiAnalyse(page: Page, configuration: LiveConfiguration, policy: NetworkPolicy, budget: ReturnType<typeof installBudgetGate>, progress: LiveProgress) {
   const { chosen, chosenIndex } = await runAnalyseSourceSuggest(page, {
     marketKey: "dubai",
@@ -1158,10 +1171,12 @@ async function runDubaiAnalyse(page: Page, configuration: LiveConfiguration, pol
   const contextResponse = page.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/point-to-object/context"), { timeout: 45_000 });
   await option.click();
   const context = await contextResponse;
-  const contextPayload: unknown = await context.json();
+  const contextPayload = await readAnalyseContextResponse(context, progress);
   guard(context.status() === 200 && record(contextPayload) && contextPayload.mode === "resolved" && contextPayload.schemaVersion === 2 &&
     record(contextPayload.subject) && contextPayload.subject.sourceFeatureId === chosen.id,
   "The selected Dubai source identity was not resolved to the exact structured object.");
+  progress.complete("analyse_source_context_contract");
+  progress.start("analyse_source_context");
   progress.complete("analyse_source_context");
   await expect(page.getByRole("button", { name: "Analyze", exact: true })).toBeEnabled({ timeout: 45_000 });
   await page.locator("#point-object-question").fill(SPRINT10_PUBLIC_ANALYSIS_QUESTION);
@@ -1249,10 +1264,12 @@ async function runDubaiDepthCycle(page: Page, configuration: LiveConfiguration, 
   const contextResponse = page.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/point-to-object/context"), { timeout: 45_000 });
   await option.click();
   const context = await contextResponse;
-  const contextPayload: unknown = await boundedLiveJourneyResponseJson(context, 10_000);
+  const contextPayload = await readAnalyseContextResponse(context, progress);
   guard(context.status() === 200 && record(contextPayload) && contextPayload.mode === "resolved" && contextPayload.schemaVersion === 2 &&
     record(contextPayload.subject) && contextPayload.subject.sourceFeatureId === chosen.id,
   "The selected Dubai depth-cycle source identity was not resolved to the exact structured object.");
+  progress.complete("analyse_source_context_contract");
+  progress.start("analyse_source_context");
   progress.complete("analyse_source_context");
 
   if (Object.hasOwn(SPRINT10_GOAL_DEPTH_SCOPES, configuration.scope)) {
@@ -1472,10 +1489,12 @@ async function runSingaporeAnalyse(page: Page, configuration: LiveConfiguration,
   const contextResponse = page.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/point-to-object/context"), { timeout: 45_000 });
   await option.click();
   const context = await contextResponse;
-  const contextPayload: unknown = await context.json();
+  const contextPayload = await readAnalyseContextResponse(context, progress);
   guard(context.status() === 200 && record(contextPayload) && contextPayload.mode === "resolved" && contextPayload.schemaVersion === 2 &&
     record(contextPayload.subject) && contextPayload.subject.sourceFeatureId === chosen.id,
   "The selected Singapore source identity was not resolved to the exact structured object.");
+  progress.complete("analyse_source_context_contract");
+  progress.start("analyse_source_context");
   progress.complete("analyse_source_context");
   await expect(page.getByRole("button", { name: "Analyze", exact: true })).toBeEnabled({ timeout: 45_000 });
   await page.locator("#point-object-question").fill(SPRINT10_PUBLIC_ANALYSIS_QUESTION);
@@ -2331,10 +2350,12 @@ async function quality20SelectSource(page: Page, input: { marketKey: "dubai" | "
     new URL(response.url()).pathname === "/api/prototype/point-to-object/context", { timeout: SOURCE_REQUEST_HARNESS_TIMEOUT_MS });
   await page.locator(`#point-object-search-result-${chosenIndex}`).click();
   const response = await responsePromise;
-  const payload: unknown = await boundedLiveJourneyResponseJson(response, 10_000);
+  const payload = await readAnalyseContextResponse(response, progress);
   const receivedAt = new Date().toISOString();
   guard(response.status() === 200 && record(payload) && payload.mode === "resolved" && record(payload.subject) &&
     payload.subject.sourceFeatureId === input.sourceIdentity, "Observed context did not resolve the exact frozen source identity.");
+  progress.complete("analyse_source_context_contract");
+  progress.start("analyse_source_context");
   progress.complete("analyse_source_context");
   return { payload, receivedAt, sourceLatencyMs: Date.now() - startedAt };
 }

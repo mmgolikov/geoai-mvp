@@ -22,6 +22,18 @@ export const LIVE_JOURNEY_STEPS = Object.freeze([
   "analyse_source_suggest_coordinates",
   "analyse_source_suggest_candidate",
   "analyse_source_context",
+  "analyse_source_context_body",
+  "analyse_source_context_contract",
+  "analyse_source_context_http",
+  "analyse_source_context_object_not_resolved",
+  "analyse_source_context_nominatim_unavailable",
+  "analyse_source_context_nominatim_invalid",
+  "analyse_source_context_nominatim_too_large",
+  "analyse_source_context_overpass_timeout",
+  "analyse_source_context_overpass_rate_limited",
+  "analyse_source_context_overpass_unavailable",
+  "analyse_source_context_overpass_invalid",
+  "analyse_source_context_overpass_too_large",
   "analyse_depth_select",
   "analyse_depth_click",
   "analyse_depth_request",
@@ -212,6 +224,27 @@ export function analyseSuggestionCorrelationChecks({
     query: requestContract && responseSubmitted.query === submitted.query && submitted.query === expectedQuery,
     coordinates: allCoordinatesInMarket === true
   });
+}
+
+// Never retain arbitrary provider messages, URLs or raw response codes in receipts.
+// The fixed allowlist only classifies an already observed failed context response.
+export function analyseContextFailureStage(httpStatus, payload) {
+  if (httpStatus === 200) return null;
+  const stages = {
+    OBJECT_NOT_RESOLVED: "analyse_source_context_object_not_resolved",
+    NOMINATIM_UNAVAILABLE: "analyse_source_context_nominatim_unavailable",
+    NOMINATIM_RESPONSE_INVALID: "analyse_source_context_nominatim_invalid",
+    NOMINATIM_RESPONSE_TOO_LARGE: "analyse_source_context_nominatim_too_large",
+    OVERPASS_TIMEOUT: "analyse_source_context_overpass_timeout",
+    OVERPASS_RATE_LIMITED: "analyse_source_context_overpass_rate_limited",
+    OVERPASS_UNAVAILABLE: "analyse_source_context_overpass_unavailable",
+    OVERPASS_RESPONSE_INVALID: "analyse_source_context_overpass_invalid",
+    OVERPASS_RESPONSE_TOO_LARGE: "analyse_source_context_overpass_too_large"
+  };
+  const code = payload && typeof payload === "object" && !Array.isArray(payload) ? payload.code : null;
+  return typeof code === "string" && Object.hasOwn(stages, code)
+    ? stages[code]
+    : "analyse_source_context_http";
 }
 
 export async function boundedLiveJourneyResponseJson(response, timeoutMs) {
