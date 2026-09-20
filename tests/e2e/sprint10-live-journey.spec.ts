@@ -1885,7 +1885,9 @@ async function assertSavedCreateGeometry(page: Page, userId: string, expected: u
   }, userId);
   guard(record(stored) && record(stored.aoi), "Saved Create geometry is missing.");
   expect(stored.aoi.coordinates).toEqual(DUBAI_CREATE_GOLDEN.coordinates);
-  expect(stored.generated).toEqual(expected);
+  // areaContextUsed belongs to the wire envelope; the saved domain keeps its
+  // context separately. Every canonical concept field must remain identical.
+  expect(stored.generated).toEqual(assertDubaiCreateGeometry(expected));
   assertDubaiCreateGeometry(stored.generated);
 }
 

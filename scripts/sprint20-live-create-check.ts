@@ -32,6 +32,9 @@ const payload = { mode: "openai_concept", generatedAt: "2026-09-20T10:00:00Z", p
   telemetry: { model: "offline-fixture", reasoningEffort: "none", latencyMs: 0, attempts: 1, estimatedCostUsd: 0, stored: false, toolCalls: 0 },
   caveat: POINT_OBJECT_CREATE_RESULT_CAVEAT };
 assertDubaiCreateGeometry(payload);
+const envelope = { ...payload, areaContextUsed: { sourceResponseHash: "a".repeat(64), sampleSize: 3 } };
+assert.deepEqual(assertDubaiCreateGeometry(envelope), payload,
+  "Save parity compares the canonical concept, not the route-only areaContextUsed envelope field");
 const reduced = structuredClone(payload); reduced.program.targetSiteCoveragePct = 15;
 assert.throws(() => assertDubaiCreateGeometry(reduced), /targetSiteCoveragePct/);
 const overlap = structuredClone(payload);
