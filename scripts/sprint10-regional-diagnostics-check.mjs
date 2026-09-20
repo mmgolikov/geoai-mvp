@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { stripTypeScriptTypes } from "node:module";
 import { POINT_OBJECT_SOURCE_HARNESS_RESPONSE_TIMEOUT_MS } from "../src/lib/prototype/source-request-deadline.ts";
+import { CONSTRUCTION_FIND_CASE } from "../tests/e2e/helpers/sprint20-construction-find.ts";
 
 import {
   LIVE_JOURNEY_STEPS,
@@ -145,9 +146,9 @@ for (const functionName of ["runDubaiFind", "runSingaporeFind"]) {
     ? [
         ["find_source_ui_navigation", 'page.goto("/prototype/point-to-object")'],
         ["find_source_ui_tab", 'getByRole("tab", { name: "Find", exact: true }).click()'],
-        ["find_source_ui_role", 'selectOption("consultant_broker")'],
-        ["find_source_ui_scenario", 'selectOption("b2b_hotel_development")'],
-        ["find_source_ui_group", 'toHaveValue("hospitality")']
+        ["find_source_ui_role", 'getByTestId("point-object-find-role-select").selectOption(findRole)'],
+        ["find_source_ui_scenario", 'getByTestId("point-object-find-scenario-select").selectOption(findScenario)'],
+        ["find_source_ui_group", 'getByTestId("point-object-find-group-select")).toHaveValue(findGroup)']
       ]
     : [
         ["find_source_ui_navigation", 'page.goto("/prototype/point-to-object")'],
@@ -169,6 +170,22 @@ for (const functionName of ["runDubaiFind", "runSingaporeFind"]) {
       `${functionName} must bind ${stage} around its exact existing UI action/assertion`);
   }
   if (functionName === "runDubaiFind") {
+    assert.ok(body.includes('const construction = configuration.scope === "dubai-find-construction";'),
+      "only the exact construction scope may select construction Find settings");
+    for (const [variable, field, hotelValue, constructionValue, selector] of [
+      ["findRole", "role", "consultant_broker", "developer", "point-object-find-role-select"],
+      ["findScenario", "scenario", "b2b_hotel_development", "b2b_redevelopment_selected_aoi", "point-object-find-scenario-select"],
+      ["findGroup", "group", "hospitality", "construction", "point-object-find-group-select"]
+    ]) {
+      assert.ok(body.includes(`const ${variable} = construction ? CONSTRUCTION_FIND_CASE.${field} : "${hotelValue}";`),
+        `Dubai ${field} must retain both exact conditional branches`);
+      assert.equal(CONSTRUCTION_FIND_CASE[field], constructionValue,
+        `the construction ${field} must retain its exact bounded value`);
+      const sourceCta = body.indexOf('progress.start("find_source_cta")');
+      const recheck = body.indexOf(`getByTestId("${selector}")).toHaveValue(${variable})`, sourceCta);
+      assert.ok(recheck > sourceCta && recheck < body.indexOf("installFindPreDispatchGate"),
+        `Dubai must recheck effective ${field} before the source gate for both cohorts`);
+    }
     assert.match(body, /candidates[.]length < 3/,
       "Dubai live acceptance must reject fewer than three source candidates");
     assert.match(body, /candidates[.]filter\(hasFootprint\)[\s\S]*?slice\(0, 3\)/,
@@ -201,7 +218,8 @@ for (const functionName of ["runDubaiFind", "runSingaporeFind"]) {
     assert.ok(ready >= 0 && ready < citySelection,
       "Dubai Find must wait for profile/session reconciliation before selecting the market");
     assert.ok(body.lastIndexOf('toHaveValue("dubai")') > citySelection &&
-      body.lastIndexOf('toHaveValue("hospitality")') < dispatchGate,
+      body.lastIndexOf('toHaveValue(findGroup)') > citySelection &&
+      body.lastIndexOf('toHaveValue(findGroup)') < dispatchGate,
     "Dubai Find must recheck the effective market and scenario criteria before installing the source gate");
     const minimumPreset = body.lastIndexOf('getByLabel("Levels from", { exact: true })).toHaveValue("")');
     const maximumPreset = body.lastIndexOf('getByLabel("Levels to", { exact: true })).toHaveValue("")');
