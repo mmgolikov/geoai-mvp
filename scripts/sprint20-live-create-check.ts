@@ -69,10 +69,42 @@ for (const scope of programmeScopes) {
   const result = { ...payload, program: checked.program, massing: checked.alternatives[0].massing, alternatives: checked.alternatives };
   assertDubaiCreateProgrammeGeometry(scope, result);
   assert.throws(() => assertDubaiCreateProgrammeRequest(scope, { ...request, templateId: fixture.templateId === scenario.programme ? "commercial_hub" : fixture.templateId }));
+  // Keep the requested programme/use mix intact while substituting coherent lower-coverage
+  // geometry and metrics. This previously passed, including the civic-green 28% -> 15% case.
+  const geometryAtCoverage = (targetSiteCoveragePct: number) => {
+    const changed = preflightPointObjectCreate({ ...request,
+      controls: { ...scenario.controls, targetSiteCoveragePct },
+      lockedControlKeys: Object.keys(scenario.controls) as Array<keyof typeof scenario.controls>,
+      aoiHash: createHash("sha256").update(JSON.stringify(scenario.coordinates)).digest("hex") });
+    assert.equal(changed.kind, "ready", `${scope}: regression geometry must fit`);
+    if (changed.kind !== "ready") throw new Error("Invalid regression fixture");
+    return changed.alternatives;
+  };
+  const lower = geometryAtCoverage(15);
+  const bothDrifted = { ...result, massing: lower[0].massing, alternatives: lower };
+  assert.throws(() => assertDubaiCreateProgrammeGeometry(scope, bothDrifted), /Alternative A: independent coverage/);
+  for (const index of [0, 1]) {
+    const oneDrifted = structuredClone(result);
+    oneDrifted.alternatives[index] = lower[index];
+    oneDrifted.massing = oneDrifted.alternatives[0].massing;
+    assert.throws(() => assertDubaiCreateProgrammeGeometry(scope, oneDrifted),
+      new RegExp(`Alternative ${index === 0 ? "A" : "B"}: independent coverage`));
+  }
+  // Exercise both sides of the production tolerance without relaxing the requested controls.
+  if (scope === "dubai-create-cg-concave") {
+    for (const delta of [-1, 1, -1.2, 1.2]) {
+      const alternatives = geometryAtCoverage(scenario.controls.targetSiteCoveragePct + delta);
+      const boundary = { ...result, massing: alternatives[0].massing, alternatives };
+      if (Math.abs(delta) <= 1) assertDubaiCreateProgrammeGeometry(scope, boundary);
+      else assert.throws(() => assertDubaiCreateProgrammeGeometry(scope, boundary), /independent coverage/);
+    }
+  }
 }
 assert.equal(new Set(programmeScopes.map(scope => JSON.stringify(dubaiCreateProgrammeCase(scope).coordinates))).size, 2,
   "The six scopes must reuse exactly two distinct AOIs");
 assert.equal(new Set(programmeScopes.map(scope => dubaiCreateProgrammeCase(scope).programme)).size, 3,
   "The six scopes must cover all three current programmes");
 console.log(JSON.stringify({ result: "PASS offline only", areaSqM: aoi.areaSqM, coordinates: fixture.coordinates,
-  controls: fixture.controls, variants: preflight.alternatives.map(a => a.id), programmeScopes, providerCalls: 0 }));
+  controls: fixture.controls, variants: preflight.alternatives.map(a => a.id), programmeScopes,
+  coverageRegressionCases: { coherentBothAlternativesRejected: 6, singleAlternativeDriftRejected: 12,
+    toleranceBoundaryAccepted: 2, outsideToleranceRejected: 2 }, providerCalls: 0 }));

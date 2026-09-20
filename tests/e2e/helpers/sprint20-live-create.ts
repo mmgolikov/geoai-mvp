@@ -104,10 +104,29 @@ export function assertDubaiCreateProgrammeGeometry(scope: DubaiCreateProgrammeSc
   assert.deepEqual(concept.alternatives?.map(item => item.id).sort(), ["A", "B"]);
   assert.notDeepEqual(concept.alternatives![0].massing.featureCollection.features.map(item => item.geometry),
     concept.alternatives![1].massing.featureCollection.features.map(item => item.geometry), "A/B must differ geometrically");
-  for (const { massing } of concept.alternatives!) {
+  const referenceLat = vertices.reduce((sum, point) => sum + point[1], 0) / vertices.length;
+  const project = ([lng, lat]: number[]): XY => [
+    (lng - vertices[0][0]) * 111320 * Math.cos(referenceLat * Math.PI / 180),
+    (lat - vertices[0][1]) * 110540
+  ];
+  const siteArea = area(vertices.map(project));
+  assert.ok(siteArea > 0, "Independent AOI area must be positive");
+  for (const { id, massing } of concept.alternatives!) {
     assert.deepEqual(validateConceptMassingGeometry(expected.coordinates, concept.program, massing), []);
     assert.equal(massing.generatedBlockCount, expected.controls.blockCount);
+    // Measure coordinates against the requested AOI, not self-consistent response metrics.
+    // Towers above podiums must not double-count ground coverage. Match buildMassingResult's
+    // one-decimal rounding and 1 percentage-point tolerance, independently for A and B.
+    const groundFeatures = massing.featureCollection.features.filter(feature =>
+      concept.program.massingStyle === "towers_on_podium"
+        ? feature.properties.volumeRole === "podium" : feature.properties.primaryBlock);
+    const groundArea = groundFeatures.reduce((sum, feature) => sum +
+      area(feature.geometry.coordinates[0].slice(0, -1).map(project)), 0);
+    const measuredCoverage = Number((groundArea / siteArea * 100).toFixed(1));
+    assert.ok(Math.abs(measuredCoverage - expected.controls.targetSiteCoveragePct) <= 1,
+      `Alternative ${id}: independent coverage ${measuredCoverage}% must match requested ${expected.controls.targetSiteCoveragePct}% within 1 percentage point`);
   }
+  // Coverage is not a claim of uniform spatial distribution or rendered model visibility.
   return concept;
 }
 
