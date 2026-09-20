@@ -1,40 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import dynamic from "next/dynamic";
 import { useState } from "react";
 
 import { AccessStatusBadgeVisual } from "@/components/auth/access-status-badge-visual";
 import { useAuth } from "@/components/auth/auth-provider";
 import { IdentitySymbol } from "@/components/design-system/identity-symbol";
 import { usePointObjectLocale } from "@/components/point-to-object/locale-provider";
-
-const PointObjectProjectControl = dynamic(
-  () => import("@/components/point-to-object/project-control").then((module) => module.PointObjectProjectControl),
-  { ssr: false, loading: PointObjectProjectControlFallback }
-);
+// Keep the navigation link mounted through hydration; replacing a lazy fallback
+// link discards keyboard focus between Tab/focus and Enter.
+import { PointObjectProjectControl } from "@/components/point-to-object/project-control";
 
 export type PointObjectHeaderProps = {
   backToMap?: boolean;
 };
-
-function PointObjectProjectControlFallback() {
-  const { locale } = usePointObjectLocale();
-  const label = locale === "ru" ? "Проекты" : "Projects";
-  return (
-    <div className="flex min-w-0 items-center gap-1.5" data-testid="point-object-project-control-loading">
-      <Link
-        href="/projects"
-        aria-label={label}
-        title={locale === "ru" ? "Проекты сохранены локально на этом устройстве" : "Projects saved locally on this device"}
-        className="inline-flex h-11 min-w-11 items-center justify-center gap-1.5 rounded-lg border border-line bg-white px-2 text-[11px] font-bold text-[#345c54] hover:border-[#087f8c] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] sm:px-3"
-      >
-        <svg aria-hidden="true" className="h-5 w-5 sm:h-4 sm:w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><rect x="4" y="5" width="16" height="14" rx="2" /><path d="M8 9h8M8 14h3" /></svg>
-        <span className="hidden sm:inline">{label}</span>
-      </Link>
-    </div>
-  );
-}
 
 export function PointObjectHeader({ backToMap = false }: PointObjectHeaderProps) {
   const { locale, setLocale, t } = usePointObjectLocale();

@@ -136,6 +136,31 @@ async function expectCanonicalWorkspace(page: Page) {
 }
 
 test.describe("global product navigation", () => {
+  test("Projects retains keyboard focus while project controls finish loading", async ({ page }) => {
+    await page.setViewportSize({ width: 430, height: 932 });
+    let releaseControls!: () => void;
+    const controlsReady = new Promise<void>((resolve) => { releaseControls = resolve; });
+    await page.route(/\/_next\/static\/chunks\/.*project-control/, async (route) => {
+      await controlsReady;
+      await route.continue();
+    });
+    try {
+      await page.goto("/prototype/point-to-object", { waitUntil: "domcontentloaded" });
+      const projects = page.locator("[data-point-object-header]").getByRole("link", { name: "Projects", exact: true });
+      await expect(projects).toHaveAttribute("href", "/projects");
+      await projects.focus();
+      await expect(projects).toBeFocused();
+      releaseControls();
+      await expect(page.getByTestId("point-object-project-control")).toBeVisible();
+      await expect(projects, "Loading project controls must preserve the keyboard navigation target").toBeFocused();
+      await page.keyboard.press("Enter");
+      await expect(page).toHaveURL((url) => url.pathname === "/projects");
+      await expect(page.getByRole("heading", { name: "Project Hub", exact: true })).toBeVisible();
+    } finally {
+      releaseControls();
+    }
+  });
+
   test("opens every canonical Product route from an iPhone Pro Max width", async ({ page }) => {
     await page.setViewportSize({ width: 430, height: 932 });
     // This header contains no date/time content. Keep the real browser clock
