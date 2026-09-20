@@ -10,9 +10,29 @@ async function expectLoginRedirect(page: Page, expectedNext: string) {
 }
 
 test.describe("authenticated product route session", () => {
+  // The protected build points at an intentionally absent loopback Supabase.
+  // Intercept only the password token exchange; no hosted Auth or email request
+  // is made by this negative browser contract.
+  test.use({ bypassCSP: true });
+
   test("preserves a bounded continuation and rejects browser-only demo authority", async ({ page }) => {
     const pageErrors: string[] = [];
+    const passwordAttempts: Array<{ email: string; passwordPresent: boolean }> = [];
+    const emailRequests: string[] = [];
     page.on("pageerror", (error) => pageErrors.push(error.message));
+    page.on("request", (request) => {
+      const url = new URL(request.url());
+      if (url.pathname === "/auth/v1/otp" || url.pathname === "/auth/v1/signup") emailRequests.push(url.pathname);
+    });
+    await page.route((url) => url.pathname === "/auth/v1/token" && url.searchParams.get("grant_type") === "password", async (route) => {
+      const body = route.request().postDataJSON() as { email?: unknown; password?: unknown };
+      passwordAttempts.push({ email: String(body.email ?? ""), passwordPresent: typeof body.password === "string" && body.password.length > 0 });
+      await route.fulfill({
+        status: 400,
+        contentType: "application/json",
+        body: JSON.stringify({ code: "invalid_credentials", msg: "Invalid login credentials" })
+      });
+    });
     for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
       await page.setViewportSize(viewport);
       await page.goto("/prototype/point-to-object?mode=find");
@@ -35,11 +55,15 @@ test.describe("authenticated product route session", () => {
     await expect.poll(() => page.evaluate((key) => window.localStorage.getItem(key), demoProfileKey)).toBeNull();
 
     await page.getByLabel("Email or phone").fill("demo@geoai.space");
-    await page.getByLabel("Password").fill("111111");
+    await page.getByLabel("Password").fill("synthetic-rejected-password");
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
-    await expect(page.getByText("Browser-local demo access is unavailable while protected sign-in is required.", { exact: true })).toBeVisible();
+    await expect(page.getByText(/The email or password is incorrect/)).toBeVisible();
+    expect(passwordAttempts).toEqual([{ email: "demo@geoai.space", passwordPresent: true }]);
+    expect(emailRequests).toEqual([]);
     await expectLoginRedirect(page, "/workspace?segment=b2b");
     await expect.poll(() => page.evaluate((key) => window.localStorage.getItem(key), mockSessionKey)).toBeNull();
+    const session = await page.request.get("/api/auth/session");
+    expect(await session.json()).toMatchObject({ isAuthenticated: false, isDemo: false, sessionStatus: "session_missing" });
     expect(pageErrors).toEqual([]);
   });
 });
