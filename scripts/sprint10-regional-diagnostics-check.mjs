@@ -169,6 +169,32 @@ for (const functionName of ["runDubaiFind", "runSingaporeFind"]) {
       `${functionName} must bind ${stage} around its exact existing UI action/assertion`);
   }
   if (functionName === "runDubaiFind") {
+    assert.match(body, /candidates[.]length < 3/,
+      "Dubai live acceptance must reject fewer than three source candidates");
+    assert.match(body, /candidates[.]filter\(hasFootprint\)[\s\S]*?slice\(0, 3\)/,
+      "Dubai must prefer real source footprints for its three-object shortlist");
+    assert.match(body, /new Set\(identities\)[.]size === 3/,
+      "Dubai must require three distinct exact source identities");
+    assert.match(body, /quality20MapState\(map\)\)[.]basemapCount\)[.]toBeGreaterThan\(0\)/,
+      "Dubai comparison must contain rendered real basemap features");
+    assert.match(body, /expect\(feature\?[.]geometry\)[.]toEqual\(candidate[.]geometry\)/,
+      "Dubai comparison must preserve the exact source footprint");
+    assert.match(body, /for \(const \[index, candidate\] of selectedCandidates[.]entries\(\)\)/,
+      "every selected Dubai candidate must traverse the analysis UI");
+    assert.match(body, /name: "Open object analysis", exact: true \}\)[.]nth\(index\)[.]click\(\)/,
+      "Dubai analysis must open from each comparison card");
+    assert.match(body, /contextResponse[.]request\(\)[.]postDataJSON\(\)[\s\S]*?expectedSourceFeatureId: candidate[.]sourceFeatureId/,
+      "each real context request must retain the candidate source identity");
+    assert.match(body, /contextResponse[.]status\(\) === 200[\s\S]*?contextPayload[.]subject[.]sourceFeatureId === candidate[.]sourceFeatureId/,
+      "each context response must resolve that exact identity with HTTP 200");
+    assert.match(body, /expect\(selection[.]object[.]geometry\)[.]toEqual\(candidate[.]geometry\)/,
+      "Find to Analyse must preserve each available source footprint");
+    assert.match(body, /name: "Analyze", exact: true \}\)\)[.]toBeEnabled/,
+      "each selected object must enable Analyze without a paid dispatch");
+    assert.match(body, /reopenSavedArtifact\(page, configuration[.]userId, "find", policy, current, verifyComparison\)/,
+      "return cycles must reopen the current saved view revision without replay");
+    assert.match(body, /expect\(budget[.]paidDispatchCount\(\)\)[.]toBe\(paidBeforeReopen\)/,
+      "Dubai Find must preserve its zero-paid-dispatch gate");
     const ready = body.indexOf("data-project-restoration");
     const citySelection = body.indexOf('selectOption("dubai")');
     const dispatchGate = body.indexOf("installFindPreDispatchGate");

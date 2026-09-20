@@ -1430,27 +1430,57 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
   progress.complete("find_source_contract");
   progress.start("find_candidate_count");
   const candidates = payload.candidates as Array<Record<string, unknown>>;
-  if (candidates.length < 2) {
-    throw new InconclusiveLiveCoverageError(`Dubai Find returned ${candidates.length} usable candidate(s); Compare requires at least two.`);
+  if (candidates.length < 3) {
+    throw new InconclusiveLiveCoverageError(`Dubai Find returned ${candidates.length} usable candidate(s); live acceptance requires three.`);
   }
-  const identities = candidates.slice(0, 2).map((candidate) => candidate.sourceFeatureId);
-  guard(identities.every((value) => typeof value === "string" && /^(node|way|relation)\/[1-9]\d{0,19}$/.test(value)) && new Set(identities).size === 2,
-    "Dubai Find did not return two distinct exact source identities.");
+  const hasFootprint = (candidate: Record<string, unknown>) => record(candidate.geometry) &&
+    (candidate.geometry.type === "Polygon" || candidate.geometry.type === "MultiPolygon");
+  const selectedCandidates = [...candidates.filter(hasFootprint), ...candidates.filter((candidate) => !hasFootprint(candidate))].slice(0, 3);
+  const identities = selectedCandidates.map((candidate) => candidate.sourceFeatureId);
+  guard(identities.every((value) => typeof value === "string" && /^(node|way|relation)\/[1-9]\d{0,19}$/.test(value)) && new Set(identities).size === 3,
+    "Dubai Find did not return three distinct exact source identities.");
   progress.complete("find_candidate_count");
   const items = page.getByTestId("find-scroll-region").getByRole("listitem");
   await expect(items).toHaveCount(candidates.length);
   progress.start("find_compare");
   const beforeLocalComparison = policy.snapshotJourneyRequests();
-  await items.nth(0).getByRole("button", { name: "Compare", exact: true }).click();
-  await items.nth(1).getByRole("button", { name: "Compare", exact: true }).click();
+  for (const candidate of selectedCandidates) {
+    await items.nth(candidates.indexOf(candidate)).getByRole("button", { name: "Compare", exact: true }).click();
+  }
   await page.getByRole("button", { name: "Compare selected", exact: true }).click();
   await expect(page.getByTestId("find-comparison-grid")).toBeVisible();
   await page.getByRole("button", { name: "Open full comparison dashboard", exact: true }).click();
-  await expect(page.getByTestId("find-full-comparison-dashboard")).toBeVisible();
+  const dashboard = page.getByTestId("find-full-comparison-dashboard");
+  const verifyComparison = async () => {
+    await expect(dashboard).toBeVisible();
+    const map = dashboard.getByTestId("live-map-canvas");
+    await expect.poll(async () => (await quality20MapState(map)).basemapCount).toBeGreaterThan(0);
+    const state = await quality20MapState(map);
+    guard(state.width > 100 && state.height > 100, "Dubai comparison basemap has no useful dimensions.");
+    guard(record(state.geometry) && Array.isArray(state.geometry.features), "Dubai comparison footprint source is missing.");
+    const footprints = state.geometry.features.filter(record);
+    expect(footprints.map((feature) => feature.id).sort()).toEqual(selectedCandidates.filter(hasFootprint).map((candidate) => candidate.sourceFeatureId).sort());
+    await expect(dashboard.locator("[data-find-result-marker]")).toHaveCount(3);
+    function positions(value: unknown): number[][] {
+      if (!Array.isArray(value)) return [];
+      if (value.length === 2 && value.every((number) => typeof number === "number")) return [value as number[]];
+      return value.flatMap(positions);
+    }
+    for (const candidate of selectedCandidates) {
+      await expect(dashboard.locator(`[data-find-result-marker="${candidate.sourceFeatureId}"]`)).toBeVisible();
+      const feature = footprints.find((item) => item.id === candidate.sourceFeatureId);
+      if (hasFootprint(candidate)) expect(feature?.geometry).toEqual(candidate.geometry);
+      else expect(feature).toBeUndefined();
+      const points = [[Number(candidate.longitude), Number(candidate.latitude)], ...positions(record(candidate.geometry) ? candidate.geometry.coordinates : null)];
+      guard(points.every(([x, y]) => Number.isFinite(x) && Number.isFinite(y) && x >= state.bounds[0][0] &&
+        x <= state.bounds[1][0] && y >= state.bounds[0][1] && y <= state.bounds[1][1]), "Dubai comparison does not frame every complete footprint.");
+    }
+  };
+  await verifyComparison();
   await expect.poll(async () => {
     const state = await localArtifactState(page, configuration.userId, "find");
     return `${state?.shortlistCount ?? 0}:${state?.comparisonView ?? "none"}`;
-  }).toBe("2:dashboard");
+  }).toBe("3:dashboard");
   await stableLocalBarrier(page);
   assertNoReplay(beforeLocalComparison, policy.snapshotJourneyRequests());
   progress.complete("find_compare");
@@ -1468,11 +1498,51 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
   const paidBeforeReopen = budget.paidDispatchCount();
   progress.start("find_local_reopen");
   await reopenSavedArtifact(page, configuration.userId, "find", policy, saved, async () => {
-    await expect(page.getByTestId("find-full-comparison-dashboard")).toBeVisible();
+    await verifyComparison();
     for (const identity of identities) await expect(page.getByText(String(identity), { exact: true })).toBeVisible();
   });
   expect(budget.paidDispatchCount()).toBe(paidBeforeReopen);
   progress.complete("find_local_reopen");
+  for (const [index, candidate] of selectedCandidates.entries()) {
+    const beforeAnalysis = policy.snapshotJourneyRequests();
+    const contextPromise = page.waitForResponse((response) => response.request().method() === "POST" &&
+      new URL(response.url()).pathname === "/api/prototype/point-to-object/context", { timeout: SOURCE_REQUEST_HARNESS_TIMEOUT_MS });
+    await dashboard.getByRole("button", { name: "Open object analysis", exact: true }).nth(index).click();
+    const contextResponse = await contextPromise;
+    expect(contextResponse.request().postDataJSON()).toEqual({ caseKey: "dubai", longitude: candidate.longitude,
+      latitude: candidate.latitude, locale: "en", expectedSourceFeatureId: candidate.sourceFeatureId });
+    const contextPayload: unknown = await boundedLiveJourneyResponseJson(contextResponse, 10_000);
+    guard(contextResponse.status() === 200 && record(contextPayload) && contextPayload.mode === "resolved" &&
+      record(contextPayload.subject) && contextPayload.subject.sourceFeatureId === candidate.sourceFeatureId,
+    "Dubai Find to Analyse did not resolve the same exact source identity with HTTP 200.");
+    await expect(dashboard).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Analyze", exact: true })).toBeEnabled({ timeout: 30_000 });
+    await expect.poll(async () => page.evaluate(() => {
+      const raw = sessionStorage.getItem("geoai:point-to-object:selection:v3");
+      return raw ? JSON.parse(raw)?.resolvedObject?.sourceFeatureId : null;
+    })).toBe(candidate.sourceFeatureId);
+    const selection = await page.evaluate(() => JSON.parse(sessionStorage.getItem("geoai:point-to-object:selection:v3") ?? "null"));
+    expect(selection.object.sourceFeatureId).toBe(candidate.sourceFeatureId);
+    if (hasFootprint(candidate)) expect(selection.object.geometry).toEqual(candidate.geometry);
+    expect(budget.paidDispatchCount()).toBe(paidBeforeReopen);
+    const afterAnalysis = policy.snapshotJourneyRequests();
+    expect(afterAnalysis["POST /api/prototype/point-to-object/context"] ?? 0).toBe((beforeAnalysis["POST /api/prototype/point-to-object/context"] ?? 0) + 1);
+    expect(afterAnalysis["POST /api/prototype/point-to-object/find"]).toBe(beforeAnalysis["POST /api/prototype/point-to-object/find"]);
+    const beforeReturn = policy.snapshotJourneyRequests();
+    await page.getByRole("tab", { name: "Find", exact: true }).click();
+    await page.getByRole("button", { name: "Open full comparison dashboard", exact: true }).click();
+    await verifyComparison();
+    await stableLocalBarrier(page);
+    const current = await requireLocalArtifactState(page, configuration.userId, "find");
+    expect(current.artifactId).toBe(saved.artifactId);
+    expect(current.domainIdentity).toBe(saved.domainIdentity);
+    expect(current.viewRevision).toBeGreaterThanOrEqual(saved.viewRevision);
+    expect(current.shortlistCount).toBe(3);
+    expect(current.comparisonView).toBe("dashboard");
+    assertNoReplay(beforeReturn, policy.snapshotJourneyRequests());
+    await reopenSavedArtifact(page, configuration.userId, "find", policy, current, verifyComparison);
+    expect(budget.paidDispatchCount()).toBe(paidBeforeReopen);
+  }
 }
 
 async function runSingaporeFind(page: Page, configuration: LiveConfiguration, policy: NetworkPolicy, budget: ReturnType<typeof installBudgetGate>, progress: LiveProgress) {
