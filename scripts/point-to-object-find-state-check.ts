@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { registerHooks } from "node:module";
+import { registerHooks, stripTypeScriptTypes } from "node:module";
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
@@ -14,6 +14,15 @@ registerHooks({
 // Execute the actual production helpers and geometry validator, not copied bodies or stubs.
 const { pointObjectFindPresentationState, pointObjectFindVerifiedFootprint } =
   await import("../src/lib/prototype/point-to-object-map-selection");
+const findContract = readFileSync(new URL("../src/lib/prototype/point-to-object-find-contract.ts", import.meta.url), "utf8");
+const kindHelperSource = findContract.slice(
+  findContract.indexOf("export type PointObjectFindCandidateResultKind"),
+  findContract.indexOf("export type PointObjectFindResult")
+);
+assert.ok(kindHelperSource.includes("export function pointObjectFindCandidateResultKind"), "production result-kind helper source must be present");
+const { pointObjectFindCandidateResultKind } = await import(
+  `data:text/javascript;base64,${Buffer.from(stripTypeScriptTypes(kindHelperSource)).toString("base64")}`
+);
 
 const polygon = {
   type: "Polygon" as const,
@@ -42,6 +51,23 @@ assert.equal(pointObjectFindVerifiedFootprint({ type: "Polygon", coordinates: [[
 assert.equal(pointObjectFindVerifiedFootprint({ type: "MultiPolygon", coordinates: [polygon.coordinates, []] }, "confirmed_complete_footprint", "mapped_building_or_landuse"), null, "one invalid member invalidates the returned footprint");
 const clonedFootprint = pointObjectFindVerifiedFootprint(polygon, "confirmed_complete_footprint", "mapped_building_or_landuse");
 assert.notEqual(clonedFootprint, polygon, "returned geometry cannot mutate the source record");
+
+assert.equal(pointObjectFindCandidateResultKind({
+  matchedTag: { key: "tourism", value: "hotel" },
+  observedTags: { tourism: "hotel", building: "hotel" }
+}), "mapped_building_or_landuse", "a tourism-tagged hotel way keeps its explicit building footprint");
+assert.equal(pointObjectFindCandidateResultKind({
+  matchedTag: { key: "amenity", value: "hospital" },
+  observedTags: { amenity: "hospital", building: "yes" }
+}), "mapped_building_or_landuse", "an amenity way with an explicit building tag keeps its footprint");
+assert.equal(pointObjectFindCandidateResultKind({
+  matchedTag: { key: "tourism", value: "hotel" },
+  observedTags: { tourism: "hotel" }
+}), "mapped_poi", "a pure tourism POI remains a point fallback");
+assert.equal(pointObjectFindCandidateResultKind({
+  matchedTag: { key: "amenity", value: "hospital" },
+  observedTags: { amenity: "hospital", building: "no", landuse: "false" }
+}), "mapped_poi", "negative area pseudo-values cannot relabel a POI as a building or land use");
 
 const client = readFileSync(new URL("../components/point-to-object/prototype-client-v5.tsx", import.meta.url), "utf8");
 const map = readFileSync(new URL("../components/point-to-object/live-object-map.tsx", import.meta.url), "utf8");

@@ -68,6 +68,7 @@ import {
   writePointObjectCreateSession
 } from "@/src/lib/prototype/point-to-object-create-session";
 import {
+  pointObjectFindCandidateResultKind,
   type PointObjectFindBounds,
   type PointObjectFindCandidate,
   type PointObjectFindGroup,
@@ -244,12 +245,6 @@ function comparisonObservedAttribute(candidate: PointObjectFindCandidate, locale
     if (value) return { label: locale === "ru" ? "Район" : "Locality", value };
   }
   return null;
-}
-
-function findCandidateResultKind(candidate: PointObjectFindCandidate): "mapped_building_or_landuse" | "mapped_poi" | "unknown" {
-  if (candidate.matchedTag.key === "building" || candidate.matchedTag.key === "landuse") return "mapped_building_or_landuse";
-  if (["office", "shop", "amenity", "tourism"].includes(candidate.matchedTag.key)) return "mapped_poi";
-  return "unknown";
 }
 
 function getExecutableFindScenarios(audience: ExploreAudience, role: ExploreRole) {
@@ -1473,7 +1468,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
 
   async function hydrateFindFootprint(candidate: PointObjectFindCandidate): Promise<void> {
     if (candidate.geometryStatus) return; // Current Find already includes bounded geometry or an explicit missing state.
-    if (findCandidateResultKind(candidate) !== "mapped_building_or_landuse" ||
+    if (pointObjectFindCandidateResultKind(candidate) !== "mapped_building_or_landuse" ||
         !/^(?:way|relation)\/[1-9]\d{0,19}$/.test(candidate.sourceFeatureId)) return;
     const requestKey = findCandidateContextRequestKey(candidate, locationKey, locale);
     const applyFootprint = (resolvedObject: NonNullable<ReturnType<typeof parseLiveResolvedObject>>) => {
@@ -1901,7 +1896,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
       <PointObjectHeader />
       <div className={mobileStyles.shell} data-sheet={effectiveSheet} data-testid="mobile-workspace-shell">
         <section className={`${mobileStyles.map} relative overflow-hidden`} inert={mobile && effectiveSheet === "full"} aria-hidden={mobile && effectiveSheet === "full" ? true : undefined} aria-label={t("map.region")}>
-          {sessionReady ? <LiveObjectMap {...createReplacementMapProps} locationKey={locationKey} interactionMode={mode} selection={mode === "analyse" ? selection : null} navigationTarget={navigationTarget} viewModeRequest={viewModeRequest} onSelection={mode === "analyse" ? handleSelection : ignoreMapSelection} onViewportChange={handleViewportChange} onVisibleBoundsChange={handleVisibleBoundsChange} projectMarkers={projectOverviewMarkers.map((marker, index) => ({ id: marker.artifactId, label: marker.label, longitude: marker.longitude, latitude: marker.latitude, kind: marker.kind, number: index + 1 }))} activeProjectMarkerId={activeProjectMarkerId} onProjectMarkerSelect={openProjectOverviewMarker} findResults={mode === "find" && findResult && !findResultCriteriaMismatch ? findResult.candidates.map((candidate, index) => { const resolved = findResolvedObjects[candidate.sourceFeatureId]; return { id: candidate.sourceFeatureId, longitude: candidate.longitude, latitude: candidate.latitude, label: candidate.label, number: index + 1, geometry: resolved?.displayGeometry ?? candidate.geometry ?? null, geometryProvenance: resolved?.geometryProvenance ?? candidate.geometryProvenance ?? null, renderHeightM: resolved?.renderHeightM ?? candidate.renderHeightM ?? null, renderMinHeightM: resolved?.renderMinHeightM ?? candidate.renderMinHeightM ?? null, resultKind: findCandidateResultKind(candidate) }; }) : []} activeFindResultId={mode === "find" ? activeFindResultId : null} hoveredFindResultId={mode === "find" ? hoveredFindResultId : null} shortlistedFindResultIds={mode === "find" ? findShortlist.map((candidate) => candidate.sourceFeatureId) : []} onFindResultSelect={focusFindResult} onFindResultHover={(value) => setHoveredFindResultId(value ? exactOsmFeatureId(value) : null)} createDrawing={mode === "create" && projectRestorationReady && isDrawing} createDraftCoordinates={mode === "create" ? draftCoordinates : []} createAoi={mode === "create" ? createAoi : null} createAoiFitRequest={mode === "create" ? createAoiFitRequest : null} createAreaCleared={mode === "create" && createAreaCleared} conceptMassing={mode === "create" ? activeConceptMassing : null} onCreateVertex={addCreateVertex} onCreateFinishDrawing={() => closeCreateArea()} onReplacementStatus={setCreateReplacementStatus} className="h-full min-h-0" /> : <div className="grid h-full min-h-0 place-items-center bg-[#f4f6f7] text-sm font-medium text-[#52606a]" role="status">{t("map.loading")}</div>}
+          {sessionReady ? <LiveObjectMap {...createReplacementMapProps} locationKey={locationKey} interactionMode={mode} selection={mode === "analyse" ? selection : null} navigationTarget={navigationTarget} viewModeRequest={viewModeRequest} onSelection={mode === "analyse" ? handleSelection : ignoreMapSelection} onViewportChange={handleViewportChange} onVisibleBoundsChange={handleVisibleBoundsChange} projectMarkers={projectOverviewMarkers.map((marker, index) => ({ id: marker.artifactId, label: marker.label, longitude: marker.longitude, latitude: marker.latitude, kind: marker.kind, number: index + 1 }))} activeProjectMarkerId={activeProjectMarkerId} onProjectMarkerSelect={openProjectOverviewMarker} findResults={mode === "find" && findResult && !findResultCriteriaMismatch ? findResult.candidates.map((candidate, index) => { const resolved = findResolvedObjects[candidate.sourceFeatureId]; return { id: candidate.sourceFeatureId, longitude: candidate.longitude, latitude: candidate.latitude, label: candidate.label, number: index + 1, geometry: resolved?.displayGeometry ?? candidate.geometry ?? null, geometryProvenance: resolved?.geometryProvenance ?? candidate.geometryProvenance ?? null, renderHeightM: resolved?.renderHeightM ?? candidate.renderHeightM ?? null, renderMinHeightM: resolved?.renderMinHeightM ?? candidate.renderMinHeightM ?? null, resultKind: pointObjectFindCandidateResultKind(candidate) }; }) : []} activeFindResultId={mode === "find" ? activeFindResultId : null} hoveredFindResultId={mode === "find" ? hoveredFindResultId : null} shortlistedFindResultIds={mode === "find" ? findShortlist.map((candidate) => candidate.sourceFeatureId) : []} onFindResultSelect={focusFindResult} onFindResultHover={(value) => setHoveredFindResultId(value ? exactOsmFeatureId(value) : null)} createDrawing={mode === "create" && projectRestorationReady && isDrawing} createDraftCoordinates={mode === "create" ? draftCoordinates : []} createAoi={mode === "create" ? createAoi : null} createAoiFitRequest={mode === "create" ? createAoiFitRequest : null} createAreaCleared={mode === "create" && createAreaCleared} conceptMassing={mode === "create" ? activeConceptMassing : null} onCreateVertex={addCreateVertex} onCreateFinishDrawing={() => closeCreateArea()} onReplacementStatus={setCreateReplacementStatus} className="h-full min-h-0" /> : <div className="grid h-full min-h-0 place-items-center bg-[#f4f6f7] text-sm font-medium text-[#52606a]" role="status">{t("map.loading")}</div>}
           <div className="absolute left-3 top-3 z-10 flex w-[min(650px,calc(100%-4.5rem))] flex-row gap-2 sm:left-5 sm:top-5">
             <label className="flex h-11 w-fit shrink-0 items-center rounded-xl border border-white/70 bg-white/95 px-3 shadow-[0_10px_30px_rgba(20,35,45,0.14)] backdrop-blur">
               <span className="sr-only">{t("city.label")}</span>

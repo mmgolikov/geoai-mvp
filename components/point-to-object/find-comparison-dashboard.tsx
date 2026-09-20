@@ -5,7 +5,7 @@ import { LiveObjectMap } from "./live-object-map";
 
 import { PointObjectIcon } from "@/components/point-to-object/point-object-icons";
 import { useModalShell } from "@/components/point-to-object/use-modal-shell";
-import type { PointObjectFindCandidate, PointObjectFindResult } from "@/src/lib/prototype/point-to-object-find-contract";
+import { pointObjectFindCandidateResultKind, type PointObjectFindCandidate, type PointObjectFindResult } from "@/src/lib/prototype/point-to-object-find-contract";
 
 type Props = {
   locale: "en" | "ru";
@@ -20,12 +20,6 @@ type Props = {
   onOpenAnalysis: (candidate: PointObjectFindCandidate) => void;
 };
 
-function candidateKind(candidate: PointObjectFindCandidate): "mapped_building_or_landuse" | "mapped_poi" | "unknown" {
-  if (candidate.matchedTag.key === "building" || candidate.matchedTag.key === "landuse") return "mapped_building_or_landuse";
-  if (["office", "shop", "amenity", "tourism"].includes(candidate.matchedTag.key)) return "mapped_poi";
-  return "unknown";
-}
-
 function locality(candidate: PointObjectFindCandidate): string | null {
   return candidate.observedTags["addr:district"] ?? candidate.observedTags["addr:suburb"] ?? candidate.observedTags["addr:city"] ?? null;
 }
@@ -39,7 +33,7 @@ function CandidateMapContext({ candidates, locale, marketKey, activeId, onSelect
     id:candidate.sourceFeatureId, label:candidate.label, number:index+1, longitude:candidate.longitude, latitude:candidate.latitude,
     geometry:candidate.geometry ?? null, geometryProvenance:candidate.geometryProvenance ?? null,
     renderHeightM:candidate.renderHeightM ?? null, renderMinHeightM:candidate.renderMinHeightM ?? null,
-    resultKind:candidateKind(candidate)
+    resultKind:pointObjectFindCandidateResultKind(candidate)
   })),[candidates]);
   const target = useMemo(() => {
     const points = candidates.flatMap(candidate => {
@@ -110,7 +104,10 @@ export function FindComparisonDashboard({ locale, result, candidates, roleLabel,
                   {[
                     { label: ru ? "Запись OSM" : "OSM record", value: (candidate: PointObjectFindCandidate) => candidate.sourceFeatureId },
                     { label: ru ? "Наблюдаемый тип" : "Observed type", value: (candidate: PointObjectFindCandidate) => `${groupLabel(candidate)} · ${mappedSubtype(candidate)}` },
-                    { label: ru ? "Семантика записи" : "Record semantics", value: (candidate: PointObjectFindCandidate) => candidateKind(candidate) === "mapped_building_or_landuse" ? (ru ? "Здание / землепользование на карте" : "Mapped building / land use") : candidateKind(candidate) === "mapped_poi" ? (ru ? "Точка функции на карте" : "Mapped function / POI") : (ru ? "Не определено" : "Not determined") },
+                    { label: ru ? "Семантика записи" : "Record semantics", value: (candidate: PointObjectFindCandidate) => {
+                      const kind = pointObjectFindCandidateResultKind(candidate);
+                      return kind === "mapped_building_or_landuse" ? (ru ? "Здание / землепользование на карте" : "Mapped building / land use") : kind === "mapped_poi" ? (ru ? "Точка функции на карте" : "Mapped function / POI") : (ru ? "Не определено" : "Not determined");
+                    } },
                     { label: ru ? "Этажность на карте" : "Mapped levels", value: (candidate: PointObjectFindCandidate) => candidate.mappedBuildingLevels?.toLocaleString(locale) ?? "—" },
                     { label: ru ? "Район" : "Locality", value: (candidate: PointObjectFindCandidate) => locality(candidate) ?? "—" }
                   ].map((row) => <tr key={row.label} className="border-b border-line last:border-b-0"><th scope="row" className="p-3 text-xs font-semibold text-muted">{row.label}</th>{candidates.map((candidate) => <td key={candidate.sourceFeatureId} className="p-3 font-semibold text-[#344054]">{row.value(candidate)}</td>)}</tr>)}
@@ -124,7 +121,7 @@ export function FindComparisonDashboard({ locale, result, candidates, roleLabel,
         <section className="rounded-[24px] border border-line bg-white p-5 shadow-soft sm:p-7" aria-labelledby="candidate-tradeoffs-title">
           <h2 id="candidate-tradeoffs-title" className="text-xl font-bold">{ru ? "Что различает объекты — и чего не хватает" : "Observed trade-offs and evidence gaps"}</h2>
           <div className="mt-4 grid gap-4 lg:grid-cols-3">{candidates.map((candidate, index) => {
-            const kind = candidateKind(candidate);
+            const kind = pointObjectFindCandidateResultKind(candidate);
             const specificGap = candidate.mappedBuildingLevels === null
               ? (ru ? "Этажность не указана в возвращённой записи." : "No mapped levels in the returned record.")
               : kind === "mapped_poi"

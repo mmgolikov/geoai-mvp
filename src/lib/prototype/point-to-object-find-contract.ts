@@ -61,6 +61,30 @@ export type PointObjectFindCandidate = {
   renderMinHeightM?: number | null;
 };
 
+export type PointObjectFindCandidateResultKind = "mapped_building_or_landuse" | "mapped_poi" | "unknown";
+
+const NON_PHYSICAL_AREA_TAG_VALUES = new Set(["", "0", "false", "no"]);
+
+function hasExplicitPhysicalAreaTag(observedTags: Readonly<Record<string, string>>): boolean {
+  return (["building", "landuse"] as const).some((key) => {
+    const value = observedTags[key]?.trim().toLowerCase();
+    return value !== undefined && !NON_PHYSICAL_AREA_TAG_VALUES.has(value);
+  });
+}
+
+/**
+ * Functional POI tags can coexist with an explicit physical building or
+ * land-use tag on the same OSM element. Preserve that physical classification,
+ * but never promote absent or explicitly negative area tags into a footprint.
+ */
+export function pointObjectFindCandidateResultKind(
+  candidate: Pick<PointObjectFindCandidate, "matchedTag" | "observedTags">
+): PointObjectFindCandidateResultKind {
+  if (hasExplicitPhysicalAreaTag(candidate.observedTags)) return "mapped_building_or_landuse";
+  if (["office", "shop", "amenity", "tourism"].includes(candidate.matchedTag.key)) return "mapped_poi";
+  return "unknown";
+}
+
 export type PointObjectFindResult = {
   protocol: "POINT_TO_OBJECT_001_FIND_OPEN_MAP_V1";
   mode: "results" | "empty";
