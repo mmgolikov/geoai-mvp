@@ -27,6 +27,8 @@ const receipts = [{ id: 1, route: "ai", depth: "standard", state: "settled", est
 const runnerSource = readFileSync(new URL("./sprint10-live-journey-run.mjs", import.meta.url), "utf8");
 const liveSpecSource = readFileSync(new URL("../tests/e2e/sprint10-live-journey.spec.ts", import.meta.url), "utf8");
 for (const [code, stage] of [
+  ["APPLICATION_RATE_LIMITED", "analyse_source_context_application_rate_limited"],
+  ["OBJECT_IDENTITY_MISMATCH", "analyse_source_context_identity_mismatch"],
   ["OBJECT_NOT_RESOLVED", "analyse_source_context_object_not_resolved"],
   ["NOMINATIM_UNAVAILABLE", "analyse_source_context_nominatim_unavailable"],
   ["NOMINATIM_RESPONSE_INVALID", "analyse_source_context_nominatim_invalid"],
@@ -84,11 +86,19 @@ for (const [kind, expectedStage] of [["aborted", "analyse_paid_aborted"], ["netw
   assert.equal(stage, expectedStage ?? "analyse_paid_response"); assert.equal(cancelled, 1); assert.equal(clicks, 1);
 }
 const findBody = liveSpecSource.split("async function runDubaiFind")[1].split("async function runSingaporeFind")[0];
+assert.match(findBody, /const contextPayload = await readAnalyseContextResponse\(contextResponse, progress\)/);
+for (const stage of ["find_candidate_one", "find_candidate_two", "find_candidate_three", "find_candidate_context_request"]) {
+  assert.ok(LIVE_JOURNEY_STEPS.includes(stage));
+  assert.ok(findBody.includes(`"${stage}"`));
+  const diagnostic = { schemaVersion: LIVE_JOURNEY_DIAGNOSTIC_SCHEMA, primaryStatus: "failed", primaryStage: stage, cleanupStage: null, completedSteps: [] };
+  assert.deepEqual(parseLiveJourneyDiagnostic(diagnostic), diagnostic);
+}
 const reopenBody = liveSpecSource.split("async function reopenSavedArtifact")[1].split("async function runDubaiAnalyse")[0];
 const diagnosticBindings = [
   ["find_candidate_open", 'name: "Open object analysis", exact: true'],
   ["find_candidate_context_response", "const contextResponse = await contextPromise"],
-  ["find_candidate_context_contract", "contextResponse.request().postDataJSON()"],
+  ["find_candidate_context_request", "contextResponse.request().postDataJSON()"],
+  ["find_candidate_context_contract", "contextPayload.subject.sourceFeatureId === candidate.sourceFeatureId"],
   ["find_candidate_selection", "expect(selection.object.sourceFeatureId)"],
   ["find_candidate_no_replay", 'afterAnalysis["POST /api/prototype/point-to-object/context"]'],
   ["find_candidate_question", 'fill(SPRINT10_PUBLIC_ANALYSIS_QUESTION)'],

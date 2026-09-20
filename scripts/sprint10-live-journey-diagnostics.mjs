@@ -25,6 +25,8 @@ export const LIVE_JOURNEY_STEPS = Object.freeze([
   "analyse_source_context_body",
   "analyse_source_context_contract",
   "analyse_source_context_http",
+  "analyse_source_context_application_rate_limited",
+  "analyse_source_context_identity_mismatch",
   "analyse_source_context_object_not_resolved",
   "analyse_source_context_nominatim_unavailable",
   "analyse_source_context_nominatim_invalid",
@@ -96,7 +98,11 @@ export const LIVE_JOURNEY_STEPS = Object.freeze([
   "find_local_save",
   "find_local_reopen",
   "find_candidate_open",
+  "find_candidate_one",
+  "find_candidate_two",
+  "find_candidate_three",
   "find_candidate_context_response",
+  "find_candidate_context_request",
   "find_candidate_context_contract",
   "find_candidate_selection",
   "find_candidate_no_replay",
@@ -231,6 +237,8 @@ export function analyseSuggestionCorrelationChecks({
 export function analyseContextFailureStage(httpStatus, payload) {
   if (httpStatus === 200) return null;
   const stages = {
+    APPLICATION_RATE_LIMITED: "analyse_source_context_application_rate_limited",
+    OBJECT_IDENTITY_MISMATCH: "analyse_source_context_identity_mismatch",
     OBJECT_NOT_RESOLVED: "analyse_source_context_object_not_resolved",
     NOMINATIM_UNAVAILABLE: "analyse_source_context_nominatim_unavailable",
     NOMINATIM_RESPONSE_INVALID: "analyse_source_context_nominatim_invalid",

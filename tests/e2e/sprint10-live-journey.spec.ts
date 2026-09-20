@@ -1762,6 +1762,9 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
   expect(budget.paidDispatchCount()).toBe(paidBeforeReopen);
   progress.complete("find_local_reopen");
   for (const [index, candidate] of selectedCandidates.entries()) {
+    const ordinalStage = ["find_candidate_one", "find_candidate_two", "find_candidate_three"][index];
+    progress.start(ordinalStage);
+    progress.complete(ordinalStage);
     progress.start("find_candidate_open");
     const beforeAnalysis = policy.snapshotJourneyRequests();
     const contextPromise = page.waitForResponse((response) => response.request().method() === "POST" &&
@@ -1771,10 +1774,12 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
     progress.start("find_candidate_context_response");
     const contextResponse = await contextPromise;
     progress.complete("find_candidate_context_response");
-    progress.start("find_candidate_context_contract");
+    progress.start("find_candidate_context_request");
     expect(contextResponse.request().postDataJSON()).toEqual({ caseKey: "dubai", longitude: candidate.longitude,
       latitude: candidate.latitude, locale: "en", expectedSourceFeatureId: candidate.sourceFeatureId });
-    const contextPayload: unknown = await boundedLiveJourneyResponseJson(contextResponse, 10_000);
+    progress.complete("find_candidate_context_request");
+    const contextPayload = await readAnalyseContextResponse(contextResponse, progress);
+    progress.start("find_candidate_context_contract");
     guard(contextResponse.status() === 200 && record(contextPayload) && contextPayload.mode === "resolved" &&
       record(contextPayload.subject) && contextPayload.subject.sourceFeatureId === candidate.sourceFeatureId,
     "Dubai Find to Analyse did not resolve the same exact source identity with HTTP 200.");
