@@ -102,6 +102,7 @@ async function run() {
     "dubai-analyse": { ai: 1, create: 0 },
     "dubai-find": { ai: 0, create: 0 },
     "dubai-find-analysis": { ai: 3, create: 0 },
+    "dubai-find-construction": { ai: 3, create: 0 },
     "singapore-create": { ai: 0, create: 1 },
     "singapore-analyse": { ai: 1, create: 0 },
     "singapore-find": { ai: 0, create: 0 },

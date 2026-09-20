@@ -41,6 +41,7 @@ import { SPRINT10_GOAL_DEPTH_SCOPES, validateSprint10GoalDepthRequest,
   type Sprint10GoalDepthScope, type Sprint10GoalDepthSource } from "./helpers/sprint10-live-journey-gate";
 import { validateGoalDepthCaptureEnvironment, writeSprint10GoalDepthEvidence } from "./helpers/sprint10-goal-depth-evidence";
 import { validateSprint10FindAnalysisRequest } from "./helpers/sprint10-live-journey-gate";
+import { CONSTRUCTION_FIND_CASE, acceptedConstructionFindRequest, assertConstructionViewport, freezeConstructionFindCohort, validateConstructionAnalysisRequest } from "./helpers/sprint20-construction-find";
 import { validateFindAnalysisCaptureEnvironment } from "./helpers/sprint10-find-analysis-evidence";
 import { observeComparisonMapNetwork, readComparisonMapDiagnostic, withComparisonGeometryDeadline, ComparisonGeometryProbeTimeout } from "./helpers/sprint10-map-diagnostics";
 import {
@@ -83,7 +84,7 @@ const CAVEAT = "Screening hypothesis; official validation required; not a legal,
 const EXACT_DEVELOPMENT_PROJECT_REF = "pphdqkurxneyagvnnjdt";
 const EXPECTED_LEDGER_ID = "5aa405b3-bbda-48aa-aeea-ca3357be4042";
 const LIVE_SCOPES: readonly Sprint10LiveScope[] = [
-  "journey", "dubai-analyse", "dubai-find", "dubai-find-analysis", "singapore-create",
+  "journey", "dubai-analyse", "dubai-find", "dubai-find-analysis", "dubai-find-construction", "singapore-create",
   "singapore-analyse", "singapore-find", "dubai-create", "dubai-depth-cycle",
   ...DUBAI_CREATE_PROGRAMME_SCOPES,
   "dubai-profile-depth-cycle", "dubai-redevelopment-depth-cycle", "dubai-diligence-depth-cycle",
@@ -340,7 +341,7 @@ function acceptedFindResponse(
   value: unknown,
   submitted: AcceptedFindRequest,
   marketKey: "dubai" | "singapore",
-  group: "hospitality" | "commercial_office"
+  group: "hospitality" | "commercial_office" | "construction"
 ): value is Record<string, unknown> & { candidates: Array<Record<string, unknown>> } {
   if (!record(value) || value.protocol !== "POINT_TO_OBJECT_001_FIND_OPEN_MAP_V1" ||
       (value.mode !== "results" && value.mode !== "empty") || !Array.isArray(value.candidates) ||
@@ -592,8 +593,8 @@ function installBudgetGate(page: Page, configuration: LiveConfiguration) {
       try { validateSprint10GoalDepthRequest(body, occurrences[routeName], goalDepthSource, configuration.scope as Sprint10GoalDepthScope); }
       catch { fatal = "Goal-depth recipe or source rejected before reservation."; return route.abort("blockedbyclient"); }
     }
-    if (configuration.scope === "dubai-find-analysis") {
-      try { validateSprint10FindAnalysisRequest(body, occurrences[routeName], findAnalysisSources); }
+    if (configuration.scope === "dubai-find-analysis" || configuration.scope === "dubai-find-construction") {
+      try { (configuration.scope === "dubai-find-construction" ? validateConstructionAnalysisRequest : validateSprint10FindAnalysisRequest)(body, occurrences[routeName], findAnalysisSources); }
       catch { fatal = "Find analysis exact source or intent rejected before reservation."; return route.abort("blockedbyclient"); }
     }
     const depth = body?.depth;
@@ -680,7 +681,7 @@ function installBudgetGate(page: Page, configuration: LiveConfiguration) {
   return {
     ready: registration,
     armFindAnalysisSources(sources: Sprint10GoalDepthSource[]) {
-      guard(configuration.scope === "dubai-find-analysis" && !fatal && occurrences.ai === 0 && !findAnalysisSources &&
+      guard((configuration.scope === "dubai-find-analysis" || configuration.scope === "dubai-find-construction") && !fatal && occurrences.ai === 0 && !findAnalysisSources &&
         sources.length === 3 && new Set(sources.map((source) => source.sourceFeatureId)).size === 3 &&
         sources.every((source) => /^(node|way|relation)\/[1-9]\d{0,19}$/.test(source.sourceFeatureId) &&
           coordinatesMatchPointObjectMarket("dubai", source.longitude, source.latitude)), "Find analysis must arm exactly three accepted live Dubai candidates before dispatch.");
@@ -1478,7 +1479,12 @@ class InconclusiveLiveCoverageError extends Error {
 }
 
 async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy: NetworkPolicy, budget: ReturnType<typeof installBudgetGate>, progress: LiveProgress) {
-  const runCandidateAnalysis = configuration.scope === "dubai-find-analysis";
+  const construction = configuration.scope === "dubai-find-construction";
+  const runCandidateAnalysis = configuration.scope === "dubai-find-analysis" || construction;
+  const findRole = construction ? CONSTRUCTION_FIND_CASE.role : "consultant_broker";
+  const findScenario = construction ? CONSTRUCTION_FIND_CASE.scenario : "b2b_hotel_development";
+  const findGroup = construction ? CONSTRUCTION_FIND_CASE.group : "hospitality";
+  let frozenViewport: number[] = [];
   progress.start("find_source_ui");
   progress.start("find_source_ui_navigation");
   await page.goto("/prototype/point-to-object");
@@ -1490,34 +1496,44 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
   await page.getByRole("tab", { name: "Find", exact: true }).click();
   progress.complete("find_source_ui_tab");
   progress.start("find_source_ui_role");
-  await page.getByTestId("point-object-find-role-select").selectOption("consultant_broker");
+  await page.getByTestId("point-object-find-role-select").selectOption(findRole);
   progress.complete("find_source_ui_role");
   progress.start("find_source_ui_scenario");
-  await page.getByTestId("point-object-find-scenario-select").selectOption("b2b_hotel_development");
+  await page.getByTestId("point-object-find-scenario-select").selectOption(findScenario);
   progress.complete("find_source_ui_scenario");
   progress.start("find_source_ui_group");
-  await expect(page.getByTestId("point-object-find-group-select")).toHaveValue("hospitality");
+  await expect(page.getByTestId("point-object-find-group-select")).toHaveValue(findGroup);
   await expect(page.getByLabel("Levels from", { exact: true })).toHaveValue("");
   await expect(page.getByLabel("Levels to", { exact: true })).toHaveValue("");
   progress.complete("find_source_ui_group");
   progress.start("find_source_camera");
+  if (construction) {
+    const map = page.getByTestId("live-map-canvas").first();
+    await quality20MapState(map, [...CONSTRUCTION_FIND_CASE.targetBounds]);
+    await expect.poll(async () => (await quality20MapState(map)).ready).toBe(true);
+    const state = await quality20MapState(map);
+    frozenViewport = state.bounds.flat();
+    assertConstructionViewport(frozenViewport);
+  }
   const zoomOut = page.getByRole("button", { name: "Zoom out" });
-  if (await zoomOut.isVisible().catch(() => false)) {
+  if (!construction && await zoomOut.isVisible().catch(() => false)) {
     await zoomOut.click();
     await zoomOut.click();
   }
   progress.complete("find_source_camera");
   progress.start("find_source_cta");
   await expect(page.getByTestId("point-object-city-select")).toHaveValue("dubai");
-  await expect(page.getByTestId("point-object-find-role-select")).toHaveValue("consultant_broker");
-  await expect(page.getByTestId("point-object-find-scenario-select")).toHaveValue("b2b_hotel_development");
-  await expect(page.getByTestId("point-object-find-group-select")).toHaveValue("hospitality");
+  await expect(page.getByTestId("point-object-find-role-select")).toHaveValue(findRole);
+  await expect(page.getByTestId("point-object-find-scenario-select")).toHaveValue(findScenario);
+  await expect(page.getByTestId("point-object-find-group-select")).toHaveValue(findGroup);
   await expect(page.getByLabel("Levels from", { exact: true })).toHaveValue("");
   await expect(page.getByLabel("Levels to", { exact: true })).toHaveValue("");
   await expect(page.getByTestId("find-search-cta")).toBeEnabled({ timeout: 30_000 });
   progress.complete("find_source_cta");
   progress.start("find_source_pre_dispatch");
-  const preDispatch = await installFindPreDispatchGate(page, acceptedDubaiFindRequest, "Dubai");
+  const preDispatch = await installFindPreDispatchGate(page, construction
+    ? (value): value is AcceptedFindRequest => acceptedConstructionFindRequest(value, frozenViewport)
+    : acceptedDubaiFindRequest, "Dubai");
   const responseObservation = observeSourcePostResponse(page, "/api/prototype/point-to-object/find", SOURCE_REQUEST_HARNESS_TIMEOUT_MS);
   let submitted: AcceptedFindRequest;
   try {
@@ -1540,7 +1556,7 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
   const payload: unknown = await boundedLiveJourneyResponseJson(response, 10_000);
   progress.complete("find_source_body");
   progress.start("find_source_contract");
-  guard(acceptedFindResponse(payload, submitted, "dubai", "hospitality"),
+  guard(acceptedFindResponse(payload, submitted, "dubai", findGroup),
     "The Dubai Find response did not preserve the exact bounded request and open-map source contract.");
   progress.complete("find_source_contract");
   progress.start("find_candidate_count");
@@ -1550,7 +1566,13 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
   }
   const hasFootprint = (candidate: Record<string, unknown>) => record(candidate.geometry) &&
     (candidate.geometry.type === "Polygon" || candidate.geometry.type === "MultiPolygon");
-  const selectedCandidates = [...candidates.filter(hasFootprint), ...candidates.filter((candidate) => !hasFootprint(candidate))].slice(0, 3);
+  const constructionCohort = construction ? freezeConstructionFindCohort(candidates, submitted.bounds) : null;
+  const selectedCandidates = constructionCohort?.selected ?? [...candidates.filter(hasFootprint), ...candidates.filter((candidate) => !hasFootprint(candidate))].slice(0, 3);
+  if (constructionCohort) {
+    await test.info().attach("construction-find-prepaid-manifest", { body: JSON.stringify({ ...constructionCohort.manifest,
+      source: record(payload.source) ? { sourceResponseHash: payload.source.sourceResponseHash, acquiredAt: payload.source.acquiredAt } : null
+    }), contentType: "application/json" });
+  }
   const identities = selectedCandidates.map((candidate) => candidate.sourceFeatureId);
   guard(identities.every((value) => typeof value === "string" && /^(node|way|relation)\/[1-9]\d{0,19}$/.test(value)) && new Set(identities).size === 3,
     "Dubai Find did not return three distinct exact source identities.");
@@ -1664,8 +1686,8 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
   await expect.poll(async () => (await localArtifactState(page, configuration.userId, "find"))?.domainIdentity ?? null).toBe(expectedDomainIdentity);
   const saved = await requireLocalArtifactState(page, configuration.userId, "find");
   expect(saved.marketKey).toBe("dubai");
-  expect(saved.role).toBe("consultant_broker");
-  expect(saved.scenario).toBe("b2b_hotel_development");
+  expect(saved.role).toBe(findRole);
+  expect(saved.scenario).toBe(findScenario);
   progress.complete("find_local_save");
   const paidBeforeReopen = budget.paidDispatchCount();
   progress.start("find_local_reopen");
@@ -1719,7 +1741,7 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
       const aiResponse = observed.response;
       const aiPayload: unknown = await boundedLiveJourneyResponseJson(aiResponse, 10_000);
       const aiSubmitted: unknown = aiResponse.request().postDataJSON();
-      validateSprint10FindAnalysisRequest(aiSubmitted, index + 1, analysisSources);
+      (construction ? validateConstructionAnalysisRequest : validateSprint10FindAnalysisRequest)(aiSubmitted, index + 1, analysisSources);
       progress.complete("analyse_paid_response");
       progress.start("analyse_paid_terminal");
       await budget.waitForTerminalReceipts();
@@ -1733,14 +1755,14 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
           phase: "S4" as const, candidateHost: configuration.host, candidateCommit: configuration.commit, route: "ai" as const,
           depth: "standard" as const, promptVersion: SPRINT10_ANALYSIS_PROMPT_VERSION, schemaVersion: 6 as const } };
       const evidence = buildSprint10AnalysisResultEvidence(evidenceInput);
-      expect(evidence.submitted).toMatchObject({ depth: "standard", goal: "custom", role: "consultant_broker",
-        scenario: "b2b_hotel_development", perspective: "developer", horizon: "one_to_three_years", locale: "en" });
+      expect(evidence.submitted).toMatchObject({ depth: "standard", goal: "custom", role: findRole,
+        scenario: findScenario, perspective: "developer", horizon: "one_to_three_years", locale: "en" });
       if (configuration.findAnalysisEvidencePrefix) writeSprint10AnalysisResultEvidence(`${configuration.findAnalysisEvidencePrefix}-${index + 1}.json`, evidenceInput);
       await expect(page.getByTestId("ai-success")).toBeVisible();
       await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
       await expect(page.getByTestId("role-decision-cards")).toHaveAttribute("data-goal", "custom");
-      await expect(page.getByTestId("analysis-request-state")).toHaveAttribute("data-completed-role", "consultant_broker");
-      await expect(page.getByTestId("analysis-request-state")).toHaveAttribute("data-completed-scenario", "b2b_hotel_development");
+      await expect(page.getByTestId("analysis-request-state")).toHaveAttribute("data-completed-role", findRole);
+      await expect(page.getByTestId("analysis-request-state")).toHaveAttribute("data-completed-scenario", findScenario);
       guard(record(aiPayload.content) && record(aiPayload.content.decisionBrief) && typeof aiPayload.content.decisionBrief.headline === "string",
         "Find analysis content has no validated decision headline.");
       await expect(page.getByText(aiPayload.content.decisionBrief.headline, { exact: true }).first()).toBeVisible();
@@ -1751,8 +1773,8 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
         return state?.count === index + 1 ? state.domainIdentity : null;
       }).toBe(JSON.stringify({ sourceFeatureId: candidate.sourceFeatureId, evidencePackHash: evidence.evidencePackHash }));
       const savedAnalysis = await requireLocalArtifactState(page, configuration.userId, "analyse", index + 1);
-      expect(savedAnalysis.role).toBe("consultant_broker");
-      expect(savedAnalysis.scenario).toBe("b2b_hotel_development");
+      expect(savedAnalysis.role).toBe(findRole);
+      expect(savedAnalysis.scenario).toBe(findScenario);
       progress.complete("analyse_local_save");
       progress.start("analyse_local_reopen");
       await reopenSavedArtifact(page, configuration.userId, "analyse", policy, savedAnalysis, async () => {
@@ -2515,10 +2537,10 @@ test("root-authorized protected Preview source-to-decision journey", async ({ pa
     if (Object.hasOwn(SPRINT10_GOAL_DEPTH_SCOPES, configuration.scope)) {
       await runDubaiDepthCycle(page, configuration, policy, budget, progress, SPRINT10_GOAL_DEPTH_SCOPES[configuration.scope as Sprint10GoalDepthScope]);
     }
-    if (configuration.scope === "journey" || configuration.scope === "dubai-find" || configuration.scope === "dubai-find-analysis") {
+    if (configuration.scope === "journey" || configuration.scope === "dubai-find" || configuration.scope === "dubai-find-analysis" || configuration.scope === "dubai-find-construction") {
       try { await runDubaiFind(page, configuration, policy, budget, progress); }
       catch (error) {
-        if (error instanceof InconclusiveLiveCoverageError && configuration.scope === "dubai-find-analysis") throw error;
+        if (error instanceof InconclusiveLiveCoverageError && (configuration.scope === "dubai-find-analysis" || configuration.scope === "dubai-find-construction")) throw error;
         if (error instanceof InconclusiveLiveCoverageError) delayedInconclusiveStage = "find_candidate_count";
         else throw error;
       }

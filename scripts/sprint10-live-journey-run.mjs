@@ -45,7 +45,7 @@ const exactDevelopmentProjectRef = "pphdqkurxneyagvnnjdt";
 const exactLedgerId = "5aa405b3-bbda-48aa-aeea-ca3357be4042";
 const exactExplicitRun = "root-paid-live-journey-2026-09-18";
 const acceptedScopes = new Set([
-  "journey", "dubai-analyse", "dubai-find", "dubai-find-analysis", "singapore-create",
+  "journey", "dubai-analyse", "dubai-find", "dubai-find-analysis", "dubai-find-construction", "singapore-create",
   "singapore-analyse", "singapore-find", "dubai-create", "dubai-depth-cycle",
   ...DUBAI_CREATE_PROGRAMME_SCOPES,
   "dubai-profile-depth-cycle", "dubai-redevelopment-depth-cycle", "dubai-diligence-depth-cycle",
@@ -71,6 +71,7 @@ export const LIVE_SCOPE_RECEIPT_PLAN = Object.freeze({
   ]),
   "dubai-find": Object.freeze([]),
   "dubai-find-analysis": Object.freeze([1, 2, 3].map(() => Object.freeze({ route: "ai", depth: "standard", reserveUsd: RESERVE_USD.ai }))),
+  "dubai-find-construction": Object.freeze([1, 2, 3].map(() => Object.freeze({ route: "ai", depth: "standard", reserveUsd: RESERVE_USD.ai }))),
   "singapore-create": Object.freeze([
     Object.freeze({ route: "create", depth: "standard", reserveUsd: RESERVE_USD.create })
   ]),
@@ -504,7 +505,7 @@ export function classifyLiveJourneyReport(report, resultStatus, config, receipts
           ...common,
           reason: diagnostic.primaryStage === "analyse_source_suggest_candidate"
             ? "The requested public source candidate was not returned; no fallback candidate was used."
-            : config.scope === "dubai-find-analysis"
+            : (config.scope === "dubai-find-analysis" || config.scope === "dubai-find-construction")
               ? "Find returned fewer than three usable candidates for the three-analysis scope."
               : "Find returned fewer than two usable candidates for Compare."
         }

@@ -87,6 +87,7 @@ try {
     "dubai-analyse": [{ route: "ai", depth: "standard", reserveUsd: RESERVE_USD.ai }],
     "dubai-find": [],
     "dubai-find-analysis": [1, 2, 3].map(() => ({ route: "ai", depth: "standard", reserveUsd: RESERVE_USD.ai })),
+    "dubai-find-construction": [1, 2, 3].map(() => ({ route: "ai", depth: "standard", reserveUsd: RESERVE_USD.ai })),
     "singapore-create": [{ route: "create", depth: "standard", reserveUsd: RESERVE_USD.create }],
     "singapore-analyse": [{ route: "ai", depth: "standard", reserveUsd: RESERVE_USD.ai }],
     "singapore-find": [],
