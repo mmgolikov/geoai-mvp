@@ -633,7 +633,6 @@ export function PointToObjectAnalysis() {
 
             {content ? (
               <div className="space-y-5" data-testid="ai-success">
-                {analysis?.mode === "openai" ? <PointObjectDecisionCards context={geoContext} generatedAt={analysis.generatedAt} reportPerspective={localizedPerspective(analysis.request.perspective)} places={mergedLocationContext.filter((item) => item.evidenceRefs.some((ref) => /^EVD-CONTEXT-\d+$/.test(ref)))} groupLabels={contextGroupLabels} districtLabels={districtLabels} /> : null}
                 {analysis?.mode === "openai" && analysis.request.locale !== locale ? <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-white p-3 text-xs text-muted"><span>{locale === "ru" ? "Текст отчёта сохранён на исходном языке. Обновление — отдельный AI-запрос." : "Report text is kept in its saved language. Updating is a separate AI request."}</span><button type="button" disabled={loading} className="min-h-11 rounded-lg border border-line px-3 font-bold text-[#087f8c] disabled:opacity-50" onClick={() => selection && void requestAnalysis(selection, requestIdentity(selection, analysis.request.question, analysis.request, locale))}>{locale === "ru" ? "Обновить на русском" : "Update in English"}</button></div> : null}
                 <section className="rounded-[20px] border border-[#c8d9ec] bg-white p-5 shadow-soft sm:p-7">
                   <div className="flex flex-wrap items-center gap-2">
@@ -668,6 +667,7 @@ export function PointToObjectAnalysis() {
                   <p className="mt-5 border-t border-line pt-4 text-[11px] leading-5 text-muted" data-testid="analysis-caveat">{content.caveat}</p>
                 </section>
 
+                {analysis?.mode === "openai" ? <PointObjectDecisionCards key={`${analysis.evidencePackId}:${analysis.generatedAt}`} context={geoContext} generatedAt={analysis.generatedAt} request={analysis.request} content={content} reportPerspective={localizedPerspective(analysis.request.perspective)} places={mergedLocationContext.filter((item) => item.evidenceRefs.some((ref) => /^EVD-CONTEXT-\d+$/.test(ref)))} groupLabels={contextGroupLabels} districtLabels={districtLabels} /> : null}
                 {content.depthReview ? <DepthReviewPanel review={content.depthReview} /> : null}
 
                 {geoContext ? <details className="rounded-[20px] border border-line bg-white p-5 shadow-soft sm:p-7" data-testid="analysis-geocontext">

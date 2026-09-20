@@ -24,3 +24,60 @@
   background: #087f8c;
   border-radius: 4px;
 }
+
+.dashboard { --accent:#087f8c; --light:#e5fafa; --pale:#f4fbfb; min-width:0; background:white; font-family:var(--font-geist),"Geist",Arial,sans-serif; }
+.dashboard p,.dashboard h3,.dashboard h4 { overflow-wrap:anywhere; }
+.grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; align-items:start; }
+.module { min-width:0; border:1px solid #dbe4e8; border-radius:16px; background:white; padding:20px; font-size:14px; line-height:1.6; }
+.wide { grid-column:1 / -1; }
+.kpis { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin:20px 0; }
+.kpis > div { min-width:0; background:white; border:1px solid #dbe4e8; border-radius:16px; padding:16px; }
+.kpis dt,.metrics dt { font-size:12px; line-height:1.5; color:#526174; }
+.kpis dd { font-size:28px; font-weight:750; line-height:1.3; color:var(--accent); margin-top:6px; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.next { border-left:4px solid var(--accent); border-radius:0 12px 12px 0; background:var(--pale); padding:14px 16px; margin:12px 0 20px; }
+.next strong { font-size:12px; color:var(--accent); }
+.next p { margin:5px 0; font-size:15px; font-weight:650; }
+.next small { font-size:12px; color:#526174; }
+.chart { display:grid; gap:8px; margin:16px 0; }
+.category { display:grid; grid-template-columns:minmax(100px,1.2fr) minmax(60px,2fr) minmax(60px,.6fr); gap:12px; align-items:center; width:100%; min-height:48px; padding:8px 10px; border:1px solid transparent; border-radius:10px; text-align:left; background:var(--pale); }
+.category:hover { background:var(--light); }
+.category[aria-pressed=true] { border-color:var(--accent); background:var(--light); }
+.category:focus-visible,.localButton:focus-visible,.dashboard summary:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+.categoryLabel { font-size:13px; font-weight:650; overflow-wrap:anywhere; }
+.track { display:block; height:12px; background:#dfecee; border-radius:3px; overflow:hidden; }
+.track > span { display:block; height:100%; background:var(--accent); }
+.categoryValue { font-size:14px; font-variant-numeric:tabular-nums; text-align:right; }
+.categoryValue small { display:block; font-size:12px; font-weight:400; color:#526174; }
+.localButton { min-height:44px; border:1px solid #b5ced1; border-radius:10px; padding:8px 12px; background:white; color:var(--accent); font-size:13px; font-weight:650; }
+.detail { border-top:1px solid #dbe4e8; padding-top:12px; margin-top:12px; }
+.metrics { display:flex; flex-wrap:wrap; gap:20px; margin:12px 0; }
+.metrics > div { flex:1 1 95px; min-width:0; }
+.metrics dd { font-size:24px; line-height:1.4; font-weight:700; font-variant-numeric:tabular-nums; }
+.coverage { display:grid; margin-top:12px; }
+.coverage > div { display:grid; grid-template-columns:1fr 1fr; gap:12px; padding:10px 0; border-bottom:1px solid #e5ebee; }
+.coverage dt { color:#526174; }
+.coverage dd { font-weight:600; overflow-wrap:anywhere; }
+.items { list-style:none; padding:0; display:grid; gap:14px; margin-top:12px; }
+.items li + li { border-top:1px solid #e5ebee; padding-top:14px; }
+.items h4 { font-weight:700; }
+.alternatives { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-top:12px; }
+.alternatives > article { border:1px solid #dbe4e8; border-radius:12px; background:var(--pale); padding:14px; min-width:0; }
+.dashboard summary { min-height:44px; padding:10px 0; cursor:pointer; color:var(--accent); font-size:13px; font-weight:650; overflow-wrap:anywhere; }
+.references { font-size:11px; overflow-wrap:anywhere; color:#526174; }
+.tableWrap { overflow-x:auto; }
+.tableWrap table { border-collapse:collapse; width:100%; font-size:12px; }
+.tableWrap caption { text-align:left; color:#526174; padding:10px 0; }
+.tableWrap td,.tableWrap th { text-align:left; vertical-align:top; padding:10px 8px; border-bottom:1px solid #dbe4e8; overflow-wrap:anywhere; }
+.tableWrap td { font-variant-numeric:tabular-nums; }
+@media(max-width:600px) {
+  .grid { grid-template-columns:minmax(0,1fr); }
+  .module { padding:16px; }
+  .kpis { gap:8px; }
+  .kpis > div { padding:12px 8px; }
+  .kpis dd { font-size:22px; }
+  .category { grid-template-columns:minmax(0,1fr) 60px; gap:6px 10px; }
+  .categoryLabel { grid-column:1; }
+  .track { grid-column:1; grid-row:2; }
+  .categoryValue { grid-column:2; grid-row:1 / 3; }
+  .alternatives { grid-template-columns:1fr; }
+}
