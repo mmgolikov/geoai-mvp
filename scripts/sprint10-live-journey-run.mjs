@@ -485,7 +485,9 @@ export function classifyLiveJourneyReport(report, resultStatus, config, receipts
         receipt: {
           status: "INCONCLUSIVE",
           ...common,
-          reason: "Find returned fewer than two usable candidates for Compare."
+          reason: diagnostic.primaryStage === "analyse_source_suggest_candidate"
+            ? "The requested public source candidate was not returned; no fallback candidate was used."
+            : "Find returned fewer than two usable candidates for Compare."
         }
       };
     }

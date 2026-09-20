@@ -32,9 +32,12 @@ export const SPRINT10_GOAL_DEPTH_PRESETS = [
 ] as const;
 
 export const SPRINT10_GOAL_DEPTH_SCOPES = {
-  "dubai-profile-depth-cycle": SPRINT10_GOAL_DEPTH_PRESETS[0],
-  "dubai-redevelopment-depth-cycle": SPRINT10_GOAL_DEPTH_PRESETS[2],
-  "dubai-diligence-depth-cycle": SPRINT10_GOAL_DEPTH_PRESETS[3]
+  "dubai-profile-depth-cycle": { ...SPRINT10_GOAL_DEPTH_PRESETS[0],
+    sourceQuery: "Jumeirah Emirates Towers Hotel", sourceCandidateLabel: /^(?:Jumeirah Emirates Towers(?: Hotel)?|Emirates Towers Hotel)$/i },
+  "dubai-redevelopment-depth-cycle": { ...SPRINT10_GOAL_DEPTH_PRESETS[2],
+    sourceQuery: "Dubai World Trade Centre", sourceCandidateLabel: /^Dubai World Trade Cent(?:re|er)$/i },
+  "dubai-diligence-depth-cycle": { ...SPRINT10_GOAL_DEPTH_PRESETS[3],
+    sourceQuery: "Marina Plaza Dubai", sourceCandidateLabel: /^Marina Plaza(?: Dubai)?$/i }
 } as const;
 export type Sprint10GoalDepthScope = keyof typeof SPRINT10_GOAL_DEPTH_SCOPES;
 

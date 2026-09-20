@@ -750,6 +750,7 @@ type LiveAnalyseSuggestionCase = {
   enterQuery: (search: Locator) => Promise<void>;
   candidateLabel: RegExp;
   expectedSourceIdentity?: string;
+  missingCandidateInconclusive?: boolean;
   label: string;
 };
 
@@ -873,6 +874,9 @@ async function runAnalyseSourceSuggest(
   const chosenIndex = resultRecords.findIndex((candidate) => input.expectedSourceIdentity
     ? candidate.id === input.expectedSourceIdentity : input.candidateLabel.test(String(candidate.label)));
   const chosen = chosenIndex >= 0 ? resultRecords[chosenIndex] : undefined;
+  if (!chosen && input.missingCandidateInconclusive) {
+    throw new InconclusiveLiveCoverageError(`The requested ${input.label} source candidate was not returned; no fallback candidate or paid request was used.`);
+  }
   guard(chosen && typeof chosen.id === "string" && /^(node|way|relation)\/[1-9]\d{0,19}$/.test(chosen.id) &&
     typeof chosen.label === "string" && typeof chosen.longitude === "number" && typeof chosen.latitude === "number",
     `The exact ${input.label} source candidate was not returned; no fallback candidate was used.`);
@@ -1135,13 +1139,15 @@ async function runDubaiAnalyse(page: Page, configuration: LiveConfiguration, pol
 }
 
 async function runDubaiDepthCycle(page: Page, configuration: LiveConfiguration, policy: NetworkPolicy, budget: ReturnType<typeof installBudgetGate>, progress: LiveProgress,
-  presetConfiguration: { goal: string; label: string; question: string } = { goal: "development_screening", label: "Development screening", question: SPRINT10_DEVELOPMENT_SCREENING_QUESTION }) {
+  presetConfiguration: { goal: string; label: string; question: string; sourceQuery?: string; sourceCandidateLabel?: RegExp } = { goal: "development_screening", label: "Development screening", question: SPRINT10_DEVELOPMENT_SCREENING_QUESTION }) {
+  const sourceQuery = presetConfiguration.sourceQuery ?? "Shangri-La Dubai";
   const { chosen, chosenIndex } = await runAnalyseSourceSuggest(page, {
     marketKey: "dubai",
-    query: "Shangri-La Dubai",
-    enterQuery: (search) => search.fill("Shangri-La Dubai"),
-    candidateLabel: /shangri/i,
-    label: "Dubai depth cycle"
+    query: sourceQuery,
+    enterQuery: (search) => search.fill(sourceQuery),
+    candidateLabel: presetConfiguration.sourceCandidateLabel ?? /shangri/i,
+    missingCandidateInconclusive: presetConfiguration.sourceQuery !== undefined,
+    label: presetConfiguration.sourceQuery ?? "Dubai depth cycle"
   }, progress);
   const option = page.locator(`#point-object-search-result-${chosenIndex}`);
   progress.start("analyse_source_context");
@@ -1154,7 +1160,11 @@ async function runDubaiDepthCycle(page: Page, configuration: LiveConfiguration, 
   "The selected Dubai depth-cycle source identity was not resolved to the exact structured object.");
   progress.complete("analyse_source_context");
 
-  if (Object.hasOwn(SPRINT10_GOAL_DEPTH_SCOPES, configuration.scope)) budget.armGoalDepthSource({ sourceFeatureId: chosen.id, longitude: chosen.longitude, latitude: chosen.latitude });
+  if (Object.hasOwn(SPRINT10_GOAL_DEPTH_SCOPES, configuration.scope)) {
+    budget.armGoalDepthSource({ sourceFeatureId: chosen.id, longitude: chosen.longitude, latitude: chosen.latitude });
+    test.info().annotations.push({ type: "functional-source", description: JSON.stringify({ scope: configuration.scope,
+      sourceQuery, sourceFeatureId: chosen.id, contextHttpStatus: context.status(), comparativeBenchmark: false }) });
+  }
   await expect(page.getByRole("button", { name: "Analyze", exact: true })).toBeEnabled({ timeout: 45_000 });
   await page.locator("#point-object-question").fill(SPRINT10_PUBLIC_ANALYSIS_QUESTION);
   progress.start("analyse_paid_response");

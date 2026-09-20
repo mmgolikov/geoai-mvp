@@ -17,6 +17,25 @@ const root = realpathSync(mkdtempSync(join(tmpdir(), "geoai-goal-depth-check-"))
 chmodSync(root, 0o700);
 const source = { sourceFeatureId: "way/91010", longitude: 55.27, latitude: 25.2 };
 try {
+  const sourceCases = Object.values(SPRINT10_GOAL_DEPTH_SCOPES);
+  assert.deepEqual(sourceCases.map(({ sourceQuery }) => sourceQuery), ["Jumeirah Emirates Towers Hotel", "Dubai World Trade Centre", "Marina Plaza Dubai"]);
+  assert.equal(new Set(sourceCases.map(({ sourceQuery }) => sourceQuery)).size, 3);
+  for (const [index, sourceCase] of sourceCases.entries()) {
+    assert.ok(sourceCase.sourceQuery.length <= 80);
+    assert.equal(sourceCase.sourceCandidateLabel.global, false);
+    assert.equal(sourceCase.sourceCandidateLabel.sticky, false);
+    assert.ok(sourceCase.sourceCandidateLabel.test(sourceCase.sourceQuery));
+    assert.equal(sourceCase.sourceCandidateLabel.test("Shangri-La Dubai"), false);
+    assert.equal(sourceCase.sourceCandidateLabel.test("Unrelated Dubai hotel, café and offices"), false);
+    assert.equal(sourceCase.sourceCandidateLabel.test(`${sourceCase.sourceQuery} Metro Station`), false);
+    assert.equal(sourceCase.sourceCandidateLabel.test(`Restaurant at ${sourceCase.sourceQuery}`), false);
+    for (const [otherIndex, other] of sourceCases.entries()) {
+      if (otherIndex !== index) assert.equal(sourceCase.sourceCandidateLabel.test(other.sourceQuery), false);
+    }
+    assert.equal(Object.hasOwn(sourceCase, "sourceFeatureId"), false);
+    assert.equal(Object.hasOwn(sourceCase, "longitude"), false);
+    assert.equal(Object.hasOwn(sourceCase, "latitude"), false);
+  }
   for (const scope of Object.keys(SPRINT10_GOAL_DEPTH_SCOPES) as Sprint10GoalDepthScope[]) {
     const recipe = sprint10GoalDepthRecipe(scope);
     assert.deepEqual(recipe.map(({ depth }) => depth), ["standard", "standard", "deep", "quick"]);
@@ -72,6 +91,11 @@ try {
     }
   }
   const spec = readFileSync(new URL("../tests/e2e/sprint10-live-journey.spec.ts", import.meta.url), "utf8");
+  assert.match(spec, /sourceQuery = presetConfiguration[.]sourceQuery \?\? "Shangri-La Dubai"/);
+  assert.match(spec, /enterQuery: \(search\) => search[.]fill\(sourceQuery\)/);
+  assert.match(spec, /candidateLabel: presetConfiguration[.]sourceCandidateLabel \?\? \/shangri\/i/);
+  assert.match(spec, /if \(!chosen && input[.]missingCandidateInconclusive\)[\s\S]*?throw new InconclusiveLiveCoverageError/);
+  assert.match(spec, /armGoalDepthSource\(\{ sourceFeatureId: chosen[.]id, longitude: chosen[.]longitude, latitude: chosen[.]latitude \}\)/);
   assert.ok(spec.indexOf("validateSprint10GoalDepthRequest(body") < spec.indexOf("reserveSprint10SpendFile(configuration"));
   for (const check of ["data-draft-depth", "data-in-flight-depth", "data-completed-depth", '"data-goal", previousGoal', '"data-goal", presetConfiguration.goal', "assertNoReplay(before, policy.snapshotJourneyRequests())"]) assert.ok(spec.includes(check));
   console.log("PASS: three functional goal scopes; 4 POST/4.8 reserve each; exact pre-dispatch recipe; nine private captures preserve actual questions; no comparative claim.");
