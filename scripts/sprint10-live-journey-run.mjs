@@ -36,12 +36,13 @@ import { findLiveJourneyDiagnostic } from "./sprint10-live-journey-diagnostics.m
 import { loadQuality20Selection, quality20ApprovalSuffix, validateQuality20Ledger } from "../tests/e2e/helpers/quality20-frozen-case.ts";
 import { loadQuality20Acquisition } from "../tests/e2e/helpers/quality20-acquisition.ts";
 import { validateGoalDepthCaptureEnvironment } from "../tests/e2e/helpers/sprint10-goal-depth-evidence.ts";
+import { validateFindAnalysisCaptureEnvironment } from "../tests/e2e/helpers/sprint10-find-analysis-evidence.ts";
 
 const exactDevelopmentProjectRef = "pphdqkurxneyagvnnjdt";
 const exactLedgerId = "5aa405b3-bbda-48aa-aeea-ca3357be4042";
 const exactExplicitRun = "root-paid-live-journey-2026-09-18";
 const acceptedScopes = new Set([
-  "journey", "dubai-analyse", "dubai-find", "singapore-create",
+  "journey", "dubai-analyse", "dubai-find", "dubai-find-analysis", "singapore-create",
   "singapore-analyse", "singapore-find", "dubai-create", "dubai-depth-cycle",
   "dubai-profile-depth-cycle", "dubai-redevelopment-depth-cycle", "dubai-diligence-depth-cycle",
   "quality20-analyse", "quality20-find", "quality20-create", "quality20-acquire"
@@ -62,6 +63,7 @@ export const LIVE_SCOPE_RECEIPT_PLAN = Object.freeze({
     Object.freeze({ route: "ai", depth: "standard", reserveUsd: RESERVE_USD.ai })
   ]),
   "dubai-find": Object.freeze([]),
+  "dubai-find-analysis": Object.freeze([1, 2, 3].map(() => Object.freeze({ route: "ai", depth: "standard", reserveUsd: RESERVE_USD.ai }))),
   "singapore-create": Object.freeze([
     Object.freeze({ route: "create", depth: "standard", reserveUsd: RESERVE_USD.create })
   ]),
@@ -316,6 +318,7 @@ function preflight(repositoryRoot) {
   const analysisEvidenceEnvironment = validateAnalysisEvidenceCaptureEnvironment(process.env, scope);
   const depthCycleEvidenceEnvironment = validateDepthCycleEvidenceCaptureEnvironment(process.env, scope);
   const goalDepthEvidenceEnvironment = validateGoalDepthCaptureEnvironment(process.env, scope);
+  const findAnalysisEvidenceEnvironment = validateFindAnalysisCaptureEnvironment(process.env, scope);
   const previewUrl = canonicalOrigin(required("GEOAI_SPRINT10_LIVE_PREVIEW_URL"));
   const baseUrl = canonicalOrigin(required("GEOAI_E2E_BASE_URL"));
   if (!previewUrl || baseUrl !== previewUrl) fail("The base URL and Preview URL must be the same exact origin.");
@@ -370,7 +373,8 @@ function preflight(repositoryRoot) {
       .map((name) => [name, required(name)])),
     analysisEvidenceEnvironment,
     depthCycleEvidenceEnvironment,
-    goalDepthEvidenceEnvironment
+    goalDepthEvidenceEnvironment,
+    findAnalysisEvidenceEnvironment
   };
 }
 
@@ -487,7 +491,9 @@ export function classifyLiveJourneyReport(report, resultStatus, config, receipts
           ...common,
           reason: diagnostic.primaryStage === "analyse_source_suggest_candidate"
             ? "The requested public source candidate was not returned; no fallback candidate was used."
-            : "Find returned fewer than two usable candidates for Compare."
+            : config.scope === "dubai-find-analysis"
+              ? "Find returned fewer than three usable candidates for the three-analysis scope."
+              : "Find returned fewer than two usable candidates for Compare."
         }
       };
     }
@@ -599,6 +605,7 @@ module.exports = defineConfig({
     ...config.analysisEvidenceEnvironment,
     ...config.depthCycleEvidenceEnvironment,
     ...config.goalDepthEvidenceEnvironment,
+    ...config.findAnalysisEvidenceEnvironment,
     ...config.quality20Environment,
     GEOAI_SPRINT10_LIVE_RUNNER_ACTIVE: "1"
   };

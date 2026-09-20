@@ -21,6 +21,7 @@ import {
 import { basename, dirname, isAbsolute, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { validateGoalDepthCaptureEnvironment } from "../tests/e2e/helpers/sprint10-goal-depth-evidence.ts";
+import { validateFindAnalysisCaptureEnvironment } from "../tests/e2e/helpers/sprint10-find-analysis-evidence.ts";
 import {
   LIVE_SCOPE_RECEIPT_PLAN,
   validateAnalysisEvidenceCaptureEnvironment,
@@ -43,6 +44,7 @@ const exactPreviewSeamOptIn = "run-existing-real-password-preview-harness";
 const exactLiveJourneySeamOptIn = "run-reviewed-sprint10-live-journey-before-retirement";
 const exactLedgerId = "5aa405b3-bbda-48aa-aeea-ca3357be4042";
 const acceptedLiveScopes = new Set([
+  "dubai-find-analysis",
   "dubai-profile-depth-cycle", "dubai-redevelopment-depth-cycle", "dubai-diligence-depth-cycle",
   "journey", "dubai-analyse", "dubai-find", "singapore-create",
   "singapore-analyse", "singapore-find", "dubai-create", "dubai-depth-cycle",
@@ -288,6 +290,8 @@ export function validateRuntimeConfig(
     liveJourneySeam === exactLiveJourneySeamOptIn ? env.GEOAI_HOSTED_AUTH_PROBE_LIVE_JOURNEY_SCOPE : undefined);
   const goalDepthEvidenceEnvironment = validateGoalDepthCaptureEnvironment(env,
     liveJourneySeam === exactLiveJourneySeamOptIn ? env.GEOAI_HOSTED_AUTH_PROBE_LIVE_JOURNEY_SCOPE : undefined);
+  const findAnalysisEvidenceEnvironment = validateFindAnalysisCaptureEnvironment(env,
+    liveJourneySeam === exactLiveJourneySeamOptIn ? env.GEOAI_HOSTED_AUTH_PROBE_LIVE_JOURNEY_SCOPE : undefined);
   let liveJourney = null;
   if (liveJourneySeam === exactLiveJourneySeamOptIn) {
     if (previewSeam !== exactPreviewSeamOptIn) {
@@ -336,7 +340,8 @@ export function validateRuntimeConfig(
         .map((name) => [name, required(env, name)])),
       analysisEvidenceEnvironment,
       depthCycleEvidenceEnvironment,
-      goalDepthEvidenceEnvironment
+      goalDepthEvidenceEnvironment,
+      findAnalysisEvidenceEnvironment
     };
   }
   return {
@@ -914,6 +919,7 @@ export function buildLiveJourneyChildEnvironment(config, personas, env = process
     ...config.liveJourney.analysisEvidenceEnvironment,
     ...config.liveJourney.depthCycleEvidenceEnvironment,
     ...config.liveJourney.goalDepthEvidenceEnvironment,
+    ...config.liveJourney.findAnalysisEvidenceEnvironment,
     ...config.liveJourney.quality20Environment,
     GEOAI_SPRINT10_LIVE_EXPLICIT_RUN: "root-paid-live-journey-2026-09-18",
     GEOAI_SPRINT10_LIVE_SCOPE: config.liveJourney.scope,

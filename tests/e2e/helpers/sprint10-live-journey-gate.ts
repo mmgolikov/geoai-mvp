@@ -6,6 +6,7 @@ export const SPRINT10_LIVE_PAID_SCOPE_MATRIX = {
   journey: { ai: 1, create: 1 },
   "dubai-analyse": { ai: 1, create: 0 },
   "dubai-find": { ai: 0, create: 0 },
+  "dubai-find-analysis": { ai: 3, create: 0 },
   "singapore-create": { ai: 0, create: 1 },
   "singapore-analyse": { ai: 1, create: 0 },
   "singapore-find": { ai: 0, create: 0 },
@@ -50,6 +51,20 @@ export function sprint10GoalDepthRecipe(scope: Sprint10GoalDepthScope) {
 }
 
 export type Sprint10GoalDepthSource = { sourceFeatureId: string; longitude: number; latitude: number };
+
+export function validateSprint10FindAnalysisRequest(body: unknown, occurrence: number, sources: readonly Sprint10GoalDepthSource[] | null): void {
+  if (!sources || sources.length !== 3 || new Set(sources.map((source) => source.sourceFeatureId)).size !== 3 ||
+      !Number.isInteger(occurrence) || occurrence < 1 || occurrence > 3) throw new Error("Find analysis requires three distinct armed live source identities.");
+  // Reuse the strict custom Standard source/body shape, retaining Find's
+  // actual broker/hotel intent and one-to-three-year horizon below.
+  if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("Find analysis request is missing.");
+  const value = body as Record<string, unknown>;
+  if (value.role !== "consultant_broker" || value.scenario !== "b2b_hotel_development" || value.horizon !== "one_to_three_years") {
+    throw new Error("Find analysis lost the exact broker/hotel intent.");
+  }
+  validateSprint10GoalDepthRequest({ ...value, role: "developer", scenario: "unspecified", horizon: "current" },
+    1, sources[occurrence - 1], "dubai-profile-depth-cycle");
+}
 
 /** Reject a changed recipe/source before a request can reserve or dispatch. */
 export function validateSprint10GoalDepthRequest(body: unknown, occurrence: number, source: Sprint10GoalDepthSource | null, scope: Sprint10GoalDepthScope): void {

@@ -39,6 +39,8 @@ import {
 import { SPRINT10_GOAL_DEPTH_SCOPES, validateSprint10GoalDepthRequest,
   type Sprint10GoalDepthScope, type Sprint10GoalDepthSource } from "./helpers/sprint10-live-journey-gate";
 import { validateGoalDepthCaptureEnvironment, writeSprint10GoalDepthEvidence } from "./helpers/sprint10-goal-depth-evidence";
+import { validateSprint10FindAnalysisRequest } from "./helpers/sprint10-live-journey-gate";
+import { validateFindAnalysisCaptureEnvironment } from "./helpers/sprint10-find-analysis-evidence";
 import {
   SPRINT10_ANALYSIS_EVIDENCE_CAPTURE_OPT_IN,
   SPRINT10_PUBLIC_ANALYSIS_QUESTION,
@@ -70,7 +72,7 @@ const CAVEAT = "Screening hypothesis; official validation required; not a legal,
 const EXACT_DEVELOPMENT_PROJECT_REF = "pphdqkurxneyagvnnjdt";
 const EXPECTED_LEDGER_ID = "5aa405b3-bbda-48aa-aeea-ca3357be4042";
 const LIVE_SCOPES: readonly Sprint10LiveScope[] = [
-  "journey", "dubai-analyse", "dubai-find", "singapore-create",
+  "journey", "dubai-analyse", "dubai-find", "dubai-find-analysis", "singapore-create",
   "singapore-analyse", "singapore-find", "dubai-create", "dubai-depth-cycle",
   "dubai-profile-depth-cycle", "dubai-redevelopment-depth-cycle", "dubai-diligence-depth-cycle",
   "quality20-analyse", "quality20-find", "quality20-create", "quality20-acquire"
@@ -109,6 +111,7 @@ type LiveConfiguration = {
   analysisEvidencePath: string | null;
   depthCycleEvidencePath: string | null;
   goalDepthEvidencePrefix: string | null;
+  findAnalysisEvidencePrefix: string | null;
   quality20: Quality20Selection | null;
   acquisition: Quality20Acquisition | null;
 };
@@ -388,6 +391,7 @@ function loadConfiguration(baseURL: string | undefined): LiveConfiguration {
     validateSprint10DepthCycleEvidencePath(depthEvidencePath);
   }
   const goalCapture = validateGoalDepthCaptureEnvironment(process.env, selectedScope);
+  const findCapture = validateFindAnalysisCaptureEnvironment(process.env, selectedScope);
   return {
     scope: selectedScope,
     origin: preview.origin,
@@ -403,6 +407,7 @@ function loadConfiguration(baseURL: string | undefined): LiveConfiguration {
     analysisEvidencePath: evidenceRequested ? evidencePath! : null,
     depthCycleEvidencePath: depthEvidenceRequested ? depthEvidencePath! : null,
     goalDepthEvidencePrefix: goalCapture.GEOAI_SPRINT10_GOAL_DEPTH_EVIDENCE_PREFIX ?? null,
+    findAnalysisEvidencePrefix: findCapture.GEOAI_SPRINT10_FIND_ANALYSIS_EVIDENCE_PREFIX ?? null,
     quality20: loadQuality20Selection(process.env, selectedScope, { commit, origin: preview.origin }),
     acquisition: selectedScope === "quality20-acquire" ? loadQuality20Acquisition(process.env, { commit, origin: preview.origin }) : null
   };
@@ -508,6 +513,7 @@ function installBudgetGate(page: Page, configuration: LiveConfiguration) {
   let fatal: string | null = null;
   let frozenCaseArmed = configuration.quality20 === null;
   let goalDepthSource: Sprint10GoalDepthSource | null = null;
+  let findAnalysisSources: Sprint10GoalDepthSource[] | null = null;
 
   const markUnknown = (item: PendingPaidRequest, reason: "request_failed_after_dispatch" | "response_unreadable") => {
     if (item.terminal) return;
@@ -563,6 +569,10 @@ function installBudgetGate(page: Page, configuration: LiveConfiguration) {
     if (Object.hasOwn(SPRINT10_GOAL_DEPTH_SCOPES, configuration.scope)) {
       try { validateSprint10GoalDepthRequest(body, occurrences[routeName], goalDepthSource, configuration.scope as Sprint10GoalDepthScope); }
       catch { fatal = "Goal-depth recipe or source rejected before reservation."; return route.abort("blockedbyclient"); }
+    }
+    if (configuration.scope === "dubai-find-analysis") {
+      try { validateSprint10FindAnalysisRequest(body, occurrences[routeName], findAnalysisSources); }
+      catch { fatal = "Find analysis exact source or intent rejected before reservation."; return route.abort("blockedbyclient"); }
     }
     const depth = body?.depth;
     if (depth !== "quick" && depth !== "standard" && depth !== "deep") {
@@ -647,6 +657,13 @@ function installBudgetGate(page: Page, configuration: LiveConfiguration) {
 
   return {
     ready: registration,
+    armFindAnalysisSources(sources: Sprint10GoalDepthSource[]) {
+      guard(configuration.scope === "dubai-find-analysis" && !fatal && occurrences.ai === 0 && !findAnalysisSources &&
+        sources.length === 3 && new Set(sources.map((source) => source.sourceFeatureId)).size === 3 &&
+        sources.every((source) => /^(node|way|relation)\/[1-9]\d{0,19}$/.test(source.sourceFeatureId) &&
+          coordinatesMatchPointObjectMarket("dubai", source.longitude, source.latitude)), "Find analysis must arm exactly three accepted live Dubai candidates before dispatch.");
+      findAnalysisSources = sources.map((source) => ({ ...source }));
+    },
     armGoalDepthSource(source: Sprint10GoalDepthSource) { guard(!fatal && occurrences.ai === 0, "Goal-depth source must be armed before the first request."); goalDepthSource = source; },
     armFrozenCase() { guard(!fatal, "A previous gate failure blocks this case."); frozenCaseArmed = true; },
     paidDispatchCount: () => occurrences.ai + occurrences.create,
@@ -1426,6 +1443,7 @@ class InconclusiveLiveCoverageError extends Error {
 }
 
 async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy: NetworkPolicy, budget: ReturnType<typeof installBudgetGate>, progress: LiveProgress) {
+  const runCandidateAnalysis = configuration.scope === "dubai-find-analysis";
   progress.start("find_source_ui");
   progress.start("find_source_ui_navigation");
   await page.goto("/prototype/point-to-object");
@@ -1501,6 +1519,9 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
   const identities = selectedCandidates.map((candidate) => candidate.sourceFeatureId);
   guard(identities.every((value) => typeof value === "string" && /^(node|way|relation)\/[1-9]\d{0,19}$/.test(value)) && new Set(identities).size === 3,
     "Dubai Find did not return three distinct exact source identities.");
+  const analysisSources = selectedCandidates.map((candidate) => ({ sourceFeatureId: String(candidate.sourceFeatureId),
+    longitude: Number(candidate.longitude), latitude: Number(candidate.latitude) }));
+  if (runCandidateAnalysis) budget.armFindAnalysisSources(analysisSources);
   progress.complete("find_candidate_count");
   const items = page.getByTestId("find-scroll-region").getByRole("listitem");
   await expect(items).toHaveCount(candidates.length);
@@ -1613,11 +1634,65 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
     const selection = await page.evaluate(() => JSON.parse(sessionStorage.getItem("geoai:point-to-object:selection:v3") ?? "null"));
     expect(selection.object.sourceFeatureId).toBe(candidate.sourceFeatureId);
     if (hasFootprint(candidate)) expect(selection.object.geometry).toEqual(candidate.geometry);
-    expect(budget.paidDispatchCount()).toBe(paidBeforeReopen);
+    expect(budget.paidDispatchCount()).toBe(paidBeforeReopen + (runCandidateAnalysis ? index : 0));
     const afterAnalysis = policy.snapshotJourneyRequests();
     expect(afterAnalysis["POST /api/prototype/point-to-object/context"] ?? 0).toBe((beforeAnalysis["POST /api/prototype/point-to-object/context"] ?? 0) + 1);
     expect(afterAnalysis["POST /api/prototype/point-to-object/find"]).toBe(beforeAnalysis["POST /api/prototype/point-to-object/find"]);
+    if (runCandidateAnalysis) {
+      await page.locator("#point-object-question").fill(SPRINT10_PUBLIC_ANALYSIS_QUESTION);
+      progress.start("analyse_paid_response");
+      const aiResponsePromise = page.waitForResponse((response) => response.request().method() === "POST" &&
+        new URL(response.url()).pathname === "/api/prototype/point-to-object/ai", { timeout: 180_000 });
+      await page.getByRole("button", { name: "Analyze", exact: true }).click();
+      const aiResponse = await aiResponsePromise;
+      const aiPayload: unknown = await boundedLiveJourneyResponseJson(aiResponse, 10_000);
+      const aiSubmitted: unknown = aiResponse.request().postDataJSON();
+      validateSprint10FindAnalysisRequest(aiSubmitted, index + 1, analysisSources);
+      progress.complete("analyse_paid_response");
+      progress.start("analyse_paid_terminal");
+      await budget.waitForTerminalReceipts();
+      progress.complete("analyse_paid_terminal");
+      progress.start("analyse_result_contract");
+      guard(aiResponse.status() === 200 && record(aiPayload) && record(aiPayload.subject) &&
+        aiPayload.subject.sourceFeatureId === candidate.sourceFeatureId && aiPayload.subject.sourceLabel === "© OpenStreetMap contributors",
+      "Find analysis response did not return HTTP 200 for the exact source identity and attribution.");
+      const evidenceInput = { response: aiPayload, submittedRequest: aiSubmitted, expectedSourceFeatureId: String(candidate.sourceFeatureId),
+        telemetryIdentity: { requestKey: sprint10LiveRequestKey(configuration.scope, "ai", index + 1, configuration.commit),
+          phase: "S4" as const, candidateHost: configuration.host, candidateCommit: configuration.commit, route: "ai" as const,
+          depth: "standard" as const, promptVersion: SPRINT10_ANALYSIS_PROMPT_VERSION, schemaVersion: 6 as const } };
+      const evidence = buildSprint10AnalysisResultEvidence(evidenceInput);
+      expect(evidence.submitted).toMatchObject({ depth: "standard", goal: "custom", role: "consultant_broker",
+        scenario: "b2b_hotel_development", perspective: "developer", horizon: "one_to_three_years", locale: "en" });
+      if (configuration.findAnalysisEvidencePrefix) writeSprint10AnalysisResultEvidence(`${configuration.findAnalysisEvidencePrefix}-${index + 1}.json`, evidenceInput);
+      await expect(page.getByTestId("ai-success")).toBeVisible();
+      await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
+      await expect(page.getByTestId("role-decision-cards")).toHaveAttribute("data-goal", "custom");
+      await expect(page.getByTestId("analysis-request-state")).toHaveAttribute("data-completed-role", "consultant_broker");
+      await expect(page.getByTestId("analysis-request-state")).toHaveAttribute("data-completed-scenario", "b2b_hotel_development");
+      guard(record(aiPayload.content) && record(aiPayload.content.decisionBrief) && typeof aiPayload.content.decisionBrief.headline === "string",
+        "Find analysis content has no validated decision headline.");
+      await expect(page.getByText(aiPayload.content.decisionBrief.headline, { exact: true }).first()).toBeVisible();
+      progress.complete("analyse_result_contract");
+      progress.start("analyse_local_save");
+      await expect.poll(async () => {
+        const state = await localArtifactState(page, configuration.userId, "analyse");
+        return state?.count === index + 1 ? state.domainIdentity : null;
+      }).toBe(JSON.stringify({ sourceFeatureId: candidate.sourceFeatureId, evidencePackHash: evidence.evidencePackHash }));
+      const savedAnalysis = await requireLocalArtifactState(page, configuration.userId, "analyse", index + 1);
+      expect(savedAnalysis.role).toBe("consultant_broker");
+      expect(savedAnalysis.scenario).toBe("b2b_hotel_development");
+      progress.complete("analyse_local_save");
+      progress.start("analyse_local_reopen");
+      await reopenSavedArtifact(page, configuration.userId, "analyse", policy, savedAnalysis, async () => {
+        await expect(page.getByTestId("ai-success")).toBeVisible();
+        await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
+        await expect(page.getByTestId("role-decision-cards")).toHaveAttribute("data-goal", "custom");
+      }, index + 1);
+      expect(budget.paidDispatchCount()).toBe(paidBeforeReopen + index + 1);
+      progress.complete("analyse_local_reopen");
+    }
     const beforeReturn = policy.snapshotJourneyRequests();
+    if (runCandidateAnalysis) await page.goto("/prototype/point-to-object");
     await page.getByRole("tab", { name: "Find", exact: true }).click();
     await page.getByRole("button", { name: "Open full comparison dashboard", exact: true }).click();
     await verifyComparison();
@@ -1630,7 +1705,7 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
     expect(current.comparisonView).toBe("dashboard");
     assertNoReplay(beforeReturn, policy.snapshotJourneyRequests());
     await reopenSavedArtifact(page, configuration.userId, "find", policy, current, verifyComparison);
-    expect(budget.paidDispatchCount()).toBe(paidBeforeReopen);
+    expect(budget.paidDispatchCount()).toBe(paidBeforeReopen + (runCandidateAnalysis ? index + 1 : 0));
   }
 }
 
@@ -2350,9 +2425,10 @@ test("root-authorized protected Preview source-to-decision journey", async ({ pa
     if (Object.hasOwn(SPRINT10_GOAL_DEPTH_SCOPES, configuration.scope)) {
       await runDubaiDepthCycle(page, configuration, policy, budget, progress, SPRINT10_GOAL_DEPTH_SCOPES[configuration.scope as Sprint10GoalDepthScope]);
     }
-    if (configuration.scope === "journey" || configuration.scope === "dubai-find") {
+    if (configuration.scope === "journey" || configuration.scope === "dubai-find" || configuration.scope === "dubai-find-analysis") {
       try { await runDubaiFind(page, configuration, policy, budget, progress); }
       catch (error) {
+        if (error instanceof InconclusiveLiveCoverageError && configuration.scope === "dubai-find-analysis") throw error;
         if (error instanceof InconclusiveLiveCoverageError) delayedInconclusiveStage = "find_candidate_count";
         else throw error;
       }
