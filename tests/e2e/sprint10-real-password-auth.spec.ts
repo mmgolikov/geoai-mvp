@@ -55,7 +55,13 @@ function guard(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
 
-type AuthFailureStep = "anonymous_protection" | "exact_preview" | "login_ui" | "session_initial" | "guarded_api" |
+type AuthFailureStep = "anonymous_protection" | "exact_preview" | "login_ui" |
+  "login_navigation" | "login_heading" | "login_sample_seed" | "login_identifier_control" |
+  "login_password_control" | "login_submit_dispatch" | "login_token_response_missing" |
+  "login_token_response_4xx" | "login_token_response_5xx" | "login_token_response_other" |
+  "login_profile_response_missing" | "login_profile_response_4xx" | "login_profile_response_5xx" |
+  "login_profile_response_other" | "login_profile_navigation" | "login_profile_hydration" |
+  "session_initial" | "guarded_api" |
   "local_sample_login" | "profile_reload" | "session_reload" | "local_sample_reload" | "logout" |
   "local_sample_logout" | "network_policy" | "session_isolation" | "local_sample_isolation" | "cleanup";
 
@@ -324,21 +330,70 @@ async function removeLocalSample(page: Page) {
 }
 
 async function loginWithExistingPassword(page: Page, persona: Persona) {
-  await page.goto("/login?next=%2Fprofile");
-  await expect(page.getByRole("heading", { name: "Sign in to GeoAI" })).toBeVisible();
-  await seedLocalSample(page);
-  await expect(page.locator('label[for="login-identifier"]')).toContainText("Email");
-  await page.locator("#login-identifier").fill(persona.email);
-  if (await page.getByRole("group", { name: "Sign-in method" }).count() === 0) {
-    await expect(page.getByRole("group", { name: "Sign-in method" })).toHaveCount(0);
-    await expect(page.locator("#login-password")).toHaveAttribute("required", "");
-  }
-  await page.getByLabel("Password").fill(persona.password);
-  await Promise.all([
-    page.waitForURL((url) => url.pathname === "/profile"),
-    page.getByRole("button", { name: "Sign in", exact: true }).click()
+  await authStep("login_navigation", () => page.goto("/login?next=%2Fprofile"));
+  await authStep("login_heading", () => expect(page.getByRole("heading", { name: "Sign in to GeoAI" })).toBeVisible());
+  await authStep("login_sample_seed", () => seedLocalSample(page));
+  await authStep("login_identifier_control", async () => {
+    await expect(page.locator('label[for="login-identifier"]')).toContainText("Email");
+    await page.locator("#login-identifier").fill(persona.email);
+  });
+  await authStep("login_password_control", async () => {
+    if (await page.getByRole("group", { name: "Sign-in method" }).count() === 0) {
+      await expect(page.getByRole("group", { name: "Sign-in method" })).toHaveCount(0);
+      await expect(page.locator("#login-password")).toHaveAttribute("required", "");
+    }
+    await page.getByLabel("Password").fill(persona.password);
+  });
+
+  const targetOrigin = new URL(previewUrl).origin;
+  const authOrigin = `https://${exactDevelopmentProjectRef}.supabase.co`;
+  const tokenResponse = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return url.origin === authOrigin && url.pathname === "/auth/v1/token" &&
+      url.searchParams.get("grant_type") === "password";
+  });
+  const profileResponse = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return url.origin === targetOrigin && url.pathname === "/profile" && response.request().isNavigationRequest();
+  });
+  const profileNavigation = page.waitForURL((url) => url.pathname === "/profile");
+  const [submitOutcome, tokenOutcome, profileResponseOutcome, navigationOutcome] = await Promise.allSettled([
+    page.getByRole("button", { name: "Sign in", exact: true }).click(),
+    tokenResponse,
+    profileResponse,
+    profileNavigation
   ]);
-  await expect(page.getByRole("heading", { name: "Your profile" })).toBeVisible();
+  if (submitOutcome.status === "rejected") {
+    await authStep("login_submit_dispatch", () => { throw new Error("The sign-in action was not dispatched."); });
+  }
+  if (tokenOutcome.status === "rejected") {
+    await authStep("login_token_response_missing", () => { throw new Error("The password token response was not observed."); });
+  }
+  const tokenStatus = tokenOutcome.status === "fulfilled" ? tokenOutcome.value.status() : 0;
+  if (tokenStatus < 200 || tokenStatus >= 300) {
+    const step = tokenStatus >= 400 && tokenStatus < 500
+      ? "login_token_response_4xx" as const
+      : tokenStatus >= 500
+        ? "login_token_response_5xx" as const
+        : "login_token_response_other" as const;
+    await authStep(step, () => { throw new Error("The password token response was not accepted."); });
+  }
+  if (profileResponseOutcome.status === "rejected") {
+    await authStep("login_profile_response_missing", () => { throw new Error("The profile document response was not observed."); });
+  }
+  const profileStatus = profileResponseOutcome.status === "fulfilled" ? profileResponseOutcome.value.status() : 0;
+  if (profileStatus < 200 || profileStatus >= 400) {
+    const step = profileStatus >= 400 && profileStatus < 500
+      ? "login_profile_response_4xx" as const
+      : profileStatus >= 500
+        ? "login_profile_response_5xx" as const
+        : "login_profile_response_other" as const;
+    await authStep(step, () => { throw new Error("The profile document response was not accepted."); });
+  }
+  if (navigationOutcome.status === "rejected") {
+    await authStep("login_profile_navigation", () => { throw new Error("The browser did not reach the profile route."); });
+  }
+  await authStep("login_profile_hydration", () => expect(page.getByRole("heading", { name: "Your profile" })).toBeVisible());
 }
 
 type SessionEvidence = {

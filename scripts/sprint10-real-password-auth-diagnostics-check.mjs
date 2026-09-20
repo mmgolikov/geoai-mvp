@@ -68,6 +68,9 @@ const duplicate = checkpointReport("login_ui");
 duplicate.suites[0].specs[0].tests[0].annotations.push({ type: "auth-failed-step", description: "logout" });
 assert.throws(() => fixedFailedAuthStep(duplicate, "dual_session_isolation"));
 assert.equal(fixedFailedAuthStep(checkpointReport("login_ui"), "primary_continuity"), undefined);
+const historicalLoginReceipt = makeAuthDiagnostic({ ...failure, failedStep: "login_ui" });
+assert.deepEqual(parseAuthDiagnostic(JSON.stringify(historicalLoginReceipt), 1), historicalLoginReceipt,
+  "The prior coarse login_ui receipt must remain parse-compatible.");
 const passing = checkpointReport("login_ui");
 passing.suites[0].specs[0].tests[0].status = "expected";
 assert.equal(fixedFailedAuthStep(passing, "dual_session_isolation"), undefined);
@@ -83,6 +86,25 @@ await assert.rejects(authStep("cleanup", () => { throw new Error(secret); }));
 assert.deepEqual(annotations, [{ type: "auth-failed-step", description: "session_initial" }], "Cleanup must not overwrite the first failure.");
 assert(!JSON.stringify(annotations).includes(secret));
 for (const [, step] of specSource.matchAll(/authStep\("([a-z_]+)"/g)) assert(AUTH_FAILURE_STEPS.includes(step));
+for (const expectedSubstep of [
+  "login_navigation", "login_heading", "login_sample_seed", "login_identifier_control",
+  "login_password_control", "login_submit_dispatch", "login_token_response_missing",
+  "login_token_response_4xx", "login_token_response_5xx", "login_token_response_other",
+  "login_profile_response_missing", "login_profile_response_4xx", "login_profile_response_5xx",
+  "login_profile_response_other", "login_profile_navigation", "login_profile_hydration"
+]) {
+  assert(AUTH_FAILURE_STEPS.includes(expectedSubstep), `${expectedSubstep} must be a fixed safe diagnostic.`);
+  assert(specSource.includes(`authStep("${expectedSubstep}"`) || specSource.includes(`"${expectedSubstep}" as const`),
+    `${expectedSubstep} must be produced by the browser login flow.`);
+}
+assert.match(specSource, /Promise\.allSettled\(\[/,
+  "Token, profile response and navigation evidence must be classified without an unhandled rejected waiter.");
+assert.match(specSource, /grant_type"\) === "password"/,
+  "The login response diagnostic must bind only to the existing-password token exchange.");
+assert.match(specSource, /response\.request\(\)\.isNavigationRequest\(\)/,
+  "Profile status classification must use the document-navigation response only.");
+assert.doesNotMatch(specSource, /auth-failed-(?:url|body|error)|page\.on\("console"|page\.screenshot/,
+  "Login diagnostics must not emit raw URLs, bodies, console data or screenshots.");
 assert.equal(hostedPreviewFailureStage({ ...failure, testLane: "none" }), "preview_test_execution_none");
 
 const timeout = makeAuthDiagnostic({
@@ -153,6 +175,8 @@ console.log(JSON.stringify({
     fixedFailureSteps: AUTH_FAILURE_STEPS.length,
     checkpointPrivacyAndStatusDenials: 16,
     checkpointProducerFirstFailurePreserved: 1,
+    historicalLoginUiReceiptCompatible: 1,
+    fixedLoginSubsteps: 16,
     unknownFailureLaneProjection: 1,
     timeoutProjection: 1,
     discoveryProjection: 1,

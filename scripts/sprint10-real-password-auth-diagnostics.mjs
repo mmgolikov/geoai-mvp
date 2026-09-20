@@ -14,7 +14,13 @@ const STAGES = new Set([
 ]);
 const LANES = new Set(["none", "primary_continuity", "dual_session_isolation"]);
 export const AUTH_FAILURE_STEPS = Object.freeze([
-  "anonymous_protection", "exact_preview", "login_ui", "session_initial", "guarded_api",
+  "anonymous_protection", "exact_preview", "login_ui",
+  "login_navigation", "login_heading", "login_sample_seed", "login_identifier_control",
+  "login_password_control", "login_submit_dispatch", "login_token_response_missing",
+  "login_token_response_4xx", "login_token_response_5xx", "login_token_response_other",
+  "login_profile_response_missing", "login_profile_response_4xx", "login_profile_response_5xx",
+  "login_profile_response_other", "login_profile_navigation", "login_profile_hydration",
+  "session_initial", "guarded_api",
   "local_sample_login", "profile_reload", "session_reload", "local_sample_reload", "logout",
   "local_sample_logout", "network_policy", "session_isolation", "local_sample_isolation", "cleanup"
 ]);
