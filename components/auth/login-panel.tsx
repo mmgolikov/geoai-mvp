@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { mockDemoEmail, mockDemoPassword } from "@/src/lib/auth/mock-demo-session";
+import { isPasswordOnlyAuthEnabled, passwordOnlyAuthMessage } from "@/src/lib/auth/password-only-policy";
 
 type AuthMethod = "email" | "phone";
 
@@ -46,6 +47,7 @@ export function LoginPanel({ destination }: { destination: string }) {
     else window.location.assign(destination);
   }, [destination]);
   const normalizedIdentifier = identifier.trim().toLowerCase();
+  const passwordOnly = isPasswordOnlyAuthEnabled();
   const demoCredentialsEntered = method === "email" && normalizedIdentifier === mockDemoEmail;
   const demoAccessAvailable = authStatus.effectiveMode === "demo_public";
   const demoSelected = demoAccessAvailable && demoCredentialsEntered;
@@ -56,10 +58,10 @@ export function LoginPanel({ destination }: { destination: string }) {
     const requestedIntent = url.searchParams.get("intent");
     setIntent(requestedIntent === "demo" || requestedIntent === "request" ? requestedIntent : null);
     if (url.searchParams.has("auth_error")) {
-      setMessage("The sign-in link is invalid or expired. Request a new email.");
+      setMessage(passwordOnly ? passwordOnlyAuthMessage : "The sign-in link is invalid or expired. Request a new email.");
     }
     if (isAuthenticated) navigateAfterAuthentication(true);
-  }, [isAuthenticated, navigateAfterAuthentication]);
+  }, [isAuthenticated, navigateAfterAuthentication, passwordOnly]);
 
   function changeMethod(nextMethod: AuthMethod) {
     setMethod(nextMethod);
@@ -75,13 +77,17 @@ export function LoginPanel({ destination }: { destination: string }) {
     setPending(true);
     setMessage(null);
     try {
+      if (passwordOnly && (method !== "email" || !passwordSelected)) {
+        setMessage(passwordOnlyAuthMessage);
+        return;
+      }
       if (method === "phone") {
         const result = await signInWithPhone(identifier);
         setMessage(result.message);
         setPhoneCodeSent(result.ok);
         return;
       }
-      if (demoCredentialsEntered) {
+      if (demoSelected) {
         const result = await signInDemo(identifier, password);
         setMessage(result.message);
         if (result.ok) navigateAfterAuthentication();
@@ -136,7 +142,7 @@ export function LoginPanel({ destination }: { destination: string }) {
             Sign in once, open Workspace immediately and keep your preferred audience and role across the system.
           </p>
           <div className="mt-7 grid gap-3 rounded-[20px] border border-line bg-white p-5">
-            <JourneyItem number="01" tone="brand" label="Verify" text="Email, password or phone" />
+            <JourneyItem number="01" tone="brand" label="Verify" text={passwordOnly ? "Existing account and password" : "Email, password or phone"} />
             <JourneyItem number="02" tone="brand" label="Open" text="Workspace starts automatically" />
             <JourneyItem number="03" tone="personal" label="Remember" text="Profile saves role and region" />
           </div>
@@ -153,7 +159,7 @@ export function LoginPanel({ destination }: { destination: string }) {
           <h1 className="mt-4 text-3xl font-semibold tracking-[-0.025em] text-ink sm:text-[40px]">Sign in to GeoAI</h1>
           <h2 className="mt-2 text-xl font-semibold text-ink sm:text-2xl">Continue to GeoAI</h2>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">
-            {intent === "demo" && !demoAccessAvailable
+            {passwordOnly ? passwordOnlyAuthMessage : intent === "demo" && !demoAccessAvailable
               ? "This protected environment requires an existing account. Browser-local demo access is available only in explicit public-demo mode."
               : intent === "demo"
                 ? "Use the ready browser-local demo. Workspace opens automatically."
@@ -169,7 +175,7 @@ export function LoginPanel({ destination }: { destination: string }) {
             </div>
           ) : (
             <>
-              <div className="mt-7 grid h-14 grid-cols-2 gap-1.5 rounded-xl bg-[#f0f7ff] p-1" role="group" aria-label="Sign-in method">
+              {!passwordOnly ? <div className="mt-7 grid h-14 grid-cols-2 gap-1.5 rounded-xl bg-[#f0f7ff] p-1" role="group" aria-label="Sign-in method">
                 {(["email", "phone"] as AuthMethod[]).map((item) => (
                   <button
                     key={item}
@@ -181,11 +187,11 @@ export function LoginPanel({ destination }: { destination: string }) {
                     {item === "email" ? "Email" : "Phone"}
                   </button>
                 ))}
-              </div>
+              </div> : null}
 
               <form onSubmit={handleSubmit} className="mt-6 grid gap-5">
                 <label className="grid gap-2" htmlFor="login-identifier">
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">Email or phone</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">{passwordOnly ? "Email" : "Email or phone"}</span>
                   <input
                     id="login-identifier"
                     type={method === "phone" ? "tel" : "email"}
@@ -199,7 +205,7 @@ export function LoginPanel({ destination }: { destination: string }) {
                     className="h-[52px] rounded-[10px] border border-line bg-white px-4 text-sm text-ink outline-none transition placeholder:text-muted/70 focus:border-brand focus:ring-2 focus:ring-brand/10"
                     placeholder={method === "phone" ? "+971501234567" : "name@company.com"}
                   />
-                  <span className="text-[11px] leading-4 text-muted">{method === "phone" ? "Use a full phone number with country code." : "Use the email registered for your account or request a secure sign-in link."}</span>
+                  <span className="text-[11px] leading-4 text-muted">{passwordOnly ? "Use the email registered for your existing account." : method === "phone" ? "Use a full phone number with country code." : "Use the email registered for your account or request a secure sign-in link."}</span>
                 </label>
 
                 {method === "email" ? (
@@ -208,13 +214,14 @@ export function LoginPanel({ destination }: { destination: string }) {
                     <input
                       id="login-password"
                       type="password"
+                      required={passwordOnly}
                       autoComplete="current-password"
                       value={password}
                       onChange={(event) => setPassword(event.target.value)}
                       className="h-[52px] rounded-[10px] border border-line bg-white px-4 text-sm text-ink outline-none transition placeholder:text-muted/70 focus:border-brand focus:ring-2 focus:ring-brand/10"
-                      placeholder="Optional"
+                      placeholder={passwordOnly ? "Password" : "Optional"}
                     />
-                    <span className="text-[11px] leading-4 text-muted">Leave empty to receive a secure sign-in link.</span>
+                    <span className="text-[11px] leading-4 text-muted">{passwordOnly ? "A password is required. Contact the project owner if account access is unavailable." : "Leave empty to receive a secure sign-in link."}</span>
                   </label>
                 ) : null}
 
@@ -223,11 +230,11 @@ export function LoginPanel({ destination }: { destination: string }) {
                   disabled={pending}
                   className="inline-flex h-12 items-center justify-center rounded-control bg-brand px-5 text-sm font-semibold text-white transition hover:bg-[#0854dd] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {pending ? "Please wait…" : demoSelected ? "Open demo" : passwordSelected ? "Sign in" : method === "phone" ? "Send code" : "Send sign-in link"}
+                  {pending ? "Please wait…" : demoSelected ? "Open demo" : passwordSelected || passwordOnly ? "Sign in" : method === "phone" ? "Send code" : "Send sign-in link"}
                 </button>
               </form>
 
-              {phoneCodeSent ? (
+              {phoneCodeSent && !passwordOnly ? (
                 <form onSubmit={handlePhoneVerification} className="mt-5 grid gap-3 rounded-2xl border border-accent/30 bg-[#e8fafa] p-4">
                   <label htmlFor="phone-code" className="text-[11px] font-semibold uppercase tracking-[0.08em] text-accent">SMS code</label>
                   <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
@@ -254,7 +261,7 @@ export function LoginPanel({ destination }: { destination: string }) {
 
               <div className="mt-5 rounded-2xl bg-[#e8fafa] p-4 text-xs leading-5 text-ink">
                 <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full bg-accent" aria-hidden="true" />
-                Public email and phone access is sign-in only. New account onboarding requires a separate approved invitation.
+                {passwordOnly ? "Existing accounts only. New account access must be arranged with the project owner." : "Public email and phone access is sign-in only. New account onboarding requires a separate approved invitation."}
               </div>
 
               {demoAccessAvailable ? (
@@ -274,7 +281,7 @@ export function LoginPanel({ destination }: { destination: string }) {
               ) : null}
 
               <p className="mt-4 text-[10px] leading-4 text-muted">By continuing, you accept the Terms and Privacy Policy.</p>
-              <p className="mt-2 text-[10px] leading-4 text-muted">Phone sign-in is limited to existing accounts and becomes operational only after an approved SMS provider is connected.</p>
+              {!passwordOnly ? <p className="mt-2 text-[10px] leading-4 text-muted">Phone sign-in is limited to existing accounts and becomes operational only after an approved SMS provider is connected.</p> : null}
             </>
           )}
         </div>

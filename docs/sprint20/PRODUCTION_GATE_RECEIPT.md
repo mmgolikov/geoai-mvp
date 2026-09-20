@@ -1,6 +1,6 @@
 # Closed-MVP Production gate — local engineering receipt
 
-Version 1.0 · 2026-09-20 · LOCAL CANDIDATE / NOT RELEASED.
+Version 1.1 · 2026-09-20 · LOCAL CANDIDATE / NOT RELEASED.
 Owner: dev_1; integration, hosted configuration and release: control.
 Branch: `codex/quality20-production-gate`; exact starting commit `f09bfba430108aa9d3625322d5d2894a11122c35`, initially clean.
 
@@ -67,7 +67,17 @@ Then prove two real test accounts: owner write/read/reopen, other-account denial
 
 Rollback: controller disables the dedicated Production persistence/surface gates and restores the prior exact app/config tuple as needed; no row deletion or schema rollback is needed for this code-only patch. Local rollback is a revert of the bounded commit, not a destructive reset. Keep the SQL data-preserving deactivation scripts as historical/operator references, not automatic actions.
 
-Read-only UI finding routed to controller: the old login branch tests mock demo email before password login. Controller confirmed the designated real demo account uses a different email; a separate explicitly granted password-only/login correction follows. Blank-password magic-link and phone methods are not disabled by this first gate commit.
+## Separately authorized password-only UI addendum
+
+Gate commit: `b51143aad13124a498c3c16e8e244d2215aef3c8`, parent `f09bfba430108aa9d3625322d5d2894a11122c35`. Controller subsequently granted a bounded login-panel/provider correction, separate from that gate commit. No hosted provider settings are changed.
+
+New optional public build-time policy name: `NEXT_PUBLIC_AUTH_PASSWORD_ONLY`. Only explicit `true` activates it. It hides Phone/SMS controls, requires an existing-account password, suppresses magic-link offers and rejects blank-password submission before an Auth action. Provider methods for email links, phone codes, code verification, delegated registration and email-change confirmation reject before loading a client. The existing password method, session transport and authorization stay unchanged. Flag-off legacy behavior is retained.
+
+The mock demo branch now requires `demoSelected`, not merely a matching email. Thus an existing protected account whose email matches the browser demo label is routed to real password sign-in rather than local demo. No account was created or changed.
+
+Addon files: `components/auth/login-panel.tsx`, `components/auth/auth-provider.tsx`, `src/lib/auth/password-only-policy.ts`, `scripts/quality20-password-only-check.mjs`, and this receipt. Tests execute the actual component submit handler with controlled React state and the actual provider function bodies with a fatal network/client stub. They cover explicit flag parsing, all blocked provider actions, empty password, protected demo-email password routing and flag-off legacy email/demo behavior. PASS; not a rendered-browser or hosted-account receipt. TypeScript, base Production gate and existing Auth/Admin contracts also PASS. The optional flag was exercised in a local build process only; no environment file or hosted setting was modified.
+
+The initial addon build was blocked by sandbox DNS for the already-used Google Geist font; the permitted network-enabled local build passed 81/81. This is a build-tooling limitation, not an Auth failure. Controller integration still requires a rendered browser check with the chosen deployed flag, plus the real hosted account/ownership acceptance above. The flag only constrains this application's UI/client methods; it is not a replacement for hosted Auth provider configuration or API security.
 
 ## External documentation and truth limits
 

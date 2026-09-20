@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { getAuthModeStatus } from "@/src/lib/auth/auth-mode";
+import { isPasswordOnlyAuthEnabled, passwordOnlyAuthMessage } from "@/src/lib/auth/password-only-policy";
 import { createDemoProjectMembership, demoOrganization, demoProjectRole, demoUser } from "@/src/lib/auth/demo-session";
 import type { AuthModeStatus } from "@/src/lib/auth/auth-mode";
 import { getSafeAuthRedirectPath } from "@/src/lib/auth/redirect-path";
@@ -199,6 +200,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [authStatus.effectiveMode]);
 
   async function signIn(email: string) {
+    if (isPasswordOnlyAuthEnabled()) return { ok: false, message: passwordOnlyAuthMessage };
     if (authStatus.effectiveMode === "demo_public") {
       return {
         ok: true,
@@ -273,13 +275,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       password
     });
     if (error) {
-      return { ok: false, message: "The email or password is incorrect, or this account still uses an email sign-in link." };
+      return { ok: false, message: isPasswordOnlyAuthEnabled()
+        ? "The email or password is incorrect. Contact the project owner if account access is unavailable."
+        : "The email or password is incorrect, or this account still uses an email sign-in link." };
     }
     await refreshSession();
     return { ok: true, message: "Signed in." };
   }
 
   async function signInWithPhone(phone: string) {
+    if (isPasswordOnlyAuthEnabled()) return { ok: false, message: passwordOnlyAuthMessage };
     if (authStatus.effectiveMode !== "supabase_auth") {
       return { ok: false, message: authStatus.caveat };
     }
@@ -301,6 +306,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function verifyPhoneCode(phone: string, code: string) {
+    if (isPasswordOnlyAuthEnabled()) return { ok: false, message: passwordOnlyAuthMessage };
     const normalizedPhone = phone.replace(/[\s()-]/g, "");
     const normalizedCode = code.trim();
     if (!/^\+[1-9]\d{7,14}$/.test(normalizedPhone) || !/^\d{6}$/.test(normalizedCode)) {
@@ -361,6 +367,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function requestEmailChange(email: string) {
+    if (isPasswordOnlyAuthEnabled()) return { ok: false, message: passwordOnlyAuthMessage };
     if (!session.user || session.isDemo) {
       return { ok: false, message: "The public demo email is fixed." };
     }
