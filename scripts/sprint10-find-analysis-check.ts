@@ -52,7 +52,10 @@ try {
 const spec = readFileSync(new URL("../tests/e2e/sprint10-live-journey.spec.ts", import.meta.url), "utf8");
 const find = spec.split("async function runDubaiFind")[1].split("async function runSingaporeFind")[0];
 assert.ok(find.indexOf("acceptedFindResponse(payload") < find.indexOf("budget.armFindAnalysisSources(analysisSources)"));
-assert.ok(spec.indexOf("validateSprint10FindAnalysisRequest(body") < spec.indexOf("reserveSprint10SpendFile(configuration"));
+const identityGuard = spec.indexOf('(configuration.scope === "dubai-find-construction" ? validateConstructionAnalysisRequest : validateSprint10FindAnalysisRequest)(body');
+assert.ok(identityGuard >= 0 && identityGuard < spec.indexOf("reserveSprint10SpendFile(configuration"));
+assert.ok(find.includes('const findRole = construction ? CONSTRUCTION_FIND_CASE.role : "consultant_broker";'));
+assert.ok(find.includes('const findScenario = construction ? CONSTRUCTION_FIND_CASE.scenario : "b2b_hotel_development";'));
 for (const text of ["contextResponse.status() === 200", "aiResponse.status() === 200", "buildSprint10AnalysisResultEvidence(evidenceInput)",
-  "writeSprint10AnalysisResultEvidence", "savedAnalysis", '"data-completed-role", "consultant_broker"', "assertNoReplay(beforeReturn", "runCandidateAnalysis ? index + 1 : 0"]) assert.ok(find.includes(text), text);
+  "writeSprint10AnalysisResultEvidence", "savedAnalysis", '"data-completed-role", findRole', '"data-completed-scenario", findScenario', "assertNoReplay(beforeReturn", "runCandidateAnalysis ? index + 1 : 0"]) assert.ok(find.includes(text), text);
 console.log("PASS: three exact live Find identities, actual broker/hotel settings, 3 Standard POST / 3.6 reserve, capture opt-in, old Find remains zero paid.");
