@@ -12,12 +12,14 @@ type Props = {
   aoi: PointObjectCreateAoi;
   massing: ConceptMassingResult;
   fallback: ReactNode;
+  dimension?: "2d" | "3d";
 };
 
 type PreviewStatus = "initializing" | "ready" | "unsupported" | "invalid" | "error";
 
 const AOI_SOURCE_ID = "create-result-preview-aoi";
 const MASSING_SOURCE_ID = "create-result-preview-massing";
+const BASEMAP_STYLE = "https://tiles.openfreemap.org/styles/positron";
 
 const BLANK_STYLE: StyleSpecification = {
   version: 8,
@@ -38,7 +40,7 @@ function webGlAvailable(): boolean {
   }
 }
 
-export function CreateResultPreview3D({ locale, aoi, massing, fallback }: Props) {
+export function CreateResultPreview3D({ locale, aoi, massing, fallback, dimension = "3d" }: Props) {
   const ru = locale === "ru";
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -48,6 +50,14 @@ export function CreateResultPreview3D({ locale, aoi, massing, fallback }: Props)
   const modelRef = useRef(model);
   modelRef.current = model;
   const [status, setStatus] = useState<PreviewStatus>("initializing");
+  const [scene, setScene] = useState<"map" | "model">("map");
+  const [basemapError, setBasemapError] = useState(false);
+  const [basemapFeatureCount, setBasemapFeatureCount] = useState(0);
+  const [renderedScene, setRenderedScene] = useState<"map" | "model" | "none">("none");
+  const [renderedMassingCount, setRenderedMassingCount] = useState(0);
+  const [cameraPitch, setCameraPitch] = useState(0);
+  const dimensionRef = useRef(dimension);
+  dimensionRef.current = dimension;
 
   const resetCamera = useCallback((duration = 0) => {
     const map = mapRef.current;
@@ -55,14 +65,14 @@ export function CreateResultPreview3D({ locale, aoi, massing, fallback }: Props)
     if (!map || !current) return;
     const camera = map.cameraForBounds(current.bounds, {
       bearing: -24,
-      padding: { top: 54, right: 48, bottom: 72, left: 48 },
+      padding: { top: 36, right: 28, bottom: 66, left: 28 },
       maxZoom: 18
     });
     if (!camera?.center || camera.zoom === undefined) return;
     map.easeTo({
       center: camera.center,
-      zoom: Math.max(camera.zoom - current.cameraZoomOutLevels, 0),
-      pitch: 55,
+      zoom: Math.max(camera.zoom - (dimensionRef.current === "3d" ? current.cameraZoomOutLevels : 0), 0),
+      pitch: dimensionRef.current === "3d" ? 50 : 0,
       bearing: -24,
       duration
     });
@@ -107,6 +117,10 @@ export function CreateResultPreview3D({ locale, aoi, massing, fallback }: Props)
     }
 
     setStatus("initializing");
+    setBasemapError(false);
+    setBasemapFeatureCount(0);
+    setRenderedScene("none");
+    setRenderedMassingCount(0);
     void import("maplibre-gl").then((maplibregl) => {
       if (disposed || !containerRef.current || !modelRef.current) return;
       try {
@@ -114,12 +128,12 @@ export function CreateResultPreview3D({ locale, aoi, massing, fallback }: Props)
         const current = modelRef.current;
         map = new maplibregl.Map({
           container: containerRef.current,
-          style: BLANK_STYLE,
+          style: scene === "map" ? BASEMAP_STYLE : BLANK_STYLE,
           center: current.center,
           zoom: 16,
           pitch: 55,
           bearing: -24,
-          attributionControl: false,
+          attributionControl: { compact: true },
           cooperativeGestures: true,
           scrollZoom: false,
           dragRotate: true,
@@ -127,9 +141,24 @@ export function CreateResultPreview3D({ locale, aoi, massing, fallback }: Props)
         });
         mapRef.current = map;
         map.keyboard.enable();
+        map.on("idle", () => {
+          if (disposed || !map) return;
+          const visible = map.queryRenderedFeatures();
+          const renderedContext = visible.filter(feature =>
+            feature.source !== AOI_SOURCE_ID && feature.source !== MASSING_SOURCE_ID);
+          setBasemapFeatureCount(renderedContext.length);
+          setRenderedMassingCount(visible.filter(feature => feature.source === MASSING_SOURCE_ID).length);
+          setCameraPitch(Math.round(map.getPitch()));
+          setRenderedScene(scene);
+        });
 
         failHandler = () => {
           if (disposed || failed) return;
+          if (scene === "map") {
+            // A missing tile must not discard valid saved geometry or pretend the basemap loaded.
+            setBasemapError(true);
+            return;
+          }
           failed = true;
           cleanupRuntime();
           setStatus("error");
@@ -144,7 +173,7 @@ export function CreateResultPreview3D({ locale, aoi, massing, fallback }: Props)
               id: "create-result-preview-aoi-fill",
               type: "fill",
               source: AOI_SOURCE_ID,
-              paint: { "fill-color": "#d5ebe4", "fill-opacity": 0.6 }
+              paint: { "fill-color": "#d5ebe4", "fill-opacity": scene === "map" ? 0.18 : 0.6 }
             });
             map.addLayer({
               id: "create-result-preview-aoi-line",
@@ -184,7 +213,10 @@ export function CreateResultPreview3D({ locale, aoi, massing, fallback }: Props)
           }
         });
         resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => {
-          if (!disposed && mapRef.current === map) map?.resize();
+          if (!disposed && mapRef.current === map) {
+            map?.resize();
+            resetCamera();
+          }
         });
         resizeObserver?.observe(containerRef.current);
       } catch {
@@ -200,7 +232,11 @@ export function CreateResultPreview3D({ locale, aoi, massing, fallback }: Props)
       disposed = true;
       cleanupRuntime();
     };
-  }, [hasModel, resetCamera]);
+  }, [hasModel, resetCamera, scene]);
+
+  useEffect(() => {
+    if (status === "ready") resetCamera(180);
+  }, [dimension, resetCamera, status]);
 
   useEffect(() => {
     if (status !== "ready" || !model) return;
@@ -227,6 +263,12 @@ export function CreateResultPreview3D({ locale, aoi, massing, fallback }: Props)
     className="min-w-0 rounded-[24px] border border-[#bdd8d1] bg-[#eaf5f1] p-4"
     data-testid="create-result-preview-3d"
     data-preview-status={renderedStatus}
+    data-preview-scene={scene}
+    data-preview-basemap={scene === "map" ? (basemapError ? "partial_or_unavailable" : basemapFeatureCount > 0 ? "rendered" : renderedStatus === "ready" ? "style_loaded" : "loading") : "none"}
+    data-preview-basemap-feature-count={basemapFeatureCount}
+    data-preview-rendered-scene={renderedScene}
+    data-preview-rendered-massing-count={renderedMassingCount}
+    data-preview-camera-pitch={cameraPitch}
     data-preview-variant={massing.variantId}
     data-preview-feature-count={model?.featureCount ?? 0}
     data-preview-max-height-m={model?.maxHeightM ?? "unknown"}
@@ -236,10 +278,11 @@ export function CreateResultPreview3D({ locale, aoi, massing, fallback }: Props)
     data-preview-geometry-key={model?.geometryKey ?? "invalid"}
   >
     <figcaption className="mb-3 flex flex-wrap items-center justify-between gap-3">
-      <span className="flex items-center gap-2 text-sm font-bold text-[#173b35]"><PointObjectIcon name="map" className="h-5 w-5 text-[#087f8c]" />{ru ? "Интерактивная 3D-модель" : "Interactive 3D massing"}</span>
+      <span className="flex items-center gap-2 text-sm font-bold text-[#173b35]"><PointObjectIcon name="map" className="h-5 w-5 text-[#087f8c]" />{ru ? "Сохранённая концепция" : "Saved concept"} · {dimension.toUpperCase()}</span>
+      <div role="group" aria-label={ru ? "Окружение модели" : "Scene context"} className="flex gap-1">{(["map", "model"] as const).map(mode => <button key={mode} type="button" aria-pressed={scene === mode} data-testid={`create-scene-${mode}`} onClick={() => setScene(mode)} className={`min-h-11 rounded-lg border px-3 text-xs font-bold ${scene === mode ? "bg-[#087f8c] text-white" : "bg-white text-[#173b35]"}`}>{mode === "map" ? (ru ? "На карте" : "On map") : (ru ? "Модель" : "Model")}</button>)}</div>
       <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-bold text-[#176548]">{ru ? "Вариант" : "Option"} {massing.variantId}</span>
     </figcaption>
-    <div className="relative min-h-[300px] overflow-hidden rounded-2xl bg-[#edf4f2] sm:min-h-[390px]" aria-label={ru ? `3D-просмотр сохранённой геометрии, вариант ${massing.variantId}` : `3D preview of saved geometry, option ${massing.variantId}`} role="region">
+    <div className="relative min-h-[360px] overflow-hidden rounded-2xl bg-[#edf4f2] sm:min-h-[520px]" aria-label={ru ? `Просмотр сохранённой геометрии, вариант ${massing.variantId}` : `Preview of saved geometry, option ${massing.variantId}`} role="region">
       {/* MapLibre adds `position: relative` at runtime; pin geometry across CSS import orders. */}
       <div
         ref={containerRef}
@@ -247,13 +290,14 @@ export function CreateResultPreview3D({ locale, aoi, massing, fallback }: Props)
         className="absolute inset-0"
         style={{ position: "absolute", inset: 0, width: "100%", height: "100%", touchAction: "pan-y" }}
       />
-      {renderedStatus === "initializing" ? <div className="absolute inset-0 grid place-items-center bg-[#edf4f2]/90 px-5 text-center text-sm font-semibold text-[#52606a]" role="status">{ru ? "Подготовка локальной 3D-сцены…" : "Preparing the local 3D scene…"}</div> : null}
+      {renderedStatus === "initializing" && !basemapError ? <div className="pointer-events-none absolute inset-0 grid place-items-center bg-[#edf4f2]/90 px-5 text-center text-sm font-semibold text-[#52606a]" role="status">{ru ? "Подготовка сцены…" : "Preparing scene…"}</div> : null}
+      {basemapError ? <div className="absolute left-3 right-3 top-3 rounded-xl bg-white/95 p-3 text-xs" role="status">{ru ? "Подложка недоступна или загружена частично. Доступен локальный режим «Модель»." : "The basemap is unavailable or partial. The local Model mode remains available."}<button type="button" onClick={() => setScene("model")} className="ml-2 min-h-11 underline">{ru ? "Открыть модель" : "Open model"}</button></div> : null}
       <div className="absolute bottom-3 left-3 flex flex-wrap gap-2 rounded-xl bg-white/95 p-2 shadow-soft" aria-label={ru ? "Управление камерой" : "Camera controls"}>
         <button type="button" disabled={renderedStatus !== "ready"} onClick={() => mapRef.current?.zoomIn({ duration: 180 })} className="min-h-11 min-w-11 rounded-lg border border-[#b8cbc6] bg-white px-3 text-sm font-bold text-[#176548] disabled:opacity-50" aria-label={ru ? "Приблизить" : "Zoom in"}>+</button>
         <button type="button" disabled={renderedStatus !== "ready"} onClick={() => mapRef.current?.zoomOut({ duration: 180 })} className="min-h-11 min-w-11 rounded-lg border border-[#b8cbc6] bg-white px-3 text-sm font-bold text-[#176548] disabled:opacity-50" aria-label={ru ? "Отдалить" : "Zoom out"}>−</button>
         <button type="button" disabled={renderedStatus !== "ready"} onClick={() => resetCamera(250)} className="min-h-11 rounded-lg border border-[#b8cbc6] bg-white px-3 text-xs font-bold text-[#176548] disabled:opacity-50">{ru ? "Сбросить вид" : "Reset view"}</button>
       </div>
     </div>
-    <p className="mt-3 text-[11px] leading-5 text-[#62716d]">{ru ? "Локальная сцена использует только сохранённые GeoJSON-контуры и их абсолютные heightM/baseM. Для жестов карты требуется два пальца; прокрутка страницы одним пальцем сохраняется." : "This local scene uses only the saved GeoJSON footprints and their absolute heightM/baseM values. Map gestures require two fingers so one-finger page scrolling remains available."}</p>
+    <p className="mt-3 text-[11px] leading-5 text-[#62716d]">{ru ? "Геометрия и высоты взяты из сохранённого результата. Подложка OpenFreeMap / © OpenStreetMap contributors — справочное окружение; режим «Модель» работает без тайлов. Переключение видов не вызывает AI." : "Geometry and heights come from the saved result. OpenFreeMap / © OpenStreetMap contributors supplies reference context; Model mode uses no tiles. View changes do not call AI."}</p>
   </figure>;
 }

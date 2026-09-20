@@ -102,6 +102,8 @@ async function prepareExactSavedResult(page: Page, locale: ConceptLocale, option
   await page.goto("/projects?view=spatial");
   await page.getByRole("button", { name: locale === "ru" ? "Показать на карте" : "Show on map", exact: true }).first().click();
   await expect(page.getByTestId("create-full-result-dashboard")).toBeVisible();
+  // This suite stays entirely offline. Map acceptance lives in sprint20-create-map.spec.ts.
+  if (!options.disableWebGl) await page.getByTestId("create-scene-model").click();
   return { fixture, createMethods, contextCalls: () => contextCalls, baseline };
 }
 
@@ -146,7 +148,8 @@ test("saved Create A/B uses the same exact KPI and geometry in local 2D/3D with 
   await expect(page.getByTestId("create-preview-mode-2d")).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByTestId("create-result-kpis")).toHaveAttribute("data-active-variant", "A");
   await expect(page.getByTestId("create-result-kpis")).toHaveAttribute("data-estimated-floor-area-sqm", String(alternativeA.massing.estimatedFloorAreaSqM));
-  await expect(page.getByTestId("create-preview-building")).toHaveCount(alternativeA.massing.generatedFeatureCount);
+  await expect(page.getByTestId("create-result-preview-3d")).toHaveAttribute("data-preview-feature-count", String(alternativeA.massing.generatedFeatureCount));
+  await expect(page.getByTestId("create-result-preview-3d")).toHaveAttribute("data-preview-basemap", "none");
   await expectNoNewSourceCalls(prepared);
 
   await page.getByTestId("create-preview-mode-3d").focus();
@@ -174,7 +177,7 @@ test("saved Create A/B uses the same exact KPI and geometry in local 2D/3D with 
   await page.screenshot({ path: testInfo.outputPath("saved-create-dashboard-desktop-option-b-3d.png"), fullPage: true });
 
   await page.getByTestId("create-preview-mode-2d").press("Enter");
-  await expect(page.getByTestId("create-preview-building")).toHaveCount(alternativeB.massing.generatedFeatureCount);
+  await expect(preview3d).toHaveAttribute("data-preview-feature-count", String(alternativeB.massing.generatedFeatureCount));
   await expectNoHorizontalOverflow(page);
   await page.screenshot({ path: testInfo.outputPath("saved-create-dashboard-desktop-option-b-2d.png"), fullPage: true });
   await expectNoNewSourceCalls(prepared);
@@ -194,6 +197,7 @@ test("saved Create A/B uses the same exact KPI and geometry in local 2D/3D with 
   expect(storedGenerated).toEqual(prepared.fixture.generated);
   await page.reload();
   await expect(page.getByTestId("create-full-result-dashboard")).toBeVisible();
+  await page.getByTestId("create-scene-model").click();
   await expect(page.getByTestId("create-result-kpis")).toHaveAttribute("data-active-variant", "B");
   await expect(page.getByTestId("create-preview-mode-2d")).toHaveAttribute("aria-pressed", "true");
   await page.getByTestId("create-preview-mode-3d").press("Enter");

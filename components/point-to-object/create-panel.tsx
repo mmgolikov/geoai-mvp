@@ -201,6 +201,12 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
   const [lockedControlKeys, setLockedControlKeys] = useState<Set<ControlKey>>(() => new Set(restoredEditor?.lockedControlKeys ?? POINT_OBJECT_CREATE_EDITOR_CONTROL_KEYS));
   const [customPrompt, setCustomPrompt] = useState(() => restoredEditor?.customPrompt ?? "");
   const [loading, setLoading] = useState(false);
+  const [localPreflight, setLocalPreflight] = useState<{
+    key: string;
+    kind: "checking" | "ready" | "not_applicable" | "suggestion" | "failed";
+    suggestion?: PointObjectCreateCoverageSuggestion;
+    code?: string;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [coverageSuggestion, setCoverageSuggestion] = useState<{
     error: string;
@@ -225,6 +231,36 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
   const generatedFromCurrentDraft = Boolean(generated && committedDraftKey === draftKey);
   const draftChangedAfterGeneration = Boolean(generated && !generatedFromCurrentDraft);
   const generatedLanguageMatches = Boolean(generated && generatedLocale === locale);
+  const preflightCurrent = localPreflight?.key === draftKey ? localPreflight : null;
+  const preflightBlocked = !preflightCurrent || ["checking", "failed", "suggestion"].includes(preflightCurrent.kind);
+
+  useEffect(() => {
+    setLocalPreflight({ key: draftKey, kind: "checking" });
+    let worker: Worker | null = null;
+    let deadline: number | undefined;
+    const timer = window.setTimeout(() => {
+      try {
+        worker = new Worker(new URL("./create-preflight.worker.ts", import.meta.url));
+        worker.onmessage = (event) => {
+          window.clearTimeout(deadline);
+          setLocalPreflight({ ...event.data, key: draftKey });
+          worker?.terminate();
+        };
+        worker.onerror = () => {
+          window.clearTimeout(deadline);
+          worker?.terminate();
+          setLocalPreflight({ key: draftKey, kind: "failed", code: "worker_unavailable" });
+        };
+        deadline = window.setTimeout(() => {
+          worker?.terminate();
+          setLocalPreflight({ key: draftKey, kind: "failed", code: "solver_timeout" });
+        }, 15_000);
+        worker.postMessage({ aoiCoordinates: aoi.coordinates, aoiHash: aoi.id, locale,
+          templateId, customPrompt: customPrompt.trim() || null, controls, lockedControlKeys: [...lockedControlKeys] });
+      } catch { setLocalPreflight({ key: draftKey, kind: "failed" }); }
+    }, 250);
+    return () => { window.clearTimeout(timer); window.clearTimeout(deadline); worker?.terminate(); };
+  }, [draftKey, aoi.coordinates, aoi.id, controls, customPrompt, locale, lockedControlKeys, templateId]);
 
   useEffect(() => {
     editorSnapshotCallbackRef.current = onEditorSnapshotChange;
@@ -319,7 +355,7 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
   }
 
   async function generate() {
-    if (loading || generatedFromCurrentDraft) return;
+    if (loading || generatedFromCurrentDraft || preflightBlocked) return;
     requestRef.current?.abort();
     const controller = new AbortController();
     requestRef.current = controller;
@@ -468,6 +504,14 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
       />
 
       {draftChangedAfterGeneration ? <p className="mt-3 text-[11px] font-bold text-[#79520d]" data-testid="create-draft-status">{copy.draftChanged}</p> : null}
+      <div className="mt-3 rounded-xl border border-[#d7e0dd] bg-white p-3 text-xs leading-5 text-[#475467]" role="status" data-testid="create-local-preflight" data-preflight-kind={preflightCurrent?.kind ?? "checking"}>
+        {!preflightCurrent || preflightCurrent.kind === "checking" ? (locale === "ru" ? "Проверяем размещение до генерации…" : "Checking placement before generation…")
+          : preflightCurrent.kind === "ready" ? (locale === "ru" ? "Размещение найдено с заданными параметрами. Это геометрическая проверка, не согласование проекта." : "A layout fits the requested parameters. This checks geometry, not project approval.")
+          : preflightCurrent.kind === "not_applicable" ? (locale === "ru" ? "Свободный запрос требует уточнения программы; геометрия будет проверена после её получения." : "The custom request needs programme resolution; geometry will be checked once the programme is defined.")
+          : preflightCurrent.code === "program_invalid" ? (locale === "ru" ? "Параметры противоречат друг другу: проверьте диапазон этажности и сумму застройки с открытым пространством (не более 100%)." : "The parameters conflict: check the level range and coverage plus open-space target (at most 100%).")
+          : (locale === "ru" ? "Ограниченный поиск не нашёл размещение с этими параметрами. Это не доказанный предел участка; измените число корпусов, отступ или программу." : "The bounded search found no layout for these parameters. This is not a proven site limit; adjust block count, setback or programme.")}
+        {preflightCurrent?.suggestion ? <button type="button" className="mt-2 block min-h-11 rounded-lg border border-[#b8cbc6] px-3 font-bold" data-testid="create-local-apply-preset" onClick={() => updateControl("targetSiteCoveragePct", preflightCurrent.suggestion!.suggestedValue)}>{locale === "ru" ? "Применить проверенный вариант" : "Apply validated preset"}: {controls.targetSiteCoveragePct}% → {preflightCurrent.suggestion.suggestedValue}%</button> : null}
+      </div>
       {error ? <p className="mt-3 rounded-lg border border-[#e6bd74] bg-[#fff9ed] px-3 py-2 text-xs leading-5 text-[#79520d]" role="alert" data-testid="create-generation-error">{error}{generated ? ` ${copy.errorPreserved}` : ""}</p> : null}
       {coverageSuggestion ? <div className="mt-3 rounded-lg border border-[#e6bd74] bg-[#fff9ed] p-3 text-xs leading-5 text-[#79520d]" role="alert" data-testid="create-coverage-suggestion"><p>{coverageSuggestion.error}{generated ? ` ${copy.errorPreserved}` : ""}</p><p className="mt-1 font-semibold tabular-nums">{coverageSuggestion.suggestion.requestedValue}% → {coverageSuggestion.suggestion.suggestedValue}%</p><button type="button" onClick={applySuggestedCoverage} className="mt-2 min-h-11 rounded-lg border border-[#d6b36e] bg-white px-3 font-bold text-[#65450f] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f70]" data-testid="create-apply-suggested-coverage">{copy.applySuggestedCoverage}</button></div> : null}
       {generated ? (
@@ -490,7 +534,7 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
         <button
           type="button"
           onClick={() => void generate()}
-          disabled={loading || generatedFromCurrentDraft}
+          disabled={loading || generatedFromCurrentDraft || preflightBlocked}
           data-testid="create-generate-action"
           className="min-h-11 rounded-xl bg-[#087f70] px-4 text-sm font-bold text-white transition hover:bg-[#06695e] disabled:cursor-not-allowed disabled:bg-[#a8c7c0] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f70] focus-visible:ring-offset-2"
         >

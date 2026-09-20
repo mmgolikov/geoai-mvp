@@ -1279,6 +1279,97 @@ function planPerimeterOrCourtyard(
   }));
 }
 
+/** Partition the whole site into disjoint strip cells before placing volumes. The strips
+ * follow boundary vertices; unlike bbox targets they retain separate concave arms. This
+ * is a bounded conceptual allocation, not an exact polygon offset or a capacity proof. */
+function planSiteCells(
+  rings: MetricPoint[][],
+  program: ValidatedRedevelopmentProgram,
+  variantId: ConceptAlternativeId,
+  seed: string,
+  desiredArea: number
+): PlannedVolume[] | null {
+  if (program.blockCount < 2) return null;
+  if (program.massingStyle === "courtyard" && program.blockCount < 4) return null;
+  if (program.massingStyle === "towers_on_podium" && program.levelsMin < 2) return null;
+  const baseAngle = dominantEdgeAngle(rings[0]);
+  for (const angle of [baseAngle + (variantId === "B" ? Math.PI / 2 : 0), baseAngle + (variantId === "A" ? Math.PI / 2 : 0)]) {
+    const local = rings[0].map(p => localToWorld({ x: 0, y: 0 }, -angle, p));
+    const yCuts = [...new Set(local.map(p => Math.round(p.y * 1000) / 1000))].sort((a, b) => a - b);
+    const gap = Math.max(4, Math.min(12, Math.sqrt(desiredArea / program.blockCount) * 0.06));
+    const inset = Math.max(program.setbackM, gap / 2) + 0.05;
+    const cells: OrientedRectangle[] = [];
+    for (let band = 0; band < yCuts.length - 1; band += 1) {
+      const bottom = yCuts[band], top = yCuts[band + 1];
+      if (top - bottom <= 2 * inset + MIN_BUILDING_DIMENSION_M) continue;
+      // Intersections at both ends are sufficient within a vertex-free linear strip.
+      const intervals = [bottom + 0.001, (bottom + top) / 2, top - 0.001].map(y => {
+        const xs = polygonEdges(local).flatMap(([a, b]) => (a.y <= y && b.y > y) || (b.y <= y && a.y > y)
+          ? [a.x + (y - a.y) * (b.x - a.x) / (b.y - a.y)] : []).sort((a, b) => a - b);
+        return Array.from({ length: Math.floor(xs.length / 2) }, (_, i) => [xs[2 * i], xs[2 * i + 1]]);
+      });
+      if (!intervals[0].length || intervals.some(items => items.length !== intervals[0].length)) continue;
+      for (let run = 0; run < intervals[0].length; run += 1) {
+        const left = Math.max(...intervals.map(items => items[run][0])) + inset;
+        const right = Math.min(...intervals.map(items => items[run][1])) - inset;
+        if (right - left <= MIN_BUILDING_DIMENSION_M) continue;
+        const center = localToWorld({ x: 0, y: 0 }, angle, { x: (left + right) / 2, y: (bottom + top) / 2 });
+        const raw = orientedRectangle(center, right - left, top - bottom - 2 * inset, angle);
+        // Slanted edges need their perpendicular clearance, not merely x/y inset.
+        let low = 0, high = 1;
+        for (let i = 0; i < 18; i += 1) {
+          const scale = (low + high) / 2;
+          if (polygonInsideAoi(scaleRectangle(raw, scale).points, rings, program.setbackM)) low = scale;
+          else high = scale;
+        }
+        const safe = scaleRectangle(raw, low);
+        if (Math.min(safe.width, safe.height) > MIN_BUILDING_DIMENSION_M) cells.push(safe);
+      }
+    }
+    if (!cells.length || cells.length > program.blockCount) continue;
+    // Subdivide the largest cells, retaining all spatial components and equalising capacity.
+    while (cells.length < program.blockCount) {
+      cells.sort((a, b) => b.width * b.height - a.width * a.height);
+      const cell = cells.shift()!;
+      const splitX = cell.width >= cell.height;
+      const span = splitX ? cell.width : cell.height;
+      if ((span - gap) / 2 < MIN_BUILDING_DIMENSION_M) break;
+      for (const direction of [-1, 1]) {
+        const center = localToWorld(cell.center, cell.angle, { x: splitX ? direction * (span + gap) / 4 : 0, y: splitX ? 0 : direction * (span + gap) / 4 });
+        cells.push(orientedRectangle(center, splitX ? (span - gap) / 2 : cell.width, splitX ? cell.height : (span - gap) / 2, cell.angle));
+      }
+    }
+    if (cells.length !== program.blockCount) continue;
+    cells.sort((a, b) => variantId === "A" ? a.center.y - b.center.y || a.center.x - b.center.x : b.center.x - a.center.x || a.center.y - b.center.y);
+    const towerStyle = program.massingStyle === "towers_on_podium";
+    const forms = cells.map((_, i) => towerStyle ? "rectangle" as const : preferredFootprintForm(variantId, i));
+    const capacity = cells.reduce((sum, c, i) => sum + c.width * c.height * footprintFormFillRatio(forms[i]), 0);
+    if (capacity < desiredArea) continue;
+    const scale = Math.sqrt(desiredArea / capacity);
+    const envelopes = cells.map(c => scaleRectangle(c, scale));
+    if (towerStyle) {
+      const towers = planTowersForPodiums(envelopes, program, variantId, seed);
+      if (towers) return towers;
+      continue;
+    }
+    const shaped = envelopes.map((c, i) => applyFootprintGrammar(c, forms[i], variantId, seed, i));
+    if (shaped.some((s, i) => s.footprintForm !== forms[i] || !polygonInsideAoi(s.footprint, rings, program.setbackM))) continue;
+    if (shaped.some((s, i) => shaped.slice(i + 1).some(other => polygonGap(s.footprint, other.footprint) < gap))) continue;
+    const courtyard = program.massingStyle === "courtyard";
+    if (courtyard && shaped.some(s => pointInRing(centroidOfPoints(rings[0]), s.footprint, true))) continue;
+    return shaped.map((s, i) => ({
+      footprint: s.footprint,
+      footprintForm: s.footprintForm,
+      role: courtyard ? "courtyard_wing" : program.massingStyle === "perimeter" ? "perimeter_wing" : "campus_block",
+      primaryBlock: true,
+      levels: levelForPrimary(program, seed, i, shaped.length),
+      baseLevels: 0,
+      use: useForPrimary(program, i)
+    }));
+  }
+  return null;
+}
+
 function footprintDistributionScore(footprints: MetricPoint[][], siteRing: MetricPoint[]): number {
   if (footprints.length < 2) return 0;
   const bounds = metricBounds(siteRing);
@@ -1957,11 +2048,13 @@ export function generateConceptMassing(
     useMix: program.useMix
   });
   const variantSeed = `${geometrySeed}:${variantId}`;
-  const volumes = program.massingStyle === "perimeter" || program.massingStyle === "courtyard"
+  const allocated = validation.measurements.areaSqM >= 150_000
+    ? planSiteCells(rings, program, variantId, variantSeed, desiredTotalArea) : null;
+  const volumes = allocated ?? (program.massingStyle === "perimeter" || program.massingStyle === "courtyard"
     ? planPerimeterOrCourtyard(rings, program, variantId, variantSeed, desiredTotalArea)
     : program.massingStyle === "towers_on_podium"
       ? planTowersOnPodium(rings, program, variantId, variantSeed, desiredTotalArea)
-      : planCampus(rings, program, variantId, variantSeed, desiredTotalArea);
+      : planCampus(rings, program, variantId, variantSeed, desiredTotalArea));
   return buildMassingResult(
     aoiCoordinates,
     program,

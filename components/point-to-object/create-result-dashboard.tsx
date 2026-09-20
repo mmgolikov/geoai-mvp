@@ -90,6 +90,7 @@ export function CreateResultDashboard({ locale, aoi, generated, generatedLocale,
     { label: ru ? "Площадь зоны" : "Site area", value: `${Math.round(aoi.areaSqM).toLocaleString(locale)} ${ru ? "м²" : "m²"}` },
     { label: ru ? "Пятно застройки" : "Generated footprint", value: `${Math.round(massing.generatedFootprintAreaSqM).toLocaleString(locale)} ${ru ? "м²" : "m²"}` },
     { label: ru ? "Застройка участка" : "Site coverage", value: `${massing.achievedSiteCoveragePct.toLocaleString(locale, { maximumFractionDigits: 1 })}%` },
+    { label: ru ? "Без пятен застройки (включая проходы)" : "Unbuilt ground (including circulation)", value: `${Math.max(0, 100 - massing.achievedSiteCoveragePct).toLocaleString(locale, { maximumFractionDigits: 1 })}%` },
     { label: ru ? "Расчётная площадь этажей" : "Estimated floor area", value: `${Math.round(massing.estimatedFloorAreaSqM).toLocaleString(locale)} ${ru ? "м²" : "m²"}` },
     { label: ru ? "Основные корпуса" : "Primary blocks", value: massing.generatedBlockCount.toLocaleString(locale) },
     { label: ru ? "Этажность" : "Levels", value: levels }
@@ -107,7 +108,7 @@ export function CreateResultDashboard({ locale, aoi, generated, generatedLocale,
           {alternatives.length > 1 ? <div className="mt-5 inline-grid min-w-[260px] grid-cols-2 gap-1 rounded-xl bg-[#e7efec] p-1" role="tablist" aria-label={ru ? "Варианты концепции" : "Concept options"}>{alternatives.map((alternative) => <button key={alternative.id} type="button" role="tab" aria-selected={alternative.id === activeAlternativeId} onClick={() => onAlternativeChange(alternative.id)} data-testid={`create-dashboard-alternative-${alternative.id.toLowerCase()}`} className={`min-h-11 rounded-lg px-4 text-sm font-bold focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] ${alternative.id === activeAlternativeId ? "bg-[#087f8c] text-white shadow-sm" : "text-[#52606a] hover:bg-white"}`}>{generatedLocale === locale ? alternative.label : `${ru ? "Вариант" : "Option"} ${alternative.id}`}</button>)}</div> : null}
         </section>
 
-        <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(360px,.8fr)_minmax(0,1.2fr)]">
+        <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,.8fr)]">
           <div className="min-w-0 space-y-3" data-testid="create-result-preview-shell" data-preview-mode={previewMode} data-active-variant={active.id}>
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#cfe0dc] bg-white p-3 shadow-soft">
               <p className="text-xs font-bold uppercase tracking-[0.08em] text-[#52606a]">{ru ? "Просмотр геометрии" : "Geometry view"}</p>
@@ -115,9 +116,7 @@ export function CreateResultDashboard({ locale, aoi, generated, generatedLocale,
                 {(["2d", "3d"] as const).map((mode) => <button key={mode} type="button" onClick={() => setPreviewMode(mode)} aria-pressed={previewMode === mode} data-testid={`create-preview-mode-${mode}`} className={`min-h-11 min-w-16 rounded-lg px-3 text-sm font-bold focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] ${previewMode === mode ? "bg-[#087f8c] text-white shadow-sm" : "text-[#52606a] hover:bg-white"}`}>{mode.toUpperCase()}</button>)}
               </div>
             </div>
-            {previewMode === "2d"
-              ? <ConceptPlanPreview aoi={aoi} generated={generated} activeAlternativeId={active.id} locale={locale} />
-              : <CreateResultPreview3D locale={locale} aoi={aoi} massing={massing} fallback={<ConceptPlanPreview aoi={aoi} generated={generated} activeAlternativeId={active.id} locale={locale} />} />}
+            <CreateResultPreview3D locale={locale} aoi={aoi} massing={massing} dimension={previewMode} fallback={<ConceptPlanPreview aoi={aoi} generated={generated} activeAlternativeId={active.id} locale={locale} />} />
           </div>
           <section className="min-w-0 rounded-[24px] border border-line bg-white p-5 shadow-soft sm:p-7" aria-labelledby="create-result-kpis-title" data-testid="create-result-kpis" data-active-variant={active.id} data-estimated-floor-area-sqm={massing.estimatedFloorAreaSqM}>
             <h2 id="create-result-kpis-title" className="text-xl font-bold">{ru ? "Геометрические показатели" : "Geometric KPIs"}</h2>

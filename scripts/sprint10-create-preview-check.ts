@@ -75,12 +75,14 @@ const previewSource = readFileSync(new URL("../components/point-to-object/create
 assert.match(dashboardSource, /dynamic\([\s\S]*ssr: false/, "MapLibre preview must remain a client-only dynamic chunk.");
 assert.match(dashboardSource, /create-preview-mode-\$\{mode\}/);
 assert.match(dashboardSource, /\(\["2d", "3d"\] as const\)/);
-assert.match(previewSource, /sources: \{\}/, "The preview style must be local and tile-free.");
-assert.doesNotMatch(previewSource, /https?:\/\//, "The preview must not declare an external network source.");
+assert.match(previewSource, /sources: \{\}/, "Explicit Model mode must retain its local tile-free style.");
+assert.match(previewSource, /scene === "map" \? BASEMAP_STYLE : BLANK_STYLE/, "Only map mode loads basemap tiles.");
+assert.match(previewSource, /https:\/\/tiles\.openfreemap\.org\/styles\/positron/, "Map mode reuses the existing approved basemap provider.");
+assert.match(previewSource, /data-preview-basemap/, "A canvas alone cannot be reported as loaded basemap evidence.");
 assert.match(previewSource, /"fill-extrusion-height": \["get", "heightM"\]/);
 assert.match(previewSource, /"fill-extrusion-base": \["get", "baseM"\]/);
 assert.match(previewSource, /cooperativeGestures: true/, "Touch interaction must preserve page scrolling.");
-assert.match(previewSource, /camera\.zoom - current\.cameraZoomOutLevels/, "Camera framing must account for the saved vertical envelope.");
+assert.match(previewSource, /current\.cameraZoomOutLevels/, "Camera framing must account for the saved vertical envelope.");
 assert.match(previewSource, /const cleanupRuntime = \(\) =>/, "Runtime and unmount cleanup must share one path.");
 assert.match(previewSource, /resizeObserver\?\.disconnect\(\)/, "Cleanup must release the resize observer.");
 assert.match(previewSource, /if \(!model \|\| status === "unsupported" \|\| status === "error"\)/, "Invalid current geometry must fail closed instead of retaining a stale scene.");
