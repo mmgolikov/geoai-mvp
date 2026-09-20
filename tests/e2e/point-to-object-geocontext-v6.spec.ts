@@ -716,7 +716,13 @@ test("V6 renders useful GeoContext and linked-source facts in EN/RU and restores
   await signInDemo(page, "/prototype/point-to-object/analysis");
   await expect(page.getByTestId("ai-success")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Continue bounded object screening" })).toBeVisible();
-  await expect(page.getByTestId("role-decision-cards")).toBeVisible();
+  const dashboard = page.getByTestId("role-decision-cards");
+  await expect(dashboard).toBeVisible();
+  await expect(dashboard).toHaveAttribute("data-goal", "development_screening");
+  await expect(dashboard).toHaveAttribute("data-depth", "standard");
+  const completedModules = ["surroundings", "buildings", "access", "risks", "coverage", "validation"];
+  await expect.poll(() => dashboard.locator("[data-module]").evaluateAll(nodes => nodes.map(node => node.getAttribute("data-module")))).toEqual(completedModules);
+  await page.getByTestId("infrastructure-cards").locator("summary").first().click();
   await expect(page.getByTestId("infrastructure-cards").locator("[data-infrastructure]")).toHaveCount(7);
   await expect(page.locator('[data-infrastructure="transport"]')).toContainText("120 m");
   await expect(page.locator('[data-infrastructure="transport"]')).toContainText("not travel time");
@@ -728,11 +734,23 @@ test("V6 renders useful GeoContext and linked-source facts in EN/RU and restores
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.getByTestId("role-decision-cards").screenshot({ path: testInfo.outputPath("decision-cards-393.png") });
   await page.setViewportSize({ width: 1440, height: 900 });
-  const beforeProfileSwitch = apiCalls.length;
-  await page.getByRole("combobox", { name: "Viewing profile", exact: true }).selectOption("living");
-  await expect(page.locator("[data-card]").first()).toHaveAttribute("data-card", "daily_needs");
-  expect(apiCalls).toHaveLength(beforeProfileSwitch);
-  await page.getByRole("combobox", { name: "Viewing profile", exact: true }).selectOption("development");
+  const beforeLocalInteractions = apiCalls.length;
+  // Draft controls must not relabel or recompose the completed receipt.
+  await page.getByRole("button", { name: "Due diligence", exact: true }).click();
+  await page.getByRole("button", { name: "Deep", exact: true }).click();
+  await expect(page.getByTestId("analysis-request-state")).toHaveAttribute("data-draft-depth", "deep");
+  await expect(dashboard).toHaveAttribute("data-goal", "development_screening");
+  await expect(dashboard).toHaveAttribute("data-depth", "standard");
+  await expect.poll(() => dashboard.locator("[data-module]").evaluateAll(nodes => nodes.map(node => node.getAttribute("data-module")))).toEqual(completedModules);
+  await dashboard.locator('[data-category="hospitality"]').click();
+  await expect(dashboard.locator('[data-category="hospitality"]')).toHaveAttribute("aria-pressed", "true");
+  await expect(dashboard.locator("#dashboard-category-detail")).toContainText("45 m");
+  await dashboard.getByText("Data table & method", { exact: true }).click();
+  await expect(dashboard.getByRole("table")).toContainText("Hospitality");
+  await dashboard.getByText("Data table & method", { exact: true }).click();
+  await page.getByRole("button", { name: "Development screening", exact: true }).click();
+  await page.getByRole("button", { name: "Standard", exact: true }).click();
+  expect(apiCalls).toHaveLength(beforeLocalInteractions);
   await page.getByText("Decision reasoning & context", { exact: true }).click();
   await page.getByText("Measurements & sample details", { exact: true }).click();
   await expect(page.getByText("Decision context", { exact: true })).toBeVisible();
@@ -778,10 +796,15 @@ test("V6 renders useful GeoContext and linked-source facts in EN/RU and restores
   expect(apiCalls).toHaveLength(callsAfterEnglish);
   await page.reload();
   await expect(page.getByRole("heading", { name: "Continue bounded object screening" })).toBeVisible();
+  await expect(dashboard).toHaveAttribute("data-goal", "development_screening");
+  await expect(dashboard).toHaveAttribute("data-depth", "standard");
   expect(apiCalls).toHaveLength(callsAfterEnglish);
 
   await page.getByRole("button", { name: "ru", exact: true }).click();
   await expect(page.locator("html")).toHaveAttribute("lang", "ru");
+  await expect(dashboard).toHaveAttribute("data-goal", "development_screening");
+  await expect(dashboard).toHaveAttribute("data-depth", "standard");
+  await expect.poll(() => dashboard.locator("[data-module]").evaluateAll(nodes => nodes.map(node => node.getAttribute("data-module")))).toEqual(completedModules);
   await expect(page.locator('[data-infrastructure="transport"]')).toContainText("120 м");
   await expect(page.locator('[data-infrastructure="health"]')).toContainText("Совпадающие объекты не вернулись в этой выборке.");
   expect(apiCalls).toHaveLength(callsAfterEnglish);
@@ -803,6 +826,8 @@ test("V6 renders useful GeoContext and linked-source facts in EN/RU and restores
   const callsAfterRussian = apiCalls.length;
   await page.reload();
   await expect(page.getByRole("heading", { name: "Продолжить ограниченный скрининг объекта" })).toBeVisible();
+  await expect(dashboard).toHaveAttribute("data-goal", "development_screening");
+  await expect(dashboard).toHaveAttribute("data-depth", "standard");
   expect(apiCalls).toHaveLength(callsAfterRussian);
   expect(pointObjectCalls(apiCalls).filter((call) => !call.path.endsWith("/ai"))).toEqual([]);
   expect(unexpectedExternal).toEqual([]);
