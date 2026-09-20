@@ -359,6 +359,11 @@ export type LivePointEvidenceErrorCode =
   | "NOMINATIM_UNAVAILABLE"
   | "NOMINATIM_RESPONSE_TOO_LARGE"
   | "NOMINATIM_RESPONSE_INVALID"
+  | "OVERPASS_TIMEOUT"
+  | "OVERPASS_RATE_LIMITED"
+  | "OVERPASS_UNAVAILABLE"
+  | "OVERPASS_RESPONSE_TOO_LARGE"
+  | "OVERPASS_RESPONSE_INVALID"
   | "OBJECT_NOT_RESOLVED";
 
 export class LivePointEvidenceError extends Error {
@@ -714,9 +719,9 @@ async function readOverpassText(response: Response): Promise<string> {
   const declaredLength = Number(response.headers.get("content-length"));
   if (Number.isFinite(declaredLength) && declaredLength > OVERPASS_RESPONSE_MAX_BYTES) {
     await response.body?.cancel().catch(() => undefined);
-    throw new Error("Overpass response exceeded the permitted size.");
+    throw new LivePointEvidenceError("OVERPASS_RESPONSE_TOO_LARGE", 502, "The OpenStreetMap source response exceeded the permitted size.", false);
   }
-  if (!response.body) throw new Error("Overpass returned no readable body.");
+  if (!response.body) throw new LivePointEvidenceError("OVERPASS_RESPONSE_INVALID", 502, "The OpenStreetMap source returned no readable body.", true);
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let byteCount = 0;
@@ -727,7 +732,7 @@ async function readOverpassText(response: Response): Promise<string> {
     byteCount += value.byteLength;
     if (byteCount > OVERPASS_RESPONSE_MAX_BYTES) {
       await reader.cancel().catch(() => undefined);
-      throw new Error("Overpass response exceeded the permitted size.");
+      throw new LivePointEvidenceError("OVERPASS_RESPONSE_TOO_LARGE", 502, "The OpenStreetMap source response exceeded the permitted size.", false);
     }
     text += decoder.decode(value, { stream: true });
   }
@@ -736,7 +741,7 @@ async function readOverpassText(response: Response): Promise<string> {
 
 function assertUsableOverpassPayload(payload: unknown): asserts payload is Record<string, unknown> & { elements: unknown[] } {
   if (!isRecord(payload) || !Array.isArray(payload.elements) || Object.hasOwn(payload, "remark")) {
-    throw new Error("Overpass returned an invalid or runtime-failed payload.");
+    throw new LivePointEvidenceError("OVERPASS_RESPONSE_INVALID", 502, "The OpenStreetMap source returned an invalid or incomplete response.", true);
   }
 }
 
@@ -748,27 +753,48 @@ function assertNoOverpassRuntimeRemark(payload: unknown): void {
 
 async function fetchOverpassJsonUncached(query: string): Promise<unknown> {
   const signal = AbortSignal.timeout(OVERPASS_TIMEOUT_MS);
-  await waitForSourceAdmission(waitForOverpassSlot(signal), signal);
-  const url = configuredOverpassEndpoint();
-  url.searchParams.set("data", query);
-  const response = await fetch(url, {
-    method: "GET",
-    redirect: "error",
-    signal,
-    headers: {
-      Accept: "application/json",
-      Referer: APPLICATION_REFERER,
-      "User-Agent": configuredUserAgent()
-    },
-    // Cache only after validating the JSON body. Overpass reports some runtime
-    // failures as HTTP 200 with `remark` plus an empty element array.
-    cache: "no-store"
-  });
-  if (!response.ok) throw new Error(`Overpass returned HTTP ${response.status}.`);
-  const text = await readOverpassText(response);
-  const payload: unknown = JSON.parse(text);
-  assertUsableOverpassPayload(payload);
-  return payload;
+  try {
+    await waitForSourceAdmission(waitForOverpassSlot(signal), signal);
+    const url = configuredOverpassEndpoint();
+    url.searchParams.set("data", query);
+    const response = await fetch(url, {
+      method: "GET",
+      redirect: "error",
+      signal,
+      headers: {
+        Accept: "application/json",
+        Referer: APPLICATION_REFERER,
+        "User-Agent": configuredUserAgent()
+      },
+      // Cache only validated JSON: an HTTP 200 runtime error is not empty context.
+      cache: "no-store"
+    });
+    if (!response.ok) {
+      await response.body?.cancel().catch(() => undefined);
+      if (response.status === 429) {
+        throw new LivePointEvidenceError("OVERPASS_RATE_LIMITED", 429, "The OpenStreetMap source is rate limited. Wait before retrying.", true, sourceRetryAfterSeconds(response.headers.get("retry-after")));
+      }
+      if (response.status === 408 || response.status === 504) {
+        throw new LivePointEvidenceError("OVERPASS_TIMEOUT", 504, "The OpenStreetMap source did not respond in time.", true);
+      }
+      throw new LivePointEvidenceError("OVERPASS_UNAVAILABLE", 502, "The OpenStreetMap source is temporarily unavailable.", true);
+    }
+    const text = await readOverpassText(response);
+    let payload: unknown;
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      throw new LivePointEvidenceError("OVERPASS_RESPONSE_INVALID", 502, "The OpenStreetMap source returned an invalid response.", true);
+    }
+    assertUsableOverpassPayload(payload);
+    return payload;
+  } catch (error) {
+    if (error instanceof LivePointEvidenceError) throw error;
+    if (isTimeout(error) || signal.aborted) {
+      throw new LivePointEvidenceError("OVERPASS_TIMEOUT", 504, "The OpenStreetMap source did not respond in time.", true);
+    }
+    throw new LivePointEvidenceError("OVERPASS_UNAVAILABLE", 502, "The OpenStreetMap source is temporarily unavailable.", true);
+  }
 }
 
 const fetchOverpassJson = unstable_cache(
@@ -1517,13 +1543,31 @@ async function lookupPlace(
   return { place: place ?? null, receipt };
 }
 
-async function exactSourcePlace(sourceFeatureId: string, locale: string): Promise<{place:SafeNominatimPlace|null;receipt:NominatimResponseReceipt}> {
+async function exactSourcePlace(sourceFeatureId: string, locale: string): Promise<{ place: SafeNominatimPlace | null; receipt: NominatimResponseReceipt }> {
   try {
-    const source=await readExactSourceElement(sourceFeatureId,fetchOverpassJson);
-    const payload=exactSourcePlacePayload(source.element,locale);
-    return {place:sanitizePlace(payload),receipt:{payload,sourceResponseHash:semanticHash(source.element),sourceResponseBytes:Buffer.byteLength(JSON.stringify(source.element)),acquiredAt:source.acquiredAt}};
-  } catch {
-    throw new LivePointEvidenceError("OBJECT_NOT_RESOLVED",502,"The exact OpenStreetMap source record is temporarily unavailable. The selected identity has not changed.",true);
+    const source = await readExactSourceElement(sourceFeatureId, async (query) => {
+      const payload = await fetchOverpassJson(query);
+      assertUsableOverpassPayload(payload);
+      if (payload.elements.length === 0) {
+        throw new LivePointEvidenceError("OBJECT_NOT_RESOLVED", 422, "The exact OpenStreetMap source record was not found. The selected identity has not changed.", false);
+      }
+      const element = payload.elements[0];
+      if (payload.elements.length !== 1 || !isRecord(element)) {
+        throw new LivePointEvidenceError("OVERPASS_RESPONSE_INVALID", 502, "The exact OpenStreetMap source returned an invalid response.", true);
+      }
+      if (`${element.type}/${element.id}` !== sourceFeatureId) {
+        throw new LivePointEvidenceError("OBJECT_NOT_RESOLVED", 409, "The expected OpenStreetMap object could not be resolved exactly.", true);
+      }
+      return payload;
+    });
+    const payload = exactSourcePlacePayload(source.element, locale);
+    return { place: sanitizePlace(payload), receipt: {
+      payload, sourceResponseHash: semanticHash(source.element),
+      sourceResponseBytes: Buffer.byteLength(JSON.stringify(source.element)), acquiredAt: source.acquiredAt
+    } };
+  } catch (error) {
+    if (error instanceof LivePointEvidenceError) throw error;
+    throw new LivePointEvidenceError("OBJECT_NOT_RESOLVED", 502, "The exact OpenStreetMap source record is temporarily unavailable. The selected identity has not changed.", true);
   }
 }
 
@@ -1843,17 +1887,10 @@ export async function buildLivePointObjectEvidencePack(
       false
     );
   }
-  const nearbyPayloadPromise = fetchOverpassJson(buildOverpassNearbyQuery(point))
-    .then((payload) => ({ ok: true as const, payload }))
-    .catch(() => ({ ok: false as const }));
-  const fabricPayloadPromise = fetchOverpassJson(buildOverpassUrbanFabricQuery(point))
-    .then((payload) => ({ ok: true as const, payload }))
-    .catch(() => ({ ok: false as const }));
-  const [placeReceipt, nearbyPayload, fabricPayload] = await Promise.all([
-    trustedIdentity ? exactSourcePlace(`${trustedIdentity.type}/${trustedIdentity.id}`, locale) : reversePlace(endpoint, point, locale),
-    nearbyPayloadPromise,
-    fabricPayloadPromise
-  ]);
+  // Resolve and validate the mandatory subject before optional enrichment takes
+  // admission slots from the same bounded Overpass queue. Never replace a failed
+  // exact identity with nearby context, and do not spend calls on an invalid one.
+  const placeReceipt = await (trustedIdentity ? exactSourcePlace(`${trustedIdentity.type}/${trustedIdentity.id}`, locale) : reversePlace(endpoint, point, locale));
   const place = placeReceipt.place;
   const matchMethod = trustedIdentity ? "overpass_exact_identity" as const : "nominatim_reverse" as const;
 
@@ -1892,6 +1929,15 @@ export async function buildLivePointObjectEvidencePack(
     );
   }
   const coordinateAssociation = pointObjectLookupAssociation(matchMethod, geometryContainsAnchor);
+
+  const [nearbyPayload, fabricPayload] = await Promise.all([
+    fetchOverpassJson(buildOverpassNearbyQuery(point))
+      .then((payload) => ({ ok: true as const, payload }))
+      .catch(() => ({ ok: false as const })),
+    fetchOverpassJson(buildOverpassUrbanFabricQuery(point))
+      .then((payload) => ({ ok: true as const, payload }))
+      .catch(() => ({ ok: false as const }))
+  ]);
 
   const sourceFeatureId = resolvedIdentity;
   const nearby = nearbyPayload.ok
