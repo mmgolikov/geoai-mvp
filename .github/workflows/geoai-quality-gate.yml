@@ -416,6 +416,7 @@ jobs:
           node scripts/sprint10-portable-readiness-load-check.mjs | tee artifacts/sprint10-portable-load-contract.txt
           node --experimental-transform-types scripts/sprint10-analysis-result-evidence-check.ts | tee artifacts/sprint10-analysis-evidence-contract.txt
           node --experimental-transform-types scripts/sprint10-depth-cycle-evidence-check.ts | tee artifacts/sprint10-depth-cycle-evidence-contract.txt
+          node --experimental-transform-types scripts/sprint10-goal-depth-cycle-check.ts | tee artifacts/sprint10-goal-depth-cycle-contract.txt
           node --experimental-transform-types scripts/sprint10-live-budget-check.ts | tee artifacts/sprint10-live-budget-contract.txt
           node --experimental-transform-types scripts/sprint20-conservative-budget-check.ts | tee artifacts/sprint20-conservative-budget-contract.txt
           node --experimental-transform-types scripts/sprint10-live-journey-offline-check.ts | tee artifacts/sprint10-live-journey-contract.txt

@@ -1526,12 +1526,19 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
       const feature = footprints.find((item) => item.id === candidate.sourceFeatureId);
       if (hasFootprint(candidate)) expect(feature?.geometry).toEqual(candidate.geometry);
       else expect(feature).toBeUndefined();
-      progress.complete("find_compare_markers");
-      progress.start("find_compare_bounds");
-      const points = [[Number(candidate.longitude), Number(candidate.latitude)], ...positions(record(candidate.geometry) ? candidate.geometry.coordinates : null)];
-      guard(points.every(([x, y]) => Number.isFinite(x) && Number.isFinite(y) && x >= state.bounds[0][0] &&
-        x <= state.bounds[1][0] && y >= state.bounds[0][1] && y <= state.bounds[1][1]), "Dubai comparison does not frame every complete footprint.");
     }
+    progress.complete("find_compare_markers");
+    progress.start("find_compare_bounds");
+    // Basemap tiles may already be visible while the camera is still animating.
+    // Observe the final viewport, retaining every vertex and centroid assertion.
+    await expect.poll(async () => {
+      const framed = await quality20MapState(map);
+      return selectedCandidates.every((candidate) => {
+        const points = [[Number(candidate.longitude), Number(candidate.latitude)], ...positions(record(candidate.geometry) ? candidate.geometry.coordinates : null)];
+        return points.every(([x, y]) => Number.isFinite(x) && Number.isFinite(y) && x >= framed.bounds[0][0] &&
+          x <= framed.bounds[1][0] && y >= framed.bounds[0][1] && y <= framed.bounds[1][1]);
+      });
+    }, { message: "Dubai comparison must frame every complete footprint after camera fit." }).toBe(true);
     progress.complete("find_compare_bounds");
   };
   await verifyComparison();
