@@ -276,6 +276,7 @@ jobs:
           node scripts/quality20-production-gate-check.mjs | tee artifacts/quality20-production-gate-check.txt
           node scripts/quality20-production-membership-check.mjs | tee artifacts/quality20-production-membership-check.txt
           node scripts/quality20-password-only-check.mjs | tee artifacts/quality20-password-only-check.txt
+          node scripts/quality20-password-callback-check.mjs | tee artifacts/quality20-password-callback-check.txt
           node scripts/quality20-profile-password-only-check.mjs | tee artifacts/quality20-profile-password-only-check.txt
           node --experimental-strip-types scripts/quality20-analysis-content-check.ts | tee artifacts/quality20-analysis-content-check.txt
           node --experimental-transform-types scripts/quality20-ai-failure-check.ts | tee artifacts/quality20-ai-failure-check.txt
