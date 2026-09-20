@@ -1241,6 +1241,7 @@ function assertStaticBoundaries(): void {
     "app/api/prototype/point-to-object/suggest/route.ts",
     "components/point-to-object/analysis-client.tsx",
     "components/point-to-object/create-panel.tsx",
+    "components/point-to-object/create-preflight.worker.ts",
     "components/point-to-object/create-result-dashboard.tsx",
     "components/point-to-object/create-result-preview-3d.tsx",
     "components/point-to-object/decision-cards.tsx",
@@ -1269,6 +1270,10 @@ function assertStaticBoundaries(): void {
     [...candidateSurfaceAllowlist].sort(),
     "Only the exact isolated point-to-object Candidate UI/API files are allowed."
   );
+  const createPreflightWorker = readFileSync(path.join(ROOT, "components/point-to-object/create-preflight.worker.ts"), "utf8");
+  assert.match(createPreflightWorker, /preflightPointObjectCreate/);
+  assert.match(createPreflightWorker, /pointObjectCreateAoiHash/);
+  assert.doesNotMatch(createPreflightWorker, /\b(?:fetch|XMLHttpRequest|WebSocket|EventSource|localStorage|sessionStorage)\b/, "Create preflight worker is pure geometry: no network, credentials or persistence.");
   const pointObjectIntegrationAllowlist = new Set([
     ...candidateSurfaceAllowlist,
     "app/layout.tsx",

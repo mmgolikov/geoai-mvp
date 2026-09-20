@@ -7,6 +7,7 @@ const productSpecs = [
   "point-to-object-geocontext-v6.spec.ts",
   "sprint06-security-compat.spec.ts",
   "point-to-object-map10.spec.ts",
+  "quality20-map-find.spec.ts",
   "project-hub-unified.spec.ts",
   "point-object-project-restoration-readiness.spec.ts",
   "point-to-object-find-viewport.spec.ts",
