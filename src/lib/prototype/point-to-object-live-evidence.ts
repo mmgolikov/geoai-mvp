@@ -1180,9 +1180,14 @@ function districtCharacterFor(
   let code: PointObjectDistrictCharacter = "low_signal";
   let driverGroups: PointObjectContextGroup[] = [];
   if (sampleSize >= 4 && useCount >= 3) {
-    if (share("industrial") + share("construction") >= 0.4) {
+    if (share("industrial") >= 0.4) {
       code = "industrial_logistics";
-      driverGroups = ["industrial", "construction"].filter((group) => count(group as PointObjectContextGroup) > 0) as PointObjectContextGroup[];
+      driverGroups = ["industrial"];
+    } else if (share("construction") >= 0.4) {
+      // Construction/brownfield tags establish neither current activity nor
+      // eventual industrial, residential or other use. Keep that use unknown.
+      code = "low_signal";
+      driverGroups = ["construction"];
     } else if (share("open_space") >= 0.45 && count("other_built") < 10) {
       code = "open_space_recreation";
       driverGroups = ["open_space"];

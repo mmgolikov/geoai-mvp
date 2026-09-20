@@ -1246,7 +1246,7 @@ const IMPLICATION_GROUP_LABELS: Record<PointObjectContextGroup, { en: string; ru
   access: { en: "major-road access", ru: "магистральных дорог" },
   open_space: { en: "parks and open spaces", ru: "парков и открытых пространств" },
   industrial: { en: "industrial and logistics uses", ru: "промышленных и логистических объектов" },
-  construction: { en: "active construction", ru: "строящихся объектов" },
+  construction: { en: "mapped construction sites", ru: "объектов с картографической меткой строительства" },
   other_built: { en: "other buildings", ru: "прочих зданий" }
 };
 
