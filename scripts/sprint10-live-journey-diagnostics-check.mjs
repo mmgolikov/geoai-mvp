@@ -74,6 +74,34 @@ const producer = liveSpecSource.slice(liveSpecSource.indexOf("function createLiv
 const createProgress = new Function("LIVE_JOURNEY_STEPS", "canonicalLiveJourneyCompletedSteps", "guard",
   `${stripTypeScriptTypes(producer, { mode: "transform", sourceMap: false })}; return createLiveProgress;`
 )(LIVE_JOURNEY_STEPS, canonicalLiveJourneyCompletedSteps, (condition) => assert.ok(condition));
+const depthBody = liveSpecSource.split("async function runDubaiDepthCycle")[1].split("async function runSingaporeAnalyse")[0];
+for (const [stage, action] of [
+  ["analyse_depth_select", "await depthButton.click()"],
+  ["analyse_depth_click", "await run.click()"],
+  ["analyse_depth_request", "const request = await requestPromise"],
+  ["analyse_depth_contract", "validateSprint10DepthCycleTransportIdentity(submittedRequest, chosen.id)"],
+  ["analyse_depth_inflight", 'toHaveAttribute("data-in-flight-depth", depth)'],
+  ["analyse_depth_response", "const response = await responsePromise"],
+  ["analyse_depth_response_body", "boundedLiveJourneyResponseJson(response, 10_000)"]
+]) {
+  const start = depthBody.indexOf(`progress.start("${stage}")`);
+  const bound = depthBody.indexOf(action, start);
+  const complete = depthBody.indexOf(`progress.complete("${stage}")`, start);
+  assert.ok(start >= 0 && bound > start && complete > bound, `${stage} must enclose the existing depth action`);
+  const progress = createProgress();
+  progress.start(stage);
+  const diagnostic = { schemaVersion: LIVE_JOURNEY_DIAGNOSTIC_SCHEMA, primaryStatus: "failed", primaryStage: progress.current(), cleanupStage: null, completedSteps: progress.completed() };
+  assert.deepEqual(parseLiveJourneyDiagnostic(diagnostic), diagnostic);
+  assert.throws(() => parseLiveJourneyDiagnostic({ ...diagnostic, error: "private diagnostic" }));
+}
+for (const stage of ["analyse_budget_scope_denied", "analyse_budget_contract_denied", "analyse_budget_reservation_denied"]) {
+  assert.ok(liveSpecSource.includes(`denialStage = "${stage}"`));
+  const diagnostic = { schemaVersion: LIVE_JOURNEY_DIAGNOSTIC_SCHEMA, primaryStatus: "failed", primaryStage: stage, cleanupStage: null, completedSteps: [] };
+  assert.deepEqual(parseLiveJourneyDiagnostic(diagnostic), diagnostic);
+  assert.throws(() => parseLiveJourneyDiagnostic({ ...diagnostic, primaryStage: `${stage}:raw-error` }));
+}
+assert.match(liveSpecSource, /configuration[.]scope[.]endsWith\("depth-cycle"\) \? budget[.]denialStage\(\) \?\? progress[.]current\(\) : progress[.]current\(\)/);
+assert.match(liveSpecSource, /if \(!guarded[.]ok\) \{\s*denialStage = "analyse_budget_reservation_denied";[\s\S]*?await route[.]abort\("blockedbyclient"\)/);
 for (const [stage, action] of diagnosticBindings) {
   const saved = stage.startsWith("find_return_saved_");
   const body = saved ? reopenBody : findBody;
@@ -382,6 +410,9 @@ console.log(JSON.stringify({
     rawSecretNotForwarded: 1,
     zeroAdditionalPaidDispatch: paidDispatches,
     legacyRunnerShapes: 3,
+    depthTransitionFailureBindings: 7,
+    budgetDenialStages: 3,
+    depthDiagnosticPrivateFieldOrEnumRejections: 10,
     findReturnAndCandidateFailureBindings: diagnosticBindings.length
   }
 }));

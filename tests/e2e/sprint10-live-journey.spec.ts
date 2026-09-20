@@ -527,6 +527,7 @@ function installBudgetGate(page: Page, configuration: LiveConfiguration) {
   const occurrences: Record<Sprint10Route, number> = { ai: 0, create: 0 };
   const receiptIds: number[] = [];
   let fatal: string | null = null;
+  let denialStage: "analyse_budget_scope_denied" | "analyse_budget_contract_denied" | "analyse_budget_reservation_denied" | null = null;
   let frozenCaseArmed = configuration.quality20 === null;
   let goalDepthSource: Sprint10GoalDepthSource | null = null;
   let findAnalysisSources: Sprint10GoalDepthSource[] | null = null;
@@ -554,6 +555,7 @@ function installBudgetGate(page: Page, configuration: LiveConfiguration) {
     const expected = SPRINT10_LIVE_PAID_SCOPE_MATRIX[configuration.scope][routeName];
     const decision = sprint10PaidPostDecision(configuration.scope, routeName, occurrences[routeName]);
     if (!decision.ok) {
+      denialStage = "analyse_budget_scope_denied";
       fatal = decision.reason === "route_disallowed"
         ? `The ${configuration.scope} scope attempted a disallowed ${routeName} paid POST before reservation.`
         : `The bounded ${routeName} scenario attempted more than ${expected} paid POST.`;
@@ -591,7 +593,7 @@ function installBudgetGate(page: Page, configuration: LiveConfiguration) {
     }
     if (Object.hasOwn(SPRINT10_GOAL_DEPTH_SCOPES, configuration.scope)) {
       try { validateSprint10GoalDepthRequest(body, occurrences[routeName], goalDepthSource, configuration.scope as Sprint10GoalDepthScope); }
-      catch { fatal = "Goal-depth recipe or source rejected before reservation."; return route.abort("blockedbyclient"); }
+      catch { denialStage = "analyse_budget_contract_denied"; fatal = "Goal-depth recipe or source rejected before reservation."; return route.abort("blockedbyclient"); }
     }
     if (configuration.scope === "dubai-find-analysis" || configuration.scope === "dubai-find-construction") {
       try { (configuration.scope === "dubai-find-construction" ? validateConstructionAnalysisRequest : validateSprint10FindAnalysisRequest)(body, occurrences[routeName], findAnalysisSources); }
@@ -599,6 +601,7 @@ function installBudgetGate(page: Page, configuration: LiveConfiguration) {
     }
     const depth = body?.depth;
     if (depth !== "quick" && depth !== "standard" && depth !== "deep") {
+      denialStage = "analyse_budget_contract_denied";
       fatal = "A paid request without an explicit supported depth was blocked before dispatch.";
       return route.abort("blockedbyclient");
     }
@@ -627,6 +630,7 @@ function installBudgetGate(page: Page, configuration: LiveConfiguration) {
       markUnknown(registered) { markUnknown(registered, "request_failed_after_dispatch"); }
     });
     if (!guarded.ok) {
+      denialStage = "analyse_budget_reservation_denied";
       fatal = `The live spend gate stopped the request: ${guarded.reason}`;
       await route.abort("blockedbyclient");
     }
@@ -680,6 +684,7 @@ function installBudgetGate(page: Page, configuration: LiveConfiguration) {
 
   return {
     ready: registration,
+    denialStage: () => denialStage,
     armFindAnalysisSources(sources: Sprint10GoalDepthSource[]) {
       guard((configuration.scope === "dubai-find-analysis" || configuration.scope === "dubai-find-construction") && !fatal && occurrences.ai === 0 && !findAnalysisSources &&
         sources.length === 3 && new Set(sources.map((source) => source.sourceFeatureId)).size === 3 &&
@@ -1304,6 +1309,7 @@ async function runDubaiDepthCycle(page: Page, configuration: LiveConfiguration, 
   let previousGoal = "custom";
   let finalPayload: Record<string, unknown> | null = null;
   for (const [screeningIndex, depth] of screeningDepths.entries()) {
+    progress.start("analyse_depth_select");
     const depthButton = page.getByRole("button", { name: depth === "standard" ? "Standard" : depth === "deep" ? "Deep" : "Quick", exact: true });
     await depthButton.click();
     await expect(depthButton).toHaveAttribute("aria-pressed", "true");
@@ -1319,12 +1325,17 @@ async function runDubaiDepthCycle(page: Page, configuration: LiveConfiguration, 
     const run = page.getByRole("button", { name: "Run focused analysis", exact: true });
     await expect(run).toBeEnabled();
 
-    progress.start("analyse_paid_response");
+    progress.complete("analyse_depth_select");
+    progress.start("analyse_depth_click");
     const requestPromise = page.waitForRequest((request) => request.method() === "POST" && request.url().endsWith("/point-to-object/ai"), { timeout: 45_000 });
     const responsePromise = page.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/point-to-object/ai"), { timeout: 180_000 });
     const startedAt = Date.now();
     await run.click();
+    progress.complete("analyse_depth_click");
+    progress.start("analyse_depth_request");
     const request = await requestPromise;
+    progress.complete("analyse_depth_request");
+    progress.start("analyse_depth_contract");
     const submittedRequest: unknown = request.postDataJSON();
     const transportIdentity = validateSprint10DepthCycleTransportIdentity(submittedRequest, chosen.id);
     guard(record(submittedRequest) && submittedRequest.depth === depth && submittedRequest.goal === presetConfiguration.goal &&
@@ -1336,6 +1347,8 @@ async function runDubaiDepthCycle(page: Page, configuration: LiveConfiguration, 
       transportIdentity.longitude === baselineTransportIdentity.longitude &&
       transportIdentity.latitude === baselineTransportIdentity.latitude,
     `The submitted ${depth} screening request changed a fixed non-depth input or source identity.`);
+    progress.complete("analyse_depth_contract");
+    progress.start("analyse_depth_inflight");
     await expect(state).toHaveAttribute("data-in-flight-depth", depth);
     await expect(state).toHaveAttribute("data-in-flight-role", "developer");
     await expect(state).toHaveAttribute("data-in-flight-scenario", "unspecified");
@@ -1346,9 +1359,14 @@ async function runDubaiDepthCycle(page: Page, configuration: LiveConfiguration, 
     await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", previousDepth);
     await expect(page.getByRole("status").filter({ hasText: `Running ${depth === "deep" ? "Deep" : depth === "quick" ? "Quick" : "Standard"} analysis while keeping the current result visible` })).toBeVisible();
     await expect(page.getByRole("button", { name: new RegExp(`^Running ${depth === "deep" ? "Deep" : depth === "quick" ? "Quick" : "Standard"} analysis`) })).toBeDisabled();
-
+    progress.complete("analyse_depth_inflight");
+    progress.start("analyse_depth_response");
     const response = await responsePromise;
+    progress.complete("analyse_depth_response");
+    progress.start("analyse_depth_response_body");
     const payload: unknown = await boundedLiveJourneyResponseJson(response, 10_000);
+    progress.complete("analyse_depth_response_body");
+    progress.start("analyse_paid_response");
     progress.complete("analyse_paid_response");
     progress.start("analyse_paid_terminal");
     await budget.waitForTerminalReceipts();
@@ -2631,7 +2649,7 @@ test("root-authorized protected Preview source-to-decision journey", async ({ pa
     }
   } catch (error) {
     primaryStatus = error instanceof InconclusiveLiveCoverageError ? "inconclusive" : "failed";
-    primaryStage = progress.current();
+    primaryStage = configuration.scope.endsWith("depth-cycle") ? budget.denialStage() ?? progress.current() : progress.current();
   } finally {
     progress.start("paid_finalize");
     try {
