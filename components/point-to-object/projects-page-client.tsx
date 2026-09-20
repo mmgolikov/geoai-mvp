@@ -75,14 +75,13 @@ export function PointObjectProjectsPageClient() {
   const [renamePending, setRenamePending] = useState(false);
   const [cloudSavingProjectId, setCloudSavingProjectId] = useState<string | null>(null);
   const [cloudActionMessage, setCloudActionMessage] = useState<string | null>(null);
+  const [cloudActionError, setCloudActionError] = useState<{ identityKey: string; message: string } | null>(null);
   const renamePendingRef = useRef(false);
   const refreshSequence = useRef(0);
-  const cloudActionErrorRevision = useRef(0);
   const identityRef = useRef(identityKey);
   identityRef.current = identityKey;
   const refresh = useCallback(async () => {
     const sequence = ++refreshSequence.current;
-    const errorRevision = cloudActionErrorRevision.current;
     if (!identityKey) {
       setStore(null);
       setReadStatus("missing");
@@ -92,8 +91,10 @@ export function PointObjectProjectsPageClient() {
     if (identityRef.current !== identityKey || refreshSequence.current !== sequence) return;
     setReadStatus(result.status);
     setStore(result.store);
-    if (cloudActionErrorRevision.current === errorRevision) setError(result.store ? null : result.message);
+    setError(result.store ? null : result.message);
   }, [identityKey]);
+
+  useEffect(() => { setCloudActionError(null); }, [identityKey]);
 
   useEffect(() => {
     if (!isSessionResolved) return;
@@ -117,6 +118,10 @@ export function PointObjectProjectsPageClient() {
   // Never render a previous identity's results while its successor is loading.
   const visibleStore = store?.identityKey === identityKey ? store : null;
   const unavailable = readStatus === "damaged" || readStatus === "inaccessible";
+  // A successful background read says nothing about a failed cloud write.
+  // Retain the action error through both earlier and later list/auth refreshes.
+  const visibleCloudActionError = cloudActionError?.identityKey === identityKey ? cloudActionError.message : null;
+  const visibleError = visibleCloudActionError ?? error;
   const cloudCanSave = cloudSync.status === "ready" || cloudSync.status === "local_ahead";
   const cloudMessage = user?.isDemoUser === false
     ? cloudSync.status === "syncing"
@@ -196,6 +201,7 @@ export function PointObjectProjectsPageClient() {
     const initiatingIdentity = identityKey;
     setCloudSavingProjectId(projectId);
     setCloudActionMessage(null);
+    setCloudActionError(null);
     setError(null);
     try {
       const current = await readVerifiedPointObjectProjects(initiatingIdentity);
@@ -227,12 +233,9 @@ export function PointObjectProjectsPageClient() {
         : "The selected project is saved to the protected cloud test environment and can be reopened there after signing in on another device.");
     } catch (caught) {
       if (identityRef.current === initiatingIdentity) {
-        // A verification started by an earlier cloud-import event may still
-        // update the store, but must not erase this newer action error.
-        cloudActionErrorRevision.current += 1;
-        setError(caught instanceof Error ? caught.message : locale === "ru"
+        setCloudActionError({ identityKey: initiatingIdentity, message: caught instanceof Error ? caught.message : locale === "ru"
           ? "Не удалось сохранить выбранный проект в облаке. Локальная копия сохранена."
-          : "The selected project could not be saved to cloud. The local copy is preserved.");
+          : "The selected project could not be saved to cloud. The local copy is preserved." });
       }
     } finally {
       if (identityRef.current === initiatingIdentity) setCloudSavingProjectId(null);
@@ -347,7 +350,7 @@ export function PointObjectProjectsPageClient() {
           <span className="mt-1 block text-xs leading-5 text-muted">{locale === "ru" ? "сохранено" : "saved results"}</span>
         </button>)}
       </section>
-      {error ? <div className="mt-4 rounded-xl border border-[#e6bd74] bg-[#fff9ed] px-4 py-3 text-sm text-[#79520d]" role="alert"><p>{unavailable ? (locale === "ru" ? "Не удалось проверить сохранённые проекты. Исходные данные не изменены." : "Saved projects could not be verified. Original data was not changed.") : error}</p>{unavailable ? <button type="button" onClick={() => void refresh()} className={`${CONTROL} mt-3 font-bold`}>{locale === "ru" ? "Повторить проверку" : "Retry verification"}</button> : null}</div> : null}
+      {visibleError ? <div className="mt-4 rounded-xl border border-[#e6bd74] bg-[#fff9ed] px-4 py-3 text-sm text-[#79520d]" role="alert"><p>{visibleCloudActionError ?? (unavailable ? (locale === "ru" ? "Не удалось проверить сохранённые проекты. Исходные данные не изменены." : "Saved projects could not be verified. Original data was not changed.") : error)}</p>{unavailable ? <button type="button" onClick={() => void refresh()} className={`${CONTROL} mt-3 font-bold`}>{locale === "ru" ? "Повторить проверку" : "Retry verification"}</button> : null}</div> : null}
       {cloudActionMessage ? <p className="mt-4 rounded-xl border border-[#b9d8d1] bg-[#edf7f3] px-4 py-3 text-sm text-[#176548]" role="status">{cloudActionMessage}</p> : null}
 
       {identityKey && !visibleStore && !unavailable ? <p className="mt-6 text-sm text-muted" role="status">{locale === "ru" ? "Проверяем сохранённые проекты…" : "Verifying saved projects…"}</p> : null}

@@ -495,6 +495,56 @@ test("viewer denial remains visible after an older cloud import refresh complete
   await context.close();
 });
 
+test("viewer denial survives a later storage refresh and same-account auth refresh", async ({ browser }, testInfo) => {
+  test.skip(!isAuthenticatedRun(testInfo), "Requires the local authenticated cloud harness.");
+  const baseURL = String(testInfo.project.use.baseURL);
+  const context = await browser.newContext({ baseURL });
+  await installAuthenticatedCookie(context, baseURL, primaryUserId);
+  const page = await newCloudPage(context, baseURL);
+  await seedLocalProject(page, primaryUserId);
+  let putCalls = 0;
+  await page.route(`**${cloudPath}**`, async (route) => {
+    if (route.request().method() === "GET") return fulfillCloudList(route);
+    putCalls += 1;
+    await route.fulfill({ status: 403, contentType: "application/json", body: JSON.stringify({ ok: false }) });
+  });
+  await page.goto("/projects");
+  await expect(page.getByText("Cloud projects are available on this device.", { exact: true })).toBeVisible();
+  const key = projectStorageKey(primaryUserId);
+  const before = await page.evaluate((storageKey) => localStorage.getItem(storageKey), key);
+  const denied = page.waitForResponse((response) => response.request().method() === "PUT" && response.url().includes(cloudPath));
+  await page.getByRole("button", { name: "Save to cloud", exact: true }).click();
+  expect((await denied).status()).toBe(403);
+  const alert = page.getByTestId("point-object-projects-page").getByRole("alert");
+  await expect(alert).toContainText("The cloud copy was not saved completely");
+  // A refresh beginning AFTER the denial has the same revision as the action.
+  // Change only the displayed name to prove this refresh actually committed.
+  await page.evaluate((storageKey) => {
+    const store = JSON.parse(localStorage.getItem(storageKey)!);
+    store.projects[0].name = "Refreshed viewer project";
+    localStorage.setItem(storageKey, JSON.stringify(store));
+    window.dispatchEvent(new StorageEvent("storage", { key: storageKey }));
+  }, key);
+  await expect(page.getByRole("heading", { name: "Refreshed viewer project", exact: true })).toBeVisible();
+  await expect(alert).toContainText("The cloud copy was not saved completely");
+  const authRefresh = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/auth/session");
+  await page.evaluate(({ storageKey, raw }) => {
+    localStorage.setItem(storageKey, raw!);
+    window.dispatchEvent(new StorageEvent("storage", { key: storageKey }));
+    window.dispatchEvent(new Event("focus"));
+  }, { storageKey: key, raw: before });
+  expect((await authRefresh).status()).toBe(200);
+  await expect(page.getByRole("heading", { name: "Selected cloud project", exact: true })).toBeVisible();
+  await expect(alert).toContainText("The cloud copy was not saved completely");
+  expect(putCalls).toBe(1);
+  expect(await page.evaluate((storageKey) => localStorage.getItem(storageKey), key)).toBe(before);
+  await installAuthenticatedCookie(context, baseURL, secondaryUserId);
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("geoai:point-to-object:browser-identity:v1"))).toBe(`user:${secondaryUserId}`);
+  await expect(alert).toHaveCount(0);
+  await context.close();
+});
+
 test("an old account cloud completion cannot import into the next account", async ({ browser }, testInfo) => {
   test.skip(!isAuthenticatedRun(testInfo), "Requires the local authenticated cloud harness.");
   const baseURL = String(testInfo.project.use.baseURL);
