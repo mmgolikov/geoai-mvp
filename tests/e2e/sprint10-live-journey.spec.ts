@@ -1544,7 +1544,6 @@ class InconclusiveLiveCoverageError extends Error {
 
 async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy: NetworkPolicy, budget: ReturnType<typeof installBudgetGate>, progress: LiveProgress) {
   const construction = configuration.scope === "dubai-find-construction";
-  const runCandidateAnalysis = configuration.scope === "dubai-find-analysis" || construction;
   const findRole = construction ? CONSTRUCTION_FIND_CASE.role : "consultant_broker";
   const findScenario = construction ? CONSTRUCTION_FIND_CASE.scenario : "b2b_hotel_development";
   const findGroup = construction ? CONSTRUCTION_FIND_CASE.group : "hospitality";
@@ -1623,10 +1622,20 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
   guard(acceptedFindResponse(payload, submitted, "dubai", findGroup),
     "The Dubai Find response did not preserve the exact bounded request and open-map source contract.");
   progress.complete("find_source_contract");
+  await runFindCohort(page, configuration, policy, budget, progress, payload, submitted, "dubai", findRole, findScenario, findGroup);
+}
+
+async function runFindCohort(page: Page, configuration: LiveConfiguration, policy: NetworkPolicy,
+  budget: ReturnType<typeof installBudgetGate>, progress: LiveProgress,
+  payload: Record<string, unknown> & { candidates: Array<Record<string, unknown>> }, submitted: AcceptedFindRequest,
+  marketKey: "dubai" | "singapore", findRole: string, findScenario: string,
+  findGroup: "hospitality" | "commercial_office" | "construction") {
+  const construction = configuration.scope === "dubai-find-construction";
+  const runCandidateAnalysis = configuration.scope === "dubai-find-analysis" || construction;
   progress.start("find_candidate_count");
   const candidates = payload.candidates as Array<Record<string, unknown>>;
   if (candidates.length < 3) {
-    throw new InconclusiveLiveCoverageError(`Dubai Find returned ${candidates.length} usable candidate(s); live acceptance requires three.`);
+    throw new InconclusiveLiveCoverageError(`${marketKey} Find returned ${candidates.length} usable candidate(s); live acceptance requires three.`);
   }
   const hasFootprint = (candidate: Record<string, unknown>) => record(candidate.geometry) &&
     (candidate.geometry.type === "Polygon" || candidate.geometry.type === "MultiPolygon");
@@ -1639,7 +1648,13 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
   }
   const identities = selectedCandidates.map((candidate) => candidate.sourceFeatureId);
   guard(identities.every((value) => typeof value === "string" && /^(node|way|relation)\/[1-9]\d{0,19}$/.test(value)) && new Set(identities).size === 3,
-    "Dubai Find did not return three distinct exact source identities.");
+    "Find did not return three distinct exact source identities.");
+  await test.info().attach("night21-find-cohort", { body: JSON.stringify({ marketKey, criteria: submitted,
+    candidates: selectedCandidates.map((candidate) => ({ sourceFeatureId: candidate.sourceFeatureId,
+      geometryKind: hasFootprint(candidate) ? "source_footprint" : "source_point",
+      geometryHash: createHash("sha256").update(JSON.stringify(hasFootprint(candidate) ? candidate.geometry :
+        { type: "Point", coordinates: [candidate.longitude, candidate.latitude] })).digest("hex") }))
+  }), contentType: "application/json" });
   const analysisSources = selectedCandidates.map((candidate) => ({ sourceFeatureId: String(candidate.sourceFeatureId),
     longitude: Number(candidate.longitude), latitude: Number(candidate.latitude) }));
   if (runCandidateAnalysis) budget.armFindAnalysisSources(analysisSources);
@@ -1649,9 +1664,18 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
   progress.start("find_compare");
   const beforeLocalComparison = policy.snapshotJourneyRequests();
   progress.start("find_compare_select");
-  for (const candidate of selectedCandidates) {
+  for (const candidate of selectedCandidates.slice(0, 2)) {
     await items.nth(candidates.indexOf(candidate)).getByRole("button", { name: "Compare", exact: true }).click();
   }
+  progress.start("find_shortlist_two");
+  await expect(items.getByRole("button", { name: "Selected", exact: true })).toHaveCount(2);
+  await expect.poll(async () => (await localArtifactState(page, configuration.userId, "find"))?.shortlistCount).toBe(2);
+  progress.complete("find_shortlist_two");
+  progress.start("find_shortlist_three");
+  await items.nth(candidates.indexOf(selectedCandidates[2])).getByRole("button", { name: "Compare", exact: true }).click();
+  await expect(items.getByRole("button", { name: "Selected", exact: true })).toHaveCount(3);
+  await expect.poll(async () => (await localArtifactState(page, configuration.userId, "find"))?.shortlistCount).toBe(3);
+  progress.complete("find_shortlist_three");
   progress.complete("find_compare_select");
   progress.start("find_compare_compact");
   await page.getByRole("button", { name: "Compare selected", exact: true }).click();
@@ -1698,8 +1722,8 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
       finally { comparisonNetwork.dispose(); }
       throw error;
     });
-    guard(state && state.width > 100 && state.height > 100, "Dubai comparison basemap has no useful dimensions.");
-    guard(record(state.geometry) && Array.isArray(state.geometry.features), "Dubai comparison footprint source is missing.");
+    guard(state && state.width > 100 && state.height > 100, "Find comparison basemap has no useful dimensions.");
+    guard(record(state.geometry) && Array.isArray(state.geometry.features), "Find comparison footprint source is missing.");
     const footprints = state.geometry.features.filter(record);
     expect(footprints.map((feature) => feature.id).sort()).toEqual(expectedFootprintIds);
     progress.complete("find_compare_geometry");
@@ -1727,7 +1751,7 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
         return points.every(([x, y]) => Number.isFinite(x) && Number.isFinite(y) && x >= framed.bounds[0][0] &&
           x <= framed.bounds[1][0] && y >= framed.bounds[0][1] && y <= framed.bounds[1][1]);
       });
-    }, { message: "Dubai comparison must frame every complete footprint after camera fit." }).toBe(true);
+    }, { message: "Find comparison must frame every complete footprint after camera fit." }).toBe(true);
     progress.complete("find_compare_bounds");
     progress.start(parentStep);
   };
@@ -1749,7 +1773,7 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
   progress.start("find_local_save");
   await expect.poll(async () => (await localArtifactState(page, configuration.userId, "find"))?.domainIdentity ?? null).toBe(expectedDomainIdentity);
   const saved = await requireLocalArtifactState(page, configuration.userId, "find");
-  expect(saved.marketKey).toBe("dubai");
+  expect(saved.marketKey).toBe(marketKey);
   expect(saved.role).toBe(findRole);
   expect(saved.scenario).toBe(findScenario);
   progress.complete("find_local_save");
@@ -1775,14 +1799,14 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
     const contextResponse = await contextPromise;
     progress.complete("find_candidate_context_response");
     progress.start("find_candidate_context_request");
-    expect(contextResponse.request().postDataJSON()).toEqual({ caseKey: "dubai", longitude: candidate.longitude,
+    expect(contextResponse.request().postDataJSON()).toEqual({ caseKey: marketKey, longitude: candidate.longitude,
       latitude: candidate.latitude, locale: "en", expectedSourceFeatureId: candidate.sourceFeatureId });
     progress.complete("find_candidate_context_request");
     const contextPayload = await readAnalyseContextResponse(contextResponse, progress);
     progress.start("find_candidate_context_contract");
     guard(contextResponse.status() === 200 && record(contextPayload) && contextPayload.mode === "resolved" &&
       record(contextPayload.subject) && contextPayload.subject.sourceFeatureId === candidate.sourceFeatureId,
-    "Dubai Find to Analyse did not resolve the same exact source identity with HTTP 200.");
+    "Find to Analyse did not resolve the same exact source identity with HTTP 200.");
     progress.complete("find_candidate_context_contract");
     progress.start("find_candidate_selection");
     await expect(dashboard).toHaveCount(0);
@@ -1885,6 +1909,12 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
     expect(current.viewRevision).toBeGreaterThanOrEqual(saved.viewRevision);
     expect(current.shortlistCount).toBe(3);
     expect(current.comparisonView).toBe("dashboard");
+    const returnedSession = await page.evaluate(() => JSON.parse(sessionStorage.getItem("geoai:point-to-object:find:v1") ?? "null"));
+    expect(returnedSession.result.criteria).toEqual(submitted);
+    expect(returnedSession.shortlist.map((item: Record<string, unknown>) => item.sourceFeatureId)).toEqual(identities);
+    expect(returnedSession.analysisTargetSourceFeatureId).toBe(candidate.sourceFeatureId);
+    expect(returnedSession.role).toBe(findRole);
+    expect(returnedSession.scenario).toBe(findScenario);
     progress.complete("find_return_artifact");
     progress.start("find_return_no_replay");
     assertNoReplay(beforeReturn, policy.snapshotJourneyRequests());
@@ -1895,6 +1925,115 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
     progress.complete("find_return_paid_count");
   }
   comparisonNetwork.dispose();
+  await verifyFindCriteriaUpdateAndReset(page, configuration, policy, budget, progress, submitted, marketKey, findGroup);
+}
+
+function acceptedFindCriteriaUpdate(value: unknown, original: AcceptedFindRequest, bounds: number[]): value is AcceptedFindRequest {
+  const expected = { ...original, bounds, mappedMinimumLevels: 2 };
+  return exactObjectKeys(value, Object.keys(expected)) &&
+    Object.entries(expected).every(([key, entry]) => JSON.stringify(value[key]) === JSON.stringify(entry));
+}
+
+async function savedFindArtifactBytes(page: Page, userId: string): Promise<Record<string, string>> {
+  return page.evaluate((id) => {
+    const key = `geoai:point-to-object:projects:v1:${encodeURIComponent(`user:${id}`)}`;
+    const store = JSON.parse(localStorage.getItem(key) ?? "null");
+    return Object.fromEntries((store?.projects ?? []).flatMap((project: { artifacts: Array<{ kind: string; artifactId: string }> }) =>
+      project.artifacts.filter((artifact) => artifact.kind === "find").map((artifact) => [artifact.artifactId, JSON.stringify(artifact)])));
+  }, userId);
+}
+
+async function verifyFindCriteriaUpdateAndReset(page: Page, configuration: LiveConfiguration, policy: NetworkPolicy,
+  budget: ReturnType<typeof installBudgetGate>, progress: LiveProgress, submitted: AcceptedFindRequest,
+  marketKey: "dubai" | "singapore", findGroup: "hospitality" | "commercial_office" | "construction") {
+  progress.start("find_criteria_stale");
+  await page.getByTestId("find-full-comparison-dashboard").getByRole("button", { name: "Back to results", exact: true }).click();
+  const items = page.getByTestId("find-scroll-region").getByRole("listitem");
+  await expect(items.getByRole("button", { name: "Selected", exact: true })).toHaveCount(3);
+  await expect.poll(async () => (await localArtifactState(page, configuration.userId, "find"))?.comparisonView).toBe("results");
+  await stableLocalBarrier(page);
+  const preserved = await savedFindArtifactBytes(page, configuration.userId);
+  const beforeChange = policy.snapshotJourneyRequests();
+  const paidBeforeChange = budget.paidDispatchCount();
+  await page.getByLabel("Levels from", { exact: true }).fill("2");
+  await expect(page.getByTestId("find-result-stale")).toBeVisible();
+  const cta = page.getByTestId("find-search-cta");
+  await expect(cta).toHaveText("Update search");
+  await expect(cta).toBeEnabled();
+  for (const item of await items.all()) {
+    await expect(item.locator("button").first()).toBeDisabled();
+    await expect(item.getByRole("button", { name: "Open analysis", exact: true })).toBeDisabled();
+  }
+  await stableLocalBarrier(page);
+  assertNoReplay(beforeChange, policy.snapshotJourneyRequests());
+  expect(await savedFindArtifactBytes(page, configuration.userId)).toEqual(preserved);
+  progress.complete("find_criteria_stale");
+
+  progress.start("find_criteria_update_request");
+  const map = page.getByTestId("live-map-canvas").first();
+  await expect.poll(async () => (await quality20MapState(map)).ready).toBe(true);
+  const updateBounds = (await quality20MapState(map)).bounds.flat();
+  const updateRequest = { ...submitted, bounds: updateBounds, mappedMinimumLevels: null };
+  guard(findGroup === "construction" ? acceptedConstructionFindRequest(updateRequest, updateBounds) :
+    marketKey === "dubai" ? acceptedDubaiFindRequest(updateRequest) : acceptedSingaporeFindRequest(updateRequest),
+  "The explicit Find update viewport left its approved source envelope.");
+  const gate = await installFindPreDispatchGate(page,
+    (value): value is AcceptedFindRequest => acceptedFindCriteriaUpdate(value, submitted, updateBounds),
+    marketKey === "dubai" ? "Dubai" : "Singapore");
+  const observation = observeSourcePostResponse(page, "/api/prototype/point-to-object/find", SOURCE_REQUEST_HARNESS_TIMEOUT_MS);
+  let updatedRequest: AcceptedFindRequest;
+  try {
+    await cta.click();
+    updatedRequest = await gate.request;
+  } catch (error) {
+    observation.cancel();
+    markFindPreDispatchFailure(error, progress);
+    throw error;
+  }
+  progress.complete("find_criteria_update_request");
+  progress.start("find_criteria_update_response");
+  const response = requireFindSourceResponse(await observation.result, progress);
+  guard(response.status() === 200, "The explicit Find update did not return HTTP 200.");
+  const payload: unknown = await boundedLiveJourneyResponseJson(response, 10_000);
+  guard(acceptedFindResponse(payload, updatedRequest, marketKey, findGroup), "The explicit Find update failed its source contract.");
+  expect(payload.criteria).toEqual(updatedRequest);
+  expect((payload.coverage as Record<string, unknown>).mappedLevelsPolicy).toBe("strict_explicit_building_levels_tag_only");
+  for (const candidate of payload.candidates) {
+    expect(Number.isInteger(candidate.mappedBuildingLevels)).toBe(true);
+    expect(candidate.mappedBuildingLevels).toBeGreaterThanOrEqual(2);
+  }
+  // A genuine empty response is valid after applying the stricter mapped-level filter.
+  await expect(items).toHaveCount(payload.candidates.length);
+  await expect(page.getByTestId("find-result-stale")).toHaveCount(0);
+  await expect(items.getByRole("button", { name: "Selected", exact: true })).toHaveCount(0);
+  await expect(page.getByTestId("find-comparison-grid")).toHaveCount(0);
+  await expect.poll(async () => Object.keys(await savedFindArtifactBytes(page, configuration.userId)).length).toBe(Object.keys(preserved).length + 1);
+  const afterUpdate = policy.snapshotJourneyRequests();
+  for (const key of replayKeys) expect(afterUpdate[key] ?? 0).toBe((beforeChange[key] ?? 0) + (key === "POST /api/prototype/point-to-object/find" ? 1 : 0));
+  expect(budget.paidDispatchCount()).toBe(paidBeforeChange);
+  const savedAfterUpdate = await savedFindArtifactBytes(page, configuration.userId);
+  for (const [id, bytes] of Object.entries(preserved)) expect(savedAfterUpdate[id]).toBe(bytes);
+  progress.complete("find_criteria_update_response");
+
+  progress.start("find_reset_saved_artifacts");
+  const beforeReset = policy.snapshotJourneyRequests();
+  await page.getByTestId("find-reset-results").click();
+  await expect(items).toHaveCount(0);
+  await expect(page.getByTestId("find-reset-results")).toHaveCount(0);
+  await expect(page.getByTestId("find-result-stale")).toHaveCount(0);
+  await expect(page.getByTestId("find-comparison-grid")).toHaveCount(0);
+  await expect(page.getByTestId("find-full-comparison-dashboard")).toHaveCount(0);
+  await expect(page.getByLabel("Levels from", { exact: true })).toHaveValue("2");
+  await expect.poll(async () => page.evaluate(() => {
+    const session = JSON.parse(sessionStorage.getItem("geoai:point-to-object:find:v1") ?? "null");
+    return session === null || (session.result === null && session.shortlist.length === 0 &&
+      session.comparisonOpen === false && session.comparisonView === "results" && session.analysisTargetSourceFeatureId === null);
+  })).toBe(true);
+  await stableLocalBarrier(page);
+  expect(await savedFindArtifactBytes(page, configuration.userId)).toEqual(savedAfterUpdate);
+  assertNoReplay(beforeReset, policy.snapshotJourneyRequests());
+  expect(budget.paidDispatchCount()).toBe(paidBeforeChange);
+  progress.complete("find_reset_saved_artifacts");
 }
 
 async function runSingaporeFind(page: Page, configuration: LiveConfiguration, policy: NetworkPolicy, budget: ReturnType<typeof installBudgetGate>, progress: LiveProgress) {
@@ -1968,51 +2107,8 @@ async function runSingaporeFind(page: Page, configuration: LiveConfiguration, po
   guard(acceptedFindResponse(payload, submitted, "singapore", "commercial_office"),
     "The Singapore Find response did not preserve the exact bounded request and open-map source contract.");
   progress.complete("find_source_contract");
-  progress.start("find_candidate_count");
-  const candidates = payload.candidates as Array<Record<string, unknown>>;
-  if (candidates.length < 2) {
-    throw new InconclusiveLiveCoverageError(`Singapore Find returned ${candidates.length} usable candidate(s); Compare requires at least two.`);
-  }
-  const identities = candidates.slice(0, 2).map((candidate) => candidate.sourceFeatureId);
-  guard(identities.every((value) => typeof value === "string" && /^(node|way|relation)\/[1-9]\d{0,19}$/.test(value)) && new Set(identities).size === 2,
-    "Singapore Find did not return two distinct exact source identities.");
-  progress.complete("find_candidate_count");
-  const items = page.getByTestId("find-scroll-region").getByRole("listitem");
-  await expect(items).toHaveCount(candidates.length);
-  progress.start("find_compare");
-  const beforeLocalComparison = policy.snapshotJourneyRequests();
-  await items.nth(0).getByRole("button", { name: "Compare", exact: true }).click();
-  await items.nth(1).getByRole("button", { name: "Compare", exact: true }).click();
-  await page.getByRole("button", { name: "Compare selected", exact: true }).click();
-  await expect(page.getByTestId("find-comparison-grid")).toBeVisible();
-  await page.getByRole("button", { name: "Open full comparison dashboard", exact: true }).click();
-  await expect(page.getByTestId("find-full-comparison-dashboard")).toBeVisible();
-  await expect.poll(async () => {
-    const state = await localArtifactState(page, configuration.userId, "find");
-    return `${state?.shortlistCount ?? 0}:${state?.comparisonView ?? "none"}`;
-  }).toBe("2:dashboard");
-  await stableLocalBarrier(page);
-  assertNoReplay(beforeLocalComparison, policy.snapshotJourneyRequests());
-  progress.complete("find_compare");
-  const expectedDomainIdentity = JSON.stringify({
-    candidateIds: candidates.map((candidate) => candidate.sourceFeatureId),
-    shortlistIds: identities
-  });
-  progress.start("find_local_save");
-  await expect.poll(async () => (await localArtifactState(page, configuration.userId, "find"))?.domainIdentity ?? null).toBe(expectedDomainIdentity);
-  const saved = await requireLocalArtifactState(page, configuration.userId, "find");
-  expect(saved.marketKey).toBe("singapore");
-  expect(saved.role).toBe("consultant_broker");
-  expect(saved.scenario).toBe("b2b_commercial_real_estate");
-  progress.complete("find_local_save");
-  const paidBeforeReopen = budget.paidDispatchCount();
-  progress.start("find_local_reopen");
-  await reopenSavedArtifact(page, configuration.userId, "find", policy, saved, async () => {
-    await expect(page.getByTestId("find-full-comparison-dashboard")).toBeVisible();
-    for (const identity of identities) await expect(page.getByText(String(identity), { exact: true })).toBeVisible();
-  });
-  expect(budget.paidDispatchCount()).toBe(paidBeforeReopen);
-  progress.complete("find_local_reopen");
+  await runFindCohort(page, configuration, policy, budget, progress, payload, submitted,
+    "singapore", "consultant_broker", "b2b_commercial_real_estate", "commercial_office");
 }
 
 type LiveCreateCase = {
