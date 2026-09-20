@@ -1444,22 +1444,33 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
   await expect(items).toHaveCount(candidates.length);
   progress.start("find_compare");
   const beforeLocalComparison = policy.snapshotJourneyRequests();
+  progress.start("find_compare_select");
   for (const candidate of selectedCandidates) {
     await items.nth(candidates.indexOf(candidate)).getByRole("button", { name: "Compare", exact: true }).click();
   }
+  progress.complete("find_compare_select");
+  progress.start("find_compare_compact");
   await page.getByRole("button", { name: "Compare selected", exact: true }).click();
   await expect(page.getByTestId("find-comparison-grid")).toBeVisible();
+  progress.complete("find_compare_compact");
+  progress.start("find_compare_dashboard");
   await page.getByRole("button", { name: "Open full comparison dashboard", exact: true }).click();
   const dashboard = page.getByTestId("find-full-comparison-dashboard");
   const verifyComparison = async () => {
     await expect(dashboard).toBeVisible();
+    progress.complete("find_compare_dashboard");
     const map = dashboard.getByTestId("live-map-canvas");
+    progress.start("find_compare_basemap");
     await expect.poll(async () => (await quality20MapState(map)).basemapCount).toBeGreaterThan(0);
+    progress.complete("find_compare_basemap");
+    progress.start("find_compare_geometry");
     const state = await quality20MapState(map);
     guard(state.width > 100 && state.height > 100, "Dubai comparison basemap has no useful dimensions.");
     guard(record(state.geometry) && Array.isArray(state.geometry.features), "Dubai comparison footprint source is missing.");
     const footprints = state.geometry.features.filter(record);
     expect(footprints.map((feature) => feature.id).sort()).toEqual(selectedCandidates.filter(hasFootprint).map((candidate) => candidate.sourceFeatureId).sort());
+    progress.complete("find_compare_geometry");
+    progress.start("find_compare_markers");
     await expect(dashboard.locator("[data-find-result-marker]")).toHaveCount(3);
     function positions(value: unknown): number[][] {
       if (!Array.isArray(value)) return [];
@@ -1471,18 +1482,23 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
       const feature = footprints.find((item) => item.id === candidate.sourceFeatureId);
       if (hasFootprint(candidate)) expect(feature?.geometry).toEqual(candidate.geometry);
       else expect(feature).toBeUndefined();
+      progress.complete("find_compare_markers");
+      progress.start("find_compare_bounds");
       const points = [[Number(candidate.longitude), Number(candidate.latitude)], ...positions(record(candidate.geometry) ? candidate.geometry.coordinates : null)];
       guard(points.every(([x, y]) => Number.isFinite(x) && Number.isFinite(y) && x >= state.bounds[0][0] &&
         x <= state.bounds[1][0] && y >= state.bounds[0][1] && y <= state.bounds[1][1]), "Dubai comparison does not frame every complete footprint.");
     }
+    progress.complete("find_compare_bounds");
   };
   await verifyComparison();
+  progress.start("find_compare_artifact");
   await expect.poll(async () => {
     const state = await localArtifactState(page, configuration.userId, "find");
     return `${state?.shortlistCount ?? 0}:${state?.comparisonView ?? "none"}`;
   }).toBe("3:dashboard");
   await stableLocalBarrier(page);
   assertNoReplay(beforeLocalComparison, policy.snapshotJourneyRequests());
+  progress.complete("find_compare_artifact");
   progress.complete("find_compare");
   const expectedDomainIdentity = JSON.stringify({
     candidateIds: candidates.map((candidate) => candidate.sourceFeatureId),
