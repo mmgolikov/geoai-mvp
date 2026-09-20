@@ -1475,8 +1475,8 @@ async function assertCandidateAiSafety(): Promise<void> {
       `const LIVE_POINT_CAVEAT = ${JSON.stringify(LIVE_POINT_CAVEAT)};\n`
     ],
     [
-      /import \{\n  POINT_OBJECT_ANALYSIS_LEGACY_PROMPT_VERSION,\n  POINT_OBJECT_ANALYSIS_LEGACY_RESULT_SCHEMA_VERSION,\n  POINT_OBJECT_ANALYSIS_PREVIOUS_PROMPT_VERSION,\n  POINT_OBJECT_ANALYSIS_PROMPT_VERSION,\n  POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION\n\} from "@\/components\/point-to-object\/live-types";\n/,
-      `const POINT_OBJECT_ANALYSIS_LEGACY_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V7_2026_09_04";\nconst POINT_OBJECT_ANALYSIS_LEGACY_RESULT_SCHEMA_VERSION = 5;\nconst POINT_OBJECT_ANALYSIS_PREVIOUS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V9_2026_09_12";\nconst POINT_OBJECT_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V10_2026_09_18";\nconst POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION = 6;\n`
+      /import \{\n  POINT_OBJECT_ANALYSIS_LEGACY_PROMPT_VERSION,\n  POINT_OBJECT_ANALYSIS_LEGACY_RESULT_SCHEMA_VERSION,\n  POINT_OBJECT_ANALYSIS_PREVIOUS_PROMPT_VERSION,\n  POINT_OBJECT_ANALYSIS_PRE_PROFILE_PROMPT_VERSION,\n  POINT_OBJECT_ANALYSIS_PROMPT_VERSION,\n  POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION\n\} from "@\/components\/point-to-object\/live-types";\n/,
+      `const POINT_OBJECT_ANALYSIS_LEGACY_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V7_2026_09_04";\nconst POINT_OBJECT_ANALYSIS_LEGACY_RESULT_SCHEMA_VERSION = 5;\nconst POINT_OBJECT_ANALYSIS_PREVIOUS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V9_2026_09_12";\nconst POINT_OBJECT_ANALYSIS_PRE_PROFILE_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V10_2026_09_18";\nconst POINT_OBJECT_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V11_2026_09_20";\nconst POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION = 6;\n`
     ],
     [
       /import \{ isPointObjectLocale, isPointObjectMarketKey \} from "@\/src\/lib\/prototype\/point-to-object-markets";\n/,
@@ -2261,10 +2261,16 @@ async function assertCandidateAiSafety(): Promise<void> {
   const currentClientResponse = {
     ...fullClientResponse,
     content: currentValidation.ok ? currentValidation.content : fullClientResponse.content,
-    telemetry: { ...fullClientResponse.telemetry, promptVersion: "POINT_OBJECT_AI_PROMPT_V10_2026_09_18" }
+    telemetry: { ...fullClientResponse.telemetry, promptVersion: "POINT_OBJECT_AI_PROMPT_V11_2026_09_20" }
   };
   const parsedCurrentResponse = parseClientResponse(currentClientResponse) as JsonObject;
-  assert.ok(parsedCurrentResponse, "The client must accept a current V10 review that matches the request depth.");
+  assert.ok(parsedCurrentResponse, "The client must accept a current V11 review that matches the request depth.");
+  for (const preservedVersion of ["POINT_OBJECT_AI_PROMPT_V10_2026_09_18", "POINT_OBJECT_AI_PROMPT_V9_2026_09_12"]) {
+    const restored = parseClientResponse({ ...currentClientResponse, telemetry: { ...currentClientResponse.telemetry, promptVersion: preservedVersion } }) as JsonObject;
+    assert.ok(restored, `Stored ${preservedVersion} must remain restorable.`);
+    assert.equal((restored.telemetry as JsonObject).promptVersion, preservedVersion, "Restoration must preserve the historical version.");
+    assert.deepEqual(restored.content, parsedCurrentResponse.content, "Restoration must not rewrite saved content.");
+  }
   assert.equal(((parsedCurrentResponse.content as JsonObject).depthReview as JsonObject).depth, "deep");
   assert.equal(parseClientResponse({
     ...currentClientResponse,
@@ -2993,7 +2999,7 @@ async function assertCandidateAiSafety(): Promise<void> {
     }
   }, evidencePack, heightQuestion) as any;
   assert.equal(normalizedHeight?.answerToQuestion?.statement,
-    "OpenStreetMap height tag value: 200 (unit not stated in tag; accuracy not independently verified).",
+    "OpenStreetMap height tag value: 200 (metres by OSM convention; accuracy not independently verified).",
     "Supported direct attributes must be rendered from the canonical field rather than raw model prose.");
   assert.deepEqual(normalizedHeight?.answerToQuestion?.evidenceRefs, ["EVD-ALLOWED-FIELDS"],
     "A direct-attribute answer must expose only its canonical attribute receipt.");
@@ -3015,7 +3021,7 @@ async function assertCandidateAiSafety(): Promise<void> {
     }
   }, evidencePack, heightQuestion) as any;
   assert.equal(conciseHeight?.answerToQuestion?.statement,
-    "OpenStreetMap height tag value: 200 (unit not stated in tag; accuracy not independently verified).",
+    "OpenStreetMap height tag value: 200 (metres by OSM convention; accuracy not independently verified).",
     "A concise exact-field model result must still resolve through canonical server rendering without a manual retry.");
   assert.deepEqual(conciseHeight?.answerToQuestion?.missingEvidence, [],
     "Model-selected generic gaps must not dilute a canonical direct-attribute answer.");

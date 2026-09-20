@@ -15,6 +15,7 @@ import {
   POINT_OBJECT_ANALYSIS_LEGACY_PROMPT_VERSION,
   POINT_OBJECT_ANALYSIS_LEGACY_RESULT_SCHEMA_VERSION,
   POINT_OBJECT_ANALYSIS_PREVIOUS_PROMPT_VERSION,
+  POINT_OBJECT_ANALYSIS_PRE_PROFILE_PROMPT_VERSION,
   POINT_OBJECT_ANALYSIS_PROMPT_VERSION,
   POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION
 } from "@/components/point-to-object/live-types";
@@ -1049,7 +1050,7 @@ type ParsedPointObjectAiTelemetry = Extract<PointObjectAiResponse, { mode: "open
 function parsePointObjectAiTelemetryFor(
   value: unknown,
   expectedSchemaVersion: typeof POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION | typeof POINT_OBJECT_ANALYSIS_LEGACY_RESULT_SCHEMA_VERSION,
-  expectedPromptVersion: typeof POINT_OBJECT_ANALYSIS_PROMPT_VERSION | typeof POINT_OBJECT_ANALYSIS_PREVIOUS_PROMPT_VERSION |
+  expectedPromptVersion: typeof POINT_OBJECT_ANALYSIS_PROMPT_VERSION | typeof POINT_OBJECT_ANALYSIS_PRE_PROFILE_PROMPT_VERSION | typeof POINT_OBJECT_ANALYSIS_PREVIOUS_PROMPT_VERSION |
     typeof POINT_OBJECT_ANALYSIS_PRE_DEPTH_PROMPT_VERSION | typeof POINT_OBJECT_ANALYSIS_LEGACY_PROMPT_VERSION
 ): ParsedPointObjectAiTelemetry | null {
   if (!isRecord(value) || !hasExactKeys(value, [
@@ -1133,6 +1134,10 @@ export function parsePointObjectAiTelemetry(value: unknown): PointObjectAiTeleme
   ) ?? parsePointObjectAiTelemetryFor(
     value,
     POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION,
+    POINT_OBJECT_ANALYSIS_PRE_PROFILE_PROMPT_VERSION
+  ) ?? parsePointObjectAiTelemetryFor(
+    value,
+    POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION,
     POINT_OBJECT_ANALYSIS_PREVIOUS_PROMPT_VERSION
   ) ?? parsePointObjectAiTelemetryFor(
     value,
@@ -1163,6 +1168,7 @@ export function parsePointObjectAiResponse(value: unknown): PointObjectAiRespons
   const subject = parseSubject(value.subject);
   const telemetry = parsePointObjectAiTelemetry(value.telemetry);
   const currentDepthReview = telemetry?.promptVersion === POINT_OBJECT_ANALYSIS_PROMPT_VERSION ||
+    telemetry?.promptVersion === POINT_OBJECT_ANALYSIS_PRE_PROFILE_PROMPT_VERSION ||
     telemetry?.promptVersion === POINT_OBJECT_ANALYSIS_PREVIOUS_PROMPT_VERSION;
   const previousWithoutDepthReview = telemetry?.promptVersion === POINT_OBJECT_ANALYSIS_PRE_DEPTH_PROMPT_VERSION;
   if (!generatedAt || !evidencePackId || !/^[A-Za-z0-9_.:-]+$/.test(evidencePackId) || !evidencePackHash ||

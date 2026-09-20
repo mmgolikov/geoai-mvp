@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 // @ts-expect-error -- Node's strip-types runner requires the explicit extension.
 import { core, evidencePack } from "./point-to-object-semantic-v6-check.ts";
 
@@ -28,11 +29,13 @@ function request(locale: string, goal = "development_screening", question: strin
 }
 const questions = {
   en: {
+    object_profile: "Build a concise decision-oriented profile of this object. Separate observed map evidence, derived implications and hypotheses, and identify the most material evidence gaps.",
     development_screening: "Screen this object from the selected perspective. Identify what the available evidence implies, the strongest preliminary opportunities and risks, and what must be validated before further commitment.",
     redevelopment: "Assess whether redevelopment or repositioning is a useful hypothesis to investigate for this object. Do not assume development rights, condition, demand or financial feasibility.",
     due_diligence: "Turn the available evidence into a prioritized due-diligence plan. Explain which unknowns could change the decision most and which sources should be checked first."
   },
   ru: {
+    object_profile: "Составь краткий профиль объекта для принятия решения. Раздели наблюдаемые данные, производные выводы и гипотезы; укажи наиболее существенные пробелы в данных.",
     development_screening: "Проведи предварительную оценку объекта с выбранной точки зрения. Покажи, что следует из доступных данных, основные возможности и риски, а также что нужно проверить до дальнейших обязательств.",
     redevelopment: "Оцени, стоит ли проверять гипотезу редевелопмента или репозиционирования этого объекта. Не предполагай наличие прав на строительство, состояние, спрос или финансовую реализуемость.",
     due_diligence: "Преобразуй доступные данные в приоритетный план due diligence. Объясни, какие неизвестные сильнее всего могут изменить решение и какие источники проверить первыми."
@@ -73,6 +76,17 @@ for (const locale of ["en", "ru"] as const) {
     assert.equal(result.ok, true, result.detail);
     assert.equal(result.content.answerToQuestion.status, "partial");
     assert.ok(result.content.answerToQuestion.missingEvidence.length >= 7);
+    if (goal === "object_profile") {
+      const answer = result.content.answerToQuestion;
+      assert.match(answer.statement, /Harbour Hotel/);
+      assert.match(answer.statement, /30/);
+      assert.match(answer.statement, /200/);
+      assert.match(answer.statement, /400/);
+      assert.match(answer.statement, locale === "en" ? /Implication:.*Hypothesis:/ : /Вывод:.*Гипотеза:/);
+      assert.match(answer.statement, locale === "en" ? /metres by OSM convention/ : /метры по правилу OSM/);
+      assert.ok(answer.evidenceRefs.includes("EVD-CONTEXT-SUMMARY"));
+      assert.ok(answer.statement.length <= 900);
+    }
     const overclaim = core.validatePointObjectAiContentDetailed({ ...plan(), answerCode: "source_evidence_only", focusedAnswer: {
       status: "answered", scope: "screening_implication", perspective: "developer", horizon: "current", confidence: "low",
       statement: "The mapped object supports a preliminary screen and a subsequent evidence review.", evidenceRefs: ["EVD-OSM-OBJECT"], missingEvidenceCodes: [], unsupportedReasonCode: null
@@ -98,7 +112,51 @@ for (const locale of ["en", "ru"] as const) {
   assert.equal(height.ok, true, height.detail);
   assert.equal(height.content.answerToQuestion.status, "answered");
   assert.equal(height.content.answerToQuestion.missingEvidence.length, 0);
+  const profileHeight = core.validatePointObjectAiContentDetailed({ ...plan(), answerCode: "source_evidence_only", focusedAnswer: {
+    status: "answered", scope: "mapped_form", perspective: "developer", horizon: "current", confidence: "low",
+    statement: "Mapped OpenStreetMap height tag value: 200; the mapped value is not independently verified.", evidenceRefs: ["EVD-ALLOWED-FIELDS"], missingEvidenceCodes: [], unsupportedReasonCode: null
+  } }, pack, { ...heightRequest, goal: "object_profile" });
+  assert.equal(profileHeight.ok, true, profileHeight.detail);
+  assert.equal(profileHeight.content.answerToQuestion.status, "answered");
+  checks += 1;
   checks += 2;
+
+  const sparse = core.recoverPointObjectAiFocusedContentDetailed(plan(), evidencePack(true), request(locale, "object_profile", questions[locale].object_profile));
+  assert.equal(sparse.ok, true, sparse.detail);
+  assert.equal(sparse.content.answerToQuestion.status, "partial");
+  assert.match(sparse.content.answerToQuestion.statement, locale === "en" ? /context is insufficient/ : /Контекст территории недостаточен/);
+  assert.doesNotMatch(sparse.content.answerToQuestion.statement, /400|Metro Gate/);
+  const narrowProfile = core.recoverPointObjectAiFocusedContentDetailed(plan(), pack, request(locale, "object_profile", locale === "en" ? "What is the mapped object name?" : "Как называется объект на карте?"));
+  assert.equal(narrowProfile.ok, true, narrowProfile.detail);
+  assert.equal(narrowProfile.content.answerToQuestion.status, "answered");
+  const unboundForm = genericBuilding();
+  unboundForm.evidence.find((item: any) => item.id === "EVD-ALLOWED-FIELDS").sourceId = "way/999";
+  const noForm = core.recoverPointObjectAiFocusedContentDetailed(plan(), unboundForm, request(locale, "object_profile", questions[locale].object_profile));
+  assert.equal(noForm.ok, true, noForm.detail);
+  assert.match(noForm.content.answerToQuestion.statement, locale === "en" ? /Physical attributes were not returned/ : /Физические характеристики не получены/);
+  assert.doesNotMatch(noForm.content.answerToQuestion.statement, /30|200/);
+  checks += 1;
+  checks += 2;
+}
+// Reproduce residential/daily-needs dominance around an explicitly mapped hotel.
+function canonicalize(value: any): any {
+  if (Array.isArray(value)) return value.map(canonicalize);
+  return value && typeof value === "object" ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, child]) => [key, canonicalize(child)])) : value;
+}
+const hotel = genericBuilding();
+hotel.geoContext.groups = [
+  { group: "retail_daily_needs", count: 12, sharePct: 75, nearestDistanceM: 40 },
+  { group: "residential", count: 4, sharePct: 25, nearestDistanceM: 70 }
+];
+const { districtCharacter, ...summary } = hotel.geoContext;
+hotel.evidence.find((item: any) => item.id === "EVD-CONTEXT-SUMMARY").value = JSON.stringify(summary);
+hotel.evidence.find((item: any) => item.id === "EVD-DISTRICT-PROFILE").value = JSON.stringify({ summaryHash: createHash("sha256").update(JSON.stringify(canonicalize(summary))).digest("hex"), districtCharacter });
+for (const locale of ["en", "ru"]) {
+  const result = core.validatePointObjectAiContentDetailed(plan(), hotel, request(locale));
+  assert.equal(result.ok, true, result.detail);
+  assert.match(result.content.initialSemanticBrief.implication.statement, locale === "en" ? /hotel reuse or repositioning/ : /репозиционирования отеля/);
+  assert.doesNotMatch(result.content.initialSemanticBrief.implication.statement, /residential\/daily-needs programme|жилой сценарий/);
+  checks += 1;
 }
 // A goal-less/custom question retains the existing question-specific semantics.
 const custom = core.recoverPointObjectAiFocusedContentDetailed(plan(), genericBuilding(), request("en", "custom", "Screen this object."));

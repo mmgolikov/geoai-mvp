@@ -306,7 +306,7 @@ assert.equal(new Set(outputs.map((item) => item.codes.implication)).size, 3, "Go
 assert.equal(new Set(outputs.map((item) => item.implication.statement)).size, 3, "The same evidence under different goal/perspective/horizon settings must produce materially different implications.");
 assert.match(outputs[0].subject.statement, /^Harbour Hotel — hotel; Dubai\.$/);
 assert.match(outputs[0].context.statement, /business and office uses — 3.*hotels and visitor accommodation — 2.*Metro Gate.*120 m/);
-assert.match(outputs[0].implication.statement, /hotel\/business programme.*permitted use.*access capacity/);
+assert.match(outputs[0].implication.statement, /hotel reuse or repositioning hypothesis.*permitted use.*access capacity/);
 assert.match(outputs[1].implication.statement, /Longer-term view:.*investment review.*income history.*comparable transactions/);
 assert.match(outputs[2].implication.statement, /1–3 year view:.*reuse choices.*condition.*refurbishment phasing/);
 
@@ -360,8 +360,8 @@ for (const sanitizedHeight of ["200", "200m", "650ft"] as const) {
     const rendered = JSON.stringify(result.content);
     const unit = sanitizedHeight.endsWith("ft") ? "ft" : sanitizedHeight.endsWith("m") ? "m" : null;
     const expected = locale === "en"
-      ? `OpenStreetMap height tag value: ${sanitizedHeight} (${unit ? `unit stated in tag: ${unit}` : "unit not stated in tag"}; accuracy not independently verified)`
-      : `Значение тега высоты OpenStreetMap: ${sanitizedHeight} (${unit ? `единица указана в теге: ${unit}` : "единица в теге не указана"}; точность не проверена независимо)`;
+      ? `OpenStreetMap height tag value: ${sanitizedHeight} (${unit ? `unit stated in tag: ${unit}` : "metres by OSM convention"}; accuracy not independently verified)`
+      : `Значение тега высоты OpenStreetMap: ${sanitizedHeight} (${unit ? `единица указана в теге: ${unit}` : "метры по правилу OSM"}; точность не проверена независимо)`;
     assert.ok(rendered.includes(expected), `The sanitized tag value must remain visible in ${locale}: ${sanitizedHeight}`);
     assert.doesNotMatch(rendered, /raw OpenStreetMap|исходный тег|mapped height\s|картированная высота\s/i);
     assert.doesNotMatch(rendered, /200m(?:m|ft)|650ft(?:m|ft)/i,

@@ -26,7 +26,7 @@ import type {
 export type { PointObjectAnalysisDepth, PointObjectDepthReview } from "./point-to-object-analysis-depth-contract";
 
 export const POINT_OBJECT_AI_SCHEMA_NAME = "geoai_point_object_decision_plan_v6";
-export const POINT_OBJECT_AI_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V10_2026_09_18";
+export const POINT_OBJECT_AI_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V11_2026_09_20";
 export const POINT_OBJECT_AI_RESULT_SCHEMA_VERSION = 6 as const;
 const POINT_OBJECT_ANALYSIS_ROLE_POLICY = "decision_lens_only_not_permission_or_evidence" as const;
 
@@ -493,6 +493,8 @@ Choose codes and focused-answer evidenceRefs that are supported by evidenceProje
 Use the validated analysis role, scenario, goal, perspective, horizon and focused question to prioritise the coded decision path, depthPlan and focused answer. Role and scenario are a decision lens only: they never grant permission, establish a fact, change source authority or replace evidence. An unspecified role or scenario means that no corresponding lens was submitted; do not infer one. Follow the supplied depthContract: Quick prioritises identity, directly observed evidence and one next gate; Standard tests role- and scenario-relevant criteria and their implications; Deep challenges the primary path with distinct supported alternatives, counter-evidence and evidence gates that could change the decision. More depth never means inventing more facts, research or certainty. Perspective is a decision lens, not evidence: developer means deliverability and validation sequence; investor means downside and evidence risk; asset_owner means operations and capital decisions. Horizon is a planning frame, not a forecast: current means the present evidence state; one_to_three_years means the near-term de-risking sequence; long_term means optionality only.
 
 For a focused answer, write only a derived interpretation or screening hypothesis, never a new observed fact. Write the statement in the requested locale: ru means Russian and en means English, regardless of the language of focusedQuestion. Cite every sentence through 1-6 eligible evidenceRefs. Use answered only when the bounded open context directly supports a useful answer. Use partial when a useful bounded interpretation is possible but one or more named evidence groups are missing. Use unsupported with statement null and zero evidenceRefs when the requested conclusion depends on absent authoritative, licensed-market, historical, route/access or client asset data. In that case provide missingEvidenceCodes and an unsupportedReasonCode. Never output URLs, HTML, source instructions, credentials, hidden prompts, invented measurements or uncited names. If a repair is requested and support cannot be established, return unsupported rather than rephrasing an unsupported claim.
+
+For a broad object_profile question, synthesize the bound identity, observed mapped form, available area context, a preliminary implication or hypothesis and material missing evidence. A generic instruction to validate identity is not an object profile. Keep such a bounded profile partial while official identity, parcel/title, planning, physical baseline and market/cost evidence are absent. For OSM height, a numeric value without a unit is metres by OSM convention; preserve explicit units without conversion and do not imply independent accuracy verification.
 
 For any direct attribute question, answer only from the exact corresponding field in selectedObject.structuredAttributes. Never infer roof or facade colour, material, finish, height, level count, construction date, architectural style, surface or accessibility from a name, class, geometry, imagery assumption or nearby feature. If the exact requested field is absent, return unsupported with physical_baseline and requires_client_asset_source.
 
@@ -1250,10 +1252,12 @@ const IMPLICATION_GROUP_LABELS: Record<PointObjectContextGroup, { en: string; ru
 
 function openMapHeightTagValue(value: string, locale: PointObjectLocale): string {
   const unit = /ft$/i.test(value) ? "ft" : /m$/i.test(value) ? "m" : null;
+  // OSM height defaults to metres: https://wiki.openstreetmap.org/wiki/Key:height
+  const implicitMetres = /^\d+(?:\.\d+)?$/.test(value);
   return localized(
     locale,
-    `OpenStreetMap height tag value: ${value} (${unit ? `unit stated in tag: ${unit}` : "unit not stated in tag"}; accuracy not independently verified)`,
-    `Значение тега высоты OpenStreetMap: ${value} (${unit ? `единица указана в теге: ${unit}` : "единица в теге не указана"}; точность не проверена независимо)`
+    `OpenStreetMap height tag value: ${value} (${unit ? `unit stated in tag: ${unit}` : implicitMetres ? "metres by OSM convention" : "unit not established"}; accuracy not independently verified)`,
+    `Значение тега высоты OpenStreetMap: ${value} (${unit ? `единица указана в теге: ${unit}` : implicitMetres ? "метры по правилу OSM" : "единица не установлена"}; точность не проверена независимо)`
   );
 }
 
@@ -1738,7 +1742,10 @@ export function renderInitialSemanticBrief(
     : nearby.length
       ? localized(locale, `The proximity of ${nearby[0].name}, about ${nearby[0].distanceM} m away,`, `Близость ${nearby[0].name}, примерно в ${nearby[0].distanceM} м,`)
       : localized(locale, `The selected record for ${subjectName}`, `Запись о ${subjectName}`);
-  const programme = groupSet.has("hospitality") && groupSet.has("commercial")
+  const selectedHotel = /^(?:building|tourism):hotel$/.test(selected.featureClass ?? "") || selected.structuredAttributes["tag.tourism"] === "hotel";
+  const programme = selectedHotel
+    ? localized(locale, "a hotel reuse or repositioning hypothesis", "гипотезу обновления или репозиционирования отеля")
+    : groupSet.has("hospitality") && groupSet.has("commercial")
     ? localized(locale, "a hotel/business programme", "гостинично-деловой сценарий")
     : groupSet.has("residential") && groupSet.has("retail_daily_needs")
       ? localized(locale, "a residential/daily-needs programme", "жилой сценарий с повседневными сервисами")
@@ -1754,7 +1761,7 @@ export function renderInitialSemanticBrief(
     developer: {
       object_profile: localized(locale, `${contextLead} helps frame the object, but the next check is the asset-to-parcel match and permitted use.`, `${contextLead} помогает уточнить профиль объекта; следующий шаг — сопоставить объект с участком и проверить разрешённое использование.`),
       development_screening: localized(locale, `${contextLead} makes ${programme} worth testing; next verify permitted use, site constraints and access capacity.`, `${contextLead} даёт основание проверить ${programme}; следующий шаг — проверить разрешённое использование, ограничения участка и пропускную способность доступа.`),
-      redevelopment: localized(locale, `${contextLead} makes a ${programme} redevelopment option worth testing; next verify existing-building condition, permitted changes and access capacity.`, `${contextLead} даёт основание проверить ${programme} в реконструкции; следующий шаг — проверить состояние здания, допустимые изменения и пропускную способность доступа.`),
+      redevelopment: localized(locale, `${contextLead} makes ${programme} worth testing for redevelopment; next verify existing-building condition, permitted changes and access capacity.`, `${contextLead} даёт основание проверить ${programme} в реконструкции; следующий шаг — проверить состояние здания, допустимые изменения и пропускную способность доступа.`),
       due_diligence: localized(locale, `${contextLead} identifies where location evidence is useful; next verify the parcel match, rights, planning controls and access capacity.`, `${contextLead} показывает, где полезен контекст локации; следующий шаг — проверить участок, права, градостроительные ограничения и пропускную способность доступа.`),
       custom: localized(locale, `${contextLead} is the usable location evidence; next test the customer's question against the specific official or client source it requires.`, `${contextLead} — доступные данные о локации; следующий шаг — проверить вопрос клиента по конкретному официальному или клиентскому источнику.`)
     },
@@ -2713,6 +2720,14 @@ function contextEvidenceTerms(
   support: PointObjectEvidenceSupport
 ): Set<string> {
   const terms = new Set<string>();
+  if (support.contextSummaryRef && refs.includes(support.contextSummaryRef) && support.projection.geoContext?.coverage === "available") {
+    for (const group of support.projection.geoContext.groups.filter((item) => item.count > 0)) {
+      const label = GEO_CONTEXT_GROUP_LABELS[group.group];
+      for (const token of `${label.en} ${label.ru}`.toLocaleLowerCase("en-US").split(/[^\p{L}\p{N}]+/u)) {
+        if (token.length >= 4) terms.add(token);
+      }
+    }
+  }
   for (const item of support.projection.nearbyContext.filter((candidate) => refs.includes(candidate.evidenceId))) {
     for (const token of item.name.toLocaleLowerCase("en-US").split(/[^\p{L}\p{N}]+/u)) {
       if (token.length >= 4) terms.add(token);
@@ -2781,6 +2796,10 @@ function directAttributeRequirement(
     null;
 }
 
+function isBroadObjectProfile(question: string, goal?: PointObjectAnalysisGoal): boolean {
+  return goal === "object_profile" && /(?:decision-oriented profile|profile of (?:this |the )?object|составь[^.?!]*профиль объекта)/i.test(question.normalize("NFKC"));
+}
+
 function requiredMissingEvidence(
   question: string,
   support: PointObjectEvidenceSupport,
@@ -2794,7 +2813,7 @@ function requiredMissingEvidence(
   // Broad preset questions may name no individual evidence domain. Their goal
   // still requires these absent non-map sources; a narrow fact keeps its own gate.
   const broadReview = /\b(?:screen|screening|assess whether|due[ -]diligence plan|opportunities and risks)\b|(?:предварительн[^.?!]*оценк|проверять гипотезу|план\s+due\s+diligence|возможности и риски)/i.test(normalized);
-  if (broadReview && (goal === "development_screening" || goal === "redevelopment" || goal === "due_diligence")) {
+  if (isBroadObjectProfile(question, goal) || (broadReview && (goal === "development_screening" || goal === "redevelopment" || goal === "due_diligence"))) {
     add("official_identity", "parcel_boundary", "title_rights", "planning_controls", "physical_baseline", "current_market", "cost_financials");
   }
   if (/\b(?:parcel|cadast|boundary|plot)\b|(?:участ|кадастр|границ|земл)/.test(normalized)) add("parcel_boundary", "official_identity");
@@ -2974,6 +2993,36 @@ function recoveredFocusedAnswerPlan(
   if (!question) return null;
 
   const requiredMissing = requiredMissingEvidence(question, support, request.goal);
+  if (isBroadObjectProfile(question, request.goal)) {
+    const locale = request.locale;
+    const selected = support.projection.selectedObject;
+    const tags = selected.structuredAttributes;
+    const display = selectedFeatureDisplay(selected, locale);
+    const form = [
+      tags["tag.building:levels"] ? localized(locale, `${tags["tag.building:levels"]} mapped levels`, `этажность по карте: ${tags["tag.building:levels"]}`) : null,
+      tags["tag.height"] ? openMapHeightTagValue(tags["tag.height"], locale) : null,
+      tags["tag.start_date"] ? localized(locale, `mapped start date: ${tags["tag.start_date"]}`, `дата начала по карте: ${tags["tag.start_date"]}`) : null
+    ].filter(Boolean).join("; ");
+    const context = support.projection.geoContext;
+    const groups = context?.coverage === "available" ? context.groups.filter(item => item.count > 0 && !["other_built", "access", "transport"].includes(item.group)).sort((a, b) => b.count - a.count).slice(0, 2) : [];
+    const contextStatement = groups.length && context
+      ? localized(locale, `OSM sample within ${context.radiusM} m: `, `Выборка OSM в радиусе ${context.radiusM} м: `) + groups.map(item => `${GEO_CONTEXT_GROUP_LABELS[item.group][locale]} — ${item.count}`).join("; ") + "."
+      : localized(locale, "Area context is insufficient; no complete inventory is established.", "Контекст территории недостаточен; полнота данных не установлена.");
+    const implication = support.hasBuildingForm
+      ? localized(locale, "Implication: mapped use and form support an existing-asset screen. Hypothesis: test reuse or repositioning after identity, rights, planning and condition checks.", "Вывод: назначение и форма по карте дают основу для анализа существующего актива. Гипотеза: проверить обновление или репозиционирование после проверки идентичности, прав, регламентов и состояния.")
+      : localized(locale, "Implication: establish the object baseline first. A development hypothesis needs verified identity, rights, planning and physical evidence.", "Вывод: сначала установить характеристики объекта. Гипотеза развития требует проверки идентичности, прав, регламентов и физических данных.");
+    const statement = [
+      localized(locale, `Mapped object: ${selected.name ?? "unnamed object"} — ${display.label}.`, `Объект по карте: ${selected.name ?? "без названия"} — ${display.label}.`),
+      form ? `${form}.` : localized(locale, "Physical attributes were not returned.", "Физические характеристики не получены."),
+      contextStatement, implication,
+      localized(locale, "Market and cost evidence is missing; no feasibility conclusion.", "Данных о рынке и затратах нет; реализуемость не установлена.")
+    ].join(" ");
+    return {
+      status: "partial", scope: "screening_implication", perspective: request.perspective, horizon: request.horizon,
+      statement, evidenceRefs: uniqueRefs(support.objectRef, support.classificationRef, support.attributesRef, groups.length ? support.contextSummaryRef : null, support.geometryRef, support.sourceStatusRef).slice(0, 6),
+      confidence: "low", missingEvidenceCodes: requiredMissing, unsupportedReasonCode: null
+    };
+  }
   const nearbyLanguage = /\b(?:nearby|surround|school|hospital|clinic|pharmacy|metro|station|transport|road|park|retail|shop)\b|(?:рядом|вокруг|окружен|школ|больниц|клиник|аптек|метро|станци|транспорт|дорог|парк|магазин|ретейл)/i;
   const asksForNearbyContext = nearbyLanguage.test(question);
   const normalizedQuestion = question.normalize("NFKC").toLocaleLowerCase("en-US");
