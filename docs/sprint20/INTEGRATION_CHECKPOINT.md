@@ -1,5 +1,16 @@
 # QUALITY20 integration checkpoint
 
+## Current candidate checkpoint — 20 September 16:15 UTC
+
+This section supersedes the checkpoints below. Production/main are unchanged. Shared account usage47%, absolute founder-approved ceiling62%, planned stop58%; API cap USD15 unchanged.
+
+- Exact72b948f Dubai Create passed the complete real paid journey: large concave749857m² synthetic site,9 blocks,6–53 levels, independently verified38% coverage, containment/setbacks/non-overlap/spread, A/B ×2D/3D native basemap and massing, canonical local save/reopen with zero new AI. Not an exact founder parcel or a cloud AI-artifact receipt.
+- Exact72b948f Find3 passed source retrieval and candidate selection but failed the comparison-basemap probe before any paid request. The probe incorrectly awaited GeoJSON before examining the basemap.7ef30b3 separates the synchronous real basemap check and a bounded5s geometry read without removing either acceptance condition.303df0a retains strict public-only diagnostics in failed receipts and preserves unknown spend only as failure, never PASS.
+- Exact72b948f Profile Standard/Deep passed content review on the same visible evidence hash; Quick failed502 on novel-number and depth-selection guards.256c6c1 recovers only server-prescribed Quick criteria/canonical grounded prose and reruns full validation. Complete measured failed-attempt usage now reaches the route; incomplete usage remains unknown. Fresh live acceptance is still required.
+- Receipt28's original unknown cost is preserved; founder explicitly approved counting its fullUSD1.20 reserve. Ledger generation58,28 receipts, USD2.6363527 accounted, no active reservation. Receipt13's earlierUSD0.30 conservative charge is also retained. Future unknowns still stop the paid lane.
+- Source identity remains uncertain: OSM way393391115 currently has `name` Office Tower but `name:en` Hotel.355m and54 levels are source tags, not independently verified physical facts. Do not claim a resolved source identity.
+- Final exact CI/live/cloud/ordinary Production acceptance remains open. Frozen54-case source benchmark, five urban programmes/textures, broader external data and rendered Figma synchronization are not certified by these receipts.
+
 ## Current candidate checkpoint — 20 September 15:40 UTC
 
 This section supersedes the historical checkpoints below. Production/main remain unchanged and **NOT ACCEPTED**. Founder approved an additional20 percentage points: original shared baseline17%, absolute ceiling62%, planned stop58%. Actual account usage45%; no reset credit redeemed. API ceiling remains USD15 for the entire cycle; ledger generation47,23 settled/accounted receipts, USD1.2105827 accounted, no active reservation.
