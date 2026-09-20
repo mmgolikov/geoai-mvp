@@ -10,6 +10,7 @@ import {
 } from "@/src/lib/explore/scenarios";
 import type { ExploreAudience, ExploreRole } from "@/src/lib/explore/types";
 import { maxProfileAvatarBytes } from "@/src/lib/auth/profile-local-store";
+import { isPasswordOnlyAuthEnabled } from "@/src/lib/auth/password-only-policy";
 import type { PointObjectLocale } from "@/src/lib/prototype/point-to-object-markets";
 
 type Notice = {
@@ -56,6 +57,7 @@ const PROFILE_COPY = {
     notAdded: "Not added",
     demoNotice: "Demo access is browser-local and does not authorize protected server resources.",
     changeEmail: "Change email",
+    emailChangeUnavailable: "Email changes are currently unavailable.",
     sendConfirmation: "Send confirmation",
     sending: "Sending…",
     emailSent: "Confirmation sent. Check your email.",
@@ -114,6 +116,7 @@ const PROFILE_COPY = {
     notAdded: "Не добавлен",
     demoNotice: "Демо-доступ хранится в браузере и не даёт доступа к защищённым серверным ресурсам.",
     changeEmail: "Изменить email",
+    emailChangeUnavailable: "Смена email пока недоступна.",
     sendConfirmation: "Отправить подтверждение",
     sending: "Отправляем…",
     emailSent: "Подтверждение отправлено. Проверьте почту.",
@@ -187,6 +190,7 @@ function initials(value: string) {
 export function ProfilePanel() {
   const { locale } = usePointObjectLocale();
   const copy = PROFILE_COPY[locale];
+  const passwordOnly = isPasswordOnlyAuthEnabled();
   const localizedRoles = ROLE_COPY[locale];
   const {
     isAuthenticated,
@@ -296,6 +300,10 @@ export function ProfilePanel() {
 
   async function handleEmailChange(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (isPasswordOnlyAuthEnabled()) {
+      setAccountNotice({ kind: "error", text: copy.emailChangeUnavailable });
+      return;
+    }
     setPendingAction("email");
     setAccountNotice(null);
     try {
@@ -492,7 +500,9 @@ export function ProfilePanel() {
                 </div>
               ) : (
                 <>
-                  <form onSubmit={handleEmailChange} className="mt-6 grid gap-3">
+                  {passwordOnly ? (
+                    <p className="mt-6 text-sm leading-6 text-muted">{copy.emailChangeUnavailable}</p>
+                  ) : <form onSubmit={handleEmailChange} className="mt-6 grid gap-3">
                     <label className="grid gap-2">
                       <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">{copy.changeEmail}</span>
                       <input required type="email" autoComplete="email" value={newEmail} onChange={(event) => setNewEmail(event.target.value)} className="h-[52px] rounded-[10px] border border-line bg-white px-4 text-sm text-ink outline-none transition focus:border-[#087f8c] focus:ring-2 focus:ring-[#bfe4e2]" placeholder="new@email.com" />
@@ -500,7 +510,7 @@ export function ProfilePanel() {
                     <button disabled={pendingAction !== null} className="h-[42px] rounded-[11px] border border-[#087f8c] bg-white px-4 text-sm font-semibold text-[#087f8c] transition hover:bg-[#f1faf8] disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]">
                       {pendingAction === "email" ? copy.sending : copy.sendConfirmation}
                     </button>
-                  </form>
+                  </form>}
 
                   <form onSubmit={handlePasswordChange} className="mt-6 grid gap-3 border-t border-line pt-5">
                     <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">{copy.changePassword}</span>
