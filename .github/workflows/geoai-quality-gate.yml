@@ -417,6 +417,7 @@ jobs:
           node --experimental-transform-types scripts/sprint10-analysis-result-evidence-check.ts | tee artifacts/sprint10-analysis-evidence-contract.txt
           node --experimental-transform-types scripts/sprint10-depth-cycle-evidence-check.ts | tee artifacts/sprint10-depth-cycle-evidence-contract.txt
           node --experimental-transform-types scripts/sprint10-goal-depth-cycle-check.ts | tee artifacts/sprint10-goal-depth-cycle-contract.txt
+          node --experimental-transform-types scripts/sprint10-find-analysis-check.ts | tee artifacts/sprint10-find-analysis-contract.txt
           node --experimental-transform-types scripts/sprint20-live-create-check.ts | tee artifacts/sprint20-live-create-contract.txt
           node --experimental-transform-types scripts/sprint10-live-budget-check.ts | tee artifacts/sprint10-live-budget-contract.txt
           node --experimental-transform-types scripts/sprint20-conservative-budget-check.ts | tee artifacts/sprint20-conservative-budget-contract.txt

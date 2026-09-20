@@ -166,8 +166,13 @@ async function run() {
   assert.ok(conservativeSouthWest[0] >= 103.855 && conservativeSouthWest[1] >= 1.278 &&
     conservativeNorthEast[0] <= 103.868 && conservativeNorthEast[1] <= 1.289,
   "one real zoom-in at 2D must fit even a conservative full 1440x1000 canvas inside the frozen Marina Bay envelope");
-  assert.match(liveSpec, /\[55[.]27015, 25[.]20515\][\s\S]*\[55[.]27065, 25[.]20565\]/,
-    "Dubai Create must keep its exact reviewed fixture AOI");
+  assert.match(liveSpec, /coordinates: DUBAI_CREATE_GOLDEN[.]coordinates/,
+    "Dubai Create must use the reviewed large concave golden AOI, not the superseded small rectangle");
+  const createGolden = readFileSync(new URL("../tests/e2e/helpers/sprint20-live-create.ts", import.meta.url), "utf8");
+  assert.match(createGolden, /const metres = \[\[0, 0\], \[1000, 0\], \[1000, 340\], \[400, 340\], \[400, 1000\], \[0, 1000\]\]/);
+  assert.match(createGolden, /Math[.]sqrt\(749860 \/ calculatePolygonMeasurements/);
+  assert.match(liveSpec, /assertDubaiCreateGeometry\(payload\)/,
+    "Dubai Create must validate actual returned geometry against the large concave fixture");
   assert.match(liveSpec, /if \(configuration[.]scope === "singapore-analyse"\)/);
   assert.match(liveSpec, /if \(configuration[.]scope === "singapore-find"\)/);
   assert.match(liveSpec, /if \(configuration[.]scope === "dubai-create"\)/);
