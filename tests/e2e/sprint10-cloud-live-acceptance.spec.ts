@@ -252,7 +252,12 @@ test("viewer cannot save", async ({ browser }) => {
     progress("viewer_assertion");
     expect((await put).status()).toBe(403);
     progress("viewer_http_denial");
-    await expect(viewer.page.getByRole("alert")).toContainText("not saved completely");
+    // Next's route announcer also has role=alert outside the project page.
+    // Assert the product error, not an ambiguous whole-document locator.
+    const projectAlert = viewer.page.getByTestId("point-object-projects-page").getByRole("alert");
+    await expect(projectAlert).toHaveCount(1);
+    await expect(projectAlert).toBeVisible();
+    await expect(projectAlert).toContainText("not saved completely");
     progress("viewer_message");
     expect(await viewer.page.evaluate((key) => localStorage.getItem(key), storageKey(personaB.userId))).toBe(originalBytes);
     progress("viewer_original");
