@@ -44,6 +44,7 @@ import { validateSprint10FindAnalysisRequest } from "./helpers/sprint10-live-jou
 import { CONSTRUCTION_FIND_CASE, acceptedConstructionFindRequest, assertConstructionViewport, freezeConstructionFindCohort, validateConstructionAnalysisRequest } from "./helpers/sprint20-construction-find";
 import { validateFindAnalysisCaptureEnvironment } from "./helpers/sprint10-find-analysis-evidence";
 import { createScreenMetrics, readCreateScreen } from "./helpers/night21-create-screen";
+import { buildQuality20AnalysisEvidence, validateQuality20AnalysisCaptureEnvironment, writeQuality20AnalysisEvidence } from "./helpers/quality20-analysis-evidence";
 import { observeComparisonMapNetwork, readComparisonMapDiagnostic, withComparisonGeometryDeadline, ComparisonGeometryProbeTimeout } from "./helpers/sprint10-map-diagnostics";
 import {
   SPRINT10_ANALYSIS_EVIDENCE_CAPTURE_OPT_IN,
@@ -125,6 +126,7 @@ type LiveConfiguration = {
   analysisEvidencePath: string | null;
   depthCycleEvidencePath: string | null;
   goalDepthEvidencePrefix: string | null;
+  quality20AnalysisEvidencePath: string | null;
   findAnalysisEvidencePrefix: string | null;
   realArtifactExportPath: string | null;
   quality20: Quality20Selection | null;
@@ -408,6 +410,7 @@ function loadConfiguration(baseURL: string | undefined): LiveConfiguration {
   const goalCapture = validateGoalDepthCaptureEnvironment(process.env, selectedScope);
   const findCapture = validateFindAnalysisCaptureEnvironment(process.env, selectedScope);
   const artifactExport = validateQuality20ArtifactExportEnvironment(process.env, selectedScope);
+  const quality20Capture = validateQuality20AnalysisCaptureEnvironment(process.env, selectedScope);
   return {
     scope: selectedScope,
     origin: preview.origin,
@@ -423,6 +426,7 @@ function loadConfiguration(baseURL: string | undefined): LiveConfiguration {
     analysisEvidencePath: evidenceRequested ? evidencePath! : null,
     depthCycleEvidencePath: depthEvidenceRequested ? depthEvidencePath! : null,
     goalDepthEvidencePrefix: goalCapture.GEOAI_SPRINT10_GOAL_DEPTH_EVIDENCE_PREFIX ?? null,
+    quality20AnalysisEvidencePath: quality20Capture.GEOAI_QUALITY20_ANALYSIS_EVIDENCE_PATH ?? null,
     findAnalysisEvidencePrefix: findCapture.GEOAI_SPRINT10_FIND_ANALYSIS_EVIDENCE_PREFIX ?? null,
     realArtifactExportPath: artifactExport.GEOAI_QUALITY20_ARTIFACT_EXPORT_PATH ?? null,
     quality20: loadQuality20Selection(process.env, selectedScope, { commit, origin: preview.origin }),
@@ -1677,6 +1681,7 @@ async function runFindCohort(page: Page, configuration: LiveConfiguration, polic
   await expect(items.getByRole("button", { name: "Selected", exact: true })).toHaveCount(3);
   await expect.poll(async () => (await localArtifactState(page, configuration.userId, "find"))?.shortlistCount).toBe(3);
   progress.complete("find_shortlist_three");
+  progress.start("find_compare_select");
   progress.complete("find_compare_select");
   progress.start("find_compare_compact");
   await page.getByRole("button", { name: "Compare selected", exact: true }).click();
@@ -2625,10 +2630,13 @@ async function runQuality20Analysis(page: Page, configuration: LiveConfiguration
   guard(response.status() === 200, "Analysis HTTP response was not successful.");
   validateQuality20PaidBody(selection, "ai", response.request().postDataJSON());
   validateQuality20AnalysisResult(selection, payload);
-  buildSprint10AnalysisResultEvidence({ response: payload, submittedRequest: response.request().postDataJSON(),
+  const evidenceInput = { response: payload, submittedRequest: response.request().postDataJSON(),
     expectedSourceFeatureId: b.subject!.sourceIdentity, telemetryIdentity: { requestKey: quality20RequestKey(selection, "ai"),
-      phase: "S4", candidateHost: configuration.host, candidateCommit: configuration.commit, route: "ai", depth: d.depth!,
-      promptVersion: SPRINT10_ANALYSIS_PROMPT_VERSION, schemaVersion: 6 } });
+      phase: "S4" as const, candidateHost: configuration.host, candidateCommit: configuration.commit, route: "ai" as const, depth: d.depth!,
+      promptVersion: SPRINT10_ANALYSIS_PROMPT_VERSION, schemaVersion: 6 as const } };
+  const captured = configuration.quality20AnalysisEvidencePath
+    ? writeQuality20AnalysisEvidence(configuration.quality20AnalysisEvidencePath, selection, evidenceInput)
+    : buildQuality20AnalysisEvidence(selection, evidenceInput);
   await expect(page.getByTestId("ai-success")).toBeVisible();
   await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", d.depth!);
   const renderedMs = Date.now() - startedAt;
@@ -2642,7 +2650,9 @@ async function runQuality20Analysis(page: Page, configuration: LiveConfiguration
   expect(budget.paidDispatchCount()).toBe(before);
   test.info().annotations.push({ type: "quality20-case", description: JSON.stringify({ caseId: d.id,
     entryCoverage: baseline ? "ordinary_auto_entry_custom_goal" : "follow_up_recovery_initial_NONPAID_challenge_aborted",
-    sourceLatencyMs, responseMs, renderedMs, evidencePackHash: b.subject!.evidencePackHash, paidPostCount: 1, reopenPaidPostCount: 0 }) });
+    sourceLatencyMs, responseMs, renderedMs, evidencePackHash: captured.result.evidencePackHash,
+    responseHash: captured.responseHash, resultHash: captured.resultHash,
+    analysisEvidenceCaptured: configuration.quality20AnalysisEvidencePath !== null, paidPostCount: 1, reopenPaidPostCount: 0 }) });
 }
 
 async function runQuality20Acquisition(page: Page, configuration: LiveConfiguration, budget: ReturnType<typeof installBudgetGate>, progress: LiveProgress) {

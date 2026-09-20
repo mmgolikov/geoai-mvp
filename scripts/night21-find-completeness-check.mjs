@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { stripTypeScriptTypes } from "node:module";
-import { LIVE_JOURNEY_STEPS, LIVE_JOURNEY_DIAGNOSTIC_SCHEMA, parseLiveJourneyDiagnostic } from "./sprint10-live-journey-diagnostics.mjs";
+import { LIVE_JOURNEY_STEPS, LIVE_JOURNEY_DIAGNOSTIC_SCHEMA, parseLiveJourneyDiagnostic, canonicalLiveJourneyCompletedSteps } from "./sprint10-live-journey-diagnostics.mjs";
 
 const source = readFileSync(new URL("../tests/e2e/sprint10-live-journey.spec.ts", import.meta.url), "utf8");
 const between = (start, end) => {
@@ -42,6 +42,31 @@ const dubai = between("async function runDubaiFind", "async function runFindCoho
 const cohort = between("async function runFindCohort", "function acceptedFindCriteriaUpdate");
 const updateReset = between("async function verifyFindCriteriaUpdateAndReset", "async function runSingaporeFind");
 const singapore = between("async function runSingaporeFind", "type LiveCreateCase");
+const createProgress = new Function("LIVE_JOURNEY_STEPS", "canonicalLiveJourneyCompletedSteps", "guard",
+  `${stripTypeScriptTypes(between("function createLiveProgress()", "function cleanupStage("), { mode: "transform" })}; return createLiveProgress;`
+)(LIVE_JOURNEY_STEPS, canonicalLiveJourneyCompletedSteps, (condition, message) => assert.ok(condition, message));
+const selectionBlock = cohort.slice(cohort.indexOf('progress.start("find_compare_select")'), cohort.indexOf('progress.start("find_compare_compact")'));
+async function runSelection(block) {
+  const progress = createProgress();
+  let count = 0;
+  const candidates = [{ id: 1 }, { id: 2 }, { id: 3 }];
+  const items = { nth: () => ({ getByRole: () => ({ click: async () => { count++; } }) }),
+    getByRole: () => ({ get count() { return count; } }) };
+  const expect = value => ({ toHaveCount: async expected => assert.equal(value.count, expected) });
+  expect.poll = callback => ({ toBe: async expected => assert.equal(await callback(), expected) });
+  const execute = new Function("items", "candidates", "selectedCandidates", "progress", "expect", "localArtifactState", "configuration", "page",
+    `return (async () => { ${stripTypeScriptTypes(block, { mode: "transform" })} })();`);
+  await execute(items, candidates, candidates, progress, expect, async () => ({ shortlistCount: count }), { userId: "offline" }, {});
+  assert.equal(count, 3);
+  for (const stage of ["find_shortlist_two", "find_shortlist_three", "find_compare_select"]) assert.ok(progress.completed().includes(stage));
+}
+await runSelection(selectionBlock);
+await assert.rejects(() => runSelection(selectionBlock.replace('progress.complete("find_shortlist_three");\n  progress.start("find_compare_select");',
+  'progress.complete("find_shortlist_three");')), /step order is invalid/, "the actual root failure must remain rejected by the unchanged progress guard");
+// The other newly added success-path stages are sequential: exercise the real
+// strict progress producer over every start/complete call, not allowlist alone.
+const updateProgress = createProgress();
+for (const [, operation, stage] of updateReset.matchAll(/progress\.(start|complete)\("([a-z_]+)"\)/g)) updateProgress[operation](stage);
 assert.match(dubai, /runFindCohort\(page,[\s\S]*?"dubai"/);
 assert.match(singapore, /runFindCohort\(page,[\s\S]*?"singapore"/);
 assert.match(cohort, /candidates.length < 3/);
