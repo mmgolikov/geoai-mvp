@@ -212,23 +212,40 @@ try {
   const writerEnvironment = browserEnvironment(artifactEnv, authConfig, target, browserPersonas, "writer_outsider");
   assert.equal(writerEnvironment.GEOAI_QUALITY20_CLOUD_ARTIFACT_PATH, artifactPath);
   assert.equal(writerEnvironment.GEOAI_QUALITY20_CLOUD_ARTIFACT_SHA256, artifactEnv.GEOAI_QUALITY20_CLOUD_ARTIFACT_SHA256);
+  assert.equal(Object.hasOwn(writerEnvironment, "GEOAI_CLOUD_LIVE_CONTINUE_SOURCE_COMMIT_SHA"), false);
+  assert.equal(Object.hasOwn(writerEnvironment, "GEOAI_CLOUD_LIVE_CONTINUE_SOURCE_HOST"), false);
   const viewerEnvironment = browserEnvironment(artifactEnv, authConfig, target, browserPersonas, "viewer_denial");
   assert.equal(Object.hasOwn(viewerEnvironment, "GEOAI_QUALITY20_CLOUD_ARTIFACT_PATH"), false);
   assert.equal(Object.hasOwn(viewerEnvironment, "GEOAI_QUALITY20_CLOUD_ARTIFACT_SHA256"), false);
-  const continuationApproval = `cloud-live-existing-artifact:pphdqkurxneyagvnnjdt:${target.previewHost}:${authConfig.expectedCommitSha}:artifact-public-analysis:${"a".repeat(64)}`;
+  const sourceCommit = "b".repeat(40);
+  const sourceHost = "geoai-historical-geoaidev.vercel.app";
+  const continuationApproval = `cloud-live-existing-artifact:pphdqkurxneyagvnnjdt:${target.previewHost}:${authConfig.expectedCommitSha}:artifact-public-analysis:${"a".repeat(64)}:${sourceCommit}:${sourceHost}`;
+  const historicalArtifactPath = join(privateRoot, "historical-real-artifact.json");
+  const historicalArtifactBytes = JSON.stringify({ ...artifactEnvelope, candidateCommit: sourceCommit, candidateHost: sourceHost });
+  writeFileSync(historicalArtifactPath, historicalArtifactBytes, { mode: 0o600 });
   const continuationEnv = {
     ...artifactEnv,
+    GEOAI_QUALITY20_CLOUD_ARTIFACT_PATH: historicalArtifactPath,
+    GEOAI_QUALITY20_CLOUD_ARTIFACT_SHA256: createHash("sha256").update(historicalArtifactBytes).digest("hex"),
     GEOAI_CLOUD_LIVE_CONTINUE_EXISTING_ARTIFACT: "continue-existing-artifact-v1",
-    GEOAI_CLOUD_LIVE_CONTINUE_APPROVAL: continuationApproval
+    GEOAI_CLOUD_LIVE_CONTINUE_APPROVAL: continuationApproval,
+    GEOAI_CLOUD_LIVE_CONTINUE_SOURCE_COMMIT_SHA: sourceCommit,
+    GEOAI_CLOUD_LIVE_CONTINUE_SOURCE_HOST: sourceHost
   };
   const artifactInput = preflightCloudLiveArtifactInput(continuationEnv);
   assert.equal(cloudLiveContinuationMode(continuationEnv, artifactInput), true);
   assert.throws(() => cloudLiveContinuationMode({ ...continuationEnv, GEOAI_CLOUD_LIVE_CONTINUE_APPROVAL: undefined }, artifactInput), /exact/);
   assert.throws(() => cloudLiveContinuationMode({ ...continuationEnv, GEOAI_CLOUD_LIVE_CONTINUE_APPROVAL: `${continuationApproval}-other` }, artifactInput), /exact/);
   assert.throws(() => cloudLiveContinuationMode({ ...continuationEnv, GEOAI_QUALITY20_CLOUD_ARTIFACT_PATH: undefined }, null), /exact input/);
+  assert.throws(() => preflightCloudLiveArtifactInput({ ...continuationEnv, GEOAI_CLOUD_LIVE_CONTINUE_EXISTING_ARTIFACT: undefined }), /restricted to continuation/);
+  assert.throws(() => preflightCloudLiveArtifactInput({ ...continuationEnv, GEOAI_CLOUD_LIVE_CONTINUE_SOURCE_HOST: undefined }), /supplied together/);
+  assert.throws(() => preflightCloudLiveArtifactInput({ ...continuationEnv, GEOAI_CLOUD_LIVE_CONTINUE_SOURCE_COMMIT_SHA: "c".repeat(40) }), /exact cloud run/);
   const continuationEnvironment = browserEnvironment(continuationEnv, authConfig, target, browserPersonas, "continue_existing_outsider");
-  assert.equal(continuationEnvironment.GEOAI_QUALITY20_CLOUD_ARTIFACT_PATH, artifactPath);
-  assert.equal(continuationEnvironment.GEOAI_QUALITY20_CLOUD_ARTIFACT_SHA256, artifactEnv.GEOAI_QUALITY20_CLOUD_ARTIFACT_SHA256);
+  assert.equal(continuationEnvironment.GEOAI_QUALITY20_CLOUD_ARTIFACT_PATH, historicalArtifactPath);
+  assert.equal(continuationEnvironment.GEOAI_QUALITY20_CLOUD_ARTIFACT_SHA256, continuationEnv.GEOAI_QUALITY20_CLOUD_ARTIFACT_SHA256);
+  assert.equal(continuationEnvironment.GEOAI_CLOUD_LIVE_CONTINUE_SOURCE_COMMIT_SHA, sourceCommit);
+  assert.equal(continuationEnvironment.GEOAI_CLOUD_LIVE_CONTINUE_SOURCE_HOST, sourceHost);
+  assert.throws(() => browserEnvironment(continuationEnv, authConfig, target, browserPersonas, "writer_outsider"), /restricted to continuation/);
   const dynamicOperatorTargets = [];
   const dynamicPass = runCloudAcceptance(authConfig, personas, target, {
     env: artifactEnv,

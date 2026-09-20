@@ -19,17 +19,29 @@ function fail(message) {
   throw error;
 }
 
-export function readCloudLiveRealArtifactInput(environment, expectedCommit, expectedHost) {
+export function readCloudLiveRealArtifactInput(environment, runtimeCommit, runtimeHost, { allowHistoricalSource = false } = {}) {
   const configuredPath = environment.GEOAI_QUALITY20_CLOUD_ARTIFACT_PATH;
   const configuredHash = environment.GEOAI_QUALITY20_CLOUD_ARTIFACT_SHA256;
   const hasPath = typeof configuredPath === "string" && configuredPath.length > 0;
   const hasHash = typeof configuredHash === "string" && configuredHash.length > 0;
   if (hasPath !== hasHash) fail("Real artifact path and SHA-256 must be supplied together.");
-  if (!hasPath) return null;
+  const configuredSourceCommit = environment.GEOAI_CLOUD_LIVE_CONTINUE_SOURCE_COMMIT_SHA;
+  const configuredSourceHost = environment.GEOAI_CLOUD_LIVE_CONTINUE_SOURCE_HOST;
+  const hasSourceCommit = typeof configuredSourceCommit === "string" && configuredSourceCommit.length > 0;
+  const hasSourceHost = typeof configuredSourceHost === "string" && configuredSourceHost.length > 0;
+  if (hasSourceCommit !== hasSourceHost) fail("Historical artifact source commit and host must be supplied together.");
+  if ((hasSourceCommit || hasSourceHost) && !allowHistoricalSource) fail("Historical artifact source identity is restricted to continuation mode.");
+  if (!hasPath) {
+    if (hasSourceCommit || hasSourceHost) fail("Historical artifact source identity requires an artifact input.");
+    return null;
+  }
   if (!isAbsolute(configuredPath) || !HASH_PATTERN.test(configuredHash)) fail("Real artifact input identity is invalid.");
+  const expectedCommit = hasSourceCommit ? configuredSourceCommit.trim().toLowerCase() : runtimeCommit;
+  const expectedHost = hasSourceHost ? configuredSourceHost.trim().toLowerCase() : runtimeHost;
 
   const resolvedPath = resolve(configuredPath);
-  if (!/^[a-f0-9]{40}$/.test(expectedCommit) || !HOST_PATTERN.test(expectedHost)) fail("Expected candidate identity is invalid.");
+  if (!/^[a-f0-9]{40}$/.test(runtimeCommit) || !HOST_PATTERN.test(runtimeHost) ||
+      !/^[a-f0-9]{40}$/.test(expectedCommit) || !HOST_PATTERN.test(expectedHost)) fail("Expected candidate identity is invalid.");
   let file;
   let parent;
   let bytes;
@@ -64,5 +76,5 @@ export function readCloudLiveRealArtifactInput(environment, expectedCommit, expe
       envelope.artifact?.payload?.analysis?.subject?.sourceFeatureId !== envelope.sourceFeatureId) {
     fail("Real artifact input envelope does not match the exact cloud run.");
   }
-  return { path: resolvedPath, sha256: configuredHash, envelope };
+  return { path: resolvedPath, sha256: configuredHash, sourceCommit: expectedCommit, sourceHost: expectedHost, envelope };
 }

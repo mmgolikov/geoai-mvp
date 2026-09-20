@@ -15,6 +15,8 @@ const active = process.env.GEOAI_CLOUD_LIVE_BROWSER_ACTIVE === "1";
 const caveat = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
 const artifactPath = process.env.GEOAI_QUALITY20_CLOUD_ARTIFACT_PATH ?? "";
 const artifactSha256 = process.env.GEOAI_QUALITY20_CLOUD_ARTIFACT_SHA256 ?? "";
+const artifactSourceCommit = process.env.GEOAI_CLOUD_LIVE_CONTINUE_SOURCE_COMMIT_SHA ?? "";
+const artifactSourceHost = process.env.GEOAI_CLOUD_LIVE_CONTINUE_SOURCE_HOST ?? "";
 
 test.skip(!active, "Root-only cloud-live acceptance is absent from default browser execution.");
 
@@ -55,8 +57,8 @@ async function readConfiguredArtifact(): Promise<SavedPointObjectArtifact | null
   try { value = JSON.parse(bytes.toString("utf8")); }
   catch { throw new Error("Real artifact export is not JSON."); }
   const parsed = await parseQuality20RealArtifactExport(value, {
-    candidateCommit: process.env.GEOAI_CLOUD_LIVE_EXPECTED_COMMIT_SHA ?? "",
-    candidateHost: new URL(previewUrl).hostname
+    candidateCommit: artifactSourceCommit || process.env.GEOAI_CLOUD_LIVE_EXPECTED_COMMIT_SHA || "",
+    candidateHost: artifactSourceHost || new URL(previewUrl).hostname
   });
   guard(parsed !== null, "Real artifact export failed its canonical contract.");
   return parsed.artifact;
@@ -203,6 +205,8 @@ async function verifyOutsider(browser: Browser, contexts: BrowserContext[]) {
 test.beforeAll(() => {
   guard(active && ["writer_outsider", "continue_existing_outsider", "viewer_denial"].includes(phase), "Cloud-live spec is disabled by default.");
   guard(previewBypass.length >= 16 && previewUrl.startsWith("https://"), "Protected Preview settings are incomplete.");
+  guard(Boolean(artifactSourceCommit) === Boolean(artifactSourceHost), "Historical artifact source tuple is incomplete.");
+  guard(!artifactSourceCommit || phase === "continue_existing_outsider", "Historical artifact source tuple is restricted to continuation.");
 });
 
 test("writer saves, clean context reopens, outsider is denied", async ({ browser }) => {

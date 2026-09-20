@@ -256,7 +256,12 @@ export function preflightCloudLiveArtifactInput(env) {
   const hasHash = typeof env.GEOAI_QUALITY20_CLOUD_ARTIFACT_SHA256 === "string" && env.GEOAI_QUALITY20_CLOUD_ARTIFACT_SHA256.length > 0;
   if (!hasPath && !hasHash) return null;
   const preview = new URL(required(env, "GEOAI_REAL_PASSWORD_AUTH_PREVIEW_URL"));
-  return readCloudLiveRealArtifactInput(env, required(env, "GEOAI_HOSTED_AUTH_PROBE_EXPECTED_COMMIT_SHA").trim().toLowerCase(), preview.hostname);
+  return readCloudLiveRealArtifactInput(
+    env,
+    required(env, "GEOAI_HOSTED_AUTH_PROBE_EXPECTED_COMMIT_SHA").trim().toLowerCase(),
+    preview.hostname,
+    { allowHistoricalSource: env.GEOAI_CLOUD_LIVE_CONTINUE_EXISTING_ARTIFACT === CONTINUATION_OPT_IN }
+  );
 }
 
 export function cloudLiveArtifactExpectation(artifactInput) {
@@ -279,7 +284,8 @@ export function cloudLiveContinuationMode(env, artifactInput) {
   const commit = required(env, "GEOAI_HOSTED_AUTH_PROBE_EXPECTED_COMMIT_SHA").trim().toLowerCase();
   const host = new URL(required(env, "GEOAI_REAL_PASSWORD_AUTH_PREVIEW_URL")).hostname;
   const { artifactId, payloadHash } = artifactInput.envelope.artifact;
-  if (approval !== `cloud-live-existing-artifact:${PROJECT_REF}:${host}:${commit}:${artifactId}:${payloadHash}`) {
+  if (approval !== `cloud-live-existing-artifact:${PROJECT_REF}:${host}:${commit}:${artifactId}:${payloadHash}:` +
+      `${artifactInput.sourceCommit}:${artifactInput.sourceHost}`) {
     fail("Existing-artifact continuation approval is not exact.", "preflight");
   }
   return true;
@@ -296,7 +302,10 @@ export function runOperator(stage, target, personas, { env = process.env, spawn 
 }
 
 export function browserEnvironment(env, config, target, personas, phase) {
-  const artifactInput = readCloudLiveRealArtifactInput(env, config.expectedCommitSha, target.previewHost);
+  const continuation = phase === "continue_existing_outsider";
+  const artifactInput = readCloudLiveRealArtifactInput(env, config.expectedCommitSha, target.previewHost, {
+    allowHistoricalSource: continuation
+  });
   return {
     ...minimalEnvironment(env),
     GEOAI_E2E_BASE_URL: env.GEOAI_E2E_BASE_URL,
@@ -317,7 +326,11 @@ export function browserEnvironment(env, config, target, personas, phase) {
     GEOAI_CLOUD_LIVE_B_USER_ID: personas[1].userId,
     ...(["writer_outsider", "continue_existing_outsider"].includes(phase) && artifactInput ? {
       GEOAI_QUALITY20_CLOUD_ARTIFACT_PATH: artifactInput.path,
-      GEOAI_QUALITY20_CLOUD_ARTIFACT_SHA256: artifactInput.sha256
+      GEOAI_QUALITY20_CLOUD_ARTIFACT_SHA256: artifactInput.sha256,
+      ...(continuation && env.GEOAI_CLOUD_LIVE_CONTINUE_SOURCE_COMMIT_SHA ? {
+        GEOAI_CLOUD_LIVE_CONTINUE_SOURCE_COMMIT_SHA: artifactInput.sourceCommit,
+        GEOAI_CLOUD_LIVE_CONTINUE_SOURCE_HOST: artifactInput.sourceHost
+      } : {})
     } : {})
   };
 }

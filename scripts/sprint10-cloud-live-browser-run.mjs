@@ -63,7 +63,9 @@ function preflight() {
       throw new Error("Synthetic persona contract invalid.");
     }
   }
-  const artifactInput = readCloudLiveRealArtifactInput(process.env, head, preview.hostname);
+  const artifactInput = readCloudLiveRealArtifactInput(process.env, head, preview.hostname, {
+    allowHistoricalSource: phase === "continue_existing_outsider"
+  });
   if (artifactInput && !["writer_outsider", "continue_existing_outsider"].includes(phase)) throw new Error("Real artifact input is restricted to an analyst phase.");
   if (!artifactInput && phase === "continue_existing_outsider") throw new Error("Existing-artifact continuation requires an exact artifact input.");
   return { phase, artifactInput };
