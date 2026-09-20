@@ -140,6 +140,33 @@ assert.ok(seed.ok);
 const settledSeed = settleSprint10Spend(seed.ledger, seed.receipt.id, aiIdentity, {
   settledAt: settleAt, status: 200, resultHash: "a".repeat(64), telemetry
 });
+// Cheap settled history must not masquerade as dollar exhaustion at receipt 65.
+// Capacity is still finite and the independent monetary/unknown-charge guards remain.
+function settledHistory(count: number) {
+  const ledger = structuredClone(settledSeed);
+  ledger.receipts = Array.from({ length: count }, (_, index) => ({
+    ...structuredClone(settledSeed.receipts[0]!),
+    id: index + 1,
+    identity: identity({ requestKey: `S4.CAPACITY.${index + 1}` })
+  }));
+  ledger.generation = count * 2;
+  ledger.estimatedOrReservedUsd = sprint10LedgerCharge(ledger);
+  return ledger;
+}
+const sixtyFour = settledHistory(64);
+const historyBefore65 = JSON.stringify(sixtyFour);
+assert.ok(parseSprint10SpendLedger(sixtyFour));
+const sixtyFifth = reserveSprint10Spend(sixtyFour, identity({ requestKey: "S4.CAPACITY.65" }), reserveAt);
+assert.ok(sixtyFifth.ok, "Receipt 65 is allowed only when real monetary headroom remains.");
+assert.equal(sixtyFifth.receipt.id, 65);
+assert.deepEqual(sixtyFifth.ledger.receipts.slice(0, 64), sixtyFour.receipts);
+assert.equal(JSON.stringify(sixtyFour), historyBefore65, "Capacity expansion cannot rewrite original receipts.");
+const eighty = settledHistory(80);
+assert.ok(parseSprint10SpendLedger(eighty));
+assert.deepEqual(reserveSprint10Spend(eighty, identity({ requestKey: "S4.CAPACITY.81" }), reserveAt), {
+  ok: false, reason: "The bounded cycle-root receipt journal is full."
+});
+assert.equal(parseSprint10SpendLedger(settledHistory(81)), null, "Oversize journals remain invalid.");
 const historical = structuredClone(settledSeed);
 historical.receipts = Array.from({ length: 23 }, (_, index) => {
   const receipt = structuredClone(settledSeed.receipts[0]!);

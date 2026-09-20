@@ -146,7 +146,9 @@ const LEDGER_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{
 const REQUEST_KEY_PATTERN = /^[A-Z0-9][A-Z0-9._:-]{2,95}$/;
 const REQUEST_ID_PATTERN = /^[\x21-\x7e]{1,200}$/;
 const ISO_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
-const MAX_RECEIPTS = 64;
+// Bounded journal capacity for the expanded, founder-approved acceptance matrix.
+// This is not a spending allowance: every reserve still shares the USD 15 cap.
+const MAX_RECEIPTS = 80;
 const LOCK_WAIT_MS = 5_000;
 const LOCK_POLL_MS = 10;
 const SLEEP_ARRAY = new Int32Array(new SharedArrayBuffer(4));
@@ -499,8 +501,10 @@ export function reserveSprint10Spend(
     return { ok: false, reason: "The request identity was already reserved; external reruns require a new requestKey." };
   }
   const reserveUsd = RESERVE_USD[identity.route];
-  if (ledger.receipts.length >= MAX_RECEIPTS ||
-      Number((sprint10LedgerCharge(ledger) + reserveUsd).toFixed(8)) > ledger.ceilingUsd) {
+  if (ledger.receipts.length >= MAX_RECEIPTS) {
+    return { ok: false, reason: "The bounded cycle-root receipt journal is full." };
+  }
+  if (Number((sprint10LedgerCharge(ledger) + reserveUsd).toFixed(8)) > ledger.ceilingUsd) {
     return { ok: false, reason: "The shared USD 15 four-sprint ceiling would be exceeded." };
   }
   const receipt: Sprint10Receipt = {

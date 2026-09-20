@@ -28,7 +28,7 @@ The caller must use an explicit absolute private directory and an explicit ledge
 5. Settle with `settleSprint10SpendFile` only from a complete provider response and result hash. On timeout, cancellation or unreadable response after possible dispatch, call `markSprint10SpendUnknownFile`.
 6. Any `unknown` receipt retains its full reservation and blocks every later reservation across S1–S4 until a separate, explicitly reviewed reconciliation mechanism exists. This candidate intentionally offers no automatic reconciliation or reopening.
 
-Multiple in-flight requests may reserve concurrently. The exclusive cycle lock serializes the persisted reservations, so their combined settled/reserved commitment cannot pass USD 15. Settlement releases only unused reservation headroom; it never creates a new cap. The root keeps at most 64 receipts, which is deliberately above the 12-call matrix but bounded for reviewed retries.
+Multiple in-flight requests may reserve concurrently. The exclusive cycle lock serializes the persisted reservations, so their combined settled/reserved commitment cannot pass USD 15. Settlement releases only unused reservation headroom; it never creates a new cap. The root keeps at most 80 receipts, bounded for the expanded founder-approved acceptance matrix. On 20 September the original 64-record capacity was reached with monetary headroom still available; this journal-capacity correction preserves all original receipts, unknown-charge stops, atomic reservations and the unchanged USD 15 total. Journal capacity and dollar exhaustion have distinct errors. It does not authorize an automatic retry or a new sprint cycle.
 
 ## Telemetry and price validation
 

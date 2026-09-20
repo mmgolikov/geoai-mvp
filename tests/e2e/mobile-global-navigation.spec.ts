@@ -20,16 +20,10 @@ test.beforeEach(async ({ page }, testInfo) => {
 });
 
 async function signInDemo(page: Page, nextPath: "/workspace") {
-  await page.goto(`/login?next=${encodeURIComponent(nextPath)}&intent=demo`);
-  const redirected = await page.waitForURL((url) => url.pathname === nextPath, { timeout: 3000 }).then(
-    () => true,
-    () => false
-  );
-  if (redirected) {
-    return;
-  }
-  await page.getByRole("button", { name: "Open demo access" }).click();
-  const origin = new URL(page.url()).origin;
+  // In demo_public AuthProvider starts authenticated. LoginPanel redirects;
+  // waiting three seconds then clicking its unauthenticated branch races that
+  // redirect and can wait forever for a button that is correctly absent.
+  const origin = new URL(test.info().project.use.baseURL!).origin;
   let destinationDocumentRequests = 0;
   const countDestinationNavigation = (request: Request) => {
     const url = new URL(request.url());
@@ -39,8 +33,8 @@ async function signInDemo(page: Page, nextPath: "/workspace") {
   };
   page.on("request", countDestinationNavigation);
   try {
-    await page.getByRole("button", { name: "Open demo", exact: true }).click();
-    await expect(page).toHaveURL((url) => url.pathname === nextPath);
+    await page.goto(`/login?next=${encodeURIComponent(nextPath)}&intent=demo`);
+    await page.waitForURL((url) => url.origin === origin && url.pathname === nextPath, { timeout: 30_000 });
     await expect(page.getByRole("link", { name: "Open demo profile" })).toHaveAttribute("data-authenticated", "true");
     expect(destinationDocumentRequests, "Successful sign-in must issue one destination document navigation, without assign/replace racing").toBe(1);
   } finally {

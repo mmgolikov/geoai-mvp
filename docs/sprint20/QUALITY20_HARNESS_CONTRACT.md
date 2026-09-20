@@ -19,7 +19,7 @@ Five Find cohorts each preserve three exact candidates, with FA01–FA15 corresp
 Three Create programmes (`residential_mixed_use`, `commercial_hub`, `civic_green`) each use the same two frozen Dubai AOIs (rectangle/concave).
 
 Denominator: 24 core +4 baseline +15 Find analyses +6 Create =49 potential paid requests;
-13 historical receipts +49 =62, below the original hard maximum64. This harness conservatively stops at62.
+Original planning assumed 13 historical receipts +49 =62, below the original hard maximum64. Subsequent explicitly approved recovery runs reached64 and exposed journal capacity as distinct from the USD15 ceiling. The current helper permits at most80 immutable receipts for the expanded acceptance work, with unchanged USD15 atomic accounting and unknown-charge stops. This does not certify the outstanding matrix or authorize automatic retries.
 Five Find-only cases require zero paid requests. Actual internal provider calls/retries remain within canonical ledger telemetry;
 this is a paid application-request receipt plan, not a claim of49 provider calls or sufficient money. Shared cap stays USD15.
 Failed/unknown/reserved attempts are never erased. No automatic retries, and no case replay under a new manifest hash.
