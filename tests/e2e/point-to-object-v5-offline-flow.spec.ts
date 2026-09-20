@@ -1546,7 +1546,7 @@ test("Create A/B and mobile profile remain coherent offline", async ({ page }, t
   await expect(page.getByTestId("generated-concept-metrics")).toContainText("Generated blocks1");
   await page.getByTestId("create-alternative-b").click();
   await expect(page.getByTestId("create-alternative-b")).toHaveAttribute("aria-selected", "true");
-  await expect(page.getByTestId("create-alternative-b")).toHaveCSS("background-color", "rgb(8, 127, 112)");
+  await expect(page.getByTestId("create-alternative-b")).toHaveCSS("background-color", "rgb(8, 127, 140)");
   await expect(page.getByTestId("generated-concept-metrics")).toContainText("Generated blocks1");
   await expect(generateConcept).toHaveText("Already generated");
   await expect(generateConcept).toBeDisabled();
