@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { validateQuality20ArtifactExportEnvironment, writeQuality20RealArtifact } from "./helpers/quality20-real-artifact";
 
 import {
   expect,
@@ -123,6 +124,7 @@ type LiveConfiguration = {
   depthCycleEvidencePath: string | null;
   goalDepthEvidencePrefix: string | null;
   findAnalysisEvidencePrefix: string | null;
+  realArtifactExportPath: string | null;
   quality20: Quality20Selection | null;
   acquisition: Quality20Acquisition | null;
 };
@@ -403,6 +405,7 @@ function loadConfiguration(baseURL: string | undefined): LiveConfiguration {
   }
   const goalCapture = validateGoalDepthCaptureEnvironment(process.env, selectedScope);
   const findCapture = validateFindAnalysisCaptureEnvironment(process.env, selectedScope);
+  const artifactExport = validateQuality20ArtifactExportEnvironment(process.env, selectedScope);
   return {
     scope: selectedScope,
     origin: preview.origin,
@@ -419,6 +422,7 @@ function loadConfiguration(baseURL: string | undefined): LiveConfiguration {
     depthCycleEvidencePath: depthEvidenceRequested ? depthEvidencePath! : null,
     goalDepthEvidencePrefix: goalCapture.GEOAI_SPRINT10_GOAL_DEPTH_EVIDENCE_PREFIX ?? null,
     findAnalysisEvidencePrefix: findCapture.GEOAI_SPRINT10_FIND_ANALYSIS_EVIDENCE_PREFIX ?? null,
+    realArtifactExportPath: artifactExport.GEOAI_QUALITY20_ARTIFACT_EXPORT_PATH ?? null,
     quality20: loadQuality20Selection(process.env, selectedScope, { commit, origin: preview.origin }),
     acquisition: selectedScope === "quality20-acquire" ? loadQuality20Acquisition(process.env, { commit, origin: preview.origin }) : null
   };
@@ -1179,6 +1183,19 @@ async function runDubaiAnalyse(page: Page, configuration: LiveConfiguration, pol
   });
   expect(budget.paidDispatchCount()).toBe(paidBeforeReopen);
   progress.complete("analyse_local_reopen");
+  if (configuration.realArtifactExportPath) {
+    const artifact = await page.evaluate(({ userId, artifactId }) => {
+      const key = `geoai:point-to-object:projects:v1:${encodeURIComponent(`user:${userId}`)}`;
+      const store = JSON.parse(localStorage.getItem(key) ?? "null");
+      const matches = (store?.projects ?? []).flatMap((project: { artifacts: Array<{ artifactId: string }> }) => project.artifacts)
+        .filter((candidate: { artifactId: string }) => candidate.artifactId === artifactId);
+      if (matches.length !== 1) throw new Error("The validated local artifact is missing or ambiguous.");
+      return matches[0];
+    }, { userId: configuration.userId, artifactId: saved.artifactId });
+    await writeQuality20RealArtifact(configuration.realArtifactExportPath, { artifact, candidateCommit: configuration.commit,
+      candidateHost: configuration.host, sourceFeatureId: chosen.id, payloadHash: saved.payloadHash });
+    expect(budget.paidDispatchCount()).toBe(paidBeforeReopen);
+  }
 }
 
 async function runDubaiDepthCycle(page: Page, configuration: LiveConfiguration, policy: NetworkPolicy, budget: ReturnType<typeof installBudgetGate>, progress: LiveProgress,
