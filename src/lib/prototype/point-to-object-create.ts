@@ -900,17 +900,8 @@ function findLargestEnvelope(
   candidates.sort((left, right) => pointDistance(left, target) - pointDistance(right, target));
   const maximumArea = Math.max(1, (bounds.maxX - bounds.minX) * (bounds.maxY - bounds.minY) * 1.5);
   let best: OrientedRectangle | null = null;
-  let bestSearchArea = 0;
   for (const candidate of candidates) {
     if (!pointInPolygon(candidate, rings)) continue;
-    // Fixed-centre, fixed-aspect rectangles are nested as area increases. If this
-    // centre cannot fit the best binary-search area already found, no larger
-    // rectangle here can win. Keep the original binary grid for surviving centres
-    // so tie ordering, selected coordinates and floating-point outputs stay intact.
-    if (bestSearchArea > 0) {
-      const width = Math.sqrt(bestSearchArea * aspectRatio);
-      if (!polygonInsideAoi(orientedRectangle(candidate, width, bestSearchArea / Math.max(width, Number.EPSILON), angle).points, rings, setbackM)) continue;
-    }
     let low = 0;
     let high = maximumArea;
     for (let iteration = 0; iteration < binaryIterations; iteration += 1) {
@@ -927,7 +918,6 @@ function findLargestEnvelope(
     const rectangle = orientedRectangle(candidate, width, height, angle);
     if (!best || width * height > best.width * best.height) {
       best = rectangle;
-      bestSearchArea = low;
     }
   }
   return best;
