@@ -1519,6 +1519,8 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
   await page.getByRole("button", { name: "Open full comparison dashboard", exact: true }).click();
   const dashboard = page.getByTestId("find-full-comparison-dashboard");
   const verifyComparison = async () => {
+    const parentStep = progress.current();
+    progress.start("find_compare_dashboard");
     await expect(dashboard).toBeVisible();
     progress.complete("find_compare_dashboard");
     const map = dashboard.getByTestId("live-map-canvas");
@@ -1558,6 +1560,7 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
       });
     }, { message: "Dubai comparison must frame every complete footprint after camera fit." }).toBe(true);
     progress.complete("find_compare_bounds");
+    progress.start(parentStep);
   };
   await verifyComparison();
   progress.start("find_compare_artifact");
@@ -1568,6 +1571,7 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
   await stableLocalBarrier(page);
   assertNoReplay(beforeLocalComparison, policy.snapshotJourneyRequests());
   progress.complete("find_compare_artifact");
+  progress.start("find_compare");
   progress.complete("find_compare");
   const expectedDomainIdentity = JSON.stringify({
     candidateIds: candidates.map((candidate) => candidate.sourceFeatureId),

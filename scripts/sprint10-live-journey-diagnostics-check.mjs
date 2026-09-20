@@ -23,6 +23,13 @@ const config = {
 const receipts = [{ id: 1, route: "ai", depth: "standard", state: "settled", estimatedUsd: 0.041167 }];
 const runnerSource = readFileSync(new URL("./sprint10-live-journey-run.mjs", import.meta.url), "utf8");
 const liveSpecSource = readFileSync(new URL("../tests/e2e/sprint10-live-journey.spec.ts", import.meta.url), "utf8");
+const comparisonVerifier = liveSpecSource.slice(liveSpecSource.indexOf("const verifyComparison = async () => {"), liveSpecSource.indexOf("await verifyComparison();"));
+assert.match(comparisonVerifier, /const parentStep = progress[.]current\(\);\s*progress[.]start\("find_compare_dashboard"\)/,
+  "reused comparison validation must begin its own diagnostic substeps");
+assert.match(comparisonVerifier, /progress[.]complete\("find_compare_bounds"\);\s*progress[.]start\(parentStep\)/,
+  "successful comparison validation must restore its caller before local-reopen completion");
+assert.match(liveSpecSource, /progress[.]complete\("find_compare_artifact"\);\s*progress[.]start\("find_compare"\);\s*progress[.]complete\("find_compare"\)/,
+  "aggregate comparison completion cannot complete the still-active artifact substep");
 const classifierSource = /export function classifyLiveJourneyReport[\s\S]*?\n}\n\nfunction run\(\)/.exec(runnerSource)?.[0] ?? "";
 assert.ok(classifierSource.length > 0);
 assert.doesNotMatch(classifierSource, /spawnSync|reserveSprint10Spend|dispatchSprint10PaidRequest|fetch\(/,
