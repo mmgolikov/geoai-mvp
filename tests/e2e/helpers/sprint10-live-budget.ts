@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import {
   chmodSync,
   closeSync,
@@ -106,7 +106,28 @@ export type Sprint10SpendLedger = {
   generation: number;
   receipts: Sprint10Receipt[];
   estimatedOrReservedUsd: number;
+  // Append-only founder-authorized accounting; original unknown receipts stay unchanged.
+  conservativeCharges?: Sprint10ConservativeCharge[];
 };
+
+export type Sprint10ConservativeCharge = {
+  receiptId: number;
+  receiptHash: string;
+  approvedAt: string;
+  approvalReference: string;
+  chargedUsd: number;
+  actualCostKnown: false;
+};
+
+export function sprint10ReceiptHash(receipt: Sprint10Receipt): string {
+  return createHash("sha256").update(JSON.stringify(receipt)).digest("hex");
+}
+
+export function hasSprint10UnresolvedCharge(ledger: Sprint10SpendLedger, includeReserved = false): boolean {
+  return ledger.receipts.some(receipt =>
+    (includeReserved && receipt.state === "reserved") ||
+    (receipt.state === "unknown" && !ledger.conservativeCharges?.some(charge => charge.receiptId === receipt.id)));
+}
 
 export type Sprint10LedgerLock = {
   lockPath: string;
@@ -411,7 +432,7 @@ function parseReceipt(value: unknown, id: number, ledgerId: string): Sprint10Rec
 export function parseSprint10SpendLedger(value: unknown): Sprint10SpendLedger | null {
   const keys = ["schemaVersion", "cycleId", "ledgerId", "createdAt", "ceilingUsd", "generation", "receipts",
     "estimatedOrReservedUsd"];
-  if (!record(value) || !exactKeys(value, keys) || value.schemaVersion !== 1 ||
+  if (!record(value) || !exactKeys(value, "conservativeCharges" in value ? [...keys, "conservativeCharges"] : keys) || value.schemaVersion !== 1 ||
       value.cycleId !== SPRINT10_CYCLE_ID || typeof value.ledgerId !== "string" ||
       !LEDGER_ID_PATTERN.test(value.ledgerId) || !validIso(value.createdAt) ||
       value.ceilingUsd !== SPRINT10_LIVE_CEILING_USD || !integer(value.generation) ||
@@ -421,7 +442,21 @@ export function parseSprint10SpendLedger(value: unknown): Sprint10SpendLedger | 
   if (receipts.some((receipt) => receipt === null)) return null;
   const typedReceipts = receipts as Sprint10Receipt[];
   if (new Set(typedReceipts.map((receipt) => receipt.identity.requestKey)).size !== typedReceipts.length) return null;
-  const expectedGeneration = typedReceipts.length + typedReceipts.filter((receipt) => receipt.state !== "reserved").length;
+  const charges = value.conservativeCharges ?? [];
+  if (!Array.isArray(charges) || charges.length > typedReceipts.length) return null;
+  const reconciledIds = new Set<number>();
+  for (const charge of charges) {
+    if (!record(charge) || !exactKeys(charge, ["receiptId", "receiptHash", "approvedAt", "approvalReference", "chargedUsd", "actualCostKnown"]) ||
+        !integer(charge.receiptId, 1) || reconciledIds.has(charge.receiptId) ||
+        typeof charge.approvalReference !== "string" || !/^founder:[a-zA-Z0-9:_-]{10,120}$/.test(charge.approvalReference) ||
+        !validIso(charge.approvedAt) || charge.actualCostKnown !== false) return null;
+    const receipt = typedReceipts.find(item => item.id === charge.receiptId);
+    if (!receipt || receipt.state !== "unknown" || receipt.settledAt === null ||
+        Date.parse(charge.approvedAt) < Date.parse(receipt.settledAt) || charge.receiptHash !== sprint10ReceiptHash(receipt) ||
+        charge.chargedUsd !== receipt.reserveUsd) return null;
+    reconciledIds.add(charge.receiptId);
+  }
+  const expectedGeneration = typedReceipts.length + typedReceipts.filter((receipt) => receipt.state !== "reserved").length + charges.length;
   const ledger = { ...(value as unknown as Sprint10SpendLedger), receipts: typedReceipts };
   const charge = sprint10LedgerCharge(ledger);
   return value.generation === expectedGeneration && value.estimatedOrReservedUsd === charge &&
@@ -440,7 +475,7 @@ export function reserveSprint10Spend(
   if (!validIso(createdAt) || Date.parse(createdAt) < Date.parse(ledger.createdAt)) {
     return { ok: false, reason: "The reservation time is invalid or predates the root ledger." };
   }
-  if (ledger.receipts.some((receipt) => receipt.state === "unknown")) {
+  if (hasSprint10UnresolvedCharge(ledger)) {
     return { ok: false, reason: "An unknown provider charge blocks every later four-sprint request." };
   }
   if (ledger.receipts.some((receipt) => receipt.identity.requestKey === identity.requestKey)) {
@@ -473,6 +508,32 @@ export function reserveSprint10Spend(
   };
   next.estimatedOrReservedUsd = sprint10LedgerCharge(next);
   return { ok: true, ledger: next, receipt };
+}
+
+// Accounting is not measured provider settlement and never changes the original receipt.
+// Call only after a new exact founder approval; do not automatically reconcile on errors.
+export function accountSprint10UnknownAtFullReserve(
+  ledgerValue: Sprint10SpendLedger,
+  receiptId: number,
+  expectedIdentity: Sprint10RequestIdentity,
+  approval: Pick<Sprint10ConservativeCharge, "receiptHash" | "approvedAt" | "approvalReference">
+): Sprint10SpendLedger {
+  const ledger = parseSprint10SpendLedger(ledgerValue);
+  if (!ledger) throw new Error("The cycle-root ledger is malformed or corrupt.");
+  const receipt = ledger.receipts.find(item => item.id === receiptId);
+  if (!receipt || receipt.state !== "unknown" || !sameIdentity(receipt.identity, expectedIdentity) ||
+      ledger.conservativeCharges?.some(charge => charge.receiptId === receiptId)) {
+    throw new Error("Conservative accounting requires one exact unreconciled unknown receipt.");
+  }
+  const next = {
+    ...ledger,
+    generation: ledger.generation + 1,
+    conservativeCharges: [...(ledger.conservativeCharges ?? []), {
+      receiptId, ...approval, chargedUsd: receipt.reserveUsd, actualCostKnown: false as const
+    }]
+  };
+  if (!parseSprint10SpendLedger(next)) throw new Error("Invalid conservative accounting approval or receipt hash.");
+  return next;
 }
 
 export function settleSprint10Spend(
@@ -747,6 +808,22 @@ export function reserveSprint10SpendFile(
   } finally {
     lock.release();
   }
+}
+
+export function accountSprint10UnknownAtFullReserveFile(
+  privateRoot: string,
+  ledgerPath: string,
+  receiptId: number,
+  expectedIdentity: Sprint10RequestIdentity,
+  approval: Parameters<typeof accountSprint10UnknownAtFullReserve>[3]
+): Sprint10SpendLedger {
+  const lock = acquireSprint10LedgerLock(privateRoot, ledgerPath);
+  try {
+    const ledger = readSprint10SpendLedgerFile(privateRoot, ledgerPath);
+    const next = accountSprint10UnknownAtFullReserve(ledger, receiptId, expectedIdentity, approval);
+    writeLedgerAtomic(privateRoot, ledgerPath, next);
+    return next;
+  } finally { lock.release(); }
 }
 
 export function settleSprint10SpendFile(

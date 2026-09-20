@@ -406,6 +406,7 @@ jobs:
           node --experimental-transform-types scripts/sprint10-analysis-result-evidence-check.ts | tee artifacts/sprint10-analysis-evidence-contract.txt
           node --experimental-transform-types scripts/sprint10-depth-cycle-evidence-check.ts | tee artifacts/sprint10-depth-cycle-evidence-contract.txt
           node --experimental-transform-types scripts/sprint10-live-budget-check.ts | tee artifacts/sprint10-live-budget-contract.txt
+          node --experimental-transform-types scripts/sprint20-conservative-budget-check.ts | tee artifacts/sprint20-conservative-budget-contract.txt
           node --experimental-transform-types scripts/sprint10-live-journey-offline-check.ts | tee artifacts/sprint10-live-journey-contract.txt
           node --experimental-transform-types scripts/sprint10-live-journey-runner-offline-check.mjs | tee artifacts/sprint10-live-runner-contract.txt
           node --experimental-transform-types scripts/sprint10-live-journey-diagnostics-check.mjs | tee artifacts/sprint10-live-diagnostics-contract.txt
@@ -543,8 +544,8 @@ jobs:
           declare -A expected_location
           expected_location["/register"]="/login"
           expected_location["/mfa"]="/login"
-          expected_location["/demo"]="/workspace"
-          expected_location["/explore"]="/workspace"
+          expected_location["/demo"]="/prototype/point-to-object"
+          expected_location["/explore"]="/prototype/point-to-object"
           expected_location["/login?next=/workspace&intent=request"]="/request-access"
 
           for route in "${routes[@]}"; do

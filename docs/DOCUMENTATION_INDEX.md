@@ -13,6 +13,8 @@ This index is the repository entry point for current documentation. If a version
 
 ## Start here
 
+September20: [Product-quality correction](sprint20/CHANGE_REQUEST.md) is the founder-approved successor candidate scope for the eight new visual/functional findings, scenario dashboards and real multi-object acceptance. Baseline `1dab55817e1664870ace88278aaed8f7558ece83`; implementation and acceptance are in progress, not released. The prior API ledger and exact Preview/development-only permissions are retained; main/Production remain unchanged.
+
 September 18: [Sprint10 authenticated rehearsal and decision-journey recovery](sprint10/CHANGE_REQUEST.md) is the founder-approved four-sprint local implementation scope. Its externally reverified base is main `21b91c43c2fc8dd61b08962e562601b29dd89c76`, Production deployment `dpl_AYePGoJLbHmcie2H7sX1biJbbavo`. The candidate is NOT RELEASED; hosted activation and main/Production changes still require separate exact approval. Older runtime tuples below remain historical and must not override this fresh baseline.
 
 September 18 product addition: [MVP scope and value](sprint10/product/MVP_SCOPE_AND_VALUE.md), [role/scenario contracts](sprint10/product/ROLE_SCENARIO_VALUE_MATRIX.md), [outcome backcast to October/December/February](sprint10/product/ROADMAP_BACKCAST.md), and [remaining three-sprint value backlog](sprint10/product/REMAINING_THREE_SPRINTS_VALUE_BACKLOG.md) are the working planning framework reviewed by control. They define four customer outputs, not evidence that the current code or commercial proposition has passed acceptance. [Baseline QA](sprint10/BASELINE_QA_20260918.md) separately records actual local checks and limitations.

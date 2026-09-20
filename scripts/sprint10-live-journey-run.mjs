@@ -20,6 +20,7 @@ import { fileURLToPath } from "node:url";
 import {
   RESERVE_USD,
   SPRINT10_LIVE_CEILING_USD,
+  hasSprint10UnresolvedCharge,
   readSprint10SpendLedgerFile,
   sprint10LedgerLockPath
 } from "../tests/e2e/helpers/sprint10-live-budget.ts";
@@ -127,7 +128,7 @@ export function validateLedger(rootValue, pathValue, allowUnresolved = false) {
   try { ledger = readSprint10SpendLedgerFile(rootValue, pathValue); }
   catch { fail("The existing exact USD 15 cycle ledger is malformed, missing or unsafe."); }
   if (ledger.ledgerId !== exactLedgerId || ledger.ceilingUsd !== SPRINT10_LIVE_CEILING_USD ||
-      (!allowUnresolved && ledger.receipts.some((receipt) => receipt.state === "unknown" || receipt.state === "reserved"))) {
+      (!allowUnresolved && hasSprint10UnresolvedCharge(ledger, true))) {
     fail("The existing exact USD 15 cycle ledger is not accepted or contains an unresolved reserved/unknown charge.");
   }
   return ledger;

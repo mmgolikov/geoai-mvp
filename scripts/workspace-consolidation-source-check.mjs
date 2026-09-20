@@ -26,13 +26,15 @@ async function collectSourceFiles(relativeDirectory) {
   return files;
 }
 
-const [landingRoute, landing, navigation, workspace, analysisPanel, exploreCompatibility] = await Promise.all([
+const [landingRoute, landing, navigation, workspace, analysisPanel, exploreCompatibility, demoCompatibility, qualityWorkflow] = await Promise.all([
   read("app/page.tsx"),
   read("components/landing/geoai-landing-page.tsx"),
   read("components/product-navigation.tsx"),
   read("components/workspace-shell.tsx"),
   read("components/analysis-panel.tsx"),
-  read("app/explore/page.tsx")
+  read("app/explore/page.tsx"),
+  read("app/demo/page.tsx"),
+  read(".github/workflows/geoai-quality-gate.yml")
 ]);
 
 const failures = [];
@@ -66,6 +68,18 @@ requireCondition(
   exploreCompatibility.includes('redirect("/prototype/point-to-object")'),
   "The legacy /explore entry must forward to current Analyse/Find/Create."
 );
+requireCondition(
+  demoCompatibility.includes('redirect("/prototype/point-to-object")'),
+  "The legacy /demo entry must forward to current Analyse/Find/Create."
+);
+for (const route of ["/explore", "/demo"]) {
+  requireCondition(
+    qualityWorkflow.includes(`expected_status["${route}"]="307"`) &&
+      qualityWorkflow.includes(`expected_location["${route}"]="/prototype/point-to-object"`) &&
+      !qualityWorkflow.includes(`expected_location["${route}"]="/workspace"`),
+    `The CI smoke must require the exact current-product redirect for ${route}, not the retired Workspace destination.`
+  );
+}
 requireCondition(
   !exploreCompatibility.includes("WorkspaceShell") &&
     !exploreCompatibility.includes("AuthenticatedRouteGate") &&
@@ -127,7 +141,7 @@ const evidence = {
   compatibilityRoute: "/explore",
   compatibilityDestination: "/prototype/point-to-object",
   criteriaFirstPreserved: true,
-  checkedFiles: activeSourceFiles.length + 6,
+  checkedFiles: activeSourceFiles.length + 8,
   findings,
   activeViolations,
   checkedAt: new Date().toISOString()
