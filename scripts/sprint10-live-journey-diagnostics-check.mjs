@@ -2,6 +2,7 @@
 
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { stripTypeScriptTypes } from "node:module";
 
 import {
   LIVE_JOURNEY_DIAGNOSTIC_SCHEMA,
@@ -24,6 +25,55 @@ const config = {
 const receipts = [{ id: 1, route: "ai", depth: "standard", state: "settled", estimatedUsd: 0.041167 }];
 const runnerSource = readFileSync(new URL("./sprint10-live-journey-run.mjs", import.meta.url), "utf8");
 const liveSpecSource = readFileSync(new URL("../tests/e2e/sprint10-live-journey.spec.ts", import.meta.url), "utf8");
+const findBody = liveSpecSource.split("async function runDubaiFind")[1].split("async function runSingaporeFind")[0];
+const reopenBody = liveSpecSource.split("async function reopenSavedArtifact")[1].split("async function runDubaiAnalyse")[0];
+const diagnosticBindings = [
+  ["find_candidate_open", 'name: "Open object analysis", exact: true'],
+  ["find_candidate_context_response", "const contextResponse = await contextPromise"],
+  ["find_candidate_context_contract", "contextResponse.request().postDataJSON()"],
+  ["find_candidate_selection", "expect(selection.object.sourceFeatureId)"],
+  ["find_candidate_no_replay", 'afterAnalysis["POST /api/prototype/point-to-object/context"]'],
+  ["find_candidate_question", 'fill(SPRINT10_PUBLIC_ANALYSIS_QUESTION)'],
+  ["find_return_navigation", 'page.goto("/prototype/point-to-object")'],
+  ["find_return_tab", 'getByRole("tab", { name: "Find", exact: true }).click()'],
+  ["find_return_dashboard", "await verifyComparison()"],
+  ["find_return_artifact", 'expect(current.artifactId).toBe(saved.artifactId)'],
+  ["find_return_no_replay", "assertNoReplay(beforeReturn, policy.snapshotJourneyRequests())"],
+  ["find_return_paid_count", "paidBeforeReopen + (runCandidateAnalysis ? index + 1 : 0)"],
+  ["find_return_saved_navigation", 'page.goto("/projects?view=spatial")'],
+  ["find_return_saved_filter", "await summary.click()"],
+  ["find_return_saved_open", 'await card.getByRole("button"'],
+  ["find_return_saved_verify", "await verify()"],
+  ["find_return_saved_identity", "assertSameArtifact(expected, reopened)"],
+  ["find_return_saved_no_replay", "assertNoReplay(before, policy.snapshotJourneyRequests())"]
+];
+const producer = liveSpecSource.slice(liveSpecSource.indexOf("function createLiveProgress()"), liveSpecSource.indexOf("function cleanupStage("));
+const createProgress = new Function("LIVE_JOURNEY_STEPS", "canonicalLiveJourneyCompletedSteps", "guard",
+  `${stripTypeScriptTypes(producer, { mode: "transform", sourceMap: false })}; return createLiveProgress;`
+)(LIVE_JOURNEY_STEPS, canonicalLiveJourneyCompletedSteps, (condition) => assert.ok(condition));
+for (const [stage, action] of diagnosticBindings) {
+  const saved = stage.startsWith("find_return_saved_");
+  const body = saved ? reopenBody : findBody;
+  const receiver = saved ? "findReturnProgress?." : "progress.";
+  const start = body.indexOf(`${receiver}start("${stage}")`);
+  const boundAction = body.indexOf(action, start);
+  const complete = body.indexOf(`${receiver}complete("${stage}")`, start);
+  assert.ok(start >= 0 && boundAction > start && complete > boundAction, `${stage} must enclose its unchanged assertion/action`);
+  const progress = createProgress();
+  progress.start("analyse_local_reopen");
+  progress.complete("analyse_local_reopen");
+  progress.start(stage);
+  const marker = encodeLiveJourneyDiagnostic({ schemaVersion: LIVE_JOURNEY_DIAGNOSTIC_SCHEMA, primaryStatus: "failed",
+    primaryStage: progress.current(), cleanupStage: null, completedSteps: progress.completed() });
+  const classified = classifyLiveJourneyReport({ errors: [{ message: marker }] }, 1, { ...config, scope: "dubai-find-construction" }, receipts);
+  assert.equal(classified.receipt.status, "FAIL");
+  assert.equal(classified.receipt.diagnostic.primaryStage, stage, "completed AI reopen must never mask the later failure");
+  assert.deepEqual(classified.receipt.diagnostic.completedSteps, ["analyse_local_reopen"]);
+  assert.throws(() => parseLiveJourneyDiagnostic({ ...classified.receipt.diagnostic, rawError: "private-sentinel" }), /malformed/);
+  assert.throws(() => progress.start(`${stage}_private_sentinel`));
+}
+assert.match(findBody, /reopenSavedArtifact\(page, configuration[.]userId, "find", policy, current, verifyComparison, 1, progress\)/);
+assert.match(reopenBody, /if \(findReturnProgress\) guard\(kind === "find"/);
 const comparisonVerifier = liveSpecSource.slice(liveSpecSource.indexOf("const verifyComparison = async () => {"), liveSpecSource.indexOf("await verifyComparison();"));
 assert.match(comparisonVerifier, /const parentStep = progress[.]current\(\);\s*progress[.]start\("find_compare_dashboard"\)/,
   "reused comparison validation must begin its own diagnostic substeps");
@@ -308,6 +358,7 @@ console.log(JSON.stringify({
     boundedResponseReaderCases: 3,
     rawSecretNotForwarded: 1,
     zeroAdditionalPaidDispatch: paidDispatches,
-    legacyRunnerShapes: 3
+    legacyRunnerShapes: 3,
+    findReturnAndCandidateFailureBindings: diagnosticBindings.length
   }
 }));

@@ -1092,21 +1092,35 @@ async function reopenSavedArtifact(
   policy: NetworkPolicy,
   expected: LocalArtifactState,
   verify: () => Promise<void>,
-  expectedCount = 1
+  expectedCount = 1,
+  findReturnProgress?: LiveProgress
 ) {
+  if (findReturnProgress) guard(kind === "find", "Find return diagnostics require a Find artifact.");
+  findReturnProgress?.start("find_return_saved_navigation");
   await page.goto("/projects?view=spatial");
   await expect(page.getByText("Saved on this device", { exact: true })).toBeVisible();
+  findReturnProgress?.complete("find_return_saved_navigation");
+  findReturnProgress?.start("find_return_saved_filter");
   const summary = page.getByTestId(`hub-count-${kind}`);
   await expect(summary.getByTestId("hub-count-value")).not.toHaveText("0");
   await summary.click();
+  findReturnProgress?.complete("find_return_saved_filter");
+  findReturnProgress?.start("find_return_saved_open");
   const card = page.getByTestId("saved-result-card").first();
   const before = policy.snapshotJourneyRequests();
   await card.getByRole("button", { name: kind === "analyse" ? "Open result" : "Show on map", exact: true }).click();
+  findReturnProgress?.complete("find_return_saved_open");
+  findReturnProgress?.start("find_return_saved_verify");
   await verify();
   await stableLocalBarrier(page);
+  findReturnProgress?.complete("find_return_saved_verify");
+  findReturnProgress?.start("find_return_saved_identity");
   const reopened = await requireLocalArtifactState(page, userId, kind, expectedCount);
   assertSameArtifact(expected, reopened);
+  findReturnProgress?.complete("find_return_saved_identity");
+  findReturnProgress?.start("find_return_saved_no_replay");
   assertNoReplay(before, policy.snapshotJourneyRequests());
+  findReturnProgress?.complete("find_return_saved_no_replay");
 }
 
 async function runDubaiAnalyse(page: Page, configuration: LiveConfiguration, policy: NetworkPolicy, budget: ReturnType<typeof installBudgetGate>, progress: LiveProgress) {
@@ -1698,17 +1712,24 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
   expect(budget.paidDispatchCount()).toBe(paidBeforeReopen);
   progress.complete("find_local_reopen");
   for (const [index, candidate] of selectedCandidates.entries()) {
+    progress.start("find_candidate_open");
     const beforeAnalysis = policy.snapshotJourneyRequests();
     const contextPromise = page.waitForResponse((response) => response.request().method() === "POST" &&
       new URL(response.url()).pathname === "/api/prototype/point-to-object/context", { timeout: SOURCE_REQUEST_HARNESS_TIMEOUT_MS });
     await dashboard.getByRole("button", { name: "Open object analysis", exact: true }).nth(index).click();
+    progress.complete("find_candidate_open");
+    progress.start("find_candidate_context_response");
     const contextResponse = await contextPromise;
+    progress.complete("find_candidate_context_response");
+    progress.start("find_candidate_context_contract");
     expect(contextResponse.request().postDataJSON()).toEqual({ caseKey: "dubai", longitude: candidate.longitude,
       latitude: candidate.latitude, locale: "en", expectedSourceFeatureId: candidate.sourceFeatureId });
     const contextPayload: unknown = await boundedLiveJourneyResponseJson(contextResponse, 10_000);
     guard(contextResponse.status() === 200 && record(contextPayload) && contextPayload.mode === "resolved" &&
       record(contextPayload.subject) && contextPayload.subject.sourceFeatureId === candidate.sourceFeatureId,
     "Dubai Find to Analyse did not resolve the same exact source identity with HTTP 200.");
+    progress.complete("find_candidate_context_contract");
+    progress.start("find_candidate_selection");
     await expect(dashboard).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Analyze", exact: true })).toBeEnabled({ timeout: 30_000 });
     await expect.poll(async () => page.evaluate(() => {
@@ -1718,12 +1739,17 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
     const selection = await page.evaluate(() => JSON.parse(sessionStorage.getItem("geoai:point-to-object:selection:v3") ?? "null"));
     expect(selection.object.sourceFeatureId).toBe(candidate.sourceFeatureId);
     if (hasFootprint(candidate)) expect(selection.object.geometry).toEqual(candidate.geometry);
+    progress.complete("find_candidate_selection");
+    progress.start("find_candidate_no_replay");
     expect(budget.paidDispatchCount()).toBe(paidBeforeReopen + (runCandidateAnalysis ? index : 0));
     const afterAnalysis = policy.snapshotJourneyRequests();
     expect(afterAnalysis["POST /api/prototype/point-to-object/context"] ?? 0).toBe((beforeAnalysis["POST /api/prototype/point-to-object/context"] ?? 0) + 1);
     expect(afterAnalysis["POST /api/prototype/point-to-object/find"]).toBe(beforeAnalysis["POST /api/prototype/point-to-object/find"]);
+    progress.complete("find_candidate_no_replay");
     if (runCandidateAnalysis) {
+      progress.start("find_candidate_question");
       await page.locator("#point-object-question").fill(SPRINT10_PUBLIC_ANALYSIS_QUESTION);
+      progress.complete("find_candidate_question");
       progress.start("analyse_paid_response");
       const aiObservation = observeSourcePostResponse(page, "/api/prototype/point-to-object/ai", 180_000);
       let observed: SourceResponseObservation;
@@ -1786,10 +1812,17 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
       progress.complete("analyse_local_reopen");
     }
     const beforeReturn = policy.snapshotJourneyRequests();
+    progress.start("find_return_navigation");
     if (runCandidateAnalysis) await page.goto("/prototype/point-to-object");
+    progress.complete("find_return_navigation");
+    progress.start("find_return_tab");
     await page.getByRole("tab", { name: "Find", exact: true }).click();
+    progress.complete("find_return_tab");
+    progress.start("find_return_dashboard");
     await page.getByRole("button", { name: "Open full comparison dashboard", exact: true }).click();
     await verifyComparison();
+    progress.complete("find_return_dashboard");
+    progress.start("find_return_artifact");
     await stableLocalBarrier(page);
     const current = await requireLocalArtifactState(page, configuration.userId, "find");
     expect(current.artifactId).toBe(saved.artifactId);
@@ -1797,9 +1830,14 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
     expect(current.viewRevision).toBeGreaterThanOrEqual(saved.viewRevision);
     expect(current.shortlistCount).toBe(3);
     expect(current.comparisonView).toBe("dashboard");
+    progress.complete("find_return_artifact");
+    progress.start("find_return_no_replay");
     assertNoReplay(beforeReturn, policy.snapshotJourneyRequests());
-    await reopenSavedArtifact(page, configuration.userId, "find", policy, current, verifyComparison);
+    progress.complete("find_return_no_replay");
+    await reopenSavedArtifact(page, configuration.userId, "find", policy, current, verifyComparison, 1, progress);
+    progress.start("find_return_paid_count");
     expect(budget.paidDispatchCount()).toBe(paidBeforeReopen + (runCandidateAnalysis ? index + 1 : 0));
+    progress.complete("find_return_paid_count");
   }
   comparisonNetwork.dispose();
 }

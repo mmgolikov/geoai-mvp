@@ -208,7 +208,7 @@ for (const functionName of ["runDubaiFind", "runSingaporeFind"]) {
       "Find to Analyse must preserve each available source footprint");
     assert.match(body, /name: "Analyze", exact: true \}\)\)[.]toBeEnabled/,
       "each selected object must enable Analyze without a paid dispatch");
-    assert.match(body, /reopenSavedArtifact\(page, configuration[.]userId, "find", policy, current, verifyComparison\)/,
+    assert.match(body, /reopenSavedArtifact\(page, configuration[.]userId, "find", policy, current, verifyComparison, 1, progress\)/,
       "return cycles must reopen the current saved view revision without replay");
     assert.match(body, /expect\(budget[.]paidDispatchCount\(\)\)[.]toBe\(paidBeforeReopen\)/,
       "Dubai Find must preserve its zero-paid-dispatch gate");
