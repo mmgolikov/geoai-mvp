@@ -23,6 +23,9 @@ export const LIVE_JOURNEY_STEPS = Object.freeze([
   "analyse_source_suggest_candidate",
   "analyse_source_context",
   "analyse_paid_response",
+  "analyse_paid_aborted",
+  "analyse_paid_network_failed",
+  "analyse_paid_response_timeout",
   "analyse_paid_terminal",
   "analyse_result_contract",
   "analyse_evidence_capture",
@@ -106,6 +109,16 @@ export const LIVE_JOURNEY_CLEANUP_STAGES = Object.freeze([
 const stepSet = new Set(LIVE_JOURNEY_STEPS);
 const cleanupSet = new Set(LIVE_JOURNEY_CLEANUP_STAGES);
 const primaryStatuses = new Set(["failed", "inconclusive"]);
+
+// Completed steps are an accumulated set, not a cross-mode execution timeline.
+// Keep the parser strict; only producers explicitly request canonical ordering.
+export function canonicalLiveJourneyCompletedSteps(steps) {
+  if (!Array.isArray(steps) || steps.length > LIVE_JOURNEY_STEPS.length ||
+      steps.some((step) => !stepSet.has(step)) || new Set(steps).size !== steps.length) {
+    throw new Error("The completed live journey step set is malformed.");
+  }
+  return LIVE_JOURNEY_STEPS.filter((step) => steps.includes(step));
+}
 
 function exactKeys(value, keys) {
   return value && typeof value === "object" && !Array.isArray(value) &&

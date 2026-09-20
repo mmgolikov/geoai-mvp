@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 import {
   LIVE_JOURNEY_DIAGNOSTIC_SCHEMA,
   LIVE_JOURNEY_STEPS,
+  canonicalLiveJourneyCompletedSteps,
   analyseSuggestionCorrelationChecks,
   boundedLiveJourneyResponseJson,
   encodeLiveJourneyDiagnostic,
@@ -212,6 +213,22 @@ const primaryOnly = classifyLiveJourneyReport(reportFor({
 }), 1, config, receipts);
 assert.equal(primaryOnly.receipt.status, "FAIL", "a failed product path must never become PASS or INCONCLUSIVE");
 assert.equal(primaryOnly.exitCode, 1);
+
+const findCompletedSet = ["anonymous_protection", "exact_preview", "auth_login", "find_compare_dashboard",
+  "find_compare", "find_local_reopen", "analyse_paid_response", "analyse_paid_terminal", "analyse_local_save", "analyse_local_reopen"];
+const originalCompleted = [...findCompletedSet];
+assert.throws(() => encodeLiveJourneyDiagnostic({ ...simultaneous, completedSteps: findCompletedSet }), /canonical/);
+for (const primaryStage of ["analyse_paid_aborted", "analyse_paid_network_failed", "analyse_paid_response_timeout"]) {
+  const value = { ...simultaneous, primaryStage, cleanupStage: null, completedSteps: canonicalLiveJourneyCompletedSteps(findCompletedSet) };
+  const projected = classifyLiveJourneyReport(reportFor(value), 1, { ...config, scope: "dubai-find-analysis" }, receipts);
+  assert.equal(projected.receipt.status, "FAIL");
+  assert.equal(projected.receipt.diagnostic.primaryStage, primaryStage);
+  assert.deepEqual(new Set(projected.receipt.diagnostic.completedSteps), new Set(findCompletedSet));
+}
+assert.deepEqual(findCompletedSet, originalCompleted, "Canonical projection must not mutate or invent the observed set.");
+for (const invalid of [["secret"], ["auth_login", "auth_login"], null, "auth_login"]) {
+  assert.throws(() => canonicalLiveJourneyCompletedSteps(invalid), /malformed/);
+}
 
 const promotedFinalizeFailure = primaryAfterFinalizeFailure("inconclusive", "find_candidate_count");
 assert.deepEqual(promotedFinalizeFailure, { primaryStatus: "failed", primaryStage: "paid_finalize" },

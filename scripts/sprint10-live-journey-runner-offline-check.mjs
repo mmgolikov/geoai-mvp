@@ -17,6 +17,7 @@ import {
   createSprint10SpendLedger,
   markSprint10SpendUnknown,
   reserveSprint10Spend,
+  settleSprint10Spend,
   sprint10LedgerLockPath
 } from "../tests/e2e/helpers/sprint10-live-budget.ts";
 import {
@@ -27,6 +28,8 @@ import {
 } from "../tests/e2e/helpers/sprint10-depth-cycle-evidence.ts";
 import {
   LIVE_SCOPE_RECEIPT_PLAN,
+  classifyLiveJourneyReport,
+  receiptSummary,
   acquireRunLease,
   releaseRunLease,
   runtimeEnvironment,
@@ -38,6 +41,8 @@ import {
   validateLiveLedgerScopeHeadroom
 } from "./sprint10-live-journey-run.mjs";
 import { DUBAI_CREATE_PROGRAMME_SCOPES } from "../tests/e2e/helpers/sprint10-live-journey-gate.ts";
+import { encodeLiveJourneyDiagnostic, canonicalLiveJourneyCompletedSteps } from "./sprint10-live-journey-diagnostics.mjs";
+import { parseLiveJourneyChildReceipt } from "./sprint10-hosted-auth-probe.mjs";
 
 const ledgerId = "5aa405b3-bbda-48aa-aeea-ca3357be4042";
 const root = realpathSync(mkdtempSync(join(tmpdir(), "geoai-sprint10-runner-check-")));
@@ -238,6 +243,56 @@ try {
   );
   writeLedger(unknown);
   assert.throws(() => validateLiveLedgerPostRun(root, ledgerPath), /unresolved reserved\/unknown charge/);
+  assert.deepEqual(validateLiveLedgerPostRun(root, ledgerPath, { failureProjection: true }), unknown);
+  assert.throws(() => validateLiveLedgerPostRun(root, ledgerPath, { failureProjection: "true" }), /unresolved/);
+
+  // Synthetic three-candidate run: two accepted telemetry settlements, then one
+  // dispatched request with no accepted terminal response. No live ledger access.
+  let findLedger = createSprint10SpendLedger(createdAt, ledgerId);
+  const fixtureAttempt = { attempt: 1, purpose: "initial", model: "gpt-5.6-terra", reasoningEffort: "medium",
+    requestId: "resp_offline_find", inputTokens: 100, cachedInputTokens: 0, cacheWriteTokens: 0,
+    outputTokens: 10, totalTokens: 110, estimatedCostUsd: 0.00032 };
+  for (let index = 1; index <= 3; index += 1) {
+    const requestIdentity = identity(`S4.RUNNER.FIND.${index}`);
+    const reserved = reserveSprint10Spend(findLedger, requestIdentity, "2026-09-18T00:00:01.000Z");
+    assert.equal(reserved.ok, true);
+    if (index === 3) {
+      findLedger = markSprint10SpendUnknown(reserved.ledger, reserved.receipt.id, requestIdentity,
+        "2026-09-18T00:00:02.000Z", "request_failed_after_dispatch");
+    } else {
+      const { attempt: _attempt, purpose: _purpose, ...totals } = fixtureAttempt;
+      findLedger = settleSprint10Spend(reserved.ledger, reserved.receipt.id, requestIdentity, {
+        settledAt: "2026-09-18T00:00:02.000Z", status: 200, resultHash: "a".repeat(64),
+        telemetry: { ...totals, provider: "openai", route: "ai", depth: "standard", promptVersion: SPRINT10_ANALYSIS_PROMPT_VERSION,
+          schemaVersion: 6, latencyMs: 1, attempts: 1, attemptTrace: [fixtureAttempt], stored: false, toolCalls: 0,
+          costRateSource: "OpenAI gpt-5.6-terra Standard API rate accessed 2026-09-04: USD 2/M ordinary input, USD 0.2/M cached input, USD 2.5/M cache writes, USD 12/M output" }
+      });
+    }
+  }
+  assert.deepEqual(findLedger.receipts.map((receipt) => receipt.state), ["settled", "settled", "unknown"]);
+  writeLedger(findLedger);
+  const findConfig = { ledgerRoot: root, ledgerPath, baselineReceiptCount: 0, scope: "dubai-find-analysis",
+    host: identity("unused").candidateHost, commit: identity("unused").candidateCommit };
+  assert.throws(() => receiptSummary(findConfig), /unresolved/);
+  const summary = receiptSummary(findConfig, { failureProjection: true });
+  assert.equal(summary[2].estimatedUsd, null);
+  for (const cleanupStage of [null, "logout_action_missing"]) {
+    const report = { error: encodeLiveJourneyDiagnostic({ primaryStatus: "failed", primaryStage: "analyse_paid_network_failed", cleanupStage,
+      completedSteps: canonicalLiveJourneyCompletedSteps(["find_local_reopen", "analyse_paid_response", "analyse_local_save", "analyse_local_reopen"]) }) };
+    const classified = classifyLiveJourneyReport(report, 1, findConfig, summary);
+    assert.equal(classified.receipt.status, cleanupStage ? "FAIL_CLEANUP" : "FAIL");
+    assert.deepEqual(parseLiveJourneyChildReceipt({ status: 1, stdout: JSON.stringify(classified.receipt) },
+      { scope: findConfig.scope, previewHost: findConfig.host, commit: findConfig.commit }).receipts, summary);
+  }
+  assert.throws(() => classifyLiveJourneyReport({ stats: { expected: 1, skipped: 0, unexpected: 0, flaky: 0 } }, 0, findConfig, summary), /failed child/);
+  assert.throws(() => classifyLiveJourneyReport({ error: encodeLiveJourneyDiagnostic({ primaryStatus: "inconclusive",
+    primaryStage: "find_candidate_count", cleanupStage: null, completedSteps: [] }) }, 1, findConfig, summary), /INCONCLUSIVE/);
+  assert.throws(() => validateLiveLedgerPreflight(root, ledgerPath, "dubai-find-analysis"), /unresolved/);
+  const blockedDispatch = reserveSprint10Spend(findLedger, identity("S4.RUNNER.FIND.REPLAY"), "2026-09-18T00:00:03.000Z");
+  assert.equal(blockedDispatch.ok, false);
+  assert.match(blockedDispatch.reason, /unknown provider charge/);
+  assert.deepEqual(validateLiveLedgerPostRun(root, ledgerPath, { failureProjection: true }), findLedger,
+    "Failure reporting must not settle or rewrite any original receipt.");
 
   assert.deepEqual(validateLiveLedgerScopeHeadroom({ ceilingUsd: 15, estimatedOrReservedUsd: 13.5 }, "journey"),
     { reserveRequired: 1.5, remainingUsd: 1.5 });
@@ -302,6 +357,8 @@ try {
       staleLeaseStops: 6,
       raceAfterPreflight: 1,
       postRunNoFreshHeadroom: 2,
+      threeFindReceiptsFailureRoundTrips: 2,
+      unknownSpendSuccessAndReplayDenials: 5,
       pathModeSymlink: 2,
       environmentScrub: 2,
       evidenceCaptureOff: 1,

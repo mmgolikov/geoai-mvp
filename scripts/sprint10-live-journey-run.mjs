@@ -171,9 +171,10 @@ export function validateLiveLedgerScopeHeadroom(ledger, scope) {
   return { reserveRequired, remainingUsd: Number((ledger.ceilingUsd - ledger.estimatedOrReservedUsd).toFixed(8)) };
 }
 
-export function validateLiveLedgerPostRun(rootValue, pathValue, { allowActiveRunnerLease = false } = {}) {
+export function validateLiveLedgerPostRun(rootValue, pathValue, { allowActiveRunnerLease = false, failureProjection = false } = {}) {
   rejectExistingLease(pathValue, { allowActiveRunnerLease });
-  return validateLedger(rootValue, pathValue);
+  // Reporting a failed run does not authorize settlement, retry or new dispatch.
+  return validateLedger(rootValue, pathValue, failureProjection === true);
 }
 
 function runtimeEnvironment(source = process.env) {
@@ -461,8 +462,8 @@ function findCleanupFailure(value) {
   return null;
 }
 
-function receiptSummary(config) {
-  const ledger = validateLiveLedgerPostRun(config.ledgerRoot, config.ledgerPath, { allowActiveRunnerLease: true });
+export function receiptSummary(config, { failureProjection = false } = {}) {
+  const ledger = validateLiveLedgerPostRun(config.ledgerRoot, config.ledgerPath, { allowActiveRunnerLease: true, failureProjection });
   return ledger.receipts.slice(config.baselineReceiptCount).map((receipt) => ({
     id: receipt.id,
     route: receipt.identity?.route,
@@ -473,6 +474,8 @@ function receiptSummary(config) {
 }
 
 export function classifyLiveJourneyReport(report, resultStatus, config, receipts) {
+  const unresolved = receipts.some((receipt) => receipt.state !== "settled");
+  if (unresolved && resultStatus !== 1) fail("Unresolved spend may only be projected from a failed child.");
   const diagnostic = findLiveJourneyDiagnostic(report);
   if (diagnostic) {
     if (resultStatus === 0) fail("A live diagnostic failure marker cannot accompany a successful child exit.");
@@ -490,6 +493,7 @@ export function classifyLiveJourneyReport(report, resultStatus, config, receipts
       };
     }
     if (diagnostic.primaryStatus === "inconclusive") {
+      if (unresolved) fail("Unresolved spend cannot be reported as INCONCLUSIVE.");
       return {
         exitCode: 2,
         receipt: {
@@ -522,6 +526,7 @@ export function classifyLiveJourneyReport(report, resultStatus, config, receipts
   }
   const inconclusive = findInconclusive(report);
   if (inconclusive) {
+    if (unresolved) fail("Unresolved spend cannot be reported as INCONCLUSIVE.");
     return {
       exitCode: 2,
       receipt: {
@@ -655,7 +660,7 @@ module.exports = defineConfig({
     });
     if (result.error || result.signal) fail("The live child exceeded its bounded execution window; logout is not verified and operator action is required.");
     const report = parseJsonReport(result, "live journey");
-    const receipts = receiptSummary(config);
+    const receipts = receiptSummary(config, { failureProjection: result.status === 1 });
     const classified = classifyLiveJourneyReport(report, result.status, config, receipts);
     const mapDiagnostics = comparisonMapDiagnosticsFromReport(report);
     if (mapDiagnostics.length) classified.receipt.mapDiagnostics = mapDiagnostics;
