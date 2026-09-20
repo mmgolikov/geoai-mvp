@@ -67,6 +67,9 @@ try {
     scope,
     plan.map(({ route, depth, reserveUsd }) => ({ route, depth, reserveUsd }))
   ])), {
+    "quality20-analyse": [{ route: "ai", depth: null, reserveUsd: RESERVE_USD.ai }],
+    "quality20-find": [],
+    "quality20-create": [{ route: "create", depth: "standard", reserveUsd: RESERVE_USD.create }],
     journey: [
       { route: "ai", depth: "standard", reserveUsd: RESERVE_USD.ai },
       { route: "create", depth: "standard", reserveUsd: RESERVE_USD.create }

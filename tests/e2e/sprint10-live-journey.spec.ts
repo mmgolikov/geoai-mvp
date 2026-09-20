@@ -60,7 +60,7 @@ test.describe.configure({ mode: "serial", retries: 0 });
 const CAVEAT = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
 const EXACT_DEVELOPMENT_PROJECT_REF = "pphdqkurxneyagvnnjdt";
 const EXPECTED_LEDGER_ID = "5aa405b3-bbda-48aa-aeea-ca3357be4042";
-const LIVE_SCOPES = [
+const LIVE_SCOPES: readonly Sprint10LiveScope[] = [
   "journey", "dubai-analyse", "dubai-find", "singapore-create",
   "singapore-analyse", "singapore-find", "dubai-create", "dubai-depth-cycle"
 ] as const;

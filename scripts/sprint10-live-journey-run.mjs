@@ -33,15 +33,20 @@ import {
   validateSprint10DepthCycleEvidencePath
 } from "../tests/e2e/helpers/sprint10-depth-cycle-evidence.ts";
 import { findLiveJourneyDiagnostic } from "./sprint10-live-journey-diagnostics.mjs";
+import { loadQuality20Selection, quality20ApprovalSuffix, validateQuality20Ledger } from "../tests/e2e/helpers/quality20-frozen-case.ts";
 
 const exactDevelopmentProjectRef = "pphdqkurxneyagvnnjdt";
 const exactLedgerId = "5aa405b3-bbda-48aa-aeea-ca3357be4042";
 const exactExplicitRun = "root-paid-live-journey-2026-09-18";
 const acceptedScopes = new Set([
   "journey", "dubai-analyse", "dubai-find", "singapore-create",
-  "singapore-analyse", "singapore-find", "dubai-create", "dubai-depth-cycle"
+  "singapore-analyse", "singapore-find", "dubai-create", "dubai-depth-cycle",
+  "quality20-analyse", "quality20-find", "quality20-create"
 ]);
 export const LIVE_SCOPE_RECEIPT_PLAN = Object.freeze({
+  "quality20-analyse": Object.freeze([Object.freeze({ route: "ai", depth: null, reserveUsd: RESERVE_USD.ai })]),
+  "quality20-find": Object.freeze([]),
+  "quality20-create": Object.freeze([Object.freeze({ route: "create", depth: "standard", reserveUsd: RESERVE_USD.create })]),
   journey: Object.freeze([
     Object.freeze({ route: "ai", depth: "standard", reserveUsd: RESERVE_USD.ai }),
     Object.freeze({ route: "create", depth: "standard", reserveUsd: RESERVE_USD.create })
@@ -312,6 +317,10 @@ function preflight(repositoryRoot) {
   const commit = required("GEOAI_SPRINT10_LIVE_EXPECTED_COMMIT_SHA").trim().toLowerCase();
   if (!/^[0-9a-f]{40}$/.test(commit)) fail("The expected Preview release identity must be one exact Git SHA.");
   validateLocalCheckout(repositoryRoot, commit);
+  const quality20 = loadQuality20Selection(process.env, scope, { commit, origin: previewUrl });
+  // Phase 1 provides an offline-runnable binding contract only. Do not let a new scope
+  // fall through the older UI dispatcher and accidentally report empty coverage as PASS.
+  if (quality20) fail("QUALITY20_BLOCKED: Phase 2 UI dispatch is not implemented in this commit; NOT RUN.");
   if (required("GEOAI_SPRINT10_LIVE_SUPABASE_PROJECT_REF") !== exactDevelopmentProjectRef) {
     fail("The journey is restricted to the exact development Supabase Auth project.");
   }
@@ -325,10 +334,11 @@ function preflight(repositoryRoot) {
   const ledgerRoot = required("GEOAI_SPRINT10_LIVE_LEDGER_ROOT");
   const ledgerPath = required("GEOAI_SPRINT10_LIVE_LEDGER_PATH");
   const ledger = validateLiveLedgerPreflight(ledgerRoot, ledgerPath, scope);
+  if (quality20) validateQuality20Ledger(quality20, ledger.receipts);
   const receiptPath = required("GEOAI_SPRINT10_LIVE_DEPLOYMENT_RECEIPT_PATH");
   validateReceipt(receiptPath, previewUrl, commit);
   const approval = required("GEOAI_SPRINT10_LIVE_RUN_APPROVAL");
-  if (approval !== `paid-live-journey:${exactLedgerId}:${target.hostname}:${commit}:${scope}`) {
+  if (approval !== `paid-live-journey:${exactLedgerId}:${target.hostname}:${commit}:${scope}${quality20ApprovalSuffix(quality20)}`) {
     fail("The root run approval is not bound to this exact ledger, host, commit and scope.");
   }
   return {
@@ -339,6 +349,7 @@ function preflight(repositoryRoot) {
     ledgerRoot,
     ledgerPath,
     baselineReceiptCount: ledger.receipts.length,
+    quality20,
     analysisEvidenceEnvironment,
     depthCycleEvidenceEnvironment
   };
