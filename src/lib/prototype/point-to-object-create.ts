@@ -726,8 +726,19 @@ function polygonInsideAoi(candidate: MetricPoint[], rings: MetricPoint[][], setb
   if (!candidate.every((point) => pointInPolygon(point, rings))) return false;
   const candidateEdges = polygonEdges(candidate);
   for (const boundary of rings) {
+    const boundaryEdges = polygonEdges(boundary);
     for (const [candidateStart, candidateEnd] of candidateEdges) {
-      for (const [boundaryStart, boundaryEnd] of polygonEdges(boundary)) {
+      // Axis separation is a conservative lower bound on segment distance. Skip only
+      // pairs beyond both setback and intersection tolerance; retain the exact narrow
+      // phase (and its original floating-point predicates) for every remaining pair.
+      const clearance = Math.max(setbackM, GEOMETRY_EPSILON_M) + GEOMETRY_EPSILON_M;
+      const minX = Math.min(candidateStart.x, candidateEnd.x) - clearance;
+      const maxX = Math.max(candidateStart.x, candidateEnd.x) + clearance;
+      const minY = Math.min(candidateStart.y, candidateEnd.y) - clearance;
+      const maxY = Math.max(candidateStart.y, candidateEnd.y) + clearance;
+      for (const [boundaryStart, boundaryEnd] of boundaryEdges) {
+        if (Math.max(boundaryStart.x, boundaryEnd.x) < minX || Math.min(boundaryStart.x, boundaryEnd.x) > maxX ||
+            Math.max(boundaryStart.y, boundaryEnd.y) < minY || Math.min(boundaryStart.y, boundaryEnd.y) > maxY) continue;
         if (segmentsIntersect(candidateStart, candidateEnd, boundaryStart, boundaryEnd)) return false;
         if (segmentDistance(candidateStart, candidateEnd, boundaryStart, boundaryEnd) + GEOMETRY_EPSILON_M < setbackM) return false;
       }
@@ -889,8 +900,17 @@ function findLargestEnvelope(
   candidates.sort((left, right) => pointDistance(left, target) - pointDistance(right, target));
   const maximumArea = Math.max(1, (bounds.maxX - bounds.minX) * (bounds.maxY - bounds.minY) * 1.5);
   let best: OrientedRectangle | null = null;
+  let bestSearchArea = 0;
   for (const candidate of candidates) {
     if (!pointInPolygon(candidate, rings)) continue;
+    // Fixed-centre, fixed-aspect rectangles are nested as area increases. If this
+    // centre cannot fit the best binary-search area already found, no larger
+    // rectangle here can win. Keep the original binary grid for surviving centres
+    // so tie ordering, selected coordinates and floating-point outputs stay intact.
+    if (bestSearchArea > 0) {
+      const width = Math.sqrt(bestSearchArea * aspectRatio);
+      if (!polygonInsideAoi(orientedRectangle(candidate, width, bestSearchArea / Math.max(width, Number.EPSILON), angle).points, rings, setbackM)) continue;
+    }
     let low = 0;
     let high = maximumArea;
     for (let iteration = 0; iteration < binaryIterations; iteration += 1) {
@@ -905,7 +925,10 @@ function findLargestEnvelope(
     const width = Math.sqrt(low * aspectRatio);
     const height = low / width;
     const rectangle = orientedRectangle(candidate, width, height, angle);
-    if (!best || width * height > best.width * best.height) best = rectangle;
+    if (!best || width * height > best.width * best.height) {
+      best = rectangle;
+      bestSearchArea = low;
+    }
   }
   return best;
 }
