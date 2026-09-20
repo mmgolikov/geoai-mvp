@@ -1,6 +1,18 @@
 # QUALITY20 integration checkpoint
 
-## Current candidate checkpoint — 20 September 18:24 UTC
+## Current candidate checkpoint — 20 September 19:03 UTC
+
+Main and Production are unchanged. Full release acceptance remains open. Shared Codex usage58% against original17% and absolute ceiling62%; only bounded correctness/acceptance work remains. API ledger119 after57 receipts accounts USD6.1481331 of15, including separately approved conservative reserves.
+
+- Exact protected a2391cdd completed all three CI jobs (35529244402), including product browser, optimized HTTPS WebKit, database replay/isolation and anonymous protection.
+- On exact a239, three construction Find candidates completed real source/footprints/comparison/AI/local-save/reopen/return; Singapore Find and Create also passed. Development baseline plus Standard/Deep/Quick passed real requests, correct depth state, local save and zero-new-AI reopen. Scope receipts: NJUbWl, EX3v5C, T2HDQq, QiWuU9 under `/private/tmp/geoai-preview-receipt-*`.
+- Independent code-delta review confirms the earlier six Create programme/AOI and three-hotel Find functional receipts remain applicable to a239: only construction semantic classification/copy changed in product code after908/e12. This does not convert limited examples into the full planned matrix.
+- Independent current Development content review accepted Standard/Deep within partial-source limits. Quick's generic recovered answer and inconsistent non-authoritative-source severity required a narrow correction. Product commit18f730b extends the existing canonical recovery only to broad preset Development questions and fixes that one source-risk to the server default medium.114 synthetic EN/RU cases, failure guards, depth contracts and root lint PASS. Fresh deployed live acceptance and CI for this change are still required. All original failure records are retained.
+- The earlier claim that a fresh-writer continuation could reopen the original cloud artifact was wrong: artifacts are creator-private by design. The original one-write/clean-same-writer-import evidence stands, final UI route acceptance remains open. New-identity continuation correctly returned no private artifact. No RLS change, duplicate write or row ownership change was made; original retained, scope/memberships disabled and personas retired. Exact permission for one additional marked copy with the normal same-writer path is pending.
+- Receipt49 fullUSD1.20 was explicitly approved and conservatively accounted without rewriting the unknown original. a239's later full depth cycle passed; the earlier transport root cause is still unknown, not declared fixed. New unknown unapproved charges still stop dispatch.
+- Confluence Current Product & Release26574901 v23 was updated/read back. Figma rendered-evidence authorization remains unresolved, not synchronized by assertion. Original24-analysis/five-area/12-object matrix, full frozen-source quality benchmark and Production post-deploy checks remain incomplete.
+
+## Historical checkpoint — 20 September 18:24 UTC
 
 Production and main remain unchanged. The release gate is **NOT ACCEPTED**. Current shared-account usage was56% at the last check; planned stop58%, absolute ceiling62%. API cap remains USD15.
 
