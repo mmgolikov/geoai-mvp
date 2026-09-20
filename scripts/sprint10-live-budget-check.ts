@@ -17,6 +17,8 @@ import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 // @ts-expect-error The Node transform-types runner requires the explicit TypeScript extension.
 import { SPRINT10_ANALYSIS_PROMPT_VERSION, SPRINT10_CREATE_PROMPT_VERSION, acquireSprint10LedgerLock, createSprint10SpendLedger, createSprint10SpendLedgerFile, markSprint10SpendUnknownFile, parseSprint10ProviderTelemetry, parseSprint10SpendLedger, readSprint10SpendLedgerFile, reserveSprint10Spend, reserveSprint10SpendFile, settleSprint10SpendFile, sprint10LedgerCharge, type Sprint10AttemptTelemetry, type Sprint10RequestIdentity, type Sprint10SpendTelemetry } from "../tests/e2e/helpers/sprint10-live-budget.ts";
+// @ts-expect-error The Node transform-types runner requires the explicit TypeScript extension.
+import { SPRINT10_LEGACY_ANALYSIS_PROMPT_VERSION, settleSprint10Spend, markSprint10SpendUnknown } from "../tests/e2e/helpers/sprint10-live-budget.ts";
 
 const node = process.execPath;
 const helperUrl = pathToFileURL(resolve("tests/e2e/helpers/sprint10-live-budget.ts")).href;
@@ -130,6 +132,73 @@ function payloadFor(request: Sprint10RequestIdentity, trace = [attempt()]): unkn
 const aiIdentity = identity({ requestKey: "S1.PAIRED.QUICK" });
 const telemetry = parseSprint10ProviderTelemetry(aiIdentity, payloadFor(aiIdentity));
 assert.ok(telemetry, "A complete pinned-rate provider receipt must pass.");
+
+// Entirely synthetic in-memory history. Never inspect or rewrite the actual
+// global ledger while certifying the V10-read / V11-dispatch boundary.
+const seed = reserveSprint10Spend(createSprint10SpendLedger(createdAt, ledgerId), aiIdentity, reserveAt);
+assert.ok(seed.ok);
+const settledSeed = settleSprint10Spend(seed.ledger, seed.receipt.id, aiIdentity, {
+  settledAt: settleAt, status: 200, resultHash: "a".repeat(64), telemetry
+});
+const historical = structuredClone(settledSeed);
+historical.receipts = Array.from({ length: 23 }, (_, index) => {
+  const receipt = structuredClone(settledSeed.receipts[0]!);
+  receipt.id = index + 1;
+  receipt.identity.requestKey = `S1.HISTORICAL.V10.${index + 1}`;
+  receipt.identity.promptVersion = SPRINT10_LEGACY_ANALYSIS_PROMPT_VERSION;
+  receipt.telemetry!.promptVersion = SPRINT10_LEGACY_ANALYSIS_PROMPT_VERSION;
+  return receipt;
+});
+historical.generation = 46;
+historical.estimatedOrReservedUsd = sprint10LedgerCharge(historical);
+const immutableHistory = JSON.stringify(historical);
+const parsedHistorical = parseSprint10SpendLedger(historical);
+assert.ok(parsedHistorical, "All 23 immutable V10 settled receipts must remain readable.");
+assert.equal(JSON.stringify(parsedHistorical), immutableHistory, "Historical versions, telemetry, order and charges must not be rewritten.");
+const currentIdentity = identity({ requestKey: "S4.CURRENT.V11.NEW" });
+const currentReservation = reserveSprint10Spend(parsedHistorical, currentIdentity, reserveAt);
+assert.ok(currentReservation.ok, "A settled V10 history must allow an exact current V11 reservation.");
+assert.equal(currentReservation.receipt.identity.promptVersion, "POINT_OBJECT_AI_PROMPT_V11_2026_09_20");
+assert.deepEqual(currentReservation.ledger.receipts.slice(0, 23), historical.receipts);
+assert.equal(currentReservation.ledger.estimatedOrReservedUsd, Number((historical.estimatedOrReservedUsd + 1.2).toFixed(8)));
+const currentTelemetry = parseSprint10ProviderTelemetry(currentIdentity, payloadFor(currentIdentity));
+assert.ok(currentTelemetry, "Current V11 provider/capture telemetry must pass.");
+const mixed = settleSprint10Spend(currentReservation.ledger, 24, currentIdentity, {
+  settledAt: settleAt, status: 200, resultHash: "b".repeat(64), telemetry: currentTelemetry
+});
+assert.ok(parseSprint10SpendLedger(mixed), "Mixed V10 historical and V11 current settled receipts must parse.");
+assert.deepEqual(mixed.receipts.slice(0, 23), historical.receipts);
+assert.equal(mixed.estimatedOrReservedUsd, Number((historical.estimatedOrReservedUsd + currentTelemetry.estimatedCostUsd).toFixed(8)));
+assert.equal(JSON.stringify(historical), immutableHistory, "New operations must leave the historical input untouched.");
+const legacyIdentity = { ...currentIdentity, requestKey: "S4.LEGACY.NEW.FORBIDDEN", promptVersion: SPRINT10_LEGACY_ANALYSIS_PROMPT_VERSION };
+assert.equal(reserveSprint10Spend(parsedHistorical, legacyIdentity, reserveAt).ok, false, "New V10 reservation is forbidden.");
+assert.equal(parseSprint10ProviderTelemetry(legacyIdentity, payloadFor(legacyIdentity)), null, "Live V10 provider parsing is forbidden even though stored V10 is readable.");
+for (const unsupported of ["POINT_OBJECT_AI_PROMPT_V9_2026_09_18", "POINT_OBJECT_AI_PROMPT_V10_2026_09_20", "POINT_OBJECT_AI_PROMPT_V12_2026_09_20"]) {
+  const corrupted: any = structuredClone(historical);
+  corrupted.receipts[0].identity.promptVersion = unsupported;
+  corrupted.receipts[0].telemetry.promptVersion = unsupported;
+  assert.equal(parseSprint10SpendLedger(corrupted), null, "Historical compatibility must not accept an unsupported version/date.");
+}
+const mismatchedHistorical = structuredClone(historical);
+mismatchedHistorical.receipts[0]!.telemetry!.promptVersion = SPRINT10_ANALYSIS_PROMPT_VERSION;
+assert.equal(parseSprint10SpendLedger(mismatchedHistorical), null, "Historical identity and telemetry must match exactly.");
+const corruptHistoricalProfile = structuredClone(historical);
+corruptHistoricalProfile.receipts[0]!.telemetry!.attemptTrace[0]!.reasoningEffort = "high";
+assert.equal(parseSprint10SpendLedger(corruptHistoricalProfile), null, "Historical read-back must retain the exact model/token profile checks.");
+const historicalPending = structuredClone(seed.ledger);
+historicalPending.receipts[0]!.identity.promptVersion = SPRINT10_LEGACY_ANALYSIS_PROMPT_VERSION;
+assert.ok(parseSprint10SpendLedger(historicalPending), "Unexpected historical pending entries must stay inspectable.");
+const pendingDecision = reserveSprint10Spend(historicalPending, currentIdentity, reserveAt);
+assert.ok(!pendingDecision.ok && pendingDecision.reason.includes("historical V10"), "Historical pending stops any new reservation pending explicit review.");
+assert.throws(() => settleSprint10Spend(historicalPending, 1, historicalPending.receipts[0]!.identity,
+  { settledAt: settleAt, status: 200, resultHash: "c".repeat(64), telemetry: historical.receipts[0]!.telemetry }), /identity is invalid/);
+assert.throws(() => markSprint10SpendUnknown(historicalPending, 1, historicalPending.receipts[0]!.identity, settleAt,
+  "response_unreadable"), /identity is invalid/, "Legacy pending must not be mutated by inference.");
+const legacyUnknown = markSprint10SpendUnknown(seed.ledger, 1, aiIdentity, settleAt, "response_unreadable");
+legacyUnknown.receipts[0]!.identity.promptVersion = SPRINT10_LEGACY_ANALYSIS_PROMPT_VERSION;
+assert.ok(parseSprint10SpendLedger(legacyUnknown), "Historical unknown-charge evidence must remain readable without forgiving its charge.");
+assert.equal(legacyUnknown.estimatedOrReservedUsd, 1.2);
+assert.equal(reserveSprint10Spend(legacyUnknown, currentIdentity, reserveAt).ok, false, "Historical unknown charges retain the existing stop.");
 
 const repairTrace = [
   attempt({ purpose: "initial", model: "gpt-5.6-luna", requestId: "resp_initial" }),

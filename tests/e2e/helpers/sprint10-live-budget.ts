@@ -20,8 +20,11 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "nod
 
 export const SPRINT10_CYCLE_ID = "GEOAI_FOUR_SPRINTS_2026_09_18" as const;
 export const SPRINT10_LIVE_CEILING_USD = 15 as const;
-export const SPRINT10_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V10_2026_09_18" as const;
+export const SPRINT10_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V11_2026_09_20" as const;
+// Exact immutable read-back compatibility only; never a new dispatch version.
+export const SPRINT10_LEGACY_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V10_2026_09_18" as const;
 export const SPRINT10_CREATE_PROMPT_VERSION = "POINT_OBJECT_CREATE_PROGRAM_V1_2026_09_04" as const;
+type Sprint10StoredPromptVersion = typeof SPRINT10_ANALYSIS_PROMPT_VERSION | typeof SPRINT10_LEGACY_ANALYSIS_PROMPT_VERSION | typeof SPRINT10_CREATE_PROMPT_VERSION;
 
 export type Sprint10Phase = "S1" | "S2" | "S3" | "S4";
 export type Sprint10Route = "ai" | "create";
@@ -41,7 +44,7 @@ export type Sprint10RequestIdentity = {
   candidateCommit: string;
   route: Sprint10Route;
   depth: Sprint10Depth;
-  promptVersion: typeof SPRINT10_ANALYSIS_PROMPT_VERSION | typeof SPRINT10_CREATE_PROMPT_VERSION;
+  promptVersion: Sprint10StoredPromptVersion;
   schemaVersion: 6 | null;
 };
 
@@ -63,7 +66,7 @@ export type Sprint10SpendTelemetry = {
   provider: "openai";
   route: Sprint10Route;
   depth: Sprint10Depth;
-  promptVersion: typeof SPRINT10_ANALYSIS_PROMPT_VERSION | typeof SPRINT10_CREATE_PROMPT_VERSION;
+  promptVersion: Sprint10StoredPromptVersion;
   schemaVersion: 6 | null;
   model: string;
   reasoningEffort: "low" | "medium" | "high";
@@ -198,7 +201,7 @@ function safeCandidateHost(host: string): boolean {
   return HOST_PATTERN.test(host) && host !== "geoai-mvp.vercel.app";
 }
 
-function parseIdentity(value: unknown): Sprint10RequestIdentity | null {
+function parseIdentity(value: unknown, allowHistorical = false): Sprint10RequestIdentity | null {
   const keys = ["requestKey", "phase", "candidateHost", "candidateCommit", "route", "depth", "promptVersion", "schemaVersion"];
   if (!record(value) || !exactKeys(value, keys) || typeof value.requestKey !== "string" ||
       !REQUEST_KEY_PATTERN.test(value.requestKey) || !validPhase(value.phase) ||
@@ -207,7 +210,8 @@ function parseIdentity(value: unknown): Sprint10RequestIdentity | null {
       !validRoute(value.route) || !validDepth(value.depth)) return null;
   const expectedPrompt = value.route === "ai" ? SPRINT10_ANALYSIS_PROMPT_VERSION : SPRINT10_CREATE_PROMPT_VERSION;
   const expectedSchema = value.route === "ai" ? 6 : null;
-  if (value.promptVersion !== expectedPrompt || value.schemaVersion !== expectedSchema) return null;
+  const acceptedHistorical = allowHistorical && value.route === "ai" && value.promptVersion === SPRINT10_LEGACY_ANALYSIS_PROMPT_VERSION;
+  if ((value.promptVersion !== expectedPrompt && !acceptedHistorical) || value.schemaVersion !== expectedSchema) return null;
   return { ...(value as Sprint10RequestIdentity) };
 }
 
@@ -303,7 +307,16 @@ export function parseSprint10ProviderTelemetry(
   identityValue: Sprint10RequestIdentity,
   payload: unknown
 ): Sprint10SpendTelemetry | null {
-  const identity = parseIdentity(identityValue);
+  return parseProviderTelemetry(identityValue, payload, false);
+}
+
+// Only immutable stored telemetry may opt into the exact historical identity.
+function parseProviderTelemetry(
+  identityValue: Sprint10RequestIdentity,
+  payload: unknown,
+  allowHistorical: boolean
+): Sprint10SpendTelemetry | null {
+  const identity = parseIdentity(identityValue, allowHistorical);
   if (!identity || !record(payload) || !record(payload.telemetry)) return null;
   const telemetry = payload.telemetry;
   if (identity.route === "ai") {
@@ -379,7 +392,7 @@ function parseStoredTelemetry(value: unknown, identity: Sprint10RequestIdentity)
   const payload = identity.route === "ai"
     ? { mode: "openai", schemaVersion: 6, telemetry: value }
     : { mode: "openai_concept", promptVersion: identity.promptVersion, telemetry: value };
-  return parseSprint10ProviderTelemetry(identity, payload);
+  return parseProviderTelemetry(identity, payload, true);
 }
 
 export function sprint10LedgerCharge(ledger: Pick<Sprint10SpendLedger, "receipts">): number {
@@ -408,7 +421,7 @@ function parseReceipt(value: unknown, id: number, ledgerId: string): Sprint10Rec
     "estimatedUsd", "telemetry", "resultHash", "unknownReason"];
   if (!record(value) || !exactKeys(value, keys) || value.id !== id || value.ledgerId !== ledgerId ||
       !validIso(value.createdAt) || !record(value.identity)) return null;
-  const identity = parseIdentity(value.identity);
+  const identity = parseIdentity(value.identity, true);
   if (!identity || value.reserveUsd !== RESERVE_USD[identity.route] ||
       !["reserved", "settled", "unknown"].includes(String(value.state)) ||
       !(value.settledAt === null || validIso(value.settledAt)) ||
@@ -472,6 +485,10 @@ export function reserveSprint10Spend(
   const identity = parseIdentity(identityValue);
   if (!ledger) return { ok: false, reason: "The cycle-root ledger is malformed or corrupt." };
   if (!identity) return { ok: false, reason: "The immutable request identity is invalid." };
+  if (ledger.receipts.some((receipt) => receipt.state === "reserved" && receipt.identity.route === "ai" &&
+      receipt.identity.promptVersion === SPRINT10_LEGACY_ANALYSIS_PROMPT_VERSION)) {
+    return { ok: false, reason: "An unresolved historical V10 reservation requires explicit review before new dispatch." };
+  }
   if (!validIso(createdAt) || Date.parse(createdAt) < Date.parse(ledger.createdAt)) {
     return { ok: false, reason: "The reservation time is invalid or predates the root ledger." };
   }
