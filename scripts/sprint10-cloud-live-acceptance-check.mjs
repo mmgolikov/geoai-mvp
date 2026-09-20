@@ -11,6 +11,7 @@ import {
   browserEnvironment,
   cloudLiveArtifactExpectation,
   cloudLiveContinuationMode,
+  cloudLiveCopyMode,
   operatorSql,
   parseOperatorReceipt,
   preflightCloudLiveArtifactInput,
@@ -24,6 +25,11 @@ import {
   parseBrowserReport,
   validateBrowserReport
 } from "./sprint10-cloud-live-browser-run.mjs";
+import {
+  CLOUD_LIVE_COPY_LABEL_MARKER,
+  CLOUD_LIVE_COPY_OPT_IN,
+  cloudLiveCopyApproval
+} from "./sprint10-cloud-live-artifact-input.mjs";
 import { runHostedProbe } from "./sprint10-hosted-auth-probe.mjs";
 
 const root = resolve(new URL("..", import.meta.url).pathname);
@@ -201,6 +207,7 @@ try {
   assert.equal(preflightCloudLiveArtifactInput(artifactEnv)?.envelope.sourceFeatureId, "relation/14604314");
   assert.deepEqual(cloudLiveArtifactExpectation(preflightCloudLiveArtifactInput(artifactEnv)), {
     expectedArtifactId: "artifact-public-analysis",
+    expectedArtifactIdempotencyKey: "operation-public-analysis",
     expectedArtifactPayloadHash: "a".repeat(64)
   });
   assert.throws(() => preflightCloudLiveArtifactInput({ ...artifactEnv, GEOAI_QUALITY20_CLOUD_ARTIFACT_SHA256: undefined }), /supplied together/);
@@ -246,6 +253,57 @@ try {
   assert.equal(continuationEnvironment.GEOAI_CLOUD_LIVE_CONTINUE_SOURCE_COMMIT_SHA, sourceCommit);
   assert.equal(continuationEnvironment.GEOAI_CLOUD_LIVE_CONTINUE_SOURCE_HOST, sourceHost);
   assert.throws(() => browserEnvironment(continuationEnv, authConfig, target, browserPersonas, "writer_outsider"), /restricted to continuation/);
+  const copyArtifactId = "artifact-marked-cloud-copy-20260921";
+  const copyIdempotencyKey = "operation-marked-cloud-copy-20260921";
+  const sourceFileSha256 = createHash("sha256").update(historicalArtifactBytes).digest("hex");
+  const copyEnv = {
+    ...artifactEnv,
+    GEOAI_QUALITY20_CLOUD_ARTIFACT_PATH: historicalArtifactPath,
+    GEOAI_QUALITY20_CLOUD_ARTIFACT_SHA256: sourceFileSha256,
+    GEOAI_CLOUD_LIVE_CONTINUE_SOURCE_COMMIT_SHA: sourceCommit,
+    GEOAI_CLOUD_LIVE_CONTINUE_SOURCE_HOST: sourceHost,
+    GEOAI_CLOUD_LIVE_COPY_EXISTING_ARTIFACT: CLOUD_LIVE_COPY_OPT_IN,
+    GEOAI_CLOUD_LIVE_COPY_SOURCE_FILE_SHA256: sourceFileSha256,
+    GEOAI_CLOUD_LIVE_COPY_SOURCE_ARTIFACT_ID: artifactEnvelope.artifact.artifactId,
+    GEOAI_CLOUD_LIVE_COPY_SOURCE_IDEMPOTENCY_KEY: artifactEnvelope.artifact.idempotencyKey,
+    GEOAI_CLOUD_LIVE_COPY_SOURCE_PAYLOAD_HASH: artifactEnvelope.payloadHash,
+    GEOAI_CLOUD_LIVE_COPY_ARTIFACT_ID: copyArtifactId,
+    GEOAI_CLOUD_LIVE_COPY_IDEMPOTENCY_KEY: copyIdempotencyKey,
+    GEOAI_CLOUD_LIVE_COPY_LABEL_MARKER: CLOUD_LIVE_COPY_LABEL_MARKER
+  };
+  copyEnv.GEOAI_CLOUD_LIVE_COPY_APPROVAL = cloudLiveCopyApproval({
+    runtimeCommit: authConfig.expectedCommitSha,
+    runtimeHost: target.previewHost,
+    sourceFileSha256,
+    sourceCommit,
+    sourceHost,
+    sourceArtifactId: artifactEnvelope.artifact.artifactId,
+    sourceIdempotencyKey: artifactEnvelope.artifact.idempotencyKey,
+    sourcePayloadHash: artifactEnvelope.payloadHash,
+    artifactId: copyArtifactId,
+    idempotencyKey: copyIdempotencyKey,
+    labelMarker: CLOUD_LIVE_COPY_LABEL_MARKER
+  });
+  const historicalBytesBeforeCopyPreflight = readFileSync(historicalArtifactPath);
+  const copyInput = preflightCloudLiveArtifactInput(copyEnv);
+  assert.equal(cloudLiveCopyMode(copyEnv, copyInput), true);
+  assert.equal(cloudLiveContinuationMode(copyEnv, copyInput), false);
+  assert.equal(copyInput.envelope.artifact.artifactId, "artifact-public-analysis");
+  assert.equal(copyInput.artifact.artifactId, copyArtifactId);
+  assert.equal(copyInput.artifact.idempotencyKey, copyIdempotencyKey);
+  assert.equal(copyInput.artifact.payloadHash, artifactEnvelope.payloadHash);
+  assert.equal(copyInput.artifact.label, `${CLOUD_LIVE_COPY_LABEL_MARKER} ${artifactEnvelope.artifact.label}`);
+  assert.deepEqual(readFileSync(historicalArtifactPath), historicalBytesBeforeCopyPreflight);
+  assert.throws(() => cloudLiveCopyMode({
+    ...copyEnv,
+    GEOAI_CLOUD_LIVE_CONTINUE_EXISTING_ARTIFACT: "continue-existing-artifact-v1"
+  }, copyInput), /cannot reuse continuation/);
+  const copyBrowserEnvironment = browserEnvironment(copyEnv, authConfig, target, browserPersonas, "writer_outsider");
+  assert.equal(copyBrowserEnvironment.GEOAI_CLOUD_LIVE_COPY_EXISTING_ARTIFACT, CLOUD_LIVE_COPY_OPT_IN);
+  assert.equal(copyBrowserEnvironment.GEOAI_CLOUD_LIVE_COPY_ARTIFACT_ID, copyArtifactId);
+  assert.equal(copyBrowserEnvironment.GEOAI_CLOUD_LIVE_CONTINUE_SOURCE_COMMIT_SHA, sourceCommit);
+  assert.equal(Object.hasOwn(browserEnvironment(copyEnv, authConfig, target, browserPersonas, "viewer_denial"),
+    "GEOAI_CLOUD_LIVE_COPY_EXISTING_ARTIFACT"), false);
   const dynamicOperatorTargets = [];
   const dynamicPass = runCloudAcceptance(authConfig, personas, target, {
     env: artifactEnv,
@@ -256,10 +314,12 @@ try {
   assert.deepEqual(dynamicOperatorTargets.map(({ stage, operatorTarget }) => ({
     stage,
     artifactId: operatorTarget.expectedArtifactId,
+    idempotencyKey: operatorTarget.expectedArtifactIdempotencyKey,
     payloadHash: operatorTarget.expectedArtifactPayloadHash
   })), ["preflight", "activate_writer", "activate_viewer", "cleanup"].map((stage) => ({
     stage,
     artifactId: "artifact-public-analysis",
+    idempotencyKey: "operation-public-analysis",
     payloadHash: "a".repeat(64)
   })));
   const continuationCalls = [];
@@ -275,14 +335,46 @@ try {
   ]);
   const continuationTargets = continuationCalls.filter((call) => call.kind === "operator").map((call) => call.operatorTarget);
   assert.equal(continuationTargets.every((operatorTarget) => operatorTarget.continueExistingArtifact === true &&
-    operatorTarget.expectedArtifactId === "artifact-public-analysis" && operatorTarget.expectedArtifactPayloadHash === "a".repeat(64)), true);
+    operatorTarget.expectedArtifactId === "artifact-public-analysis" &&
+    operatorTarget.expectedArtifactIdempotencyKey === "operation-public-analysis" &&
+    operatorTarget.expectedArtifactPayloadHash === "a".repeat(64)), true);
   assert.equal(continuationTargets.at(-1).requireArtifact, true);
   const continuationPreflight = operatorSql("preflight", continuationTargets[0], personas);
   assert.match(continuationPreflight, /exact existing artifact is unavailable/);
-  assert.match(continuationPreflight, /artifact_id = 'artifact-public-analysis' and client_payload_hash = '[a]{64}'/);
+  assert.match(continuationPreflight, /artifact_id = 'artifact-public-analysis' and idempotency_key = 'operation-public-analysis' and client_payload_hash = '[a]{64}'/);
   const continuationViewer = operatorSql("activate_viewer", continuationTargets[2], personas);
-  assert.match(continuationViewer, /artifact_id = 'artifact-public-analysis' and client_payload_hash = '[a]{64}'/);
+  assert.match(continuationViewer, /artifact_id = 'artifact-public-analysis' and idempotency_key = 'operation-public-analysis' and client_payload_hash = '[a]{64}'/);
   assert.doesNotMatch(continuationViewer, /artifact_id = 'artifact-public-analysis'[^;]*created_by/);
+  const copyCalls = [];
+  const copyPass = runCloudAcceptance(authConfig, personas, target, {
+    env: copyEnv,
+    runOperator(stage, operatorTarget) { copyCalls.push({ kind: "operator", stage, operatorTarget }); return { stage, ok: true }; },
+    runBrowserPhase(_config, _target, _personas, browserPhase) { copyCalls.push({ kind: "browser", phase: browserPhase }); return { phase: browserPhase, status: "PASS" }; }
+  });
+  assert.equal(copyPass.mode, "marked_existing_artifact_copy_writer");
+  assert.deepEqual(copyCalls.map((call) => call.kind === "operator" ? `operator:${call.stage}` : `browser:${call.phase}`), [
+    "operator:preflight", "operator:activate_writer", "browser:writer_outsider",
+    "operator:activate_viewer", "browser:viewer_denial", "operator:cleanup"
+  ]);
+  const copyTargets = copyCalls.filter((call) => call.kind === "operator").map((call) => call.operatorTarget);
+  assert.equal(copyTargets.every((operatorTarget) => operatorTarget.copyExistingArtifact === true &&
+    operatorTarget.continueExistingArtifact === false && operatorTarget.expectedArtifactId === copyArtifactId &&
+    operatorTarget.expectedArtifactIdempotencyKey === copyIdempotencyKey &&
+    operatorTarget.copySourceArtifactId === "artifact-public-analysis" &&
+    operatorTarget.copySourceIdempotencyKey === "operation-public-analysis" &&
+    operatorTarget.copySourcePayloadHash === "a".repeat(64)), true);
+  assert.equal(copyTargets.at(-1).requireArtifact, true);
+  const copyPreflightSql = operatorSql("preflight", copyTargets[0], personas);
+  assert.match(copyPreflightSql, /exact approved source artifact is unavailable or belongs to the new writer/);
+  assert.match(copyPreflightSql, /marked-copy target identity is not pristine/);
+  assert.match(copyPreflightSql, /artifact_id = 'artifact-public-analysis'[\s\S]*idempotency_key = 'operation-public-analysis'[\s\S]*created_by <> '99400000-0000-4000-8000-000000000001'::uuid/);
+  assert.match(copyPreflightSql, /artifact_id = 'artifact-marked-cloud-copy-20260921' or idempotency_key = 'operation-marked-cloud-copy-20260921'/);
+  const copyViewerSql = operatorSql("activate_viewer", copyTargets[2], personas);
+  assert.match(copyViewerSql, /artifact_id = 'artifact-marked-cloud-copy-20260921'[\s\S]*created_by = '99400000-0000-4000-8000-000000000001'::uuid/);
+  assert.match(copyViewerSql, /artifact_id = 'artifact-public-analysis'[\s\S]*created_by <> '99400000-0000-4000-8000-000000000001'::uuid/);
+  const copyCleanupSql = operatorSql("cleanup", copyTargets[3], personas);
+  assert.match(copyCleanupSql, /artifact_id = 'artifact-marked-cloud-copy-20260921'[\s\S]*created_by = '99400000-0000-4000-8000-000000000001'::uuid/);
+  assert.match(copyCleanupSql, /artifact_id = 'artifact-public-analysis'[\s\S]*created_by <> '99400000-0000-4000-8000-000000000001'::uuid/);
   assert.equal(validateCloudLiveConfig(env, authConfig).projectKey, target.projectKey);
   assert.throws(() => validateCloudLiveConfig({ ...env, GEOAI_CLOUD_LIVE_PROJECT_KEY: "private-project" }, authConfig));
   let terminalFailure;
@@ -562,6 +654,8 @@ assert.match(harness, /paidAiCalls: 0/);
 assert.match(runner, /trace: "off", screenshot: "off", video: "off"/);
 assert.match(runner, /--grep=\$\{browserTitlePattern\(title\)\}/);
 assert.doesNotMatch(runner, /--grep=\^\$\{title\}\$/);
+assert.match(runner, /marked-artifact-copy\.json/);
+assert.match(runner, /GEOAI_CLOUD_LIVE_COPY_ACTIVE: "1"/);
 assert.match(spec, /writer saves, clean context reopens, outsider is denied/);
 assert.match(spec, /viewer cannot save/);
 for (const stage of [...browserProgressStages.writer_outsider, ...browserProgressStages.viewer_denial]) {
@@ -573,6 +667,9 @@ assert.match(pointObjectI18n, /"map\.ready\.find": "Live map ready\. Set criteri
 assert.match(spec, /getByText\("Live map ready\. Set criteria and search the visible area\."/);
 assert.doesNotMatch(spec, /progress\("writer_map"\)/);
 assert.match(spec, /localStorage\.getItem\(key\)[\s\S]*toBe\(originalBytes\)/);
+assert.match(spec, /expect\(firstPuts \+ secondPuts\)\.toBe\(1\)/);
+assert.match(spec, /expect\(firstAiPosts \+ secondAiPosts\)\.toBe\(0\)/);
+assert.match(spec, /\[MARKED TEST COPY 2026-09-21\]/);
 assert.match(spec, /expect\(\(await put\)\.status\(\)\)\.toBe\(403\)/);
 assert.match(spec, /getByTestId\("point-object-projects-page"\)\.getByRole\("alert"\)/,
   "viewer error must be scoped away from Next route-announcer alerts");

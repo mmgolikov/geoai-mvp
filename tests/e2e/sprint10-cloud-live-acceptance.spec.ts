@@ -17,6 +17,8 @@ const artifactPath = process.env.GEOAI_QUALITY20_CLOUD_ARTIFACT_PATH ?? "";
 const artifactSha256 = process.env.GEOAI_QUALITY20_CLOUD_ARTIFACT_SHA256 ?? "";
 const artifactSourceCommit = process.env.GEOAI_CLOUD_LIVE_CONTINUE_SOURCE_COMMIT_SHA ?? "";
 const artifactSourceHost = process.env.GEOAI_CLOUD_LIVE_CONTINUE_SOURCE_HOST ?? "";
+const copyActive = process.env.GEOAI_CLOUD_LIVE_COPY_ACTIVE === "1";
+const copyExpectedLabel = process.env.GEOAI_CLOUD_LIVE_COPY_EXPECTED_LABEL ?? "";
 
 test.skip(!active, "Root-only cloud-live acceptance is absent from default browser execution.");
 
@@ -206,7 +208,10 @@ test.beforeAll(() => {
   guard(active && ["writer_outsider", "continue_existing_outsider", "viewer_denial"].includes(phase), "Cloud-live spec is disabled by default.");
   guard(previewBypass.length >= 16 && previewUrl.startsWith("https://"), "Protected Preview settings are incomplete.");
   guard(Boolean(artifactSourceCommit) === Boolean(artifactSourceHost), "Historical artifact source tuple is incomplete.");
-  guard(!artifactSourceCommit || phase === "continue_existing_outsider", "Historical artifact source tuple is restricted to continuation.");
+  guard(!artifactSourceCommit || phase === "continue_existing_outsider" || copyActive,
+    "Historical artifact source tuple is restricted to continuation or marked-copy mode.");
+  guard(!copyActive || (phase === "writer_outsider" && copyExpectedLabel.startsWith("[MARKED TEST COPY 2026-09-21] ")),
+    "Marked-copy browser input is incomplete.");
 });
 
 test("writer saves, clean context reopens, outsider is denied", async ({ browser }) => {
@@ -255,11 +260,18 @@ test("writer saves, clean context reopens, outsider is denied", async ({ browser
     }
     const first = await newContext(browser); contexts.push(first.context);
     await verifyPreview(first.page);
+    if (copyActive) {
+      expect(artifact.label).toBe(copyExpectedLabel);
+      expect(artifact.label.startsWith("[MARKED TEST COPY 2026-09-21] ")).toBe(true);
+    }
     const originalBytes = fixtureStore(personaA.userId, artifact);
     const aResponses: number[] = [];
     let firstPuts = 0;
+    let firstAiPosts = 0;
     first.page.on("request", (request) => {
-      if (request.method() === "PUT" && new URL(request.url()).pathname === cloudPath) firstPuts += 1;
+      const pathname = new URL(request.url()).pathname;
+      if (request.method() === "PUT" && pathname === cloudPath) firstPuts += 1;
+      if (request.method() === "POST" && pathname === "/api/prototype/point-to-object/ai") firstAiPosts += 1;
     });
     first.page.on("response", (response) => { if (new URL(response.url()).pathname === cloudPath) aResponses.push(response.status()); });
     progress("writer_login");
@@ -274,6 +286,7 @@ test("writer saves, clean context reopens, outsider is denied", async ({ browser
     await expect(first.page.getByText(/selected project is saved to the protected cloud test environment/i)).toBeVisible();
     expect(await first.page.evaluate((key) => localStorage.getItem(key), storageKey(personaA.userId))).toBe(originalBytes);
     expect(firstPuts).toBe(1);
+    expect(firstAiPosts).toBe(0);
     expect(aResponses.filter((status) => status === 201)).toHaveLength(1);
     first.assertNetworkClean();
 
@@ -307,6 +320,8 @@ test("writer saves, clean context reopens, outsider is denied", async ({ browser
     progress("writer_map_no_put");
     expect(secondPuts).toBe(0);
     expect(secondAiPosts).toBe(0);
+    expect(firstPuts + secondPuts).toBe(1);
+    expect(firstAiPosts + secondAiPosts).toBe(0);
     progress("writer_map_network_clean");
     second.assertNetworkClean();
 

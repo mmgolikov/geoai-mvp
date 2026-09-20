@@ -6,7 +6,10 @@ import { dirname, isAbsolute, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 import { isBrowserFailureStage } from "./sprint10-cloud-live-browser-run.mjs";
-import { readCloudLiveRealArtifactInput } from "./sprint10-cloud-live-artifact-input.mjs";
+import {
+  CLOUD_LIVE_COPY_OPT_IN,
+  readCloudLiveRealArtifactInput
+} from "./sprint10-cloud-live-artifact-input.mjs";
 
 const PROJECT_REF = "pphdqkurxneyagvnnjdt";
 const MIGRATION_VERSION = "20260918203424";
@@ -14,6 +17,7 @@ const EXPLICIT_RUN = "root-only-cloud-live-acceptance-v1";
 const CONTINUATION_OPT_IN = "continue-existing-artifact-v1";
 const MAX_BACKUP_AGE_MS = 30 * 60 * 1_000;
 const DEFAULT_ARTIFACT_ID = "artifact-cloud-live-public-1";
+const DEFAULT_ARTIFACT_IDEMPOTENCY_KEY = "operation-cloud-live-public-1";
 const DEFAULT_ARTIFACT_PAYLOAD_HASH = "cc8cdc0c9e255d1ec8b0145a6401ee3af1a78a7962d05f79bc7f205c2a0352c0";
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -114,15 +118,35 @@ export function operatorSql(stage, target, personas) {
   }
   assert.match(target.projectKey, projectKeyPattern);
   const expectedArtifactId = target.expectedArtifactId ?? DEFAULT_ARTIFACT_ID;
+  const expectedArtifactIdempotencyKey = target.expectedArtifactIdempotencyKey ?? DEFAULT_ARTIFACT_IDEMPOTENCY_KEY;
   const expectedArtifactPayloadHash = target.expectedArtifactPayloadHash ?? DEFAULT_ARTIFACT_PAYLOAD_HASH;
   assert(typeof expectedArtifactId === "string" && expectedArtifactId.length <= 160 && expectedArtifactId.trim().length > 0 &&
     expectedArtifactId === expectedArtifactId.trim() && !/[\u0000-\u001f\u007f]/.test(expectedArtifactId));
+  assert(typeof expectedArtifactIdempotencyKey === "string" && expectedArtifactIdempotencyKey.length <= 200 &&
+    expectedArtifactIdempotencyKey.trim().length > 0 && expectedArtifactIdempotencyKey === expectedArtifactIdempotencyKey.trim() &&
+    !/[\u0000-\u001f\u007f]/.test(expectedArtifactIdempotencyKey));
   assert.match(expectedArtifactPayloadHash, /^[a-f0-9]{64}$/);
   const expectedArtifactProjectExact = `project_id = ${sqlLiteral(target.projectId)}::uuid ` +
-    `and artifact_id = ${sqlLiteral(expectedArtifactId)} and client_payload_hash = ${sqlLiteral(expectedArtifactPayloadHash)}`;
+    `and artifact_id = ${sqlLiteral(expectedArtifactId)} and idempotency_key = ${sqlLiteral(expectedArtifactIdempotencyKey)} ` +
+    `and client_payload_hash = ${sqlLiteral(expectedArtifactPayloadHash)}`;
   const expectedArtifactExact = target.continueExistingArtifact === true
     ? expectedArtifactProjectExact
     : `${expectedArtifactProjectExact} and created_by = ${sqlLiteral(a.profileId)}::uuid`;
+  let copySourceExact = null;
+  if (target.copyExistingArtifact === true) {
+    for (const value of [target.copySourceArtifactId, target.copySourceIdempotencyKey]) {
+      assert(typeof value === "string" && value.trim().length > 0 && value === value.trim() && value.length <= 200 &&
+        !/[\u0000-\u001f\u007f]/.test(value));
+    }
+    assert.match(target.copySourcePayloadHash, /^[a-f0-9]{64}$/);
+    assert.notEqual(target.copySourceArtifactId, expectedArtifactId);
+    assert.notEqual(target.copySourceIdempotencyKey, expectedArtifactIdempotencyKey);
+    copySourceExact = `project_id = ${sqlLiteral(target.projectId)}::uuid ` +
+      `and artifact_id = ${sqlLiteral(target.copySourceArtifactId)} ` +
+      `and idempotency_key = ${sqlLiteral(target.copySourceIdempotencyKey)} ` +
+      `and client_payload_hash = ${sqlLiteral(target.copySourcePayloadHash)} ` +
+      `and created_by <> ${sqlLiteral(a.profileId)}::uuid`;
+  }
   const scopeExact = `organization_id = ${sqlLiteral(target.organizationId)}::uuid and project_id = ${sqlLiteral(target.projectId)}::uuid and project_key = ${sqlLiteral(target.projectKey)}`;
   if (stage === "preflight") return operatorEnvelope(stage, `
 do $check$
@@ -156,6 +180,13 @@ begin
   ${target.continueExistingArtifact === true ? `if (select count(*) from public.point_object_project_artifacts where ${expectedArtifactExact}) <> 1 then
     raise exception 'exact existing artifact is unavailable';
   end if;` : ""}
+  ${target.copyExistingArtifact === true ? `if (select count(*) from public.point_object_project_artifacts where ${copySourceExact}) <> 1 then
+    raise exception 'exact approved source artifact is unavailable or belongs to the new writer';
+  end if;
+  if exists (select 1 from public.point_object_project_artifacts where project_id = ${sqlLiteral(target.projectId)}::uuid
+      and (artifact_id = ${sqlLiteral(expectedArtifactId)} or idempotency_key = ${sqlLiteral(expectedArtifactIdempotencyKey)})) then
+    raise exception 'marked-copy target identity is not pristine';
+  end if;` : ""}
 end
 $check$;
 `);
@@ -179,6 +210,7 @@ end $verify$;
 do $verify$ begin
   if not exists (select 1 from geoai_private.point_object_artifact_scope_config where singleton and enabled and ${scopeExact})
      or not exists (select 1 from public.point_object_project_artifacts where ${expectedArtifactExact})
+     ${target.copyExistingArtifact === true ? `or (select count(*) from public.point_object_project_artifacts where ${copySourceExact}) <> 1` : ""}
      or exists (select 1 from public.project_memberships where project_id = ${sqlLiteral(target.projectId)}::uuid
        and user_id = ${sqlLiteral(b.profileId)}::uuid) then raise exception 'viewer stage prerequisites failed'; end if;
 end $verify$;
@@ -207,6 +239,7 @@ do $verify$ begin
      or exists (select 1 from public.organization_memberships where organization_id = ${sqlLiteral(target.organizationId)}::uuid
        and profile_id in (${sqlLiteral(a.profileId)}::uuid, ${sqlLiteral(b.profileId)}::uuid) and status = 'active')
      or (select count(*) from public.point_object_project_artifacts where ${expectedArtifactExact}) > 1
+     ${target.copyExistingArtifact === true ? `or (select count(*) from public.point_object_project_artifacts where ${copySourceExact}) <> 1` : ""}
      ${target.requireArtifact === true ? `or (select count(*) from public.point_object_project_artifacts where ${expectedArtifactExact}) <> 1` : ""} then
     raise exception 'cloud-live cleanup or retained artifact verification failed';
   end if;
@@ -265,15 +298,19 @@ export function preflightCloudLiveArtifactInput(env) {
 }
 
 export function cloudLiveArtifactExpectation(artifactInput) {
-  const artifact = artifactInput?.envelope?.artifact;
+  const artifact = artifactInput?.artifact;
   const expectedArtifactId = artifact?.artifactId ?? DEFAULT_ARTIFACT_ID;
+  const expectedArtifactIdempotencyKey = artifact?.idempotencyKey ?? DEFAULT_ARTIFACT_IDEMPOTENCY_KEY;
   const expectedArtifactPayloadHash = artifact?.payloadHash ?? DEFAULT_ARTIFACT_PAYLOAD_HASH;
   if (typeof expectedArtifactId !== "string" || expectedArtifactId.length > 160 || expectedArtifactId.trim().length === 0 ||
       expectedArtifactId !== expectedArtifactId.trim() || /[\u0000-\u001f\u007f]/.test(expectedArtifactId) ||
+      typeof expectedArtifactIdempotencyKey !== "string" || expectedArtifactIdempotencyKey.length > 200 ||
+      expectedArtifactIdempotencyKey.trim().length === 0 || expectedArtifactIdempotencyKey !== expectedArtifactIdempotencyKey.trim() ||
+      /[\u0000-\u001f\u007f]/.test(expectedArtifactIdempotencyKey) ||
       typeof expectedArtifactPayloadHash !== "string" || !/^[a-f0-9]{64}$/.test(expectedArtifactPayloadHash)) {
     fail("Expected cloud artifact identity is invalid.", "preflight");
   }
-  return { expectedArtifactId, expectedArtifactPayloadHash };
+  return { expectedArtifactId, expectedArtifactIdempotencyKey, expectedArtifactPayloadHash };
 }
 
 export function cloudLiveContinuationMode(env, artifactInput) {
@@ -283,10 +320,21 @@ export function cloudLiveContinuationMode(env, artifactInput) {
   if (optIn !== CONTINUATION_OPT_IN || !artifactInput) fail("Existing-artifact continuation requires its exact input and opt-in.", "preflight");
   const commit = required(env, "GEOAI_HOSTED_AUTH_PROBE_EXPECTED_COMMIT_SHA").trim().toLowerCase();
   const host = new URL(required(env, "GEOAI_REAL_PASSWORD_AUTH_PREVIEW_URL")).hostname;
-  const { artifactId, payloadHash } = artifactInput.envelope.artifact;
+  const { artifactId, payloadHash } = artifactInput.artifact;
   if (approval !== `cloud-live-existing-artifact:${PROJECT_REF}:${host}:${commit}:${artifactId}:${payloadHash}:` +
       `${artifactInput.sourceCommit}:${artifactInput.sourceHost}`) {
     fail("Existing-artifact continuation approval is not exact.", "preflight");
+  }
+  return true;
+}
+
+export function cloudLiveCopyMode(env, artifactInput) {
+  const configured = env.GEOAI_CLOUD_LIVE_COPY_EXISTING_ARTIFACT;
+  const continuationConfigured = env.GEOAI_CLOUD_LIVE_CONTINUE_EXISTING_ARTIFACT !== undefined ||
+    env.GEOAI_CLOUD_LIVE_CONTINUE_APPROVAL !== undefined;
+  if (configured === undefined && !artifactInput?.copy) return false;
+  if (configured !== CLOUD_LIVE_COPY_OPT_IN || !artifactInput?.copy || continuationConfigured) {
+    fail("Marked-copy mode requires its exact input and cannot reuse continuation mode.", "preflight");
   }
   return true;
 }
@@ -306,6 +354,7 @@ export function browserEnvironment(env, config, target, personas, phase) {
   const artifactInput = readCloudLiveRealArtifactInput(env, config.expectedCommitSha, target.previewHost, {
     allowHistoricalSource: continuation
   });
+  const copy = artifactInput?.copy ?? null;
   return {
     ...minimalEnvironment(env),
     GEOAI_E2E_BASE_URL: env.GEOAI_E2E_BASE_URL,
@@ -327,9 +376,20 @@ export function browserEnvironment(env, config, target, personas, phase) {
     ...(["writer_outsider", "continue_existing_outsider"].includes(phase) && artifactInput ? {
       GEOAI_QUALITY20_CLOUD_ARTIFACT_PATH: artifactInput.path,
       GEOAI_QUALITY20_CLOUD_ARTIFACT_SHA256: artifactInput.sha256,
-      ...(continuation && env.GEOAI_CLOUD_LIVE_CONTINUE_SOURCE_COMMIT_SHA ? {
+      ...((continuation || copy) && env.GEOAI_CLOUD_LIVE_CONTINUE_SOURCE_COMMIT_SHA ? {
         GEOAI_CLOUD_LIVE_CONTINUE_SOURCE_COMMIT_SHA: artifactInput.sourceCommit,
         GEOAI_CLOUD_LIVE_CONTINUE_SOURCE_HOST: artifactInput.sourceHost
+      } : {}),
+      ...(copy ? {
+        GEOAI_CLOUD_LIVE_COPY_EXISTING_ARTIFACT: env.GEOAI_CLOUD_LIVE_COPY_EXISTING_ARTIFACT,
+        GEOAI_CLOUD_LIVE_COPY_SOURCE_FILE_SHA256: env.GEOAI_CLOUD_LIVE_COPY_SOURCE_FILE_SHA256,
+        GEOAI_CLOUD_LIVE_COPY_SOURCE_ARTIFACT_ID: env.GEOAI_CLOUD_LIVE_COPY_SOURCE_ARTIFACT_ID,
+        GEOAI_CLOUD_LIVE_COPY_SOURCE_IDEMPOTENCY_KEY: env.GEOAI_CLOUD_LIVE_COPY_SOURCE_IDEMPOTENCY_KEY,
+        GEOAI_CLOUD_LIVE_COPY_SOURCE_PAYLOAD_HASH: env.GEOAI_CLOUD_LIVE_COPY_SOURCE_PAYLOAD_HASH,
+        GEOAI_CLOUD_LIVE_COPY_ARTIFACT_ID: env.GEOAI_CLOUD_LIVE_COPY_ARTIFACT_ID,
+        GEOAI_CLOUD_LIVE_COPY_IDEMPOTENCY_KEY: env.GEOAI_CLOUD_LIVE_COPY_IDEMPOTENCY_KEY,
+        GEOAI_CLOUD_LIVE_COPY_LABEL_MARKER: env.GEOAI_CLOUD_LIVE_COPY_LABEL_MARKER,
+        GEOAI_CLOUD_LIVE_COPY_APPROVAL: env.GEOAI_CLOUD_LIVE_COPY_APPROVAL
       } : {})
     } : {})
   };
@@ -369,9 +429,21 @@ export function runCloudAcceptance(config, personas, target, dependencies = {}) 
   const artifactInput = preflightCloudLiveArtifactInput(environment);
   const artifactExpectation = cloudLiveArtifactExpectation(artifactInput);
   const continueExistingArtifact = cloudLiveContinuationMode(environment, artifactInput);
-  const operatorTarget = { ...target, ...artifactExpectation, continueExistingArtifact };
+  const copyExistingArtifact = cloudLiveCopyMode(environment, artifactInput);
+  const operatorTarget = {
+    ...target,
+    ...artifactExpectation,
+    continueExistingArtifact,
+    copyExistingArtifact,
+    ...(copyExistingArtifact ? {
+      copySourceArtifactId: artifactInput.copy.source.artifactId,
+      copySourceIdempotencyKey: artifactInput.copy.source.idempotencyKey,
+      copySourcePayloadHash: artifactInput.copy.source.payloadHash
+    } : {})
+  };
   const evidence = {
-    mode: continueExistingArtifact ? "existing_artifact_continuation" : "new_artifact_writer",
+    mode: continueExistingArtifact ? "existing_artifact_continuation" :
+      copyExistingArtifact ? "marked_existing_artifact_copy_writer" : "new_artifact_writer",
     operatorStages: [], browserPhases: [], viewerDenial: "not_attempted", cleanup: "not_attempted"
   };
   let activationAttempted = false;
@@ -427,6 +499,7 @@ export async function main(options = {}) {
   try {
     const earlyArtifactInput = preflightCloudLiveArtifactInput(environment);
     cloudLiveContinuationMode(environment, earlyArtifactInput);
+    cloudLiveCopyMode(environment, earlyArtifactInput);
     const hostedProbe = options.runHostedProbe ??
       (await import("./sprint10-hosted-auth-probe.mjs")).runHostedProbe;
     await hostedProbe({
@@ -454,10 +527,12 @@ export async function main(options = {}) {
       checks: {
         authLifecycleReused: true,
         writerSaveAndCleanContextReopen: cloudEvidence.mode === "new_artifact_writer",
+        markedCopySaveAndCleanContextReopen: cloudEvidence.mode === "marked_existing_artifact_copy_writer",
         existingArtifactCleanContextReopen: cloudEvidence.mode === "existing_artifact_continuation",
         outsiderDenied: true,
         viewerWriteDenied: cloudEvidence.viewerDenial === "passed",
         originalBrowserBytesPreserved: true,
+        sourceArtifactNotClaimedByTestWriter: cloudEvidence.mode === "marked_existing_artifact_copy_writer",
         paidAiCalls: 0
       },
       operator: cloudEvidence,

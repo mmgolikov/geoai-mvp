@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -155,8 +156,24 @@ function main() {
   let safeStage = "browser_preflight";
   let temporaryDirectory = null;
   try {
-    ({ phase } = preflight());
+    const preflightResult = preflight();
+    phase = preflightResult.phase;
     temporaryDirectory = mkdtempSync(join(tmpdir(), "geoai-cloud-live-browser-"));
+    chmodSync(temporaryDirectory, 0o700);
+    let browserEnvironment = process.env;
+    if (preflightResult.artifactInput?.copy) {
+      const preparedPath = join(temporaryDirectory, "marked-artifact-copy.json");
+      const preparedBytes = Buffer.from(JSON.stringify(preflightResult.artifactInput.preparedEnvelope), "utf8");
+      writeFileSync(preparedPath, preparedBytes, { mode: 0o600 });
+      chmodSync(preparedPath, 0o600);
+      browserEnvironment = {
+        ...process.env,
+        GEOAI_QUALITY20_CLOUD_ARTIFACT_PATH: preparedPath,
+        GEOAI_QUALITY20_CLOUD_ARTIFACT_SHA256: createHash("sha256").update(preparedBytes).digest("hex"),
+        GEOAI_CLOUD_LIVE_COPY_ACTIVE: "1",
+        GEOAI_CLOUD_LIVE_COPY_EXPECTED_LABEL: preflightResult.artifactInput.copy.target.label
+      };
+    }
     const configPath = join(temporaryDirectory, "playwright.config.cjs");
     const playwrightEntry = resolve(root, "node_modules/@playwright/test/index.js");
     const playwrightCli = resolve(root, "node_modules/@playwright/test/cli.js");
@@ -176,7 +193,7 @@ module.exports = defineConfig({
     const result = spawnSync(process.execPath, [
       playwrightCli, "test", "tests/e2e/sprint10-cloud-live-acceptance.spec.ts",
       `--config=${configPath}`, "--project=sprint10-cloud-live", `--grep=${browserTitlePattern(title)}`, "--reporter=json", "--workers=1", "--retries=0"
-    ], { cwd: root, env: process.env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 390_000, maxBuffer: 16 * 1024 * 1024 });
+    ], { cwd: root, env: browserEnvironment, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 390_000, maxBuffer: 16 * 1024 * 1024 });
     if (result.error || result.signal) throw new Error("Browser phase was unconfirmed.");
     let report;
     try { report = JSON.parse(result.stdout || ""); } catch { report = null; }
