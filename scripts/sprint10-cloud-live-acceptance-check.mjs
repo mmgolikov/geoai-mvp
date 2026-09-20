@@ -1,14 +1,17 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { chmodSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import {
   main as runCloudLiveMain,
+  browserEnvironment,
   operatorSql,
   parseOperatorReceipt,
+  preflightCloudLiveArtifactInput,
   runBrowserPhase,
   runCloudAcceptance,
   validateCloudLiveConfig
@@ -152,6 +155,39 @@ try {
     GEOAI_CLOUD_LIVE_RUN_APPROVAL: `cloud-live:pphdqkurxneyagvnnjdt:${target.previewHost}:${authConfig.expectedCommitSha}:${target.organizationId}:${target.projectId}:${target.projectKey}`,
     GEOAI_CLOUD_LIVE_BACKUP_RECEIPT_PATH: backupPath
   };
+  assert.equal(preflightCloudLiveArtifactInput(env), null);
+  const artifactPath = join(privateRoot, "real-artifact.json");
+  const artifactEnvelope = {
+    schemaVersion: "geoai.quality20.real-artifact.v1", candidateCommit: authConfig.expectedCommitSha,
+    candidateHost: target.previewHost, sourceFeatureId: "relation/14604314", payloadHash: "a".repeat(64),
+    artifact: {
+      kind: "analyse", locale: "en", marketKey: "dubai", label: "Bounded public analysis", schemaVersion: 1,
+      artifactId: "artifact-public-analysis", idempotencyKey: "operation-public-analysis", payloadHash: "a".repeat(64),
+      completedAt: "2026-09-20T10:00:00.000Z", updatedAt: "2026-09-20T10:00:00.000Z", viewRevision: 0,
+      payload: { analysis: { subject: { sourceFeatureId: "relation/14604314" } } }
+    }
+  };
+  const artifactBytes = JSON.stringify(artifactEnvelope);
+  writeFileSync(artifactPath, artifactBytes, { mode: 0o600 });
+  const artifactEnv = {
+    ...env,
+    GEOAI_HOSTED_AUTH_PROBE_EXPECTED_COMMIT_SHA: authConfig.expectedCommitSha,
+    GEOAI_QUALITY20_CLOUD_ARTIFACT_PATH: artifactPath,
+    GEOAI_QUALITY20_CLOUD_ARTIFACT_SHA256: createHash("sha256").update(artifactBytes).digest("hex")
+  };
+  assert.equal(preflightCloudLiveArtifactInput(artifactEnv)?.envelope.sourceFeatureId, "relation/14604314");
+  assert.throws(() => preflightCloudLiveArtifactInput({ ...artifactEnv, GEOAI_QUALITY20_CLOUD_ARTIFACT_SHA256: undefined }), /supplied together/);
+  assert.throws(() => preflightCloudLiveArtifactInput({ ...artifactEnv, GEOAI_HOSTED_AUTH_PROBE_EXPECTED_COMMIT_SHA: "b".repeat(40) }), /exact cloud run/);
+  chmodSync(artifactPath, 0o644);
+  assert.throws(() => preflightCloudLiveArtifactInput(artifactEnv), /permissions/);
+  chmodSync(artifactPath, 0o600);
+  const browserPersonas = personas.map((persona, index) => ({ ...persona, email: `cloud-${index}@example.test`, password: "offline-password" }));
+  const writerEnvironment = browserEnvironment(artifactEnv, authConfig, target, browserPersonas, "writer_outsider");
+  assert.equal(writerEnvironment.GEOAI_QUALITY20_CLOUD_ARTIFACT_PATH, artifactPath);
+  assert.equal(writerEnvironment.GEOAI_QUALITY20_CLOUD_ARTIFACT_SHA256, artifactEnv.GEOAI_QUALITY20_CLOUD_ARTIFACT_SHA256);
+  const viewerEnvironment = browserEnvironment(artifactEnv, authConfig, target, browserPersonas, "viewer_denial");
+  assert.equal(Object.hasOwn(viewerEnvironment, "GEOAI_QUALITY20_CLOUD_ARTIFACT_PATH"), false);
+  assert.equal(Object.hasOwn(viewerEnvironment, "GEOAI_QUALITY20_CLOUD_ARTIFACT_SHA256"), false);
   assert.equal(validateCloudLiveConfig(env, authConfig).projectKey, target.projectKey);
   assert.throws(() => validateCloudLiveConfig({ ...env, GEOAI_CLOUD_LIVE_PROJECT_KEY: "private-project" }, authConfig));
   let terminalFailure;
@@ -187,6 +223,21 @@ try {
   assert.equal(terminalFailure.cloudCleanup, "scope_disabled_memberships_disabled_artifact_retained");
   assert.equal(terminalFailure.rawOutputSuppressed, true);
   assert.doesNotMatch(JSON.stringify(terminalFailure), /raw browser detail/);
+  let earlyHostedCalls = 0;
+  const previousEarlyError = console.error;
+  const previousEarlyExitCode = process.exitCode;
+  console.error = () => {};
+  process.exitCode = undefined;
+  try {
+    await runCloudLiveMain({
+      env: { ...artifactEnv, GEOAI_QUALITY20_CLOUD_ARTIFACT_SHA256: undefined },
+      async runHostedProbe() { earlyHostedCalls += 1; }
+    });
+  } finally {
+    console.error = previousEarlyError;
+    process.exitCode = previousEarlyExitCode;
+  }
+  assert.equal(earlyHostedCalls, 0, "artifact input must fail before persona lifecycle or backup validation");
   const writeBackup = (createdAt, expiresAt) => writeFileSync(backupPath, JSON.stringify({
     schemaVersion: "geoai.sprint10.cloud-live-backup-receipt.v1",
     projectRef: "pphdqkurxneyagvnnjdt",

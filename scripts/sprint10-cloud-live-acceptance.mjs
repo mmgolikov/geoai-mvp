@@ -6,6 +6,7 @@ import { dirname, isAbsolute, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 import { isBrowserFailureStage } from "./sprint10-cloud-live-browser-run.mjs";
+import { readCloudLiveRealArtifactInput } from "./sprint10-cloud-live-artifact-input.mjs";
 
 const PROJECT_REF = "pphdqkurxneyagvnnjdt";
 const MIGRATION_VERSION = "20260918203424";
@@ -236,6 +237,14 @@ function minimalEnvironment(env) {
     .filter((name) => typeof env[name] === "string").map((name) => [name, env[name]]));
 }
 
+export function preflightCloudLiveArtifactInput(env) {
+  const hasPath = typeof env.GEOAI_QUALITY20_CLOUD_ARTIFACT_PATH === "string" && env.GEOAI_QUALITY20_CLOUD_ARTIFACT_PATH.length > 0;
+  const hasHash = typeof env.GEOAI_QUALITY20_CLOUD_ARTIFACT_SHA256 === "string" && env.GEOAI_QUALITY20_CLOUD_ARTIFACT_SHA256.length > 0;
+  if (!hasPath && !hasHash) return null;
+  const preview = new URL(required(env, "GEOAI_REAL_PASSWORD_AUTH_PREVIEW_URL"));
+  return readCloudLiveRealArtifactInput(env, required(env, "GEOAI_HOSTED_AUTH_PROBE_EXPECTED_COMMIT_SHA").trim().toLowerCase(), preview.hostname);
+}
+
 export function runOperator(stage, target, personas, { env = process.env, spawn = spawnSync } = {}) {
   const cli = resolve(repositoryRoot, "node_modules/.bin/supabase");
   const result = spawn(cli, ["db", "query", "--linked", operatorSql(stage, target, personas), "--output", "json"], {
@@ -246,7 +255,8 @@ export function runOperator(stage, target, personas, { env = process.env, spawn 
   return parseOperatorReceipt(result.stdout, stage);
 }
 
-function browserEnvironment(env, config, target, personas, phase) {
+export function browserEnvironment(env, config, target, personas, phase) {
+  const artifactInput = readCloudLiveRealArtifactInput(env, config.expectedCommitSha, target.previewHost);
   return {
     ...minimalEnvironment(env),
     GEOAI_E2E_BASE_URL: env.GEOAI_E2E_BASE_URL,
@@ -264,7 +274,11 @@ function browserEnvironment(env, config, target, personas, phase) {
     GEOAI_CLOUD_LIVE_A_USER_ID: personas[0].userId,
     GEOAI_CLOUD_LIVE_B_EMAIL: personas[1].email,
     GEOAI_CLOUD_LIVE_B_PASSWORD: personas[1].password,
-    GEOAI_CLOUD_LIVE_B_USER_ID: personas[1].userId
+    GEOAI_CLOUD_LIVE_B_USER_ID: personas[1].userId,
+    ...(phase === "writer_outsider" && artifactInput ? {
+      GEOAI_QUALITY20_CLOUD_ARTIFACT_PATH: artifactInput.path,
+      GEOAI_QUALITY20_CLOUD_ARTIFACT_SHA256: artifactInput.sha256
+    } : {})
   };
 }
 
@@ -298,6 +312,8 @@ export function runBrowserPhase(config, target, personas, phase, { env = process
 export function runCloudAcceptance(config, personas, target, dependencies = {}) {
   const runOperatorStage = dependencies.runOperator ?? runOperator;
   const runBrowser = dependencies.runBrowserPhase ?? runBrowserPhase;
+  const environment = dependencies.env ?? process.env;
+  preflightCloudLiveArtifactInput(environment);
   const evidence = { operatorStages: [], browserPhases: [], viewerDenial: "not_attempted", cleanup: "not_attempted" };
   let activationAttempted = false;
   let writerPassed = false;
@@ -306,10 +322,10 @@ export function runCloudAcceptance(config, personas, target, dependencies = {}) 
     evidence.operatorStages.push(runOperatorStage("preflight", target, personas));
     activationAttempted = true;
     evidence.operatorStages.push(runOperatorStage("activate_writer", target, personas));
-    evidence.browserPhases.push(runBrowser(config, target, personas, "writer_outsider"));
+    evidence.browserPhases.push(runBrowser(config, target, personas, "writer_outsider", { env: environment }));
     writerPassed = true;
     evidence.operatorStages.push(runOperatorStage("activate_viewer", target, personas));
-    evidence.browserPhases.push(runBrowser(config, target, personas, "viewer_denial"));
+    evidence.browserPhases.push(runBrowser(config, target, personas, "viewer_denial", { env: environment }));
     evidence.viewerDenial = "passed";
   } catch (error) {
     primaryError = error;
@@ -341,13 +357,14 @@ export function runCloudAcceptance(config, personas, target, dependencies = {}) 
 
 export async function main(options = {}) {
   const environment = options.env ?? process.env;
-  const hostedProbe = options.runHostedProbe ??
-    (await import("./sprint10-hosted-auth-probe.mjs")).runHostedProbe;
   let authReceipt = null;
   let cloudEvidence = null;
   let target = null;
   let failureStage = "preflight";
   try {
+    preflightCloudLiveArtifactInput(environment);
+    const hostedProbe = options.runHostedProbe ??
+      (await import("./sprint10-hosted-auth-probe.mjs")).runHostedProbe;
     await hostedProbe({
       env: environment,
       argv: [process.execPath, resolve(repositoryRoot, "scripts/sprint10-cloud-live-acceptance.mjs")],
@@ -355,7 +372,7 @@ export async function main(options = {}) {
         runExistingPreviewHarness(config, personas) {
           target = validateCloudLiveConfig(environment, config);
           failureStage = "operator_or_browser";
-          cloudEvidence = runCloudAcceptance(config, personas, target, options.dependencies);
+          cloudEvidence = runCloudAcceptance(config, personas, target, { ...options.dependencies, env: environment });
           return "passed_existing_reviewed_runner";
         }
       },
