@@ -274,6 +274,7 @@ jobs:
           set -euo pipefail
           npm run test:point-to-object-runtime-gate | tee artifacts/point-to-object-runtime-gate-check.txt
           node scripts/quality20-production-gate-check.mjs | tee artifacts/quality20-production-gate-check.txt
+          node scripts/quality20-production-membership-check.mjs | tee artifacts/quality20-production-membership-check.txt
           node scripts/quality20-password-only-check.mjs | tee artifacts/quality20-password-only-check.txt
           node scripts/quality20-profile-password-only-check.mjs | tee artifacts/quality20-profile-password-only-check.txt
           node --experimental-strip-types scripts/quality20-analysis-content-check.ts | tee artifacts/quality20-analysis-content-check.txt

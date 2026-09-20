@@ -1,4 +1,18 @@
-# QUALITY20 integration checkpoint — 2026-09-20 12:26 UTC
+# QUALITY20 integration checkpoint
+
+## Current candidate checkpoint — 20 September 15:40 UTC
+
+This section supersedes the historical checkpoints below. Production/main remain unchanged and **NOT ACCEPTED**. Founder approved an additional20 percentage points: original shared baseline17%, absolute ceiling62%, planned stop58%. Actual account usage45%; no reset credit redeemed. API ceiling remains USD15 for the entire cycle; ledger generation47,23 settled/accounted receipts, USD1.2105827 accounted, no active reservation.
+
+- Published protected Preview43167d1 passed exact preflight. Its CI database replay/isolation and anonymous protected browser jobs passed; main browser/build job is still running. These are not final-candidate acceptance.
+- Actual657369d Profile Standard/Deep/Quick completed real requests, state transitions, local save/reopen and equal visible evidence hash. Independent content review rejected underinformative Standard/Deep output and an incorrect bare-height unit caveat. Candidate d45e81a corrects grounded Profile synthesis, OSM height convention, hotel programme identity and V11 prompt handling; new live acceptance is required. Stored V10 receipts remain readable; new dispatch requires V11 (8930fae).
+- Actual43167d1 large concave Dubai Create completed real generation,38% independently calculated coverage and A/B 2D/3D map checks. Save verification failed because its test compared canonical storage with the larger transport envelope. Candidate66282ad compares the parsed canonical concept exactly while preserving geometry/programme/AOI assertions. Full save/reload rerun remains required; this was not a green complete journey.
+- Actual Find comparison previously passed source identities, footprints and basemap; a progress-tracker error prevented complete acceptance. Tracker7dc9c13 and bounded three-candidate paid analysis scope8905d05 are integrated; full real rerun is required.
+- Production guard67fcb90 requires exact project membership before source/AI/page access. Root found a denied-page-auth fallthrough race;4657f6d makes every denial terminal and proves a second successful Auth context cannot bypass membership. SSR uses actual Next request cookies, not the synthetic Request URL. API dependency503 is covered; a thrown page error is not asserted to be HTTP503. Production demo membership must precede authenticated post-deploy smoke.
+- Confluence Current Product & Release26574901 v19 was written/read back. Figma contract exists but rendered-evidence synchronization remains blocked pending the exact requested permission; not claimed complete.
+- The54-case frozen-source quality benchmark remains NOT_COMPARABLE; functional goal/depth runs are reported separately. Three Create programmes and four massing styles do not constitute five complete urban programmes or textured architecture. Broader city data and this full benchmark are not accepted by the present receipts.
+
+## Historical checkpoint — 20 September 12:26 UTC
 
 Candidate only. Production still `main@21b91c43c2fc8dd61b08962e562601b29dd89c76`, deployment `dpl_AYePGoJLbHmcie2H7sX1biJbbavo`. No promotion/merge implied.
 
