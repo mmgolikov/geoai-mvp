@@ -1369,11 +1369,14 @@ function assertStaticBoundaries(): void {
     "Live server grounding must not use bbox/centroid proximity as an object-identity surrogate.");
   assert.match(liveEvidenceSource, /\^\(node\|way\|relation\)\\\/\(\[1-9\]\\d\{0,19\}\)\$/,
     "Trusted Find/Search handoff must accept only a strict OpenStreetMap node/way/relation identity.");
-  assert.match(liveEvidenceSource, /new URL\("lookup", endpoint\)/,
-    "Trusted Find/Search handoff must resolve the exact OpenStreetMap identity through Nominatim lookup.");
-  assert.match(liveEvidenceSource, /candidate\.osmType === sourceFeatureId\.type && candidate\.osmId === sourceFeatureId\.id/,
-    "Nominatim lookup must fail closed unless the returned object exactly matches the requested identity.");
-  assert.match(liveEvidenceSource, /trustedIdentity \? lookupPlace\([\s\S]*\) : reversePlace\(/,
+  const exactSource = readFileSync(path.join(ROOT, "src/lib/prototype/point-to-object-exact-source.ts"), "utf8");
+  assert.match(exactSource, /\$\{type\}\(\$\{number\}\);out body geom 1/,
+    "Cold exact-ID handoff must request that single source element with its geometry.");
+  assert.match(exactSource, /`\$\{element\.type\}\/\$\{element\.id\}`!==id/,
+    "The source read must fail closed when the returned identity differs.");
+  assert.match(liveEvidenceSource, /resolvedIdentity !== `\$\{trustedIdentity\.type\}\/\$\{trustedIdentity\.id\}`/,
+    "Sanitized evidence must recheck the exact identity before use.");
+  assert.match(liveEvidenceSource, /trustedIdentity \? exactSourcePlace\([\s\S]*\) : reversePlace\(/,
     "Direct map clicks must continue to use coordinate-based reverse resolution when no trusted identity is supplied.");
   const nextConfigSource = readFileSync(path.join(ROOT, "next.config.ts"), "utf8");
   assert.match(nextConfigSource, /https:\/\/tiles\.openfreemap\.org/, "CSP must permit the selected live-map tile host.");
@@ -3180,6 +3183,12 @@ async function assertLiveOverpassContext(): Promise<void> {
   ).href;
   const liveEvidence = await importErasableTypeScript(liveEvidencePath, [
     [/import "server-only";\n/, ""],
+    // This lane tests pure nearby-context normalization. Exact identity executes
+    // the real server modules in quality20-map-check.mjs (cold/warm/expiry/mismatch).
+    [
+      /import \{ readExactSourceElement, exactSourcePlacePayload \} from "\.\/point-to-object-exact-source";\n/,
+      "const readExactSourceElement = () => { throw new Error('Unexpected exact lookup in nearby normalization lane'); }; const exactSourcePlacePayload = readExactSourceElement;\n"
+    ],
     [
       /from "\.\/point-to-object-source-recovery";/,
       `from ${JSON.stringify(sourceRecoveryModuleUrl)};`

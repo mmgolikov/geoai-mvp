@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { explicitSourceHeight } from "@/src/lib/prototype/point-to-object-source-geometry";
 
 import { NextResponse } from "next/server";
 
@@ -167,8 +168,7 @@ export async function POST(request: Request) {
         metrics: evidencePack.selectedObject.metrics,
         displayGeometry: evidencePack.displayGeometry ?? null,
         geometryProvenance: evidencePack.displayGeometry ? "confirmed_complete_footprint" : null,
-        renderHeightM: null,
-        renderMinHeightM: null,
+        ...explicitSourceHeight(evidencePack.selectedObject.tags),
         geoContext: evidencePack.geoContext,
         linkedEntity: evidencePack.linkedEntity
       }

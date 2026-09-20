@@ -68,7 +68,7 @@ for (const market of POINT_OBJECT_MARKETS) {
 const query = buildPointObjectFindOverpassQuery(valid.value);
 assert.match(query, /^\[out:json\]\[timeout:5\]\[maxsize:33554432\];/);
 assert.match(query, /\["building:levels"\]/);
-assert.match(query, /out tags center 81;/);
+assert.match(query, /out body geom 81;/);
 assert.doesNotMatch(query, /score|rank|valuation|zoning/i);
 
 for (const candidate of [

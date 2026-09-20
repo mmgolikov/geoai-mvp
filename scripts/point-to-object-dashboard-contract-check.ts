@@ -36,6 +36,11 @@ assert.doesNotMatch(decisionCardsSource, /const distance = .*Not returned in sam
 assert.match(createDashboardSource, /const scale = Math\.min\(/, "Create preview uses one aspect-preserving metre scale.");
 assert.match(createDashboardSource, /\.map\(\(ring\) => `M/, "Create preview creates a separate path segment for every polygon ring.");
 assert.match(createDashboardSource, /fillRule="evenodd"/, "Create preview preserves polygon holes with the even-odd fill rule.");
-assert.match(comparisonDashboardSource, /const scale = Math\.min\(/, "Find comparison map context uses one aspect-preserving metre scale.");
-assert.match(comparisonDashboardSource, /111_320 \* Math\.max\(Math\.cos\(referenceLatitude\)/, "Find comparison applies longitude latitude correction.");
+assert.doesNotMatch(comparisonDashboardSource, /<svg/, "Find comparison must not substitute an SVG coordinate diagram for the basemap.");
+assert.match(comparisonDashboardSource, /candidates\.flatMap\(candidate[\s\S]*candidate\.longitude,candidate\.latitude[\s\S]*geometry\.coordinates\.flat/, "Fit bounds must include every candidate and its source footprint, not only centres.");
+assert.match(comparisonDashboardSource, /boundingBox:\[south,north,west,east\]/, "Shared map renderer receives geographic bounds, not independently scaled SVG axes.");
+assert.match(comparisonDashboardSource, /<LiveObjectMap[\s\S]*findResults=\{results\}[\s\S]*activeFindResultId=\{activeId\} onFindResultSelect=\{onSelect\}/, "Source-identity map selection must stay linked to the comparison controls.");
+assert.match(comparisonDashboardSource, /id:candidate\.sourceFeatureId[\s\S]*geometry:candidate\.geometry/, "Source identity and intact footprint must reach the map together.");
+// Executable geometry/identity assertions and rendered basemap/fit/linkage checks:
+// scripts/quality20-map-check.mjs and tests/e2e/quality20-map-find.spec.ts.
 console.log("Role decision dashboard contract: PASS (distinct views, precise infrastructure labels, null/zero integrity, aspect-preserving previews, immutable evidence).");

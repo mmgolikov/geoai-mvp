@@ -1,3 +1,5 @@
+import type { Polygon, MultiPolygon } from "geojson";
+import { sourceElementFootprint, explicitSourceHeight } from "./point-to-object-source-geometry";
 import {
   isPointObjectLocale,
   isPointObjectMarketKey,
@@ -52,6 +54,11 @@ export type PointObjectFindCandidate = {
   mappedBuildingLevels: number | null;
   observedTags: Record<string, string>;
   evidenceClass: "observed_in_open_map_source";
+  geometry?: Polygon | MultiPolygon | null;
+  geometryProvenance?: "confirmed_complete_footprint" | null;
+  geometryStatus?: "available" | "unavailable" | "point_only";
+  renderHeightM?: number | null;
+  renderMinHeightM?: number | null;
 };
 
 export type PointObjectFindResult = {
@@ -151,6 +158,9 @@ const OBSERVED_TAG_KEYS = new Set([
   "name:ru",
   "building",
   "building:levels",
+  "height",
+  "min_height",
+  "type",
   "office",
   "shop",
   "amenity",
@@ -301,7 +311,7 @@ export function buildPointObjectFindOverpassQuery(request: PointObjectFindReques
     "(",
     ...selectors,
     ");",
-    `out tags center ${POINT_OBJECT_FIND_UPSTREAM_LIMIT + 1};`
+    `out body geom ${POINT_OBJECT_FIND_UPSTREAM_LIMIT + 1};`
   ].join("\n");
 }
 
@@ -341,7 +351,9 @@ function safeTags(value: unknown): Record<string, string> {
 }
 
 function featurePoint(element: Record<string, unknown>): [number, number] | null {
-  const source = isRecord(element.center) ? element.center : element;
+  const bounds = isRecord(element.bounds) ? element.bounds : null;
+  const source = isRecord(element.center) ? element.center : bounds && [bounds.minlon,bounds.maxlon,bounds.minlat,bounds.maxlat].every(value => typeof value === "number" && Number.isFinite(value))
+    ? {lon: (Number(bounds.minlon)+Number(bounds.maxlon))/2, lat: (Number(bounds.minlat)+Number(bounds.maxlat))/2} : element;
   const longitude = finiteNumber(source.lon);
   const latitude = finiteNumber(source.lat);
   if (longitude === null || latitude === null || Math.abs(longitude) > 180 || Math.abs(latitude) > 90) return null;
@@ -421,6 +433,7 @@ export function normalizePointObjectFindCandidates(
     if (request.mappedMaximumLevels !== null && (levels === null || levels > request.mappedMaximumLevels)) continue;
     const sourceFeatureId = `${type}/${id}` as const;
     const name = cleanText(tags[`name:${request.locale}`]) ?? cleanText(tags.name) ?? cleanText(tags["name:en"]);
+    const geometry = sourceElementFootprint(raw);
     byIdentity.set(sourceFeatureId, {
       sourceFeatureId,
       sourceElementType: type,
@@ -433,7 +446,11 @@ export function normalizePointObjectFindCandidates(
       matchedTag,
       mappedBuildingLevels: levels,
       observedTags: tags,
-      evidenceClass: "observed_in_open_map_source"
+      evidenceClass: "observed_in_open_map_source",
+      geometry,
+      geometryProvenance: geometry ? "confirmed_complete_footprint" : null,
+      geometryStatus: geometry ? "available" : type === "node" ? "point_only" : "unavailable",
+      ...explicitSourceHeight(tags)
     });
   }
   const normalized = [...byIdentity.values()].sort((left, right) => left.sourceFeatureId.localeCompare(right.sourceFeatureId));

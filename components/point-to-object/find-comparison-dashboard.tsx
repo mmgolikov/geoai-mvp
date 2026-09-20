@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { LiveObjectMap } from "./live-object-map";
 
 import { PointObjectIcon } from "@/components/point-to-object/point-object-icons";
 import { useModalShell } from "@/components/point-to-object/use-modal-shell";
@@ -33,40 +34,44 @@ function mappedSubtype(candidate: PointObjectFindCandidate): string {
   return candidate.matchedTag.value.replaceAll("_", " ").replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
-function CandidateMapContext({ candidates, bounds, locale }: Pick<Props, "candidates" | "locale"> & { bounds: PointObjectFindResult["criteria"]["bounds"] }) {
-  const [west, south, east, north] = bounds;
-  const referenceLatitude = ((south + north) / 2) * Math.PI / 180;
-  const centerLongitude = (west + east) / 2;
-  const centerLatitude = (south + north) / 2;
-  const project = (longitude: number, latitude: number) => [
-    (longitude - centerLongitude) * 111_320 * Math.max(Math.cos(referenceLatitude), 0.01),
-    (latitude - centerLatitude) * 110_540
-  ] as const;
-  const [minimumX, minimumY] = project(west, south);
-  const [maximumX, maximumY] = project(east, north);
-  const scale = Math.min(140 / Math.max(maximumX - minimumX, 0.01), 70 / Math.max(maximumY - minimumY, 0.01));
-  const points = candidates.map((candidate, index) => ({
-    candidate,
-    index,
-    projected: project(candidate.longitude, candidate.latitude)
-  }));
-  return (
-    <figure className="rounded-[22px] border border-[#cfe0dc] bg-[#edf6f3] p-4" data-testid="find-comparison-map-context">
-      <figcaption className="mb-3 flex items-center gap-2 text-sm font-bold text-[#173b35]"><PointObjectIcon name="map" className="h-5 w-5 text-[#087f8c]" />{locale === "ru" ? "Положение в области поиска" : "Position in the search area"}</figcaption>
-      <svg viewBox="0 0 160 90" className="aspect-[16/9] w-full overflow-visible rounded-2xl bg-white" role="img" aria-label={locale === "ru" ? "Схема положения сравниваемых объектов в области поиска" : "Diagram of compared candidates within the search area"}>
-        <defs><pattern id="comparison-grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M10 0H0V10" fill="none" stroke="#dce8e4" strokeWidth=".45" /></pattern></defs>
-        <rect x="2" y="2" width="156" height="86" rx="6" fill="url(#comparison-grid)" stroke="#9fc7bd" />
-        {points.map(({ candidate, index, projected: [x, y] }) => <g key={candidate.sourceFeatureId} transform={`translate(${Math.min(152, Math.max(8, 80 + x * scale))} ${Math.min(82, Math.max(8, 45 - y * scale))})`}><circle r="5.5" fill="#087f8c" stroke="white" strokeWidth="2" /><text y="1.7" textAnchor="middle" fill="white" fontSize="5" fontWeight="700">{index + 1}</text></g>)}
-      </svg>
-      <ol className="mt-3 grid gap-2 sm:grid-cols-2">{candidates.map((candidate, index) => <li key={candidate.sourceFeatureId} className="flex min-w-0 items-center gap-2 text-xs text-[#475467]"><span className="grid h-5 min-w-5 place-items-center rounded-full bg-[#087f8c] text-[10px] font-bold text-white">{index + 1}</span><span className="truncate">{candidate.label}</span></li>)}</ol>
-      <p className="mt-3 text-[11px] leading-5 text-[#62716d]">{locale === "ru" ? "Схема построена по координатам центров из ответа OSM. Это не границы участков или зданий." : "Diagram uses OSM response centroids. It does not show parcel or building boundaries."}</p>
-    </figure>
-  );
+function CandidateMapContext({ candidates, locale, marketKey, activeId, onSelect }: Pick<Props, "candidates" | "locale"> & { marketKey: PointObjectFindResult["criteria"]["marketKey"]; activeId: string | null; onSelect: (id: string) => void }) {
+  const results = useMemo(() => candidates.map((candidate,index) => ({
+    id:candidate.sourceFeatureId, label:candidate.label, number:index+1, longitude:candidate.longitude, latitude:candidate.latitude,
+    geometry:candidate.geometry ?? null, geometryProvenance:candidate.geometryProvenance ?? null,
+    renderHeightM:candidate.renderHeightM ?? null, renderMinHeightM:candidate.renderMinHeightM ?? null,
+    resultKind:candidateKind(candidate)
+  })),[candidates]);
+  const target = useMemo(() => {
+    const points = candidates.flatMap(candidate => {
+      const geometry = candidate.geometry;
+      return [[candidate.longitude,candidate.latitude], ...(geometry ? geometry.type === "Polygon" ? geometry.coordinates.flat() : geometry.coordinates.flat(2) : [])];
+    });
+    const xs=points.map(point=>point[0]), ys=points.map(point=>point[1]);
+    const west=Math.min(...xs),east=Math.max(...xs),south=Math.min(...ys),north=Math.max(...ys);
+    return {requestId:`compare:${candidates.map(c=>c.sourceFeatureId).join("|")}`,longitude:(west+east)/2,latitude:(south+north)/2,
+      boundingBox:[south,north,west,east] as [number,number,number,number],selectAfterNavigation:false,viewMode:"2d" as const,zoom:18};
+  },[candidates]);
+  return <figure className="min-w-0 rounded-[22px] border border-[#cfe0dc] bg-[#edf6f3] p-4" data-testid="find-comparison-map-context">
+    <figcaption className="mb-3 flex items-center gap-2 text-sm font-bold text-[#173b35]"><PointObjectIcon name="map" className="h-5 w-5 text-[#087f8c]" />{locale === "ru" ? "Объекты на карте" : "Candidates on the map"}</figcaption>
+    <div className="h-[420px] overflow-hidden rounded-2xl">
+      <LiveObjectMap locationKey={marketKey} interactionMode="find" onSelection={ignoreSelection} navigationTarget={target}
+        findResults={results} activeFindResultId={activeId} onFindResultSelect={onSelect} className="h-full min-h-0" />
+    </div>
+    <ol className="mt-3 grid gap-2">{candidates.map((candidate,index)=><li key={candidate.sourceFeatureId}>
+      <button type="button" aria-pressed={activeId===candidate.sourceFeatureId} onClick={()=>onSelect(candidate.sourceFeatureId)}
+        className={`flex min-h-11 w-full items-center gap-2 rounded-lg border px-2 py-1 text-left text-xs focus-visible:outline-2 focus-visible:outline-[#087f8c] ${activeId===candidate.sourceFeatureId ? "border-[#087f8c] bg-white font-bold" : "border-transparent"}`}>
+        <span className="grid h-6 min-w-6 place-items-center rounded-full bg-[#087f8c] text-white">{index+1}</span>
+        <span className="min-w-0 break-words">{candidate.label}<span className="block font-normal text-[#62716d]">{candidate.sourceFeatureId} · {candidate.geometry ? (locale==="ru"?"Контур OSM":"OSM footprint") : (locale==="ru"?"Точка; контур недоступен":"Point; footprint unavailable")}</span></span>
+      </button></li>)}</ol>
+    <p className="mt-3 text-[11px] leading-5 text-[#62716d]">{locale==="ru"?"Контуры и точки OSM, не официальные границы. Разнесённые номера остаются связаны с исходными координатами.":"OSM footprints and points, not official boundaries. Separated number controls remain linked to source coordinates."}</p>
+  </figure>;
 }
+const ignoreSelection = () => undefined;
 
 export function FindComparisonDashboard({ locale, result, candidates, roleLabel, scenarioLabel, groupLabel, onBackToComparison, onBackToResults, onShowMap, onOpenAnalysis }: Props) {
   const dialogRef = useModalShell(onBackToComparison);
   const ru = locale === "ru";
+  const [activeId, setActiveId] = useState<string | null>(candidates[0]?.sourceFeatureId ?? null);
   const levelsCoverage = candidates.filter((candidate) => candidate.mappedBuildingLevels !== null).length;
   const sourceTime = useMemo(() => {
     const timestamp = new Date(result.source.acquiredAt);
@@ -100,7 +105,7 @@ export function FindComparisonDashboard({ locale, result, candidates, roleLabel,
             <div className="flex items-center gap-2"><PointObjectIcon name="compare" className="h-5 w-5 text-[#087f8c]" /><h2 id="common-metrics-title" className="text-xl font-bold">{ru ? "Общие наблюдаемые параметры" : "Common observed metrics"}</h2></div>
             <div className="mt-4 overflow-x-auto" role="region" aria-label={ru ? "Таблица сравнения" : "Comparison table"} tabIndex={0}>
               <table className="min-w-[680px] w-full border-collapse text-left text-sm">
-                <thead><tr className="border-b border-line"><th className="p-3 text-xs text-muted">{ru ? "Параметр" : "Metric"}</th>{candidates.map((candidate, index) => <th key={candidate.sourceFeatureId} className="p-3 align-bottom"><span className="mr-2 inline-grid h-5 min-w-5 place-items-center rounded-full bg-[#087f8c] px-1 text-[10px] text-white">{index + 1}</span>{candidate.label}</th>)}</tr></thead>
+                <thead><tr className="border-b border-line"><th className="p-3 text-xs text-muted">{ru ? "Параметр" : "Metric"}</th>{candidates.map((candidate, index) => <th key={candidate.sourceFeatureId} className={`p-3 align-bottom ${activeId === candidate.sourceFeatureId ? "bg-[#edf7f3]" : ""}`}><button type="button" aria-pressed={activeId === candidate.sourceFeatureId} onClick={() => setActiveId(candidate.sourceFeatureId)} className="min-h-11 text-left focus-visible:outline-2 focus-visible:outline-[#087f8c]"><span className="mr-2 inline-grid h-5 min-w-5 place-items-center rounded-full bg-[#087f8c] px-1 text-[10px] text-white">{index + 1}</span>{candidate.label}</button></th>)}</tr></thead>
                 <tbody>
                   {[
                     { label: ru ? "Запись OSM" : "OSM record", value: (candidate: PointObjectFindCandidate) => candidate.sourceFeatureId },
@@ -113,7 +118,7 @@ export function FindComparisonDashboard({ locale, result, candidates, roleLabel,
               </table>
             </div>
           </section>
-          <CandidateMapContext candidates={candidates} bounds={result.criteria.bounds} locale={locale} />
+          <CandidateMapContext candidates={candidates} marketKey={result.criteria.marketKey} locale={locale} activeId={activeId} onSelect={setActiveId} />
         </div>
 
         <section className="rounded-[24px] border border-line bg-white p-5 shadow-soft sm:p-7" aria-labelledby="candidate-tradeoffs-title">

@@ -341,7 +341,7 @@ export type PointObjectAiSubject = {
   address: string | null;
   featureClass: string;
   sourceFeatureId: string;
-  resolutionMethod: "nominatim_reverse" | "nominatim_lookup";
+  resolutionMethod: "nominatim_reverse" | "nominatim_lookup" | "overpass_exact_identity";
   coordinateAssociation:
     | "open_map_geometry_contains_point"
     | "reverse_nearest_indexed_object_not_point_in_polygon"

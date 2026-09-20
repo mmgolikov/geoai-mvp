@@ -16,7 +16,8 @@ import type {
 import { usePointObjectLocale } from "@/components/point-to-object/locale-provider";
 import type { GeoJsonGeometry } from "@/src/lib/point-to-object/contracts";
 import type { ConceptMassingResult, PointObjectCreateAoi } from "@/src/lib/prototype/point-to-object-create";
-import type { PointObjectFindBounds } from "@/src/lib/prototype/point-to-object-find-contract";
+import type { PointObjectFindBounds, PointObjectFindCandidate } from "@/src/lib/prototype/point-to-object-find-contract";
+import { separateMapMarkerControls } from "@/src/lib/prototype/point-to-object-selection-context";
 import { projectResultCoordinateBounds, isCompletedNavigationCamera, type NavigationCamera } from "@/src/lib/prototype/point-to-object-find-viewport";
 import {
   buildPointObjectNativeSelectionOutside,
@@ -215,6 +216,8 @@ export type LiveMapNavigationTarget = {
   expectedSourceFeatureId?: `${"node" | "way" | "relation"}/${string}`;
   expectedLabel?: string | null;
   expectedFeatureClass?: string | null;
+  exactFindCandidate?: PointObjectFindCandidate;
+  resolvedFindContext?: LiveMapSelection["resolvedObject"];
   selectAfterNavigation?: boolean;
   viewMode?: LiveMapViewMode;
 };
@@ -1388,6 +1391,7 @@ export function LiveObjectMap({
     const isProjectOverview = projectMarkers.length > 0;
     const resultGroups = isProjectOverview ? groupExactPointObjectProjectResults(projectMarkers) : findResults.map(result => ({ key: result.id, results: [result] }));
     let disposed = false;
+    let removeMarkerLayout: (() => void) | undefined;
     const renderedMarkers: RenderedResultMarker[] = [];
     void import("maplibre-gl").then(({ Marker }) => {
       if (disposed) return;
@@ -1441,11 +1445,20 @@ export function LiveObjectMap({
         return;
       }
       renderedResultMarkersRef.current = renderedMarkers;
+      const separate = () => {
+        if (disposed || isProjectOverview) return;
+        const offsets = separateMapMarkerControls(renderedMarkers.map(({marker}) => map.project(marker.getLngLat())));
+        renderedMarkers.forEach(({marker}, index) => marker.setOffset(offsets[index]));
+      };
+      separate();
+      map.on("moveend", separate);
+      removeMarkerLayout = () => map.off("moveend", separate);
       const latestPresentation = resultMarkerPresentationRef.current;
       for (const marker of renderedMarkers) applyResultMarkerPresentation(marker, latestPresentation);
     });
     return () => {
       disposed = true;
+      removeMarkerLayout?.();
       if (renderedResultMarkersRef.current === renderedMarkers) renderedResultMarkersRef.current = [];
       for (const { marker } of renderedMarkers) marker.remove();
     };
@@ -1535,6 +1548,10 @@ export function LiveObjectMap({
       selectionCompleted = true;
       if (navigationTarget.expectedSourceFeatureId) {
         const center = map.getCenter();
+        const candidate = navigationTarget.exactFindCandidate?.sourceFeatureId === navigationTarget.expectedSourceFeatureId ? navigationTarget.exactFindCandidate : null;
+        const candidateGeometry = candidate?.geometry ? pointObjectFindVerifiedFootprint(candidate.geometry, candidate.geometryProvenance ?? null,
+          candidate.observedTags.building || candidate.observedTags.landuse ? "mapped_building_or_landuse" : "mapped_poi") : null;
+        const resolved = navigationTarget.resolvedFindContext;
         const exactSelection: LiveMapSelection = {
           locationKey: locationKeyRef.current,
           longitude: coordinates[0],
@@ -1544,11 +1561,12 @@ export function LiveObjectMap({
             name: navigationTarget.expectedLabel ?? null,
             featureClass: navigationTarget.expectedFeatureClass ?? "open_map_object",
             sourceFeatureId: navigationTarget.expectedSourceFeatureId,
-            geometry: { type: "Point", coordinates },
-            renderHeightM: null,
-            renderMinHeightM: null
+            geometry: candidateGeometry ? candidateGeometry as LiveMapSelection["object"]["geometry"] : { type: "Point", coordinates },
+            ...(candidateGeometry ? {geometryProvenance: "confirmed_complete_footprint" as const} : {}),
+            renderHeightM: candidate?.renderHeightM ?? null,
+            renderMinHeightM: candidate?.renderMinHeightM ?? null
           },
-          resolvedObject: null,
+          resolvedObject: resolved?.sourceFeatureId === navigationTarget.expectedSourceFeatureId && resolved.coordinateAssociation === "trusted_open_map_identity" ? resolved : null,
           viewport: {
             center: [center.lng, center.lat],
             zoom: map.getZoom(),

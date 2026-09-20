@@ -1,4 +1,5 @@
 import "server-only";
+import { readExactSourceElement, exactSourcePlacePayload } from "./point-to-object-exact-source";
 
 import { unstable_cache } from "next/cache";
 import type { MultiPolygon, Polygon, Position } from "geojson";
@@ -304,7 +305,7 @@ export type LivePointObjectEvidencePack = {
   linkedEntity: PointObjectWikidataLinkedEntity | null;
   source: {
     name: "OpenStreetMap";
-    service: "Nominatim";
+    service: "Nominatim" | "Overpass API";
     sourceId: "SPAT-001";
     sourceResponseId: string;
     sourceResponseHash: string;
@@ -316,7 +317,7 @@ export type LivePointObjectEvidencePack = {
     licenceId: "ODbL-1.0";
     attribution: "© OpenStreetMap contributors";
     licenceUrl: "https://www.openstreetmap.org/copyright";
-    usagePolicyUrl: "https://operations.osmfoundation.org/policies/nominatim/";
+    usagePolicyUrl: "https://operations.osmfoundation.org/policies/nominatim/" | "https://dev.overpass-api.de/overpass-doc/en/preface/commons.html";
     contextService: "Overpass API";
     contextStatus: "available" | "unavailable";
     contextResponseId: string | null;
@@ -1511,6 +1512,16 @@ async function lookupPlace(
   return { place: place ?? null, receipt };
 }
 
+async function exactSourcePlace(sourceFeatureId: string, locale: string): Promise<{place:SafeNominatimPlace|null;receipt:NominatimResponseReceipt}> {
+  try {
+    const source=await readExactSourceElement(sourceFeatureId,fetchOverpassJson);
+    const payload=exactSourcePlacePayload(source.element,locale);
+    return {place:sanitizePlace(payload),receipt:{payload,sourceResponseHash:semanticHash(source.element),sourceResponseBytes:Buffer.byteLength(JSON.stringify(source.element)),acquiredAt:source.acquiredAt}};
+  } catch {
+    throw new LivePointEvidenceError("OBJECT_NOT_RESOLVED",502,"The exact OpenStreetMap source record is temporarily unavailable. The selected identity has not changed.",true);
+  }
+}
+
 export async function searchLivePointObjects(input: {
   marketKey: PointObjectMarketKey;
   locale: PointObjectLocale;
@@ -1616,7 +1627,7 @@ function evidenceFor(
       label: "OpenStreetMap classification",
       value: JSON.stringify({ sourceFeatureId, featureClass: selectedFeatureClass }),
       sourceId: sourceFeatureId,
-      proofLimit: "Community-map classification returned by Nominatim; not an official land-use, zoning or legal-use classification."
+      proofLimit: "Community-map source classification; not an official land-use, zoning or legal-use classification."
     }
   ];
   if (place.displayName) {
@@ -1638,7 +1649,7 @@ function evidenceFor(
       label: "Returned OpenStreetMap geometry hash",
       value: JSON.stringify({ sourceFeatureId, geometryType: place.geometryType, geometryHash }),
       sourceId: sourceFeatureId,
-      proofLimit: `Hash of the Nominatim-returned ${place.geometryType} geometry; raw geometry is withheld from the model and is not an official parcel boundary.`
+      proofLimit: `Hash of the source-returned ${place.geometryType} geometry; raw geometry is withheld from the model and is not an official parcel boundary.`
     });
   }
   if (metrics && geometryHash) {
@@ -1834,12 +1845,12 @@ export async function buildLivePointObjectEvidencePack(
     .then((payload) => ({ ok: true as const, payload }))
     .catch(() => ({ ok: false as const }));
   const [placeReceipt, nearbyPayload, fabricPayload] = await Promise.all([
-    trustedIdentity ? lookupPlace(endpoint, trustedIdentity, locale) : reversePlace(endpoint, point, locale),
+    trustedIdentity ? exactSourcePlace(`${trustedIdentity.type}/${trustedIdentity.id}`, locale) : reversePlace(endpoint, point, locale),
     nearbyPayloadPromise,
     fabricPayloadPromise
   ]);
   const place = placeReceipt.place;
-  const matchMethod = trustedIdentity ? "nominatim_lookup" as const : "nominatim_reverse" as const;
+  const matchMethod = trustedIdentity ? "overpass_exact_identity" as const : "nominatim_reverse" as const;
 
   if (!place) {
     throw new LivePointEvidenceError(
@@ -1965,9 +1976,9 @@ export async function buildLivePointObjectEvidencePack(
     linkedEntity: wikidata.linkedEntity,
     source: {
       name: "OpenStreetMap" as const,
-      service: "Nominatim" as const,
+      service: trustedIdentity ? "Overpass API" as const : "Nominatim" as const,
       sourceId: "SPAT-001" as const,
-      sourceResponseId: `nominatim_response_${sourceResponseHash.slice(0, 24)}`,
+      sourceResponseId: `${trustedIdentity ? "overpass_exact" : "nominatim"}_response_${sourceResponseHash.slice(0, 24)}`,
       sourceResponseHash,
       sourceResponseBytes: placeReceipt.receipt.sourceResponseBytes,
       observedAt: null,
@@ -1977,7 +1988,7 @@ export async function buildLivePointObjectEvidencePack(
       licenceId: "ODbL-1.0" as const,
       attribution: "© OpenStreetMap contributors" as const,
       licenceUrl: "https://www.openstreetmap.org/copyright" as const,
-      usagePolicyUrl: "https://operations.osmfoundation.org/policies/nominatim/" as const,
+      usagePolicyUrl: trustedIdentity ? "https://dev.overpass-api.de/overpass-doc/en/preface/commons.html" as const : "https://operations.osmfoundation.org/policies/nominatim/" as const,
       contextService: "Overpass API" as const,
       contextStatus: nearby.status,
       contextResponseId: nearby.responseHash ? `overpass_response_${nearby.responseHash.slice(0, 24)}` : null,
@@ -2018,7 +2029,7 @@ export async function buildLivePointObjectEvidencePack(
       coordinateAssociation === "open_map_geometry_contains_point"
         ? "The returned OpenStreetMap polygon contains the analysis point, but it is community context and is not an official parcel or cadastral boundary."
         : coordinateAssociation === "trusted_open_map_identity"
-          ? "The exact OpenStreetMap identity was carried from a server-normalized search result and resolved through Nominatim lookup; the supplied point is a navigation anchor and may not lie inside returned geometry."
+          ? "The exact OpenStreetMap identity and available geometry are reused from a bounded server-held Overpass snapshot or an exact source lookup; the supplied point is a navigation anchor and may not lie inside returned geometry."
           : "Nominatim reverse geocoding returns the closest suitable indexed OSM object and does not prove that the analysis point lies inside its geometry.",
       trustedIdentity
         ? "The expected OpenStreetMap node, way or relation identity is checked server-side and spatially bound to the selected anchor; the request fails closed if the exact identity cannot be resolved consistently."
@@ -2027,7 +2038,7 @@ export async function buildLivePointObjectEvidencePack(
       "Raw source geometry is excluded from the AI model; an intact exact-object polygon may be returned separately to the map UI within its display budget.",
       nearby.status === "available"
         ? `Nearby context is a bounded OpenStreetMap/Overpass sample within ${OVERPASS_RADIUS_M} m; it is not a complete inventory and absent records do not prove real-world absence.`
-        : "Nearby OpenStreetMap context was unavailable for this request; the primary Nominatim object remains usable, but no inference may be made from the empty nearby list.",
+        : "Nearby OpenStreetMap context was unavailable for this request; the exact selected source object remains usable, but no inference may be made from the empty nearby list.",
       "The public Nominatim endpoint is suitable only for a moderate low-traffic Preview; its in-process throttle is not a distributed production quota.",
       "The public Overpass endpoint is a cached, bounded Preview dependency; it is not a production SLA and failures degrade to an explicitly empty nearby context.",
       wikidata.status === "available"

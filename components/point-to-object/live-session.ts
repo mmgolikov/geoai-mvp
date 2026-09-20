@@ -929,7 +929,7 @@ function parseSubject(value: unknown): PointObjectAiSubject | null {
   const featureClass = nonEmptyText(value.featureClass, 160);
   const sourceFeatureId = nonEmptyText(value.sourceFeatureId, 160);
   const sourceLabel = nonEmptyText(value.sourceLabel, 160);
-  const resolutionMethod = value.resolutionMethod === "nominatim_reverse" || value.resolutionMethod === "nominatim_lookup" ? value.resolutionMethod : null;
+  const resolutionMethod = value.resolutionMethod === "nominatim_reverse" || value.resolutionMethod === "nominatim_lookup" || value.resolutionMethod === "overpass_exact_identity" ? value.resolutionMethod : null;
   const coordinateAssociation = value.coordinateAssociation === "open_map_geometry_contains_point" ||
     value.coordinateAssociation === "reverse_nearest_indexed_object_not_point_in_polygon" ||
     value.coordinateAssociation === "trusted_open_map_identity"

@@ -1,7 +1,7 @@
 export const POINT_OBJECT_TRUSTED_IDENTITY_ANCHOR_MAX_DISTANCE_M = 500 as const;
 export const POINT_OBJECT_TRUSTED_IDENTITY_MAX_BBOX_SPAN_M = 5_000 as const;
 
-export type PointObjectResolutionMethod = "nominatim_reverse" | "nominatim_lookup";
+export type PointObjectResolutionMethod = "nominatim_reverse" | "nominatim_lookup" | "overpass_exact_identity";
 
 /** Only the identity attached to the user's original selection may pin a lookup.
  * A reverse-resolved neighbour is context, never an upgrade of that selection.
@@ -122,7 +122,7 @@ export function pointObjectLookupAssociation(
   matchMethod: PointObjectResolutionMethod,
   geometryContainsAnchor: boolean
 ): PointObjectLookupAssociation {
-  if (matchMethod === "nominatim_lookup") return "trusted_open_map_identity";
+  if (matchMethod === "nominatim_lookup" || matchMethod === "overpass_exact_identity") return "trusted_open_map_identity";
   return geometryContainsAnchor
     ? "open_map_geometry_contains_point"
     : "reverse_nearest_indexed_object_not_point_in_polygon";
@@ -132,6 +132,10 @@ export function pointObjectIdentityEvidenceDescriptor(
   matchMethod: PointObjectResolutionMethod,
   coordinateAssociation: PointObjectLookupAssociation
 ): { label: string; proofLimit: string } {
+  if (matchMethod === "overpass_exact_identity") return {
+    label: "OpenStreetMap object resolved by exact Overpass identity",
+    proofLimit: "Exact source identity and geometry are reused from a bounded server-held source snapshot or fetched by exact ID on cache miss. The anchor is spatially checked. This is community-map evidence, not official parcel, ownership or planning validation."
+  };
   if (matchMethod === "nominatim_lookup") {
     return {
       label: "OpenStreetMap object resolved by exact Nominatim lookup",

@@ -1,4 +1,5 @@
 import "server-only";
+import { rememberExactFindElements } from "./point-to-object-exact-source";
 
 import { unstable_cache } from "next/cache";
 import { sourceRetryAfterSeconds, waitForSourceAdmission } from "./point-to-object-source-recovery";
@@ -202,6 +203,7 @@ export async function findPointObjects(
     throw error;
   }
   const normalized = normalizePointObjectFindCandidates(payload, request);
+  rememberExactFindElements(payload, acquiredAt);
   const sourceResponseHash = semanticHash({
     observedAt: normalized.observedAt,
     upstreamElementCount: normalized.upstreamElementCount,
