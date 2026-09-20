@@ -83,6 +83,9 @@ async function prepareExactSavedResult(page: Page, locale: ConceptLocale, option
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto("/prototype/point-to-object?mode=create");
   if (locale === "ru") await page.getByRole("button", { name: "ru", exact: true }).click();
+  // setInputFiles bypasses the inert Create panel's interaction guard. Wait for
+  // real restoration readiness so the upload is not correctly discarded as stale.
+  await expect(page.locator("main[data-project-restoration]")).toHaveAttribute("data-project-restoration", "ready");
   await page.getByLabel(locale === "ru" ? "Загрузить GeoJSON" : "Upload GeoJSON").setInputFiles({
     name: "sprint10-preview-area.geojson",
     mimeType: "application/geo+json",

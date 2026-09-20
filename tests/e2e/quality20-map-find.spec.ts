@@ -44,10 +44,22 @@ test("Q01–Q05 source footprints, three-way basemap comparison and exact Find �
     coverage:{kind:"bounded_open_map_sample",approximateAreaSqKm:1,upstreamElementCount:3,normalizedCandidateCount:3,returnedCandidateCount:3,upstreamQueryLimit:80,capReached:false,completeInventory:false,mappedLevelsPolicy:"not_requested"},
     source:{name:"OpenStreetMap",service:"Overpass API",sourceResponseHash:"a".repeat(64),observedAt:null,acquiredAt:"2026-09-20T12:00:00Z",freshness:"runtime_response_feature_time_unavailable",licenceId:"ODbL-1.0",attribution:"© OpenStreetMap contributors",licenceUrl:"https://www.openstreetmap.org/copyright",usagePolicyUrl:"https://dev.overpass-api.de/overpass-doc/en/preface/commons.html",officialStatus:"open_context_not_official",runtimeNetworkUsed:true,persistenceUsed:false},limitations:["Synthetic offline regression fixture"],caveat:POINT_OBJECT_FIND_CAVEAT
   }}));
+  // The demo redirect changes the URL before workspace effects have finished.
+  // Complete its three startup reads before replacing the document: WebKit
+  // otherwise reports the unload-time fetches as access-control page errors.
+  const workspaceStartup = Promise.all(["/api/projects", "/api/analysis-runs", "/api/db/health"].map(async pathname => {
+    const response = await page.waitForResponse(response => {
+      const url = new URL(response.url());
+      return url.origin === info.project.use.baseURL && url.pathname === pathname && response.request().method() === "GET";
+    });
+    expect(response.status()).toBe(200);
+    expect(await response.finished()).toBeNull();
+  }));
   await page.goto("/login?next=%2Fworkspace&intent=demo");
   const access=page.getByRole("button",{name:"Open demo access"});
   if(await access.isVisible().catch(()=>false)){await access.click();await page.getByRole("button",{name:"Open demo",exact:true}).click();}
   await expect(page).toHaveURL(url=>url.pathname==="/workspace");
+  await workspaceStartup;
   await page.goto("/prototype/point-to-object");
   await page.getByRole("tab",{name:"Find",exact:true}).click();
   await page.getByTestId("find-search-cta").click();
