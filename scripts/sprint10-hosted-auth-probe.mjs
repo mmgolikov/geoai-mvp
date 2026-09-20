@@ -34,6 +34,7 @@ import {
   parseAuthDiagnostic
 } from "./sprint10-real-password-auth-diagnostics.mjs";
 import { parseLiveJourneyDiagnostic } from "./sprint10-live-journey-diagnostics.mjs";
+import { parseComparisonMapDiagnostic } from "../tests/e2e/helpers/sprint10-map-diagnostics.ts";
 import { loadQuality20Selection, quality20ApprovalSuffix, validateQuality20Ledger } from "../tests/e2e/helpers/quality20-frozen-case.ts";
 import { loadQuality20Acquisition } from "../tests/e2e/helpers/quality20-acquisition.ts";
 
@@ -949,12 +950,14 @@ function parseLiveReceipts(value, scope, { allowPartialPrefix = false, quality20
   const seen = new Set();
   const receipts = value.map((receipt, index) => {
     const expectedReceipt = expected[index];
+    const acceptedCostState = receipt?.state === "settled"
+      ? typeof receipt.estimatedUsd === "number" && Number.isFinite(receipt.estimatedUsd) &&
+        receipt.estimatedUsd >= 0 && receipt.estimatedUsd <= expectedReceipt?.reserveUsd
+      : allowPartialPrefix && receipt?.state === "unknown" && receipt.estimatedUsd === null;
     if (!exactKeys(receipt, ["id", "route", "depth", "state", "estimatedUsd"]) ||
         !Number.isSafeInteger(receipt.id) || receipt.id < 1 || seen.has(receipt.id) ||
         receipt.route !== expectedReceipt?.route || receipt.depth !== (scope === "quality20-analyse" ? quality20Depth : expectedReceipt?.depth) ||
-        receipt.state !== "settled" ||
-        typeof receipt.estimatedUsd !== "number" || !Number.isFinite(receipt.estimatedUsd) ||
-        receipt.estimatedUsd < 0 || receipt.estimatedUsd > expectedReceipt.reserveUsd) {
+        !acceptedCostState) {
       fail("A live child spend receipt is malformed.", "live_receipt_invalid");
     }
     seen.add(receipt.id);
@@ -976,6 +979,18 @@ export function parseLiveJourneyChildReceipt(result, expected) {
   if (!value || value.scope !== expected.scope || value.previewHost !== expected.previewHost ||
       value.commit !== expected.commit) {
     fail("The live child receipt is not bound to the exact Preview tuple.", "live_receipt_invalid");
+  }
+  let mapDiagnostics = null;
+  if (Object.hasOwn(value, "mapDiagnostics")) {
+    try {
+      if (!["FAIL", "FAIL_CLEANUP"].includes(value.status) ||
+          !["dubai-find", "dubai-find-analysis", "quality20-find"].includes(expected.scope) ||
+          !Array.isArray(value.mapDiagnostics) || value.mapDiagnostics.length !== 1) throw new Error("Invalid map diagnostic envelope.");
+      const diagnostic = parseLiveJourneyDiagnostic(value.diagnostic);
+      mapDiagnostics = value.mapDiagnostics.map(parseComparisonMapDiagnostic);
+      if (diagnostic.primaryStatus !== "failed" || mapDiagnostics[0].stage !== diagnostic.primaryStage) throw new Error("Contradictory map diagnostic stage.");
+    } catch { fail("The live map diagnostic is malformed or inconsistent.", "live_receipt_invalid"); }
+    delete value.mapDiagnostics;
   }
   let frozenEnvelope = null;
   if (expected.scope.startsWith("quality20-")) {
@@ -1044,7 +1059,7 @@ export function parseLiveJourneyChildReceipt(result, expected) {
       fail("The live cleanup diagnostic contradicts its status.", "live_receipt_invalid");
     }
     return { status: "FAIL_CLEANUP", scope: value.scope, previewHost: value.previewHost, commit: value.commit, receipts,
-      stage: value.stage, ...(diagnostic ? { diagnostic } : {}) };
+      stage: value.stage, ...(diagnostic ? { diagnostic } : {}), ...(mapDiagnostics ? { mapDiagnostics } : {}) };
   }
   if (value.status === "FAIL") {
     const receipts = parseLiveReceipts(value.receipts, expected.scope, { allowPartialPrefix: true, quality20Depth: expected.quality20?.definition.depth });
@@ -1055,7 +1070,8 @@ export function parseLiveJourneyChildReceipt(result, expected) {
         diagnostic.primaryStatus !== "failed" || diagnostic.primaryStage === null || diagnostic.cleanupStage !== null) {
       fail("The live FAIL receipt is not accepted.", "live_receipt_invalid");
     }
-    return { status: "FAIL", scope: value.scope, previewHost: value.previewHost, commit: value.commit, receipts, diagnostic };
+    return { status: "FAIL", scope: value.scope, previewHost: value.previewHost, commit: value.commit, receipts, diagnostic,
+      ...(mapDiagnostics ? { mapDiagnostics } : {}) };
   }
   fail("The live child returned an unsupported status.", "live_receipt_invalid");
 }

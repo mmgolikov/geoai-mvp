@@ -319,6 +319,55 @@ assert.throws(() => parseLiveJourneyChildReceipt(childResult(1, {
   receipts: [paidReceipts[1]]
 }), childTuple), undefined, "cleanup receipts must be an ordered settled prefix");
 assert.throws(() => parseLiveJourneyChildReceipt(childResult(2, cleanupValue), childTuple));
+const unknownReceipt = { ...paidReceipts[0], state: "unknown", estimatedUsd: null };
+for (const receiptValue of [failureValue, simultaneousValue, cleanupValue]) {
+  assert.deepEqual(parseLiveJourneyChildReceipt(childResult(1, { ...receiptValue, receipts: [unknownReceipt] }), childTuple).receipts,
+    [unknownReceipt], "Failure reports must preserve unresolved spend without settling it.");
+  for (const corrupt of [
+    { ...unknownReceipt, estimatedUsd: 0 }, { ...unknownReceipt, estimatedUsd: -1 },
+    { ...unknownReceipt, estimatedUsd: "unknown" }, { ...unknownReceipt, state: "reserved" },
+    { ...unknownReceipt, state: "invalid" }, { ...unknownReceipt, state: "settled" },
+    { ...paidReceipts[0], estimatedUsd: Infinity }, { ...paidReceipts[0], estimatedUsd: NaN },
+    { ...paidReceipts[0], estimatedUsd: -1 }, { ...paidReceipts[0], estimatedUsd: 1.20000001 }
+  ]) assert.throws(() => parseLiveJourneyChildReceipt(childResult(1, { ...receiptValue, receipts: [corrupt] }), childTuple));
+}
+for (const [status, receiptValue] of [[0, passValue], [2, inconclusiveValue]]) {
+  assert.throws(() => parseLiveJourneyChildReceipt(childResult(status, { ...receiptValue, receipts: [unknownReceipt, paidReceipts[1]] }), childTuple));
+}
+
+const mapDiagnostic = {
+  schemaVersion: "geoai.find-map-diagnostic.v1", stage: "find_compare_basemap", failureKind: "basemap_assertion",
+  readStatus: "unavailable", map: null, networkScope: "page_map_host_since_comparison_open",
+  network: { host: "tiles.openfreemap.org", requests: 1, responses: 0, failed: 1, pending: 0, statusCounts: [] }
+};
+const mapFailure = { ...failureValue, scope: "dubai-find", receipts: [],
+  diagnostic: { ...failureDiagnostic, primaryStage: "find_compare_basemap" }, mapDiagnostics: [mapDiagnostic] };
+for (const scope of ["dubai-find", "dubai-find-analysis", "quality20-find"]) {
+  const frozen = scope === "quality20-find" ? { quality20: { caseId: "dubai-find", manifestSha256: "a".repeat(64), depth: null, observations: [] } } : {};
+  const expected = { ...childTuple, scope, ...(scope === "quality20-find" ? {
+    quality20: { definition: { id: "dubai-find" }, manifestSha256: "a".repeat(64) }
+  } : {}) };
+  for (const cleanup of [false, true]) {
+    const value = { ...mapFailure, ...frozen, scope, ...(cleanup ? { status: "FAIL_CLEANUP", stage: "logout_action_missing",
+      diagnostic: { ...mapFailure.diagnostic, cleanupStage: "logout_action_missing" } } : {}) };
+    assert.deepEqual(parseLiveJourneyChildReceipt(childResult(1, value), expected).mapDiagnostics, [mapDiagnostic]);
+  }
+}
+for (const patch of [
+  { mapDiagnostics: [] }, { mapDiagnostics: [mapDiagnostic, mapDiagnostic] },
+  { mapDiagnostics: [{ ...mapDiagnostic, url: "private" }] },
+  { mapDiagnostics: [{ ...mapDiagnostic, network: { ...mapDiagnostic.network, host: "unknown.invalid" } }] },
+  { mapDiagnostics: [{ ...mapDiagnostic, network: { ...mapDiagnostic.network, requests: -1 } }] },
+  { mapDiagnostics: [{ ...mapDiagnostic, stage: "find_compare_geometry", failureKind: "geometry_probe_timeout" }] },
+  { diagnostic: undefined }, { diagnostic: { ...mapFailure.diagnostic, primaryStatus: "inconclusive" } }
+]) assert.throws(() => parseLiveJourneyChildReceipt(childResult(1, { ...mapFailure, ...patch }), { ...childTuple, scope: "dubai-find" }));
+for (const scope of ["journey", "singapore-find", "dubai-create", "dubai-profile-depth-cycle"]) {
+  assert.throws(() => parseLiveJourneyChildReceipt(childResult(1, { ...mapFailure, scope }), { ...childTuple, scope }));
+}
+for (const [status, value] of [[0, { ...passValue, scope: "dubai-find", receipts: [] }],
+  [2, { ...inconclusiveValue, scope: "dubai-find", receipts: [] }]]) {
+  assert.throws(() => parseLiveJourneyChildReceipt(childResult(status, { ...value, mapDiagnostics: [mapDiagnostic] }), { ...childTuple, scope: "dubai-find" }));
+}
 for (const [scope, receipts] of [
   ["dubai-analyse", [paidReceipts[0]]],
   ["dubai-find", []],
@@ -801,6 +850,10 @@ console.log(JSON.stringify({
     childEnvironmentSecretExclusions: 10,
     childReceiptStates: 3,
     strictReceiptDenials: 23,
+    unresolvedFailureReceiptAcceptances: 3,
+    unresolvedOrMalformedReceiptDenials: 32,
+    mapDiagnosticFailureAcceptances: 6,
+    mapDiagnosticEnvelopeDenials: 14,
     exactScopeReceiptMatrices: 8,
     singleChildSpawn: passSpawns,
     timeoutFailClosed: 1,
