@@ -337,7 +337,7 @@ function preflight(repositoryRoot) {
   const ledgerRoot = required("GEOAI_SPRINT10_LIVE_LEDGER_ROOT");
   const ledgerPath = required("GEOAI_SPRINT10_LIVE_LEDGER_PATH");
   const ledger = validateLiveLedgerPreflight(ledgerRoot, ledgerPath, scope);
-  if (quality20) validateQuality20Ledger(quality20, ledger.receipts);
+  if (quality20) validateQuality20Ledger(quality20, ledger);
   const receiptPath = required("GEOAI_SPRINT10_LIVE_DEPLOYMENT_RECEIPT_PATH");
   const deploymentReceipt = validateReceipt(receiptPath, previewUrl, commit);
   if ((quality20 && quality20.manifest.execution.deploymentId !== deploymentReceipt.deployment.id) ||

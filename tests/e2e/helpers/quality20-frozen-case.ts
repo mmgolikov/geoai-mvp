@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 import { closeSync, constants, fstatSync, openSync, readFileSync, realpathSync } from "node:fs";
 import { isAbsolute } from "node:path";
+// @ts-expect-error The offline Node strip-types runner needs an explicit extension.
+import { parseSprint10SpendLedger, hasSprint10UnresolvedCharge, type Sprint10SpendLedger } from "./sprint10-live-budget.ts";
 
 export const QUALITY20_AMENDMENT = "quality20-dubai-a01-a06-singapore-a07-a08-v1";
 export const QUALITY20_SCOPES = ["quality20-analyse", "quality20-find", "quality20-create"] as const;
@@ -203,10 +205,13 @@ export function quality20RequestKey(selection: Quality20Selection, route: "ai" |
 export function quality20ApprovalSuffix(selection: Quality20Selection | null): string {
   return selection ? `:${selection.definition.id}:${selection.manifestSha256}` : "";
 }
-export function validateQuality20Ledger(selection: Quality20Selection, receipts: readonly { identity?: { requestKey?: string }; state?: string }[]) {
+export function validateQuality20Ledger(selection: Quality20Selection, input: Sprint10SpendLedger | readonly { identity?: { requestKey?: string }; state?: string }[]) {
+  const parsed = Array.isArray(input) ? null : parseSprint10SpendLedger(input);
+  requireCondition(Array.isArray(input) || parsed, "Full spend ledger or conservative accounting is invalid.");
+  const receipts = parsed ? parsed.receipts : input as readonly { identity?: { requestKey?: string }; state?: string }[];
   const paid = selection.definition.scope !== "quality20-find";
   requireCondition(receipts.length >= 13 && receipts.length + Number(paid) <= 62, "Historic-inclusive 62-receipt execution ceiling reached or historic denominator missing.");
-  requireCondition(!receipts.some((receipt) => receipt.state === "reserved" || receipt.state === "unknown"), "Unsettled/unknown receipts block the next case.");
+  requireCondition(parsed ? !hasSprint10UnresolvedCharge(parsed, true) : !receipts.some((receipt) => receipt.state === "reserved" || receipt.state === "unknown"), "Unsettled/unknown receipts block the next case.");
   requireCondition(!receipts.some((receipt) => receipt.identity?.requestKey?.startsWith(`Q20:${selection.definition.id}:`)), "Case already attempted; no automatic retry even under a revised manifest.");
 }
 

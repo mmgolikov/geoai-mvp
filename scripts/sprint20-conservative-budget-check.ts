@@ -4,6 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 // @ts-expect-error Explicit .ts for the Node transform-types runner.
 import { accountSprint10UnknownAtFullReserve, accountSprint10UnknownAtFullReserveFile, createSprint10SpendLedgerFile, hasSprint10UnresolvedCharge, markSprint10SpendUnknownFile, parseSprint10SpendLedger, readSprint10SpendLedgerFile, reserveSprint10SpendFile, sprint10ReceiptHash, SPRINT10_CREATE_PROMPT_VERSION } from "../tests/e2e/helpers/sprint10-live-budget.ts";
+// @ts-expect-error Explicit .ts for the Node transform-types runner.
+import { validateQuality20Ledger, type Quality20Selection } from "../tests/e2e/helpers/quality20-frozen-case.ts";
 const root = realpathSync(mkdtempSync(join(tmpdir(), "geoai-sprint20-budget-test-")));
 const path = join(root, "ledger.json");
 const time = "2026-09-20T10:00:00.000Z";
@@ -46,5 +48,22 @@ try {
   const anotherUnknown = markSprint10SpendUnknownFile(root, path, 2, {...identity, requestKey: "S4.AFTER.EXPLICIT.APPROVAL"}, time, "response_unreadable");
   assert.equal(hasSprint10UnresolvedCharge(anotherUnknown), true, "Approval never applies to future unknown requests");
   assert.equal(anotherUnknown.estimatedOrReservedUsd, 0.6);
+  const selection = {definition:{id:'A01-Q',scope:'quality20-analyse'}} as Quality20Selection;
+  // Preserve the 13-receipt acceptance denominator with genuinely validated synthetic receipts.
+  let frozenLedger = anotherUnknown;
+  frozenLedger = accountSprint10UnknownAtFullReserveFile(root,path,2,{...identity,requestKey:'S4.AFTER.EXPLICIT.APPROVAL'},
+    {...approval,receiptHash:sprint10ReceiptHash(anotherUnknown.receipts[1]!)});
+  for(let id=3;id<=13;id++) {
+    const nextIdentity={...identity,requestKey:`S4.OFFLINE.${id}`};
+    reserveSprint10SpendFile(root,path,nextIdentity,time);
+    const unknown=markSprint10SpendUnknownFile(root,path,id,nextIdentity,time,'response_unreadable');
+    assert.throws(()=>validateQuality20Ledger(selection,unknown));
+    frozenLedger=accountSprint10UnknownAtFullReserveFile(root,path,id,nextIdentity,
+      {...approval,receiptHash:sprint10ReceiptHash(unknown.receipts[id-1]!)});
+  }
+  validateQuality20Ledger(selection,frozenLedger);
+  assert.throws(()=>validateQuality20Ledger(selection,frozenLedger.receipts));
+  const badCharge=structuredClone(frozenLedger); badCharge.conservativeCharges![0]!.chargedUsd=0;
+  assert.throws(()=>validateQuality20Ledger(selection,badCharge));
   console.log("PASS: append-only full-reserve accounting, immutable history, explicit authority, and future unknown fail-closed");
 } finally { rmSync(root, {recursive: true, force: true}); }

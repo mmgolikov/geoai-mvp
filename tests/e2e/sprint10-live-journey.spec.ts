@@ -533,7 +533,7 @@ function installBudgetGate(page: Page, configuration: LiveConfiguration) {
         guard(frozenCaseArmed, "Frozen-case UI/source preconditions were not completed before a paid POST.");
         validateQuality20PaidBody(configuration.quality20, routeName, body);
         validateQuality20Ledger(configuration.quality20,
-          readSprint10SpendLedgerFile(configuration.ledgerRoot, configuration.ledgerPath).receipts);
+          readSprint10SpendLedgerFile(configuration.ledgerRoot, configuration.ledgerPath));
       } catch {
         fatal = "QUALITY20_BLOCKED: frozen case identity/source/body/receipt gate rejected the paid request before reservation.";
         return route.abort("blockedbyclient");
