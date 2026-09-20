@@ -13,6 +13,7 @@ import {
 import {
   authorizePointObjectCloud,
   getPointObjectCloudProjectKey,
+  getPointObjectCloudStorageMode,
   listPointObjectCloudArtifacts,
   putPointObjectCloudArtifact
 } from "@/src/lib/prototype/point-object-cloud-repository";
@@ -94,7 +95,7 @@ export async function GET(request: Request) {
   return privateNoStoreJson({
     ok: true,
     persisted: true,
-    storageMode: "authenticated_supabase_preview",
+    storageMode: getPointObjectCloudStorageMode(),
     items: items.map((item) => ({
       cloudRevision: item.cloudRevision,
       localProject: item.localProject,
@@ -153,7 +154,7 @@ export async function PUT(request: Request) {
     {
       ok: true,
       persisted: true,
-      storageMode: "authenticated_supabase_preview",
+      storageMode: getPointObjectCloudStorageMode(),
       outcome: receipt.status,
       cloudRevision: receipt.cloudRevision,
       payloadHash: receipt.clientPayloadHash,

@@ -34,7 +34,8 @@ function rejectPattern(text, pattern, message) {
   if (pattern.test(text)) failures.push(message);
 }
 
-requirePattern(gate, /environment\s*!==\s*"preview"/, "Persistence gate is not fail-closed outside Preview");
+requirePattern(gate, /environment\s*!==\s*"preview"/, "Unsupported environments must retain their default denial");
+requirePattern(gate, /environment === "production"[\s\S]*GEOAI_ALLOW_POINT_OBJECT_PRODUCTION_PERSISTENCE[\s\S]*pointObjectProductionAuthConfigured/, "Production requires its independent flag and exact closed-MVP Auth configuration");
 requirePattern(
   gate,
   /GEOAI_ALLOW_POINT_OBJECT_PREVIEW_PERSISTENCE/,
@@ -92,5 +93,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `Point-to-object persistence contract passed: ${migrationName} is Preview-only, caller-scoped, role/ownership-bound, JSON-bounded, API-RPC-only and tracked as blocked from hosted apply.`
+  `Point-to-object persistence contract passed: ${migrationName} remains caller-scoped, role/ownership-bound, JSON-bounded and API-RPC-only; explicit environment gates do not apply migrations or prove hosted readiness.`
 );

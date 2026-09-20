@@ -12,6 +12,7 @@ export type PointObjectRuntimeGate = {
     | "self_hosted_ai_flag_disabled"
     | "production_surface_flag_disabled"
     | "production_ai_flag_disabled"
+    | "production_auth_configuration_required"
     | "openai_key_missing";
 };
 
@@ -25,6 +26,20 @@ export type PointObjectRuntimePolicy = {
 
 function isExplicitlyEnabled(value: string | undefined): boolean {
   return value?.trim().toLowerCase() === "true";
+}
+
+/** Closed MVP is authorized only on the existing geoai-dev target. This checks
+ * public configuration, not credentials, user authorization or hosted readiness. */
+export function pointObjectProductionAuthConfigured(environment: PointObjectRuntimePolicyEnvironment): boolean {
+  if (environment.NEXT_PUBLIC_AUTH_MODE?.trim() !== "supabase_auth" ||
+      !/^sb_publishable_[A-Za-z0-9_-]{16,}$/.test(environment.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim() ?? "")) return false;
+  try {
+    const url = new URL(environment.NEXT_PUBLIC_SUPABASE_URL?.trim() ?? "");
+    return url.origin === "https://pphdqkurxneyagvnnjdt.supabase.co" && url.pathname === "/" &&
+      !url.username && !url.password && !url.search && !url.hash;
+  } catch {
+    return false;
+  }
 }
 
 export function resolvePointObjectRuntimePolicy(
@@ -70,6 +85,13 @@ export function resolvePointObjectRuntimePolicy(
         environment: "production",
         surface,
         ai: { enabled: false, reason: "production_surface_flag_disabled", scope: "disabled" }
+      };
+    }
+    if (!pointObjectProductionAuthConfigured(environment)) {
+      return {
+        environment: "production",
+        surface: { enabled: false, reason: "production_auth_configuration_required" },
+        ai: { enabled: false, reason: "production_auth_configuration_required", scope: "disabled" }
       };
     }
     if (!isExplicitlyEnabled(environment.GEOAI_ALLOW_POINT_OBJECT_PRODUCTION_AI)) {

@@ -16,8 +16,16 @@ export type PointObjectCloudRepositoryResult =
   | { ok: false; status: 400 | 403 | 409 | 503; message: string };
 
 export function getPointObjectCloudProjectKey(): string | null {
-  const value = process.env.GEOAI_POINT_OBJECT_PREVIEW_PROJECT_KEY?.trim() ?? "";
+  const value = (process.env.VERCEL_ENV?.trim() === "production"
+    ? process.env.GEOAI_POINT_OBJECT_PRODUCTION_PROJECT_KEY
+    : process.env.GEOAI_POINT_OBJECT_PREVIEW_PROJECT_KEY)?.trim() ?? "";
   return isExactProjectKey(value) ? value : null;
+}
+
+export function getPointObjectCloudStorageMode(): "authenticated_supabase_preview" | "authenticated_supabase_production" {
+  return process.env.VERCEL_ENV?.trim() === "production"
+    ? "authenticated_supabase_production"
+    : "authenticated_supabase_preview";
 }
 
 export function authorizePointObjectCloud(input: {

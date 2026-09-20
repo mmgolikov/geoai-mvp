@@ -45,6 +45,7 @@ requirePattern("contract", /reasonHasNoCurrent = value\.conflictReason === "spli
   "receipt parser does not bind no-current conflict reasons to an absent current row");
 
 requirePattern("repository", /GEOAI_POINT_OBJECT_PREVIEW_PROJECT_KEY/, "server-owned Preview project key is missing");
+requirePattern("repository", /VERCEL_ENV\?\.trim\(\) === "production"[\s\S]*GEOAI_POINT_OBJECT_PRODUCTION_PROJECT_KEY[\s\S]*GEOAI_POINT_OBJECT_PREVIEW_PROJECT_KEY/, "Production must select its own server scope without Preview fallback");
 requirePattern("repository", /authorizePointObjectAnalysis/, "request-scoped project authorization is not reused");
 requirePattern("repository", /schema\("api"\)\.rpc\("put_point_object_project_artifact"/, "put RPC facade is missing");
 requirePattern("repository", /schema\("api"\)\.rpc\("list_point_object_project_artifacts"/, "list RPC facade is missing");
@@ -117,4 +118,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log("Point-object cloud persistence contract passed: Preview-gated, server-scoped, creator-private, CAS/replay bounded, SQL-derived immutable invariants, no direct table grants or destructive rollback.");
+console.log("Point-object cloud persistence contract passed: environment-gated, server-scoped, creator-private, CAS/replay bounded, SQL-derived immutable invariants, no direct table grants or destructive rollback.");

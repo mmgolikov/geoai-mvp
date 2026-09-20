@@ -85,6 +85,9 @@ function configure(environment: "preview" | "production", values: {
   key?: boolean;
 }) {
   process.env.VERCEL_ENV = environment;
+  process.env.NEXT_PUBLIC_AUTH_MODE = "supabase_auth";
+  process.env.NEXT_PUBLIC_SUPABASE_URL = "https://pphdqkurxneyagvnnjdt.supabase.co";
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = ["sb", "publishable", "synthetic_offline_fixture"].join("_");
   for (const name of [
     "GEOAI_ALLOW_POINT_OBJECT_PREVIEW_AI",
     "GEOAI_ALLOW_POINT_OBJECT_PRODUCTION_SURFACE",

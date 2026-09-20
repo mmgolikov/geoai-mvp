@@ -126,6 +126,9 @@ const definitions: RouteDefinition[] = [
 
 function configureProductionSurface(enabled: boolean) {
   process.env.VERCEL_ENV = "production";
+  process.env.NEXT_PUBLIC_AUTH_MODE = "supabase_auth";
+  process.env.NEXT_PUBLIC_SUPABASE_URL = "https://pphdqkurxneyagvnnjdt.supabase.co";
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = ["sb", "publishable", "synthetic_offline_fixture"].join("_");
   delete process.env.GEOAI_ALLOW_POINT_OBJECT_PREVIEW_AI;
   delete process.env.GEOAI_ALLOW_POINT_OBJECT_PRODUCTION_AI;
   delete process.env.OPENAI_API_KEY;
@@ -149,6 +152,10 @@ for (const definition of definitions) {
   fixtureGlobal.__geoaiSourceCalls[definition.name] = 0;
   const original = readFileSync(new URL(definition.sourcePath, repositoryRoot), "utf8");
   const transformed = definition.replaceAdapters(original)
+    // This lane isolates surface/origin/body/quota behavior for an authenticated
+    // principal. Real identity negatives execute in quality20-production-gate-check.mjs.
+    .replace('import { requirePilotIdentity, requirePilotMutationOrigin } from "@/src/lib/auth/require-pilot-identity";',
+      'import { requirePilotMutationOrigin } from "@/src/lib/auth/require-pilot-identity"; const requirePilotIdentity = async () => ({ allowed: true, mode: "supabase_auth", context: null });')
     .replace('import { NextResponse } from "next/server";', nextResponseStub)
     .replace('import { getPointObjectSurfaceStatus } from "@/src/lib/ai/openai-upstream-gate";',
       'const getPointObjectSurfaceStatus = () => globalThis.__geoaiSourceRuntimeStatus();')

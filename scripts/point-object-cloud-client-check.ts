@@ -101,6 +101,20 @@ const pageOne = [
   item(artifact(2, "2026-09-18T10:02:00.000Z"), 1)
 ];
 const pageTwo = [item(artifact(1, "2026-09-18T10:01:00.000Z"), 1)];
+for (const storageMode of ["authenticated_supabase_production", "unknown_storage_mode"]) {
+  const productionList = await cloud.listPointObjectCloudArtifacts({
+    signal: new AbortController().signal,
+    fetcher: async () => Response.json({ ok: true, persisted: true, storageMode, items: pageTwo, nextCursor: null })
+  });
+  assert.equal(productionList.status, storageMode === "authenticated_supabase_production" ? "ready" : "failed");
+  const productionPut = await cloud.putPointObjectCloudArtifact({
+    localProject, artifact: artifact(1, "2026-09-18T10:01:00.000Z"), expectedCloudRevision: null,
+    signal: new AbortController().signal,
+    fetcher: async () => Response.json({ ok: true, persisted: true, storageMode, outcome: "created", cloudRevision: 1,
+      payloadHash, immutableHash: "b".repeat(64) }, { status: 201 })
+  });
+  assert.equal(productionPut.status, storageMode === "authenticated_supabase_production" ? "saved" : "failed");
+}
 const listCalls: string[] = [];
 const listed = await cloud.listPointObjectCloudArtifacts({
   signal: new AbortController().signal,

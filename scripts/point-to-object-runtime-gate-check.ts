@@ -13,6 +13,12 @@ function policy(
   });
 }
 
+const productionAuth = {
+  NEXT_PUBLIC_AUTH_MODE: "supabase_auth",
+  NEXT_PUBLIC_SUPABASE_URL: "https://pphdqkurxneyagvnnjdt.supabase.co",
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ["sb", "publishable", "synthetic_offline_fixture"].join("_")
+};
+
 const unsupported = policy({});
 assert.equal(unsupported.environment, "unsupported");
 assert.equal(unsupported.surface.enabled, false);
@@ -34,6 +40,7 @@ assert.equal(productionDefault.ai.enabled, false);
 assert.equal(productionDefault.ai.reason, "production_surface_flag_disabled");
 
 const productionSurfaceOnly = policy({
+  ...productionAuth,
   VERCEL_ENV: "production",
   GEOAI_ALLOW_POINT_OBJECT_PRODUCTION_SURFACE: "true"
 }, { openAiKeyConfigured: true });
@@ -49,6 +56,7 @@ assert.equal(productionAiOnly.surface.enabled, false);
 assert.equal(productionAiOnly.ai.enabled, false);
 
 const productionMissingKey = policy({
+  ...productionAuth,
   VERCEL_ENV: "production",
   GEOAI_ALLOW_POINT_OBJECT_PRODUCTION_SURFACE: "true",
   GEOAI_ALLOW_POINT_OBJECT_PRODUCTION_AI: "true"
@@ -58,6 +66,7 @@ assert.equal(productionMissingKey.ai.enabled, false);
 assert.equal(productionMissingKey.ai.reason, "openai_key_missing");
 
 const productionEnabled = policy({
+  ...productionAuth,
   VERCEL_ENV: "production",
   GEOAI_ALLOW_POINT_OBJECT_PRODUCTION_SURFACE: " TRUE ",
   GEOAI_ALLOW_POINT_OBJECT_PRODUCTION_AI: "true"

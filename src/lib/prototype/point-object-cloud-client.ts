@@ -130,7 +130,7 @@ export async function listPointObjectCloudArtifacts(input: {
       if (!response.ok) return { status: requestFailureStatus(response) };
       const value: unknown = await response.json();
       if (!isRecord(value) || !hasExactKeys(value, ["ok", "persisted", "storageMode", "items", "nextCursor"]) ||
-          value.ok !== true || value.persisted !== true || value.storageMode !== "authenticated_supabase_preview" ||
+          value.ok !== true || value.persisted !== true || (value.storageMode !== "authenticated_supabase_preview" && value.storageMode !== "authenticated_supabase_production") ||
           !Array.isArray(value.items) || value.items.length > PAGE_SIZE ||
           !(value.nextCursor === null || (typeof value.nextCursor === "string" && cursorPattern.test(value.nextCursor)))) {
         return { status: "failed" };
@@ -188,7 +188,7 @@ export async function putPointObjectCloudArtifact(input: {
     }
     if (!response.ok) return { status: requestFailureStatus(response) };
     if (!isRecord(value) || !hasExactKeys(value, ["ok", "persisted", "storageMode", "outcome", "cloudRevision", "payloadHash", "immutableHash"]) ||
-        value.ok !== true || value.persisted !== true || value.storageMode !== "authenticated_supabase_preview" ||
+        value.ok !== true || value.persisted !== true || (value.storageMode !== "authenticated_supabase_preview" && value.storageMode !== "authenticated_supabase_production") ||
         !(value.outcome === "created" || value.outcome === "replayed" || value.outcome === "updated") ||
         !Number.isSafeInteger(value.cloudRevision) || Number(value.cloudRevision) < 1 ||
         typeof value.payloadHash !== "string" || !hashPattern.test(value.payloadHash) || value.payloadHash !== input.artifact.payloadHash ||

@@ -1,6 +1,7 @@
 import type { GeoAIAuthMode } from "@/src/types/auth";
 import { requestAuthKernelStatus } from "@/src/lib/auth/request-auth-kernel";
 import { getSupabasePublishableKey, getSupabaseUrl } from "@/src/lib/supabase/config";
+import { pointObjectProductionAuthConfigured } from "@/src/lib/prototype/point-object-runtime-policy";
 
 export type AuthModeStatus = {
   requestedMode: GeoAIAuthMode;
@@ -12,8 +13,16 @@ export type AuthModeStatus = {
 
 const AUTH_MODE_VALUES: GeoAIAuthMode[] = ["demo_public", "supabase_auth", "disabled"];
 
+function closedPointObjectProductionRequested() {
+  return process.env.VERCEL_ENV?.trim() === "production" && (
+    process.env.GEOAI_ALLOW_POINT_OBJECT_PRODUCTION_SURFACE?.trim().toLowerCase() === "true" ||
+    process.env.GEOAI_ALLOW_POINT_OBJECT_PRODUCTION_PERSISTENCE?.trim().toLowerCase() === "true"
+  );
+}
+
 export function getRequestedAuthMode(): GeoAIAuthMode {
   const raw = process.env.NEXT_PUBLIC_AUTH_MODE?.trim() as GeoAIAuthMode | undefined;
+  if (closedPointObjectProductionRequested() && raw !== "supabase_auth") return "disabled";
 
   if (raw && AUTH_MODE_VALUES.includes(raw)) {
     return raw;
@@ -28,6 +37,7 @@ export function hasSupabasePublicConfig() {
 
 export function getEffectiveAuthMode(): GeoAIAuthMode {
   const requestedMode = getRequestedAuthMode();
+  if (closedPointObjectProductionRequested() && !pointObjectProductionAuthConfigured(process.env)) return "disabled";
 
   if (requestedMode === "supabase_auth" && (!hasSupabasePublicConfig() || !requestAuthKernelStatus.implemented)) {
     return "disabled";
