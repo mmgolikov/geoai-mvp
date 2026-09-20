@@ -175,7 +175,7 @@ for (const functionName of ["runDubaiFind", "runSingaporeFind"]) {
       "Dubai must prefer real source footprints for its three-object shortlist");
     assert.match(body, /new Set\(identities\)[.]size === 3/,
       "Dubai must require three distinct exact source identities");
-    assert.match(body, /quality20MapState\(map\)\)[.]basemapCount\)[.]toBeGreaterThan\(0\)/,
+    assert.match(body, /readComparisonMapDiagnostic\(map, comparisonNetwork[.]snapshot\(\)\)\)[.]map\?[.]basemapFeatures \?\? 0\)[.]toBeGreaterThan\(0\)/,
       "Dubai comparison must contain rendered real basemap features");
     assert.match(body, /expect\(feature\?[.]geometry\)[.]toEqual\(candidate[.]geometry\)/,
       "Dubai comparison must preserve the exact source footprint");

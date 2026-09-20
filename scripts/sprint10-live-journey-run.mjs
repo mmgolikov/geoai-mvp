@@ -37,6 +37,7 @@ import { loadQuality20Selection, quality20ApprovalSuffix, validateQuality20Ledge
 import { loadQuality20Acquisition } from "../tests/e2e/helpers/quality20-acquisition.ts";
 import { validateGoalDepthCaptureEnvironment } from "../tests/e2e/helpers/sprint10-goal-depth-evidence.ts";
 import { validateFindAnalysisCaptureEnvironment } from "../tests/e2e/helpers/sprint10-find-analysis-evidence.ts";
+import { comparisonMapDiagnosticsFromReport } from "../tests/e2e/helpers/sprint10-map-diagnostics.ts";
 
 const exactDevelopmentProjectRef = "pphdqkurxneyagvnnjdt";
 const exactLedgerId = "5aa405b3-bbda-48aa-aeea-ca3357be4042";
@@ -651,6 +652,8 @@ module.exports = defineConfig({
     const report = parseJsonReport(result, "live journey");
     const receipts = receiptSummary(config);
     const classified = classifyLiveJourneyReport(report, result.status, config, receipts);
+    const mapDiagnostics = comparisonMapDiagnosticsFromReport(report);
+    if (mapDiagnostics.length) classified.receipt.mapDiagnostics = mapDiagnostics;
     if (config.quality20 || config.acquisition) {
       classified.receipt.quality20 = { caseId: config.quality20?.definition.id ?? config.acquisition.caseId,
         manifestSha256: config.quality20?.manifestSha256 ?? config.acquisition.planSha256,

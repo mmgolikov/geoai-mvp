@@ -41,6 +41,7 @@ import { SPRINT10_GOAL_DEPTH_SCOPES, validateSprint10GoalDepthRequest,
 import { validateGoalDepthCaptureEnvironment, writeSprint10GoalDepthEvidence } from "./helpers/sprint10-goal-depth-evidence";
 import { validateSprint10FindAnalysisRequest } from "./helpers/sprint10-live-journey-gate";
 import { validateFindAnalysisCaptureEnvironment } from "./helpers/sprint10-find-analysis-evidence";
+import { observeComparisonMapNetwork, readComparisonMapDiagnostic, withComparisonGeometryDeadline, ComparisonGeometryProbeTimeout } from "./helpers/sprint10-map-diagnostics";
 import {
   SPRINT10_ANALYSIS_EVIDENCE_CAPTURE_OPT_IN,
   SPRINT10_PUBLIC_ANALYSIS_QUESTION,
@@ -1536,6 +1537,7 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
   await page.getByRole("button", { name: "Compare selected", exact: true }).click();
   await expect(page.getByTestId("find-comparison-grid")).toBeVisible();
   progress.complete("find_compare_compact");
+  const comparisonNetwork = observeComparisonMapNetwork(page);
   progress.start("find_compare_dashboard");
   await page.getByRole("button", { name: "Open full comparison dashboard", exact: true }).click();
   const dashboard = page.getByTestId("find-full-comparison-dashboard");
@@ -1546,10 +1548,29 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
     progress.complete("find_compare_dashboard");
     const map = dashboard.getByTestId("live-map-canvas");
     progress.start("find_compare_basemap");
-    await expect.poll(async () => (await quality20MapState(map)).basemapCount).toBeGreaterThan(0);
+    try {
+      await expect.poll(async () => (await readComparisonMapDiagnostic(map, comparisonNetwork.snapshot())).map?.basemapFeatures ?? 0).toBeGreaterThan(0);
+    } catch (error) {
+      try {
+        test.info().annotations.push({ type: "find-comparison-map-failure",
+          description: JSON.stringify(await readComparisonMapDiagnostic(map, comparisonNetwork.snapshot())) });
+      } catch {
+        // Diagnostics must never replace the original failing map assertion.
+      } finally { comparisonNetwork.dispose(); }
+      throw error;
+    }
     progress.complete("find_compare_basemap");
     progress.start("find_compare_geometry");
-    const state = await quality20MapState(map);
+    const state = await withComparisonGeometryDeadline(quality20MapState(map)).catch(async (error: unknown) => {
+      try {
+        test.info().annotations.push({ type: "find-comparison-map-failure", description: JSON.stringify({
+          ...await readComparisonMapDiagnostic(map, comparisonNetwork.snapshot()), stage: "find_compare_geometry",
+          failureKind: error instanceof ComparisonGeometryProbeTimeout ? "geometry_probe_timeout" : "geometry_probe_error"
+        }) });
+      } catch { /* Preserve the original geometry probe failure. */ }
+      finally { comparisonNetwork.dispose(); }
+      throw error;
+    });
     guard(state.width > 100 && state.height > 100, "Dubai comparison basemap has no useful dimensions.");
     guard(record(state.geometry) && Array.isArray(state.geometry.features), "Dubai comparison footprint source is missing.");
     const footprints = state.geometry.features.filter(record);
@@ -1707,6 +1728,7 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
     await reopenSavedArtifact(page, configuration.userId, "find", policy, current, verifyComparison);
     expect(budget.paidDispatchCount()).toBe(paidBeforeReopen + (runCandidateAnalysis ? index + 1 : 0));
   }
+  comparisonNetwork.dispose();
 }
 
 async function runSingaporeFind(page: Page, configuration: LiveConfiguration, policy: NetworkPolicy, budget: ReturnType<typeof installBudgetGate>, progress: LiveProgress) {
