@@ -61,6 +61,7 @@ import { loadQuality20Selection, quality20Hash, quality20RequestKey, validateQua
   validateQuality20PaidBody, validateQuality20AnalysisResult, validateQuality20Ledger,
   type Quality20Selection } from "./helpers/quality20-frozen-case";
 import { loadQuality20Acquisition, writeQuality20Acquisition, type Quality20Acquisition } from "./helpers/quality20-acquisition";
+import { DUBAI_CREATE_GOLDEN, assertDubaiCreateRequest, assertDubaiCreateGeometry } from "./helpers/sprint20-live-create";
 
 test.use({ trace: "off", screenshot: "off", video: "off", serviceWorkers: "block" });
 test.describe.configure({ mode: "serial", retries: 0 });
@@ -541,6 +542,13 @@ function installBudgetGate(page: Page, configuration: LiveConfiguration) {
       const parsed = request.postDataJSON();
       body = record(parsed) ? parsed : null;
     } catch { body = null; }
+    if (configuration.scope === "dubai-create") {
+      try { assertDubaiCreateRequest(body); }
+      catch {
+        fatal = "Dubai Create golden AOI/controls contract rejected the request before reservation.";
+        return route.abort("blockedbyclient");
+      }
+    }
     if (configuration.quality20) {
       try {
         guard(frozenCaseArmed, "Frozen-case UI/source preconditions were not completed before a paid POST.");
@@ -1747,7 +1755,60 @@ type LiveCreateCase = {
   label: string;
   programme?: string;
   prompt?: string;
+  controls?: typeof DUBAI_CREATE_GOLDEN.controls;
 };
+
+async function assertCreateMap(page: Page, expected: unknown, dimension: "2d" | "3d") {
+  const preview = page.getByTestId("create-result-preview-3d");
+  await page.getByTestId(`create-preview-mode-${dimension}`).click();
+  await expect(preview).toHaveAttribute("data-preview-status", "ready");
+  await expect(preview).toHaveAttribute("data-preview-basemap", "rendered");
+  await expect(preview).toHaveAttribute("data-preview-camera-pitch", dimension === "3d" ? "50" : "0");
+  // Read the mounted MapLibre source and rendered features, not only React data attributes.
+  await expect.poll(async () => preview.evaluate(async (element) => {
+    type Fiber = { memoizedState: { memoizedState: unknown; next: unknown } | null; return: Fiber | null };
+    const key = Object.getOwnPropertyNames(element).find(name => name.startsWith("__reactFiber$"));
+    let fiber = key ? (element as unknown as Record<string, Fiber>)[key] : null;
+    while (fiber) {
+      let hook = fiber.memoizedState;
+      while (hook) {
+        const map = (hook.memoizedState as { current?: import("maplibre-gl").Map } | null)?.current;
+        if (map && typeof map.queryRenderedFeatures === "function" && typeof map.getSource === "function") {
+          const source = map.getSource("create-result-preview-massing") as import("maplibre-gl").GeoJSONSource | undefined;
+          const rendered = map.queryRenderedFeatures();
+          const geometry = source ? await source.getData() : null;
+          const canvas = map.getCanvas();
+          const points = geometry?.type === "FeatureCollection" ? geometry.features.flatMap(f =>
+            f.geometry.type === "Polygon" ? f.geometry.coordinates.flat() : []) : [];
+          return { geometry,
+            framed: points.length > 0 && points.every(p => {
+              const pixel = map.project([p[0], p[1]]);
+              return pixel.x >= -1 && pixel.x <= canvas.clientWidth + 1 && pixel.y >= -1 && pixel.y <= canvas.clientHeight + 1;
+            }),
+            context: rendered.filter(f => !String(f.source).startsWith("create-result-preview-")).length > 0,
+            massing: rendered.filter(f => f.source === "create-result-preview-massing").length > 0,
+            pitch: Math.round(map.getPitch()) };
+        }
+        hook = hook.next as typeof hook;
+      }
+      fiber = fiber.return;
+    }
+    return null;
+  }), { timeout: 30_000 }).toEqual({ geometry: expected, framed: true, context: true, massing: true, pitch: dimension === "3d" ? 50 : 0 });
+}
+
+async function assertSavedCreateGeometry(page: Page, userId: string, expected: unknown) {
+  const stored = await page.evaluate((id) => {
+    const raw = localStorage.getItem(`geoai:point-to-object:projects:v1:${encodeURIComponent(`user:${id}`)}`);
+    const store = raw ? JSON.parse(raw) : null;
+    const artifacts = (store?.projects ?? []).flatMap((p: { artifacts?: Array<{ kind: string; payload: unknown }> }) => p.artifacts ?? []);
+    return artifacts.find((a: { kind: string }) => a.kind === "create")?.payload ?? null;
+  }, userId);
+  guard(record(stored) && record(stored.aoi), "Saved Create geometry is missing.");
+  expect(stored.aoi.coordinates).toEqual(DUBAI_CREATE_GOLDEN.coordinates);
+  expect(stored.generated).toEqual(expected);
+  assertDubaiCreateGeometry(stored.generated);
+}
 
 async function runMarketCreate(
   page: Page,
@@ -1830,6 +1891,22 @@ async function runMarketCreate(
     : input.programme === "civic_green" ? /^Public campus/ : /^Business towers/;
   await page.getByRole("button", { name: programmeLabel }).click();
   if (input.prompt) await page.getByLabel("Custom direction", { exact: true }).fill(input.prompt);
+  if (input.controls) {
+    await page.getByText("Concept parameters", { exact: true }).click();
+    const sliders = [
+      [/^Blocks/, input.controls.blockCount], [/^Minimum levels/, input.controls.levelsMin],
+      [/^Maximum levels/, input.controls.levelsMax], [/^Site coverage/, input.controls.targetSiteCoveragePct],
+      [/^Open space/, input.controls.openSpacePct], [/^Setback/, input.controls.setbackM]
+    ] as const;
+    for (const [name, value] of sliders) {
+      const slider = page.getByRole("slider", { name });
+      const current = Number(await slider.inputValue());
+      await slider.focus();
+      for (let i = 0; i < Math.abs(value - current); i++) await page.keyboard.press(value > current ? "ArrowRight" : "ArrowLeft");
+      await expect(slider).toHaveValue(String(value));
+    }
+    await expect(page.getByTestId("create-local-preflight")).toHaveAttribute("data-preflight-kind", "ready", { timeout: 30_000 });
+  }
   await expect(page.getByTestId("create-generate-action")).toBeEnabled();
   if (configuration.quality20) budget.armFrozenCase();
   progress.start("create_paid_response");
@@ -1855,6 +1932,8 @@ async function runMarketCreate(
     payload.alternatives.every((item) => record(item) && (item.id === "A" || item.id === "B")) && payload.caveat === CAVEAT,
   `The ${input.label} Create response did not return one strict current A/B concept.`);
   progress.complete("create_result_contract");
+  const goldenConcept = input.controls ? assertDubaiCreateGeometry(payload) : null;
+  if (input.controls) assertDubaiCreateRequest(submitted);
   await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
   const renderedMs = Date.now() - paidStartedAt;
   const paidAfterGeneration = budget.paidDispatchCount();
@@ -1875,6 +1954,14 @@ async function runMarketCreate(
     await page.getByTestId("create-dashboard-alternative-b").click();
     await expect(preview).toHaveAttribute("data-preview-variant", "B");
   }
+  if (goldenConcept) {
+    for (const id of ["A", "B"] as const) {
+      const option = goldenConcept.alternatives!.find(a => a.id === id)!;
+      await page.getByTestId(`create-dashboard-alternative-${id.toLowerCase()}`).click();
+      await expect(page.getByTestId("create-result-kpis")).toHaveAttribute("data-estimated-floor-area-sqm", String(option.massing.estimatedFloorAreaSqM));
+      for (const mode of ["2d", "3d"] as const) await assertCreateMap(page, option.massing.featureCollection, mode);
+    }
+  }
   expect(budget.paidDispatchCount()).toBe(paidAfterGeneration);
   await expect.poll(async () => {
     const state = await localArtifactState(page, configuration.userId, "create");
@@ -1894,10 +1981,15 @@ async function runMarketCreate(
   if (configuration.quality20) guard(savedDomain.aoiId === configuration.quality20.binding.create?.aoiId,
     "Saved Create AOI identity differs from the frozen input; no parity workaround is applied.");
   progress.complete("create_local_save");
+  if (goldenConcept) await assertSavedCreateGeometry(page, configuration.userId, payload);
   progress.start("create_local_reopen");
   await reopenSavedArtifact(page, configuration.userId, "create", policy, saved, async () => {
     await expect(page.getByTestId("create-full-result-dashboard")).toBeVisible();
     await expect(page.getByTestId("create-result-kpis")).toHaveAttribute("data-active-variant", "B");
+    if (goldenConcept) {
+      await assertSavedCreateGeometry(page, configuration.userId, payload);
+      await assertCreateMap(page, goldenConcept.alternatives!.find(a => a.id === "B")!.massing.featureCollection, "3d");
+    }
   });
   const beforeReload = policy.snapshotJourneyRequests();
   await page.reload();
@@ -1906,6 +1998,10 @@ async function runMarketCreate(
   await stableLocalBarrier(page);
   const reloaded = await requireLocalArtifactState(page, configuration.userId, "create");
   assertSameArtifact(saved, reloaded);
+  if (goldenConcept) {
+    await assertSavedCreateGeometry(page, configuration.userId, payload);
+    await assertCreateMap(page, goldenConcept.alternatives!.find(a => a.id === "B")!.massing.featureCollection, "2d");
+  }
   assertNoReplay(beforeReload, policy.snapshotJourneyRequests());
   expect(budget.paidDispatchCount()).toBe(paidAfterGeneration);
   progress.complete("create_local_reopen");
@@ -1933,15 +2029,11 @@ async function runSingaporeCreate(page: Page, configuration: LiveConfiguration, 
 async function runDubaiCreate(page: Page, configuration: LiveConfiguration, policy: NetworkPolicy, budget: ReturnType<typeof installBudgetGate>, progress: LiveProgress) {
   await runMarketCreate(page, configuration, policy, budget, {
     marketKey: "dubai",
-    coordinates: [[
-      [55.27015, 25.20515],
-      [55.27065, 25.20515],
-      [55.27065, 25.20565],
-      [55.27015, 25.20565],
-      [55.27015, 25.20515]
-    ]],
-    fileName: "sprint10-dubai-live-aoi.geojson",
-    label: "Dubai"
+    coordinates: DUBAI_CREATE_GOLDEN.coordinates,
+    programme: DUBAI_CREATE_GOLDEN.templateId,
+    controls: DUBAI_CREATE_GOLDEN.controls,
+    fileName: "quality20-dubai-golden-large-L.geojson",
+    label: "Dubai synthetic golden large-L"
   }, progress);
 }
 
