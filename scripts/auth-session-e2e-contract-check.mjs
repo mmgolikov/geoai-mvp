@@ -90,8 +90,13 @@ for (const marker of [
   "Open demo access",
   "geoai-mock-demo-session-v1",
   "page.reload()",
-  "Browser-local demo access is unavailable while protected sign-in is required.",
-  "expectLoginRedirect(page, \"/workspace?segment=b2b\")"
+  "expectLoginRedirect(page, \"/workspace?segment=b2b\")",
+  'url.pathname === "/auth/v1/token" && url.searchParams.get("grant_type") === "password"',
+  'fill("synthetic-rejected-password")',
+  "The email or password is incorrect",
+  'expect(passwordAttempts).toEqual([{ email: "demo@geoai.space", passwordPresent: true }])',
+  "expect(emailRequests).toEqual([])",
+  'isAuthenticated: false, isDemo: false, sessionStatus: "session_missing"'
 ]) requireText(spec, marker, `Browser flow is missing ${marker}`);
 
 for (const marker of [
