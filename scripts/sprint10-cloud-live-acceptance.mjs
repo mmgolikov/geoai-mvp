@@ -12,6 +12,8 @@ const PROJECT_REF = "pphdqkurxneyagvnnjdt";
 const MIGRATION_VERSION = "20260918203424";
 const EXPLICIT_RUN = "root-only-cloud-live-acceptance-v1";
 const MAX_BACKUP_AGE_MS = 30 * 60 * 1_000;
+const DEFAULT_ARTIFACT_ID = "artifact-cloud-live-public-1";
+const DEFAULT_ARTIFACT_PAYLOAD_HASH = "cc8cdc0c9e255d1ec8b0145a6401ee3af1a78a7962d05f79bc7f205c2a0352c0";
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const projectKeyPattern = /^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$/;
@@ -110,6 +112,13 @@ export function operatorSql(stage, target, personas) {
     assert.match(value, uuidPattern);
   }
   assert.match(target.projectKey, projectKeyPattern);
+  const expectedArtifactId = target.expectedArtifactId ?? DEFAULT_ARTIFACT_ID;
+  const expectedArtifactPayloadHash = target.expectedArtifactPayloadHash ?? DEFAULT_ARTIFACT_PAYLOAD_HASH;
+  assert(typeof expectedArtifactId === "string" && expectedArtifactId.length <= 160 && expectedArtifactId.trim().length > 0 &&
+    expectedArtifactId === expectedArtifactId.trim() && !/[\u0000-\u001f\u007f]/.test(expectedArtifactId));
+  assert.match(expectedArtifactPayloadHash, /^[a-f0-9]{64}$/);
+  const expectedArtifactExact = `project_id = ${sqlLiteral(target.projectId)}::uuid and created_by = ${sqlLiteral(a.profileId)}::uuid ` +
+    `and artifact_id = ${sqlLiteral(expectedArtifactId)} and client_payload_hash = ${sqlLiteral(expectedArtifactPayloadHash)}`;
   const scopeExact = `organization_id = ${sqlLiteral(target.organizationId)}::uuid and project_id = ${sqlLiteral(target.projectId)}::uuid and project_key = ${sqlLiteral(target.projectKey)}`;
   if (stage === "preflight") return operatorEnvelope(stage, `
 do $check$
@@ -162,8 +171,7 @@ end $verify$;
   if (stage === "activate_viewer") return operatorEnvelope(stage, `
 do $verify$ begin
   if not exists (select 1 from geoai_private.point_object_artifact_scope_config where singleton and enabled and ${scopeExact})
-     or not exists (select 1 from public.point_object_project_artifacts where project_id = ${sqlLiteral(target.projectId)}::uuid
-       and created_by = ${sqlLiteral(a.profileId)}::uuid and artifact_id = 'artifact-cloud-live-public-1')
+     or not exists (select 1 from public.point_object_project_artifacts where ${expectedArtifactExact})
      or exists (select 1 from public.project_memberships where project_id = ${sqlLiteral(target.projectId)}::uuid
        and user_id = ${sqlLiteral(b.profileId)}::uuid) then raise exception 'viewer stage prerequisites failed'; end if;
 end $verify$;
@@ -191,9 +199,8 @@ do $verify$ begin
        and user_id in (${sqlLiteral(a.profileId)}::uuid, ${sqlLiteral(b.profileId)}::uuid) and status = 'active')
      or exists (select 1 from public.organization_memberships where organization_id = ${sqlLiteral(target.organizationId)}::uuid
        and profile_id in (${sqlLiteral(a.profileId)}::uuid, ${sqlLiteral(b.profileId)}::uuid) and status = 'active')
-     or (select count(*) from public.point_object_project_artifacts where project_id = ${sqlLiteral(target.projectId)}::uuid
-       and created_by = ${sqlLiteral(a.profileId)}::uuid and artifact_id = 'artifact-cloud-live-public-1') > 1
-     ${target.requireArtifact === true ? `or (select count(*) from public.point_object_project_artifacts where project_id = ${sqlLiteral(target.projectId)}::uuid and created_by = ${sqlLiteral(a.profileId)}::uuid and artifact_id = 'artifact-cloud-live-public-1') <> 1` : ""} then
+     or (select count(*) from public.point_object_project_artifacts where ${expectedArtifactExact}) > 1
+     ${target.requireArtifact === true ? `or (select count(*) from public.point_object_project_artifacts where ${expectedArtifactExact}) <> 1` : ""} then
     raise exception 'cloud-live cleanup or retained artifact verification failed';
   end if;
 end $verify$;
@@ -243,6 +250,18 @@ export function preflightCloudLiveArtifactInput(env) {
   if (!hasPath && !hasHash) return null;
   const preview = new URL(required(env, "GEOAI_REAL_PASSWORD_AUTH_PREVIEW_URL"));
   return readCloudLiveRealArtifactInput(env, required(env, "GEOAI_HOSTED_AUTH_PROBE_EXPECTED_COMMIT_SHA").trim().toLowerCase(), preview.hostname);
+}
+
+export function cloudLiveArtifactExpectation(artifactInput) {
+  const artifact = artifactInput?.envelope?.artifact;
+  const expectedArtifactId = artifact?.artifactId ?? DEFAULT_ARTIFACT_ID;
+  const expectedArtifactPayloadHash = artifact?.payloadHash ?? DEFAULT_ARTIFACT_PAYLOAD_HASH;
+  if (typeof expectedArtifactId !== "string" || expectedArtifactId.length > 160 || expectedArtifactId.trim().length === 0 ||
+      expectedArtifactId !== expectedArtifactId.trim() || /[\u0000-\u001f\u007f]/.test(expectedArtifactId) ||
+      typeof expectedArtifactPayloadHash !== "string" || !/^[a-f0-9]{64}$/.test(expectedArtifactPayloadHash)) {
+    fail("Expected cloud artifact identity is invalid.", "preflight");
+  }
+  return { expectedArtifactId, expectedArtifactPayloadHash };
 }
 
 export function runOperator(stage, target, personas, { env = process.env, spawn = spawnSync } = {}) {
@@ -313,18 +332,19 @@ export function runCloudAcceptance(config, personas, target, dependencies = {}) 
   const runOperatorStage = dependencies.runOperator ?? runOperator;
   const runBrowser = dependencies.runBrowserPhase ?? runBrowserPhase;
   const environment = dependencies.env ?? process.env;
-  preflightCloudLiveArtifactInput(environment);
+  const artifactExpectation = cloudLiveArtifactExpectation(preflightCloudLiveArtifactInput(environment));
+  const operatorTarget = { ...target, ...artifactExpectation };
   const evidence = { operatorStages: [], browserPhases: [], viewerDenial: "not_attempted", cleanup: "not_attempted" };
   let activationAttempted = false;
   let writerPassed = false;
   let primaryError = null;
   try {
-    evidence.operatorStages.push(runOperatorStage("preflight", target, personas));
+    evidence.operatorStages.push(runOperatorStage("preflight", operatorTarget, personas));
     activationAttempted = true;
-    evidence.operatorStages.push(runOperatorStage("activate_writer", target, personas));
+    evidence.operatorStages.push(runOperatorStage("activate_writer", operatorTarget, personas));
     evidence.browserPhases.push(runBrowser(config, target, personas, "writer_outsider", { env: environment }));
     writerPassed = true;
-    evidence.operatorStages.push(runOperatorStage("activate_viewer", target, personas));
+    evidence.operatorStages.push(runOperatorStage("activate_viewer", operatorTarget, personas));
     evidence.browserPhases.push(runBrowser(config, target, personas, "viewer_denial", { env: environment }));
     evidence.viewerDenial = "passed";
   } catch (error) {
@@ -332,7 +352,7 @@ export function runCloudAcceptance(config, personas, target, dependencies = {}) 
   } finally {
     if (activationAttempted) {
       try {
-        evidence.operatorStages.push(runOperatorStage("cleanup", { ...target, requireArtifact: writerPassed }, personas));
+        evidence.operatorStages.push(runOperatorStage("cleanup", { ...operatorTarget, requireArtifact: writerPassed }, personas));
         evidence.cleanup = "scope_disabled_memberships_disabled_artifact_retained";
       } catch {
         evidence.cleanup = "unconfirmed_action_required";
