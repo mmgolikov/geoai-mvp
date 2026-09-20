@@ -23,6 +23,7 @@ const baseUrl = process.env.GEOAI_E2E_BASE_URL?.trim() ?? "";
 const expectedCommitSha = process.env.GEOAI_REAL_PASSWORD_AUTH_EXPECTED_COMMIT_SHA?.trim().toLowerCase() ?? "";
 const expectedProjectRef = process.env.GEOAI_REAL_PASSWORD_AUTH_SUPABASE_PROJECT_REF?.trim() ?? "";
 const previewBypassSecret = process.env.GEOAI_REAL_PASSWORD_AUTH_PREVIEW_BYPASS_SECRET ?? "";
+const loginDiagnosticWaitTimeoutMs = 30_000;
 const runApproval = process.env.GEOAI_REAL_PASSWORD_AUTH_RUN_APPROVAL?.trim() ?? "";
 const explicitRunApproval = process.env.GEOAI_REAL_PASSWORD_AUTH_EXPLICIT_RUN?.trim() ?? "";
 const selectedScope = process.env.GEOAI_REAL_PASSWORD_AUTH_SCOPE?.trim() ?? "";
@@ -351,14 +352,16 @@ async function loginWithExistingPassword(page: Page, persona: Persona) {
     const url = new URL(response.url());
     return url.origin === authOrigin && url.pathname === "/auth/v1/token" &&
       url.searchParams.get("grant_type") === "password";
-  });
+  }, { timeout: loginDiagnosticWaitTimeoutMs });
   const profileResponse = page.waitForResponse((response) => {
     const url = new URL(response.url());
     return url.origin === targetOrigin && url.pathname === "/profile" && response.request().isNavigationRequest();
+  }, { timeout: loginDiagnosticWaitTimeoutMs });
+  const profileNavigation = page.waitForURL((url) => url.pathname === "/profile", {
+    timeout: loginDiagnosticWaitTimeoutMs
   });
-  const profileNavigation = page.waitForURL((url) => url.pathname === "/profile");
   const [submitOutcome, tokenOutcome, profileResponseOutcome, navigationOutcome] = await Promise.allSettled([
-    page.getByRole("button", { name: "Sign in", exact: true }).click(),
+    page.getByRole("button", { name: "Sign in", exact: true }).click({ timeout: loginDiagnosticWaitTimeoutMs }),
     tokenResponse,
     profileResponse,
     profileNavigation

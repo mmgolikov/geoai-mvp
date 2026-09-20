@@ -17,6 +17,8 @@ import {
 } from "./sprint10-real-password-auth-diagnostics.mjs";
 
 const secret = "planted-password-never-forward";
+const specSource = readFileSync(new URL("../tests/e2e/sprint10-real-password-auth.spec.ts", import.meta.url), "utf8");
+const loginPanelSource = readFileSync(new URL("../components/auth/login-panel.tsx", import.meta.url), "utf8");
 const counts = {
   ...emptyAuthDiagnosticCounts(2),
   discoveredProjects: 1,
@@ -74,7 +76,6 @@ assert.deepEqual(parseAuthDiagnostic(JSON.stringify(historicalLoginReceipt), 1),
 const passing = checkpointReport("login_ui");
 passing.suites[0].specs[0].tests[0].status = "expected";
 assert.equal(fixedFailedAuthStep(passing, "dual_session_isolation"), undefined);
-const specSource = readFileSync(new URL("../tests/e2e/sprint10-real-password-auth.spec.ts", import.meta.url), "utf8");
 const helperSource = specSource.slice(specSource.indexOf("async function authStep<"), specSource.indexOf("function canonicalOrigin"));
 const annotations = [];
 const authStep = new Function("test", `${stripTypeScriptTypes(helperSource)}; return authStep;`)({ info: () => ({ annotations }) });
@@ -105,6 +106,24 @@ assert.match(specSource, /response\.request\(\)\.isNavigationRequest\(\)/,
   "Profile status classification must use the document-navigation response only.");
 assert.doesNotMatch(specSource, /auth-failed-(?:url|body|error)|page\.on\("console"|page\.screenshot/,
   "Login diagnostics must not emit raw URLs, bodies, console data or screenshots.");
+function assertBoundedLoginWaiters(source) {
+  const loginStart = source.indexOf("async function loginWithExistingPassword");
+  const loginEnd = source.indexOf("type SessionEvidence", loginStart);
+  assert(loginStart >= 0 && loginEnd > loginStart, "The exact login helper must remain inspectable.");
+  const helper = source.slice(loginStart, loginEnd);
+  assert.match(source, /const loginDiagnosticWaitTimeoutMs = 30_000;/,
+    "The fixed login diagnostic wait must be explicit and remain within the existing page/test budget.");
+  assert.equal((helper.match(/timeout: loginDiagnosticWaitTimeoutMs/g) ?? []).length, 4,
+    "Submit, token response, profile response and profile navigation must each have an explicit finite timeout.");
+}
+assertBoundedLoginWaiters(specSource);
+assert.throws(() => assertBoundedLoginWaiters(specSource.replace(
+  "click({ timeout: loginDiagnosticWaitTimeoutMs })", "click()"
+)), undefined, "A regression to an implicit submit wait must fail the offline contract.");
+assert.match(loginPanelSource, /window\.location\.assign\(destination\)/,
+  "The profile response diagnostic relies on the current full-document login navigation.");
+assert.match(loginPanelSource, /window\.location\.replace\(destination\)/,
+  "The authenticated-state path must also retain full-document navigation.");
 assert.equal(hostedPreviewFailureStage({ ...failure, testLane: "none" }), "preview_test_execution_none");
 
 const timeout = makeAuthDiagnostic({
@@ -177,6 +196,9 @@ console.log(JSON.stringify({
     checkpointProducerFirstFailurePreserved: 1,
     historicalLoginUiReceiptCompatible: 1,
     fixedLoginSubsteps: 16,
+    boundedLoginWaiters: 4,
+    unboundedWaiterNegative: 1,
+    fullDocumentNavigationContract: 2,
     unknownFailureLaneProjection: 1,
     timeoutProjection: 1,
     discoveryProjection: 1,
