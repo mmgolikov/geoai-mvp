@@ -13,6 +13,7 @@ export const SPRINT10_LIVE_PAID_SCOPE_MATRIX = {
   "dubai-depth-cycle": { ai: 4, create: 0 },
   "quality20-analyse": { ai: 1, create: 0 },
   "quality20-find": { ai: 0, create: 0 },
+  "quality20-acquire": { ai: 0, create: 0 },
   "quality20-create": { ai: 0, create: 1 }
 } as const;
 

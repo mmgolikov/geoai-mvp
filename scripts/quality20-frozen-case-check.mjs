@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { QUALITY20_AMENDMENT, QUALITY20_CASES, validateQuality20Manifest, quality20RequestKey,
-  quality20ApprovalSuffix, validateQuality20Ledger, loadQuality20Selection } from "../tests/e2e/helpers/quality20-frozen-case.ts";
+  quality20ApprovalSuffix, validateQuality20Ledger, loadQuality20Selection, quality20Hash,
+  validateQuality20PaidBody, validateQuality20Context, validateQuality20AnalysisResult } from "../tests/e2e/helpers/quality20-frozen-case.ts";
 import { sprint10PaidPostDecision, dispatchSprint10PaidRequest } from "../tests/e2e/helpers/sprint10-live-journey-gate.ts";
 import { LIVE_SCOPE_RECEIPT_PLAN, validateLiveLedgerScopeHeadroom } from "./sprint10-live-journey-run.mjs";
 
@@ -82,4 +83,28 @@ assert.deepEqual(ordering, ["reserve", "dispatch"]);
 let calls = 0;
 await dispatchSprint10PaidRequest({ reserve: () => { throw new Error("blocked"); }, dispatch: async () => { calls += 1; }, markUnknown: () => {} });
 assert.equal(calls, 0);
+const body = { caseKey: "dubai", expectedSourceFeatureId: binding.subject.sourceIdentity, locale: "en", depth: "quick", goal: "object_profile",
+  role: "developer", scenario: "unspecified", question: binding.question, consent: true };
+validateQuality20PaidBody(selected, "ai", body);
+for (const [key, wrong] of Object.entries({ caseKey: "singapore", expectedSourceFeatureId: "way/9999", locale: "ru", depth: "deep", goal: "custom",
+  role: "real_estate_fund", scenario: "b2b_commercial_real_estate", question: "changed", consent: false })) {
+  assert.throws(() => validateQuality20PaidBody(selected, "ai", { ...body, [key]: wrong }));
+}
+const strictSelection = structuredClone(selected);
+strictSelection.binding.subject.geometryHash = quality20Hash(null);
+const context = { mode: "resolved", schemaVersion: 2, subject: { sourceFeatureId: binding.subject.sourceIdentity, displayGeometry: null } };
+assert.throws(() => validateQuality20Context(strictSelection, context), /receipt is unavailable/);
+assert.throws(() => validateQuality20Context(strictSelection, { ...context, evidenceReceipt: { evidencePackHash: "0".repeat(64) } }));
+validateQuality20Context(strictSelection, { ...context, evidenceReceipt: { evidencePackHash: binding.subject.evidencePackHash,
+  sourceResponseHash: binding.subject.sourceResponseHash, acquiredAt: binding.subject.acquiredAt } });
+const result = { mode: "openai", schemaVersion: 6, evidencePackHash: binding.subject.evidencePackHash,
+  evidencePackId: `p2o_live_evidence_${binding.subject.evidencePackHash.slice(0, 24)}`, request: body,
+  subject: { sourceFeatureId: binding.subject.sourceIdentity, sourceLabel: "© OpenStreetMap contributors" },
+  content: { depthReview: { depth: "quick" }, caveat: "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion." } };
+validateQuality20AnalysisResult(selected, result);
+assert.throws(() => validateQuality20AnalysisResult(selected, { ...result, evidencePackHash: "0".repeat(64) }));
+assert.throws(() => validateQuality20AnalysisResult(selected, { ...result, request: { ...body, depth: "deep" } }));
+assert.throws(() => validateQuality20AnalysisResult(selected, { ...result, subject: { ...result.subject, sourceFeatureId: "way/9999" } }));
+assert.equal(sprint10PaidPostDecision("quality20-acquire", "ai", 1).ok, false);
+assert.equal(sprint10PaidPostDecision("quality20-acquire", "create", 1).ok, false);
 console.log("PASS: offline frozen-case contract, 54 registered cases / 62 historic-inclusive planned receipts; NO live outcomes.");

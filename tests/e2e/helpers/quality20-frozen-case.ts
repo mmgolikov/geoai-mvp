@@ -22,7 +22,7 @@ export const QUALITY20_CASES: readonly Quality20Case[] = Object.freeze([
   ...Array.from({ length: 4 }, (_, i) => ({
     id: `A${String(i + 9).padStart(2, "0")}`, scope: "quality20-analyse" as const,
     marketKey: i === 0 ? "dubai" as const : "singapore" as const,
-    goal: "object_profile", depth: "standard" as const, programme: null, aoiSlot: null
+    goal: "custom", depth: "standard" as const, programme: null, aoiSlot: null
   })),
   ...Array.from({ length: 5 }, (_, i) => ({
     id: `F${String(i + 1).padStart(2, "0")}`, scope: "quality20-find" as const,
@@ -95,7 +95,7 @@ function validateSubject(value: unknown): asserts value is Quality20Subject {
 function validateBinding(value: unknown, definition: Quality20Case): asserts value is Quality20Binding {
   requireCondition(keys(value, ["query", "locale", "question", "role", "scenario", "goal", "subject", "find", "create"]), "Binding fields are not exact.");
   requireCondition(text(value.query, 200) && value.locale === "en" && text(value.question, 2000) &&
-    text(value.role, 80) && text(value.scenario, 120) && coreGoals.includes(String(value.goal)), "Freeze the observed query, locale, question, role, scenario and supported goal.");
+    text(value.role, 80) && text(value.scenario, 120) && [...coreGoals, "custom"].includes(String(value.goal)), "Freeze the observed query, locale, question, role, scenario and supported goal.");
   if (definition.goal !== null) requireCondition(value.goal === definition.goal, "Goal differs from the preregistered case.");
   if (definition.scope === "quality20-analyse") validateSubject(value.subject);
   else requireCondition(value.subject === null, "Non-analysis cases cannot bind an analysis subject.");
@@ -208,4 +208,45 @@ export function validateQuality20Ledger(selection: Quality20Selection, receipts:
   requireCondition(receipts.length >= 13 && receipts.length + Number(paid) <= 62, "Historic-inclusive 62-receipt execution ceiling reached or historic denominator missing.");
   requireCondition(!receipts.some((receipt) => receipt.state === "reserved" || receipt.state === "unknown"), "Unsettled/unknown receipts block the next case.");
   requireCondition(!receipts.some((receipt) => receipt.identity?.requestKey?.startsWith(`Q20:${selection.definition.id}:`)), "Case already attempted; no automatic retry even under a revised manifest.");
+}
+
+export function validateQuality20PaidBody(selection: Quality20Selection, route: "ai" | "create", body: unknown) {
+  const { definition: d, binding: b } = selection;
+  requireCondition(object(body) && body.depth === d.depth && body.locale === b.locale, "Submitted depth/locale differs from the frozen case.");
+  if (route === "ai") {
+    requireCondition(d.scope === "quality20-analyse" && body.caseKey === d.marketKey && body.expectedSourceFeatureId === b.subject?.sourceIdentity &&
+      body.role === b.role && body.scenario === b.scenario && body.goal === b.goal && body.question === b.question && body.consent === true,
+    "Submitted analysis identity/goal/scenario/question differs; blocked before reservation.");
+  } else {
+    requireCondition(d.scope === "quality20-create" && b.create && body.marketKey === d.marketKey && body.templateId === d.programme &&
+      body.customPrompt === b.create.prompt && Array.isArray(body.aoiCoordinates) && body.aoiCoordinates.length === 1 &&
+      quality20Hash((body.aoiCoordinates[0] as unknown[]).slice(0, -1)) === b.create.geometryHash,
+    "Submitted Create programme/prompt/geometry differs; blocked before reservation.");
+  }
+}
+
+/** No inference of server snapshot identity from a rendered label or successful HTTP status. */
+export function validateQuality20Context(selection: Quality20Selection, payload: unknown) {
+  const subject = selection.binding.subject;
+  requireCondition(subject && object(payload) && payload.mode === "resolved" && payload.schemaVersion === 2 && object(payload.subject) &&
+    payload.subject.sourceFeatureId === subject.sourceIdentity && quality20Hash(payload.subject.displayGeometry ?? null) === subject.geometryHash,
+  "Selected source identity/full geometry differs from the frozen object.");
+  const evidence = payload.evidenceReceipt;
+  requireCondition(object(evidence) && evidence.evidencePackHash === subject.evidencePackHash &&
+    evidence.sourceResponseHash === subject.sourceResponseHash && evidence.acquiredAt === subject.acquiredAt,
+  "A matching pre-paid source/evidence receipt is unavailable; snapshot coverage is BLOCKED, not inferred.");
+}
+
+export function validateQuality20AnalysisResult(selection: Quality20Selection, payload: unknown) {
+  const { binding: b, definition: d } = selection;
+  requireCondition(object(payload) && payload.mode === "openai" && payload.schemaVersion === 6 &&
+    payload.evidencePackHash === b.subject?.evidencePackHash &&
+    payload.evidencePackId === `p2o_live_evidence_${b.subject?.evidencePackHash.slice(0, 24)}` &&
+    object(payload.subject) && payload.subject.sourceFeatureId === b.subject?.sourceIdentity &&
+    payload.subject.sourceLabel === "© OpenStreetMap contributors" && object(payload.request) &&
+    payload.request.depth === d.depth && payload.request.goal === b.goal && payload.request.role === b.role &&
+    payload.request.scenario === b.scenario && payload.request.locale === b.locale && payload.request.question === b.question &&
+    object(payload.content) && object(payload.content.depthReview) && payload.content.depthReview.depth === d.depth &&
+    payload.content.caveat === "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.",
+  "Analysis result identity, snapshot, depth, provenance or caveat differs from the frozen case.");
 }

@@ -34,6 +34,7 @@ import {
 } from "../tests/e2e/helpers/sprint10-depth-cycle-evidence.ts";
 import { findLiveJourneyDiagnostic } from "./sprint10-live-journey-diagnostics.mjs";
 import { loadQuality20Selection, quality20ApprovalSuffix, validateQuality20Ledger } from "../tests/e2e/helpers/quality20-frozen-case.ts";
+import { loadQuality20Acquisition } from "../tests/e2e/helpers/quality20-acquisition.ts";
 
 const exactDevelopmentProjectRef = "pphdqkurxneyagvnnjdt";
 const exactLedgerId = "5aa405b3-bbda-48aa-aeea-ca3357be4042";
@@ -41,11 +42,12 @@ const exactExplicitRun = "root-paid-live-journey-2026-09-18";
 const acceptedScopes = new Set([
   "journey", "dubai-analyse", "dubai-find", "singapore-create",
   "singapore-analyse", "singapore-find", "dubai-create", "dubai-depth-cycle",
-  "quality20-analyse", "quality20-find", "quality20-create"
+  "quality20-analyse", "quality20-find", "quality20-create", "quality20-acquire"
 ]);
 export const LIVE_SCOPE_RECEIPT_PLAN = Object.freeze({
   "quality20-analyse": Object.freeze([Object.freeze({ route: "ai", depth: null, reserveUsd: RESERVE_USD.ai })]),
   "quality20-find": Object.freeze([]),
+  "quality20-acquire": Object.freeze([]),
   "quality20-create": Object.freeze([Object.freeze({ route: "create", depth: "standard", reserveUsd: RESERVE_USD.create })]),
   journey: Object.freeze([
     Object.freeze({ route: "ai", depth: "standard", reserveUsd: RESERVE_USD.ai }),
@@ -282,6 +284,7 @@ function validateReceipt(pathValue, previewUrl, commit) {
       receipt?.protection?.locationOrigin !== "https://vercel.com" || receipt?.protection?.locationPath !== "/sso-api") {
     fail("The root-owned receipt is not current and bound to the exact READY protected Preview commit.");
   }
+  return receipt;
 }
 
 function validatePersona() {
@@ -318,9 +321,9 @@ function preflight(repositoryRoot) {
   if (!/^[0-9a-f]{40}$/.test(commit)) fail("The expected Preview release identity must be one exact Git SHA.");
   validateLocalCheckout(repositoryRoot, commit);
   const quality20 = loadQuality20Selection(process.env, scope, { commit, origin: previewUrl });
-  // Phase 1 provides an offline-runnable binding contract only. Do not let a new scope
-  // fall through the older UI dispatcher and accidentally report empty coverage as PASS.
-  if (quality20) fail("QUALITY20_BLOCKED: Phase 2 UI dispatch is not implemented in this commit; NOT RUN.");
+  // Phase 2 has explicit UI dispatch plus tested body/source/snapshot/receipt gates.
+  // A missing server snapshot receipt still blocks Analyse BEFORE reservation.
+  const acquisition = scope === "quality20-acquire" ? loadQuality20Acquisition(process.env, { commit, origin: previewUrl }) : null;
   if (required("GEOAI_SPRINT10_LIVE_SUPABASE_PROJECT_REF") !== exactDevelopmentProjectRef) {
     fail("The journey is restricted to the exact development Supabase Auth project.");
   }
@@ -336,9 +339,13 @@ function preflight(repositoryRoot) {
   const ledger = validateLiveLedgerPreflight(ledgerRoot, ledgerPath, scope);
   if (quality20) validateQuality20Ledger(quality20, ledger.receipts);
   const receiptPath = required("GEOAI_SPRINT10_LIVE_DEPLOYMENT_RECEIPT_PATH");
-  validateReceipt(receiptPath, previewUrl, commit);
+  const deploymentReceipt = validateReceipt(receiptPath, previewUrl, commit);
+  if ((quality20 && quality20.manifest.execution.deploymentId !== deploymentReceipt.deployment.id) ||
+      (acquisition && acquisition.execution.deploymentId !== deploymentReceipt.deployment.id)) {
+    fail("QUALITY20_BLOCKED: approved case/acquisition deployment differs from the current receipt.");
+  }
   const approval = required("GEOAI_SPRINT10_LIVE_RUN_APPROVAL");
-  if (approval !== `paid-live-journey:${exactLedgerId}:${target.hostname}:${commit}:${scope}${quality20ApprovalSuffix(quality20)}`) {
+  if (approval !== `paid-live-journey:${exactLedgerId}:${target.hostname}:${commit}:${scope}${quality20ApprovalSuffix(quality20)}${acquisition ? `:${acquisition.caseId}:${acquisition.planSha256}` : ""}`) {
     fail("The root run approval is not bound to this exact ledger, host, commit and scope.");
   }
   return {
@@ -350,6 +357,11 @@ function preflight(repositoryRoot) {
     ledgerPath,
     baselineReceiptCount: ledger.receipts.length,
     quality20,
+    acquisition,
+    quality20Environment: Object.fromEntries((quality20 ? [
+      "GEOAI_QUALITY20_MANIFEST_PATH", "GEOAI_QUALITY20_MANIFEST_SHA256", "GEOAI_QUALITY20_CASE_ID"
+    ] : acquisition ? ["GEOAI_QUALITY20_ACQUISITION_PLAN_PATH", "GEOAI_QUALITY20_ACQUISITION_PLAN_SHA256", "GEOAI_QUALITY20_ACQUISITION_OUTPUT_PATH"] : [])
+      .map((name) => [name, required(name)])),
     analysisEvidenceEnvironment,
     depthCycleEvidenceEnvironment
   };
@@ -358,6 +370,30 @@ function preflight(repositoryRoot) {
 function parseJsonReport(result, phase) {
   try { return JSON.parse(result.stdout || ""); }
   catch { fail(`The ${phase} did not produce an accepted machine-readable Playwright receipt.`); }
+}
+
+export function quality20CaseObservations(report, caseId) {
+  const found = [];
+  function visit(value) {
+    if (!value || typeof value !== "object") return;
+    if (value.type === "quality20-case" && typeof value.description === "string") {
+      let item;
+      try { item = JSON.parse(value.description); } catch { fail("Invalid quality20 observation."); }
+      const allowed = new Set(["caseId", "entryCoverage", "sourceLatencyMs", "responseMs", "renderedMs", "evidencePackHash", "paidPostCount", "reopenPaidPostCount", "totalMs"]);
+      if (!item || item.caseId !== caseId || Object.keys(item).some((key) => !allowed.has(key)) ||
+          !["ordinary_auto_entry_custom_goal", "follow_up_recovery_initial_NONPAID_challenge_aborted", "find_three_candidate_compare", "create_ui"].includes(item.entryCoverage) ||
+          typeof item.evidencePackHash !== "string" || !/^[a-f0-9]{64}$/.test(item.evidencePackHash) ||
+          ![0, 1].includes(item.paidPostCount) || item.reopenPaidPostCount !== 0 ||
+          [item.sourceLatencyMs, item.responseMs, item.renderedMs, item.totalMs ?? null].some((n) => n !== null && (!Number.isFinite(n) || n < 0 || n > 1_080_000))) {
+        fail("Quality20 observation is not bounded case evidence.");
+      }
+      if (!found.some((previous) => JSON.stringify(previous) === JSON.stringify(item))) found.push(item);
+    }
+    for (const child of Object.values(value)) if (child && typeof child === "object") visit(child);
+  }
+  visit(report);
+  if (found.length > 1) fail("Quality20 case produced ambiguous observations.");
+  return found;
 }
 
 function countReportTests(suites) {
@@ -553,6 +589,7 @@ module.exports = defineConfig({
     ...Object.fromEntries(liveKeys.map((key) => [key, required(key)])),
     ...config.analysisEvidenceEnvironment,
     ...config.depthCycleEvidenceEnvironment,
+    ...config.quality20Environment,
     GEOAI_SPRINT10_LIVE_RUNNER_ACTIVE: "1"
   };
   const commonArguments = [
@@ -597,6 +634,16 @@ module.exports = defineConfig({
     const report = parseJsonReport(result, "live journey");
     const receipts = receiptSummary(config);
     const classified = classifyLiveJourneyReport(report, result.status, config, receipts);
+    if (config.quality20 || config.acquisition) {
+      classified.receipt.quality20 = { caseId: config.quality20?.definition.id ?? config.acquisition.caseId,
+        manifestSha256: config.quality20?.manifestSha256 ?? config.acquisition.planSha256,
+        depth: config.quality20?.definition.depth ?? null,
+        observations: config.quality20 ? quality20CaseObservations(report, config.quality20.definition.id) : [] };
+      if (config.quality20 && classified.receipt.status === "PASS" && classified.receipt.quality20.observations.length !== 1) {
+        fail("A quality20 PASS requires its exact executed case observation, not empty scope success.");
+      }
+      if (config.acquisition && classified.receipt.status === "PASS") classified.receipt.status = "ACQUIRED_NOT_ANALYSED";
+    }
     console.log(JSON.stringify(classified.receipt));
     process.exitCode = classified.exitCode;
   } finally {

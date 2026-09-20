@@ -39,6 +39,7 @@ import {
 import {
   SPRINT10_ANALYSIS_EVIDENCE_CAPTURE_OPT_IN,
   SPRINT10_PUBLIC_ANALYSIS_QUESTION,
+  buildSprint10AnalysisResultEvidence,
   validateSprint10AnalysisEvidencePath,
   writeSprint10AnalysisResultEvidence
 } from "./helpers/sprint10-analysis-result-evidence";
@@ -53,6 +54,10 @@ import {
 // @ts-expect-error The diagnostics module is an operator-only JavaScript contract checked by its offline suite.
 import { LIVE_JOURNEY_CLEANUP_STAGES, LIVE_JOURNEY_STEPS, analyseSuggestionCorrelationChecks, boundedLiveJourneyResponseJson, encodeLiveJourneyDiagnostic, primaryAfterFinalizeFailure } from "../../scripts/sprint10-live-journey-diagnostics.mjs";
 import { POINT_OBJECT_SOURCE_HARNESS_RESPONSE_TIMEOUT_MS as SOURCE_REQUEST_HARNESS_TIMEOUT_MS } from "../../src/lib/prototype/source-request-deadline";
+import { loadQuality20Selection, quality20Hash, quality20RequestKey, validateQuality20Context,
+  validateQuality20PaidBody, validateQuality20AnalysisResult, validateQuality20Ledger,
+  type Quality20Selection } from "./helpers/quality20-frozen-case";
+import { loadQuality20Acquisition, writeQuality20Acquisition, type Quality20Acquisition } from "./helpers/quality20-acquisition";
 
 test.use({ trace: "off", screenshot: "off", video: "off", serviceWorkers: "block" });
 test.describe.configure({ mode: "serial", retries: 0 });
@@ -62,7 +67,8 @@ const EXACT_DEVELOPMENT_PROJECT_REF = "pphdqkurxneyagvnnjdt";
 const EXPECTED_LEDGER_ID = "5aa405b3-bbda-48aa-aeea-ca3357be4042";
 const LIVE_SCOPES: readonly Sprint10LiveScope[] = [
   "journey", "dubai-analyse", "dubai-find", "singapore-create",
-  "singapore-analyse", "singapore-find", "dubai-create", "dubai-depth-cycle"
+  "singapore-analyse", "singapore-find", "dubai-create", "dubai-depth-cycle",
+  "quality20-analyse", "quality20-find", "quality20-create", "quality20-acquire"
 ] as const;
 const ANALYSE_SUGGESTION_RESPONSE_TIMEOUT_MS = 30_000;
 const SINGAPORE_MARINA_BAY_REFERENCE_BOUNDS = [103.855, 1.278, 103.868, 1.289] as const;
@@ -97,6 +103,8 @@ type LiveConfiguration = {
   receiptPath: string;
   analysisEvidencePath: string | null;
   depthCycleEvidencePath: string | null;
+  quality20: Quality20Selection | null;
+  acquisition: Quality20Acquisition | null;
 };
 
 function guard(condition: unknown, message: string): asserts condition {
@@ -381,7 +389,9 @@ function loadConfiguration(baseURL: string | undefined): LiveConfiguration {
     ledgerPath: required("GEOAI_SPRINT10_LIVE_LEDGER_PATH"),
     receiptPath: required("GEOAI_SPRINT10_LIVE_DEPLOYMENT_RECEIPT_PATH"),
     analysisEvidencePath: evidenceRequested ? evidencePath! : null,
-    depthCycleEvidencePath: depthEvidenceRequested ? depthEvidencePath! : null
+    depthCycleEvidencePath: depthEvidenceRequested ? depthEvidencePath! : null,
+    quality20: loadQuality20Selection(process.env, selectedScope, { commit, origin: preview.origin }),
+    acquisition: selectedScope === "quality20-acquire" ? loadQuality20Acquisition(process.env, { commit, origin: preview.origin }) : null
   };
 }
 
@@ -399,6 +409,10 @@ function loadDeploymentReceipt(configuration: LiveConfiguration) {
   guard(protection?.kind === "vercel_sso" && [301, 302, 303, 307, 308].includes(Number(protection?.anonymousStatus)) &&
     protection?.locationOrigin === "https://vercel.com" && protection?.locationPath === "/sso-api",
   "The receipt does not prove the expected anonymous Vercel SSO challenge.");
+  if (configuration.quality20) guard(configuration.quality20.manifest.execution.deploymentId === deployment.id,
+    "The frozen case deployment differs from the root-owned receipt.");
+  if (configuration.acquisition) guard(configuration.acquisition.execution.deploymentId === deployment.id,
+    "The acquisition deployment differs from the root-owned receipt.");
   return { anonymousStatus: Number(protection.anonymousStatus) };
 }
 
@@ -479,6 +493,7 @@ function installBudgetGate(page: Page, configuration: LiveConfiguration) {
   const occurrences: Record<Sprint10Route, number> = { ai: 0, create: 0 };
   const receiptIds: number[] = [];
   let fatal: string | null = null;
+  let frozenCaseArmed = configuration.quality20 === null;
 
   const markUnknown = (item: PendingPaidRequest, reason: "request_failed_after_dispatch" | "response_unreadable") => {
     if (item.terminal) return;
@@ -497,6 +512,7 @@ function installBudgetGate(page: Page, configuration: LiveConfiguration) {
   const registration = page.route(/\/api\/prototype\/point-to-object\/(ai|create)(?:\?|$)/, async (route) => {
     const request = route.request();
     if (request.method() !== "POST") return route.fallback();
+    if (fatal) return route.abort("blockedbyclient");
     const routeName = new URL(request.url()).pathname.endsWith("/ai") ? "ai" : "create";
     occurrences[routeName] += 1;
     const expected = SPRINT10_LIVE_PAID_SCOPE_MATRIX[configuration.scope][routeName];
@@ -512,13 +528,25 @@ function installBudgetGate(page: Page, configuration: LiveConfiguration) {
       const parsed = request.postDataJSON();
       body = record(parsed) ? parsed : null;
     } catch { body = null; }
+    if (configuration.quality20) {
+      try {
+        guard(frozenCaseArmed, "Frozen-case UI/source preconditions were not completed before a paid POST.");
+        validateQuality20PaidBody(configuration.quality20, routeName, body);
+        validateQuality20Ledger(configuration.quality20,
+          readSprint10SpendLedgerFile(configuration.ledgerRoot, configuration.ledgerPath).receipts);
+      } catch {
+        fatal = "QUALITY20_BLOCKED: frozen case identity/source/body/receipt gate rejected the paid request before reservation.";
+        return route.abort("blockedbyclient");
+      }
+    }
     const depth = body?.depth;
     if (depth !== "quick" && depth !== "standard" && depth !== "deep") {
       fatal = "A paid request without an explicit supported depth was blocked before dispatch.";
       return route.abort("blockedbyclient");
     }
     const identity: Sprint10RequestIdentity = {
-      requestKey: sprint10LiveRequestKey(configuration.scope, routeName, occurrences[routeName], configuration.commit),
+      requestKey: configuration.quality20 ? quality20RequestKey(configuration.quality20, routeName)
+        : sprint10LiveRequestKey(configuration.scope, routeName, occurrences[routeName], configuration.commit),
       phase: "S4",
       candidateHost: configuration.host,
       candidateCommit: configuration.commit,
@@ -594,6 +622,7 @@ function installBudgetGate(page: Page, configuration: LiveConfiguration) {
 
   return {
     ready: registration,
+    armFrozenCase() { guard(!fatal, "A previous gate failure blocks this case."); frozenCaseArmed = true; },
     paidDispatchCount: () => occurrences.ai + occurrences.create,
     receiptIds: () => [...receiptIds],
     waitForTerminalReceipts,
@@ -702,6 +731,7 @@ type LiveAnalyseSuggestionCase = {
   query: string;
   enterQuery: (search: Locator) => Promise<void>;
   candidateLabel: RegExp;
+  expectedSourceIdentity?: string;
   label: string;
 };
 
@@ -822,7 +852,8 @@ async function runAnalyseSourceSuggest(
   progress.complete("analyse_source_suggest_coordinates");
 
   progress.start("analyse_source_suggest_candidate");
-  const chosenIndex = resultRecords.findIndex((candidate) => input.candidateLabel.test(String(candidate.label)));
+  const chosenIndex = resultRecords.findIndex((candidate) => input.expectedSourceIdentity
+    ? candidate.id === input.expectedSourceIdentity : input.candidateLabel.test(String(candidate.label)));
   const chosen = chosenIndex >= 0 ? resultRecords[chosenIndex] : undefined;
   guard(chosen && typeof chosen.id === "string" && /^(node|way|relation)\/[1-9]\d{0,19}$/.test(chosen.id) &&
     typeof chosen.label === "string" && typeof chosen.longitude === "number" && typeof chosen.latitude === "number",
@@ -1552,6 +1583,8 @@ type LiveCreateCase = {
   coordinates: number[][][];
   fileName: string;
   label: string;
+  programme?: string;
+  prompt?: string;
 };
 
 async function runMarketCreate(
@@ -1562,6 +1595,7 @@ async function runMarketCreate(
   input: LiveCreateCase,
   progress: LiveProgress
 ) {
+  const caseStartedAt = Date.now();
   progress.start("create_source_context_ui");
   await page.goto("/prototype/point-to-object");
   await expect(page.locator('main[data-project-restoration="ready"]')).toBeVisible({ timeout: 30_000 });
@@ -1597,6 +1631,7 @@ async function runMarketCreate(
 
   progress.start("create_source_context_body");
   const contextPayload: unknown = await boundedLiveJourneyResponseJson(contextResponse, 10_000);
+  const sourceLatencyMs = Date.now() - (contextResponseDeadlineAt - SOURCE_REQUEST_HARNESS_TIMEOUT_MS);
   progress.complete("create_source_context_body");
 
   progress.start("create_source_context_contract");
@@ -1618,19 +1653,30 @@ async function runMarketCreate(
     new Set(contextPayload.features.map((feature) => feature.sourceFeatureId)).size === contextPayload.features.length,
   `The ${input.label} AOI context was not correlated to the exact submitted market and polygon.`);
   progress.complete("create_source_context_correlation");
+  if (configuration.quality20) {
+    const frozen = configuration.quality20.binding.create;
+    guard(frozen && quality20Hash(contextPayload) === frozen.contextHash,
+      "QUALITY20_BLOCKED: Create source context differs from the frozen snapshot.");
+  }
 
   progress.start("create_source_context_ui_acceptance");
   const areaContextSection = page.getByTestId("create-area-context-heading").locator("xpath=ancestor::section[1]");
   await expect(areaContextSection.getByText("Mapped objects", { exact: true })).toBeVisible();
   await expect(areaContextSection.locator("strong").first()).toHaveText(String(contextPayload.summary.sampleSize));
   progress.complete("create_source_context_ui_acceptance");
-  await page.getByRole("button", { name: /^Business towers/ }).click();
+  const programmeLabel = input.programme === "residential_mixed_use" ? /^Residential courtyard/
+    : input.programme === "civic_green" ? /^Public campus/ : /^Business towers/;
+  await page.getByRole("button", { name: programmeLabel }).click();
+  if (input.prompt) await page.getByLabel("Custom direction", { exact: true }).fill(input.prompt);
   await expect(page.getByTestId("create-generate-action")).toBeEnabled();
+  if (configuration.quality20) budget.armFrozenCase();
   progress.start("create_paid_response");
+  const paidStartedAt = Date.now();
   const responsePromise = page.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/point-to-object/create"), { timeout: 180_000 });
   await page.getByTestId("create-generate-action").click();
   const response = await responsePromise;
   const payload: unknown = await response.json();
+  const responseMs = Date.now() - paidStartedAt;
   progress.complete("create_paid_response");
   progress.start("create_paid_terminal");
   await budget.waitForTerminalReceipts();
@@ -1638,7 +1684,7 @@ async function runMarketCreate(
   progress.start("create_result_contract");
   const submitted: unknown = response.request().postDataJSON();
   guard(record(submitted) && submitted.marketKey === input.marketKey && submitted.locale === "en" && submitted.depth === "standard" &&
-    submitted.templateId === "commercial_hub" &&
+    submitted.templateId === (input.programme ?? "commercial_hub") &&
     JSON.stringify(submitted.aoiCoordinates) === JSON.stringify(input.coordinates),
   `The ${input.label} Create request did not preserve the exact market, programme, depth and AOI.`);
   guard(response.status() === 200 && record(payload) && payload.mode === "openai_concept" &&
@@ -1648,12 +1694,25 @@ async function runMarketCreate(
   `The ${input.label} Create response did not return one strict current A/B concept.`);
   progress.complete("create_result_contract");
   await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
+  const renderedMs = Date.now() - paidStartedAt;
   const paidAfterGeneration = budget.paidDispatchCount();
   const beforeLocalViews = policy.snapshotJourneyRequests();
   await page.getByTestId("create-alternative-b").click();
   await page.getByTestId("create-open-result-dashboard").click();
   await expect(page.getByTestId("create-full-result-dashboard")).toBeVisible();
   await expect(page.getByTestId("create-result-kpis")).toHaveAttribute("data-active-variant", "B");
+  if (configuration.quality20) {
+    const preview = page.getByTestId("create-result-preview-3d");
+    await expect(preview).toHaveAttribute("data-preview-basemap", "rendered");
+    await expect.poll(async () => Number(await preview.getAttribute("data-preview-basemap-feature-count"))).toBeGreaterThan(0);
+    await page.getByTestId("create-preview-mode-3d").click();
+    await expect(preview).toHaveAttribute("data-preview-camera-pitch", "50");
+    await expect.poll(async () => Number(await preview.getAttribute("data-preview-rendered-massing-count"))).toBeGreaterThan(0);
+    await page.getByTestId("create-dashboard-alternative-a").click();
+    await expect(preview).toHaveAttribute("data-preview-variant", "A");
+    await page.getByTestId("create-dashboard-alternative-b").click();
+    await expect(preview).toHaveAttribute("data-preview-variant", "B");
+  }
   expect(budget.paidDispatchCount()).toBe(paidAfterGeneration);
   await expect.poll(async () => {
     const state = await localArtifactState(page, configuration.userId, "create");
@@ -1670,6 +1729,8 @@ async function runMarketCreate(
     Array.isArray(savedDomain.alternativeIds) && JSON.stringify(savedDomain.alternativeIds) ===
       JSON.stringify((payload.alternatives as Array<Record<string, unknown>>).map((alternative) => alternative.id)),
   "The saved Create artifact is not bound to the generated AOI/A/B result identity.");
+  if (configuration.quality20) guard(savedDomain.aoiId === configuration.quality20.binding.create?.aoiId,
+    "Saved Create AOI identity differs from the frozen input; no parity workaround is applied.");
   progress.complete("create_local_save");
   progress.start("create_local_reopen");
   await reopenSavedArtifact(page, configuration.userId, "create", policy, saved, async () => {
@@ -1686,6 +1747,10 @@ async function runMarketCreate(
   assertNoReplay(beforeReload, policy.snapshotJourneyRequests());
   expect(budget.paidDispatchCount()).toBe(paidAfterGeneration);
   progress.complete("create_local_reopen");
+  if (configuration.quality20) test.info().annotations.push({ type: "quality20-case", description: JSON.stringify({
+    caseId: configuration.quality20.definition.id, entryCoverage: "create_ui", sourceLatencyMs, responseMs, renderedMs,
+    evidencePackHash: quality20Hash(contextPayload), paidPostCount: 1, reopenPaidPostCount: 0, totalMs: Date.now() - caseStartedAt
+  }) });
 }
 
 async function runSingaporeCreate(page: Page, configuration: LiveConfiguration, policy: NetworkPolicy, budget: ReturnType<typeof installBudgetGate>, progress: LiveProgress) {
@@ -1718,6 +1783,243 @@ async function runDubaiCreate(page: Page, configuration: LiveConfiguration, poli
   }, progress);
 }
 
+async function quality20SelectSource(page: Page, input: { marketKey: "dubai" | "singapore"; query: string; sourceIdentity: string }, progress: LiveProgress) {
+  const { chosenIndex } = await runAnalyseSourceSuggest(page, {
+    marketKey: input.marketKey, query: input.query, expectedSourceIdentity: input.sourceIdentity,
+    enterQuery: (search) => search.fill(input.query), candidateLabel: /./, label: input.marketKey
+  }, progress);
+  progress.start("analyse_source_context");
+  const startedAt = Date.now();
+  const responsePromise = page.waitForResponse((response) => response.request().method() === "POST" &&
+    new URL(response.url()).pathname === "/api/prototype/point-to-object/context", { timeout: SOURCE_REQUEST_HARNESS_TIMEOUT_MS });
+  await page.locator(`#point-object-search-result-${chosenIndex}`).click();
+  const response = await responsePromise;
+  const payload: unknown = await boundedLiveJourneyResponseJson(response, 10_000);
+  const receivedAt = new Date().toISOString();
+  guard(response.status() === 200 && record(payload) && payload.mode === "resolved" && record(payload.subject) &&
+    payload.subject.sourceFeatureId === input.sourceIdentity, "Observed context did not resolve the exact frozen source identity.");
+  progress.complete("analyse_source_context");
+  return { payload, receivedAt, sourceLatencyMs: Date.now() - startedAt };
+}
+
+/** Explicit root-authorized recovery coverage, not ordinary auto-entry acceptance. */
+async function suppressOneInitialNonpaidChallenge(page: Page) {
+  let count = 0;
+  let finished!: () => void;
+  const observed = new Promise<void>((resolve) => { finished = resolve; });
+  const handler = async (route: Route) => {
+    if (route.request().method() !== "GET") return route.fallback();
+    guard(count === 0, "Only the first nonpaid auto-entry challenge may be suppressed.");
+    count += 1;
+    await route.abort("blockedbyclient");
+    finished();
+  };
+  await page.route("**/api/prototype/point-to-object/ai", handler);
+  return {
+    async waitAndRemove() {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try { await Promise.race([observed, new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error("The expected nonpaid auto-entry challenge was not observed.")), 30_000);
+      })]); } finally { if (timer) clearTimeout(timer); await page.unroute("**/api/prototype/point-to-object/ai", handler); }
+      guard(count === 1, "The nonpaid recovery entry did not abort exactly one challenge.");
+    }
+  };
+}
+
+async function quality20MapState(container: Locator, bounds?: number[]) {
+  return container.evaluate(async (element, targetBounds) => {
+    type Fiber = { memoizedState: { memoizedState: unknown; next: unknown } | null; return: Fiber | null };
+    const key = Object.getOwnPropertyNames(element).find((name) => name.startsWith("__reactFiber$"));
+    let fiber = key ? (element as unknown as Record<string, Fiber>)[key] : null;
+    while (fiber) {
+      let hook = fiber.memoizedState;
+      while (hook) {
+        const map = (hook.memoizedState as { current?: import("maplibre-gl").Map } | null)?.current;
+        if (map && typeof map.queryRenderedFeatures === "function" && typeof map.getSource === "function") {
+          if (targetBounds) map.fitBounds([[targetBounds[0], targetBounds[1]], [targetBounds[2], targetBounds[3]]], { padding: 0, duration: 0, bearing: 0, pitch: 0 });
+          const style = map.getStyle();
+          const layers = (style.layers ?? []).filter((layer) => "source" in layer && !String(layer.source).startsWith("geoai-") &&
+            (layer.type === "line" || layer.type === "fill")).map((layer) => layer.id);
+          const source = map.getSource("geoai-find-footprints") as import("maplibre-gl").GeoJSONSource | undefined;
+          const geometry: unknown = source ? await source.getData() : null;
+          const canvas = map.getCanvas();
+          return { ready: map.isStyleLoaded(), basemapCount: layers.length ? map.queryRenderedFeatures(undefined, { layers }).length : 0,
+            geometry, width: canvas.clientWidth, height: canvas.clientHeight, bounds: map.getBounds().toArray() };
+        }
+        hook = hook.next as typeof hook;
+      }
+      fiber = fiber.return;
+    }
+    throw new Error("The real MapLibre instance is unavailable; no static map acceptance.");
+  }, bounds);
+}
+
+async function runQuality20Find(page: Page, configuration: LiveConfiguration, policy: NetworkPolicy,
+  budget: ReturnType<typeof installBudgetGate>, progress: LiveProgress, openAnalysis: boolean) {
+  const selection = configuration.quality20!;
+  const { binding: b, definition: d } = selection;
+  const f = b.find!;
+  progress.start("find_source_ui");
+  await page.goto("/prototype/point-to-object");
+  await expect(page.locator('main[data-project-restoration="ready"]')).toBeVisible();
+  await page.getByTestId("point-object-city-select").selectOption(d.marketKey);
+  await page.getByRole("tab", { name: "Find", exact: true }).click();
+  await page.getByTestId("point-object-find-role-select").selectOption(b.role);
+  await page.getByTestId("point-object-find-scenario-select").selectOption(b.scenario);
+  await page.getByTestId("point-object-find-group-select").selectOption(f.group);
+  await page.getByLabel("Levels from", { exact: true }).fill(f.mappedMinimumLevels === null ? "" : String(f.mappedMinimumLevels));
+  await page.getByLabel("Levels to", { exact: true }).fill(f.mappedMaximumLevels === null ? "" : String(f.mappedMaximumLevels));
+  const map = page.getByTestId("live-map-canvas").first();
+  await expect.poll(async () => (await quality20MapState(map)).ready).toBe(true);
+  await quality20MapState(map, f.bounds);
+  await expect(page.getByTestId("find-search-cta")).toBeEnabled();
+  const expected = { marketKey: d.marketKey, locale: b.locale, bounds: f.bounds, group: f.group,
+    mappedMinimumLevels: f.mappedMinimumLevels, mappedMaximumLevels: f.mappedMaximumLevels, limit: 12 };
+  progress.start("find_source_pre_dispatch");
+  const sourceStartedAt = Date.now();
+  const gate = await installFindPreDispatchGate(page, (value): value is AcceptedFindRequest =>
+    record(value) && Array.isArray(value.bounds) && value.bounds.length === 4 &&
+    value.bounds.every((n, i) => typeof n === "number" && Math.abs(n - f.bounds[i]) < 1e-7) &&
+    quality20Hash({ ...value, bounds: f.bounds }) === quality20Hash(expected), d.marketKey === "dubai" ? "Dubai" : "Singapore");
+  const responsePromise = page.waitForResponse((response) => response.request().method() === "POST" &&
+    new URL(response.url()).pathname === "/api/prototype/point-to-object/find", { timeout: SOURCE_REQUEST_HARNESS_TIMEOUT_MS });
+  await page.getByTestId("find-search-cta").click();
+  await gate.request;
+  const response = await responsePromise;
+  const payload: unknown = await boundedLiveJourneyResponseJson(response, 10_000);
+  const sourceLatencyMs = Date.now() - sourceStartedAt;
+  guard(response.status() === 200 && record(payload) && Array.isArray(payload.candidates) && record(payload.source) &&
+    payload.source.sourceResponseHash === f.sourceResponseHash && payload.source.acquiredAt === f.acquiredAt &&
+    payload.source.licenceId === "ODbL-1.0" && payload.source.officialStatus === "open_context_not_official" && payload.caveat === CAVEAT,
+  "Find returned a different/unattributed source snapshot; not frozen-cohort acceptance.");
+  const candidates = payload.candidates.filter(record);
+  for (const [index, id] of f.candidateIds.entries()) {
+    const candidate = candidates.find((item) => item.sourceFeatureId === id);
+    guard(candidate && quality20Hash(candidate.geometry ?? null) === f.geometryHashes[index], "Find candidate identity/full geometry changed.");
+    const item = page.locator("li").filter({ has: page.locator(`[id="find-result-${id}"]`) });
+    await item.getByRole("button", { name: "Compare", exact: true }).click();
+  }
+  progress.start("find_compare");
+  await page.getByRole("button", { name: "Compare selected", exact: true }).click();
+  await page.getByRole("button", { name: "Open full comparison dashboard", exact: true }).click();
+  const dashboard = page.getByTestId("find-full-comparison-dashboard");
+  await expect(dashboard).toBeVisible();
+  const comparisonMap = dashboard.getByTestId("live-map-canvas");
+  await expect.poll(async () => (await quality20MapState(comparisonMap)).basemapCount).toBeGreaterThan(0);
+  const mapState = await quality20MapState(comparisonMap);
+  const renderedMs = Date.now() - sourceStartedAt;
+  guard(mapState.width > 100 && mapState.height > 100, "Compare basemap canvas has no useful dimensions.");
+  guard(record(mapState.geometry) && Array.isArray(mapState.geometry.features), "Compare has no geographic footprint source.");
+  const displayed = mapState.geometry.features.filter(record);
+  function positions(value: unknown): number[][] {
+    if (!Array.isArray(value)) return [];
+    if (value.length === 2 && value.every((n) => typeof n === "number")) return [value as number[]];
+    return value.flatMap(positions);
+  }
+  for (const [index, id] of f.candidateIds.entries()) {
+    const candidate = candidates.find((item) => item.sourceFeatureId === id)!;
+    const feature = displayed.find((item) => item.id === id);
+    if (candidate.geometry === null || candidate.geometry === undefined) guard(!feature, "A point-only candidate was given an invented polygon.");
+    else guard(feature && quality20Hash(feature.geometry) === f.geometryHashes[index], "Displayed footprint differs from exact source geometry.");
+    const points = [[Number(candidate.longitude), Number(candidate.latitude)], ...positions(record(candidate.geometry) ? candidate.geometry.coordinates : null)];
+    guard(points.every(([x, y]) => Number.isFinite(x) && Number.isFinite(y) && x >= mapState.bounds[0][0] &&
+      x <= mapState.bounds[1][0] && y >= mapState.bounds[0][1] && y <= mapState.bounds[1][1]), "Compare does not frame the full selected geometry.");
+  }
+  await expect(dashboard.locator("[data-find-result-marker]")).toHaveCount(3);
+  for (const id of f.candidateIds) await expect(dashboard.locator(`[data-find-result-marker="${id}"]`)).toBeVisible();
+  const saved = await requireLocalArtifactState(page, configuration.userId, "find");
+  expect(saved.shortlistCount).toBe(3);
+  expect(saved.comparisonView).toBe("dashboard");
+  await reopenSavedArtifact(page, configuration.userId, "find", policy, saved, async () => {
+    await expect(dashboard).toBeVisible();
+    await expect.poll(async () => (await quality20MapState(comparisonMap)).basemapCount).toBeGreaterThan(0);
+  });
+  if (openAnalysis) {
+    const index = f.candidateIds.indexOf(b.subject!.sourceIdentity);
+    guard(index >= 0, "Analysis candidate is not in the frozen shortlist.");
+    const contextPromise = page.waitForResponse((r) => r.request().method() === "POST" && new URL(r.url()).pathname === "/api/prototype/point-to-object/context",
+      { timeout: SOURCE_REQUEST_HARNESS_TIMEOUT_MS });
+    await dashboard.getByRole("button", { name: "Open object analysis", exact: true }).nth(index).click();
+    const context = await contextPromise;
+    validateQuality20Context(selection, await boundedLiveJourneyResponseJson(context, 10_000));
+    await runQuality20Analysis(page, configuration, policy, budget, progress, true);
+    await page.goto("/prototype/point-to-object?mode=find");
+    assertSameArtifact(saved, await requireLocalArtifactState(page, configuration.userId, "find"));
+  }
+  else test.info().annotations.push({ type: "quality20-case", description: JSON.stringify({ caseId: d.id, entryCoverage: "find_three_candidate_compare",
+    sourceLatencyMs, responseMs: null, renderedMs, evidencePackHash: f.sourceResponseHash,
+    paidPostCount: 0, reopenPaidPostCount: 0 }) });
+}
+
+async function runQuality20Analysis(page: Page, configuration: LiveConfiguration, policy: NetworkPolicy,
+  budget: ReturnType<typeof installBudgetGate>, progress: LiveProgress, alreadySelected = false) {
+  const selection = configuration.quality20!;
+  const { binding: b, definition: d } = selection;
+  let sourceLatencyMs: number | null = null;
+  if (!alreadySelected) {
+    const context = await quality20SelectSource(page, { marketKey: d.marketKey, query: b.query, sourceIdentity: b.subject!.sourceIdentity }, progress);
+    sourceLatencyMs = context.sourceLatencyMs;
+    validateQuality20Context(selection, context.payload);
+  }
+  const baseline = /^A(09|10|11|12)$/.test(d.id);
+  if (!baseline) {
+    const suppressed = await suppressOneInitialNonpaidChallenge(page);
+    await page.getByRole("button", { name: "Analyze", exact: true }).click();
+    await suppressed.waitAndRemove();
+    const labels: Record<string, string> = { object_profile: "Object profile", development_screening: "Development screening", redevelopment: "Redevelopment", due_diligence: "Due diligence" };
+    await page.getByRole("button", { name: labels[b.goal], exact: true }).click();
+    await expect(page.locator("#analysis-follow-up")).toHaveValue(b.question);
+    await page.getByRole("button", { name: d.depth === "quick" ? "Quick" : d.depth === "deep" ? "Deep" : "Standard", exact: true }).click();
+    await expect(page.getByTestId("analysis-request-state")).toHaveAttribute("data-draft-depth", d.depth!);
+  } else {
+    await page.locator("#point-object-question").fill(b.question);
+  }
+  budget.armFrozenCase();
+  progress.start("analyse_paid_response");
+  const startedAt = Date.now();
+  const responsePromise = page.waitForResponse((r) => r.request().method() === "POST" && new URL(r.url()).pathname === "/api/prototype/point-to-object/ai", { timeout: 240_000 });
+  if (baseline) await page.getByRole("button", { name: "Analyze", exact: true }).click();
+  else await page.locator("form").filter({ has: page.locator("#analysis-follow-up") }).locator('button[type="submit"]').click();
+  const response = await responsePromise;
+  const payload: unknown = await boundedLiveJourneyResponseJson(response, 10_000);
+  const responseMs = Date.now() - startedAt;
+  await budget.waitForTerminalReceipts();
+  guard(response.status() === 200, "Analysis HTTP response was not successful.");
+  validateQuality20PaidBody(selection, "ai", response.request().postDataJSON());
+  validateQuality20AnalysisResult(selection, payload);
+  buildSprint10AnalysisResultEvidence({ response: payload, submittedRequest: response.request().postDataJSON(),
+    expectedSourceFeatureId: b.subject!.sourceIdentity, telemetryIdentity: { requestKey: quality20RequestKey(selection, "ai"),
+      phase: "S4", candidateHost: configuration.host, candidateCommit: configuration.commit, route: "ai", depth: d.depth!,
+      promptVersion: SPRINT10_ANALYSIS_PROMPT_VERSION, schemaVersion: 6 } });
+  await expect(page.getByTestId("ai-success")).toBeVisible();
+  await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", d.depth!);
+  const renderedMs = Date.now() - startedAt;
+  const saved = await requireLocalArtifactState(page, configuration.userId, "analyse");
+  expect(saved.role).toBe(b.role); expect(saved.scenario).toBe(b.scenario);
+  const before = budget.paidDispatchCount();
+  await reopenSavedArtifact(page, configuration.userId, "analyse", policy, saved, async () => {
+    await expect(page.getByTestId("ai-success")).toBeVisible();
+    await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", d.depth!);
+  });
+  expect(budget.paidDispatchCount()).toBe(before);
+  test.info().annotations.push({ type: "quality20-case", description: JSON.stringify({ caseId: d.id,
+    entryCoverage: baseline ? "ordinary_auto_entry_custom_goal" : "follow_up_recovery_initial_NONPAID_challenge_aborted",
+    sourceLatencyMs, responseMs, renderedMs, evidencePackHash: b.subject!.evidencePackHash, paidPostCount: 1, reopenPaidPostCount: 0 }) });
+}
+
+async function runQuality20Acquisition(page: Page, configuration: LiveConfiguration, budget: ReturnType<typeof installBudgetGate>, progress: LiveProgress) {
+  const plan = configuration.acquisition!;
+  const context = await quality20SelectSource(page, { marketKey: plan.marketKey, query: plan.query, sourceIdentity: plan.expectedSourceIdentity }, progress);
+  const suppressed = await suppressOneInitialNonpaidChallenge(page);
+  await page.getByRole("button", { name: "Analyze", exact: true }).click();
+  await suppressed.waitAndRemove();
+  await stableLocalBarrier(page);
+  guard(budget.paidDispatchCount() === 0, "Nonpaid acquisition attempted a paid POST.");
+  writeQuality20Acquisition(plan, context.payload, context.receivedAt);
+  // Stop here. No Run, Refresh, generation, replay or paid result assertion.
+  test.info().annotations.push({ type: "quality20-acquisition", description: "ACQUIRED_NOT_ANALYSED; local receivedAt is not source freshness." });
+}
+
 test("root-authorized protected Preview source-to-decision journey", async ({ page, baseURL }) => {
   test.skip(!runnerActive, "Live execution requires the fail-closed root-owned runner.");
   test.setTimeout(selectedScope === "dubai-depth-cycle" ? 1_020_000 : 720_000);
@@ -1745,6 +2047,18 @@ test("root-authorized protected Preview source-to-decision journey", async ({ pa
     progress.start("auth_login");
     await login(page, configuration);
     progress.complete("auth_login");
+    if (configuration.scope === "quality20-acquire") await runQuality20Acquisition(page, configuration, budget, progress);
+    if (configuration.quality20) {
+      const { definition: d, binding: b } = configuration.quality20;
+      if (d.scope === "quality20-find" || b.find) await runQuality20Find(page, configuration, policy, budget, progress, d.scope === "quality20-analyse");
+      else if (d.scope === "quality20-analyse") await runQuality20Analysis(page, configuration, policy, budget, progress);
+      else {
+        const coordinates = b.create!.coordinates;
+        await runMarketCreate(page, configuration, policy, budget, { marketKey: d.marketKey,
+          coordinates: [[...coordinates, coordinates[0]]], fileName: `${d.id}.geojson`, label: d.id,
+          programme: d.programme!, prompt: b.create!.prompt }, progress);
+      }
+    }
     if (configuration.scope === "journey" || configuration.scope === "dubai-analyse") {
       await runDubaiAnalyse(page, configuration, policy, budget, progress);
     }

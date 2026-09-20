@@ -24,13 +24,16 @@ import {
   LIVE_SCOPE_RECEIPT_PLAN,
   validateAnalysisEvidenceCaptureEnvironment,
   validateDepthCycleEvidenceCaptureEnvironment,
-  validateLiveLedgerPreflight
+  validateLiveLedgerPreflight,
+  quality20CaseObservations
 } from "./sprint10-live-journey-run.mjs";
 import {
   hostedPreviewFailureStage,
   parseAuthDiagnostic
 } from "./sprint10-real-password-auth-diagnostics.mjs";
 import { parseLiveJourneyDiagnostic } from "./sprint10-live-journey-diagnostics.mjs";
+import { loadQuality20Selection, quality20ApprovalSuffix, validateQuality20Ledger } from "../tests/e2e/helpers/quality20-frozen-case.ts";
+import { loadQuality20Acquisition } from "../tests/e2e/helpers/quality20-acquisition.ts";
 
 const exactProjectRef = "pphdqkurxneyagvnnjdt";
 const exactSupabaseOrigin = `https://${exactProjectRef}.supabase.co`;
@@ -40,7 +43,8 @@ const exactLiveJourneySeamOptIn = "run-reviewed-sprint10-live-journey-before-ret
 const exactLedgerId = "5aa405b3-bbda-48aa-aeea-ca3357be4042";
 const acceptedLiveScopes = new Set([
   "journey", "dubai-analyse", "dubai-find", "singapore-create",
-  "singapore-analyse", "singapore-find", "dubai-create", "dubai-depth-cycle"
+  "singapore-analyse", "singapore-find", "dubai-create", "dubai-depth-cycle",
+  "quality20-analyse", "quality20-find", "quality20-create", "quality20-acquire"
 ]);
 const acceptedPreviewFailureStages = new Set([
   "preview_preflight",
@@ -300,8 +304,11 @@ export function validateRuntimeConfig(
     const ledgerPath = required(env, "GEOAI_HOSTED_AUTH_PROBE_LIVE_LEDGER_PATH");
     const ledger = ledgerPreflight(ledgerRoot, ledgerPath, scope);
     if (ledger?.ledgerId !== exactLedgerId) fail("The early read-only ledger receipt is not accepted.");
+    const quality20 = loadQuality20Selection(env, scope, { commit: expectedCommitSha, origin: previewUrl });
+    const acquisition = scope === "quality20-acquire" ? loadQuality20Acquisition(env, { commit: expectedCommitSha, origin: previewUrl }) : null;
+    if (quality20) validateQuality20Ledger(quality20, ledger.receipts);
     const liveApproval = required(env, "GEOAI_HOSTED_AUTH_PROBE_LIVE_RUN_APPROVAL");
-    if (liveApproval !== `paid-live-journey:${exactLedgerId}:${preview.hostname}:${expectedCommitSha}:${scope}`) {
+    if (liveApproval !== `paid-live-journey:${exactLedgerId}:${preview.hostname}:${expectedCommitSha}:${scope}${quality20ApprovalSuffix(quality20)}${acquisition ? `:${acquisition.caseId}:${acquisition.planSha256}` : ""}`) {
       fail("The live-journey approval is not bound to the exact ledger, host, Git head and scope.");
     }
     const checkpointPath = validateActiveCheckpointPath(
@@ -317,6 +324,12 @@ export function validateRuntimeConfig(
       ledgerId,
       liveApproval,
       checkpointPath,
+      quality20,
+      acquisition,
+      quality20Environment: Object.fromEntries((quality20 ? [
+        "GEOAI_QUALITY20_MANIFEST_PATH", "GEOAI_QUALITY20_MANIFEST_SHA256", "GEOAI_QUALITY20_CASE_ID"
+      ] : acquisition ? ["GEOAI_QUALITY20_ACQUISITION_PLAN_PATH", "GEOAI_QUALITY20_ACQUISITION_PLAN_SHA256", "GEOAI_QUALITY20_ACQUISITION_OUTPUT_PATH"] : [])
+        .map((name) => [name, required(env, name)])),
       analysisEvidenceEnvironment,
       depthCycleEvidenceEnvironment
     };
@@ -895,6 +908,7 @@ export function buildLiveJourneyChildEnvironment(config, personas, env = process
     GEOAI_E2E_BASE_URL: env.GEOAI_E2E_BASE_URL,
     ...config.liveJourney.analysisEvidenceEnvironment,
     ...config.liveJourney.depthCycleEvidenceEnvironment,
+    ...config.liveJourney.quality20Environment,
     GEOAI_SPRINT10_LIVE_EXPLICIT_RUN: "root-paid-live-journey-2026-09-18",
     GEOAI_SPRINT10_LIVE_SCOPE: config.liveJourney.scope,
     GEOAI_SPRINT10_LIVE_PREVIEW_URL: config.liveJourney.previewUrl,
@@ -913,7 +927,7 @@ export function buildLiveJourneyChildEnvironment(config, personas, env = process
   return childEnvironment;
 }
 
-function parseLiveReceipts(value, scope, { allowPartialPrefix = false } = {}) {
+function parseLiveReceipts(value, scope, { allowPartialPrefix = false, quality20Depth = undefined } = {}) {
   const expected = LIVE_SCOPE_RECEIPT_PLAN[scope];
   if (!Array.isArray(value) || !expected || value.length > expected.length ||
       (!allowPartialPrefix && value.length !== expected.length) ||
@@ -925,7 +939,7 @@ function parseLiveReceipts(value, scope, { allowPartialPrefix = false } = {}) {
     const expectedReceipt = expected[index];
     if (!exactKeys(receipt, ["id", "route", "depth", "state", "estimatedUsd"]) ||
         !Number.isSafeInteger(receipt.id) || receipt.id < 1 || seen.has(receipt.id) ||
-        receipt.route !== expectedReceipt?.route || receipt.depth !== expectedReceipt?.depth ||
+        receipt.route !== expectedReceipt?.route || receipt.depth !== (scope === "quality20-analyse" ? quality20Depth : expectedReceipt?.depth) ||
         receipt.state !== "settled" ||
         typeof receipt.estimatedUsd !== "number" || !Number.isFinite(receipt.estimatedUsd) ||
         receipt.estimatedUsd < 0 || receipt.estimatedUsd > expectedReceipt.reserveUsd) {
@@ -951,17 +965,43 @@ export function parseLiveJourneyChildReceipt(result, expected) {
       value.commit !== expected.commit) {
     fail("The live child receipt is not bound to the exact Preview tuple.", "live_receipt_invalid");
   }
+  let frozenEnvelope = null;
+  if (expected.scope.startsWith("quality20-")) {
+    const expectedCase = expected.quality20?.definition.id ?? expected.acquisition?.caseId;
+    const expectedHash = expected.quality20?.manifestSha256 ?? expected.acquisition?.planSha256;
+    const expectedDepth = expected.quality20?.definition.depth ?? null;
+    if (!expectedCase || !expectedHash || !exactKeys(value.quality20 ?? {}, ["caseId", "manifestSha256", "depth", "observations"]) ||
+        value.quality20.caseId !== expectedCase || value.quality20.manifestSha256 !== expectedHash || value.quality20.depth !== expectedDepth) {
+      fail("Frozen-case receipt mismatch.", "live_receipt_invalid");
+    }
+    if (!Array.isArray(value.quality20.observations) || value.quality20.observations.length > 1 ||
+        value.quality20.observations.some((item) => item?.caseId !== expectedCase) ||
+        (value.status === "PASS" && value.quality20.observations.length !== 1) ||
+        (expected.scope === "quality20-acquire" && value.quality20.observations.length !== 0)) {
+      fail("Missing/ambiguous quality20 execution observations.", "live_receipt_invalid");
+    }
+    quality20CaseObservations(value.quality20.observations.map((item) => ({ type: "quality20-case", description: JSON.stringify(item) })), expectedCase);
+    frozenEnvelope = value.quality20;
+    delete value.quality20;
+  }
+  if (value.status === "ACQUIRED_NOT_ANALYSED") {
+    if (expected.scope !== "quality20-acquire" || result.status !== 0 || !exactKeys(value, ["status", "scope", "previewHost", "commit", "browserLocalPersistenceOnly", "receipts"]) ||
+        value.browserLocalPersistenceOnly !== true) fail("Invalid nonpaid acquisition receipt.", "live_receipt_invalid");
+    parseLiveReceipts(value.receipts, expected.scope);
+    return { ...value, quality20: frozenEnvelope };
+  }
   if (value.status === "PASS") {
-    const receipts = parseLiveReceipts(value.receipts, expected.scope);
+    if (expected.scope === "quality20-acquire") fail("Acquisition cannot be analysis PASS.", "live_receipt_invalid");
+    const receipts = parseLiveReceipts(value.receipts, expected.scope, { quality20Depth: expected.quality20?.definition.depth });
     if (result.status !== 0 || !exactKeys(value, ["status", "scope", "previewHost", "commit", "browserLocalPersistenceOnly", "receipts"]) ||
         value.browserLocalPersistenceOnly !== true) {
       fail("The live PASS receipt is not accepted.", "live_receipt_invalid");
     }
     return { status: "PASS", scope: value.scope, previewHost: value.previewHost, commit: value.commit, receipts,
-      browserLocalPersistenceOnly: true };
+      browserLocalPersistenceOnly: true, ...(frozenEnvelope ? { quality20: frozenEnvelope } : {}) };
   }
   if (value.status === "INCONCLUSIVE") {
-    const receipts = parseLiveReceipts(value.receipts, expected.scope);
+    const receipts = parseLiveReceipts(value.receipts, expected.scope, { quality20Depth: expected.quality20?.definition.depth });
     const legacyKeys = exactKeys(value, ["status", "scope", "previewHost", "commit", "reason", "receipts"]);
     const diagnosticKeys = exactKeys(value, ["status", "scope", "previewHost", "commit", "reason", "diagnostic", "receipts"]);
     let diagnostic = null;
@@ -978,7 +1018,7 @@ export function parseLiveJourneyChildReceipt(result, expected) {
       reason: value.reason, ...(diagnostic ? { diagnostic } : {}) };
   }
   if (value.status === "FAIL_CLEANUP") {
-    const receipts = parseLiveReceipts(value.receipts, expected.scope, { allowPartialPrefix: true });
+    const receipts = parseLiveReceipts(value.receipts, expected.scope, { allowPartialPrefix: true, quality20Depth: expected.quality20?.definition.depth });
     const legacyKeys = exactKeys(value, ["status", "scope", "previewHost", "commit", "stage", "receipts"]);
     const diagnosticKeys = exactKeys(value, ["status", "scope", "previewHost", "commit", "stage", "diagnostic", "receipts"]);
     let diagnostic = null;
@@ -995,7 +1035,7 @@ export function parseLiveJourneyChildReceipt(result, expected) {
       stage: value.stage, ...(diagnostic ? { diagnostic } : {}) };
   }
   if (value.status === "FAIL") {
-    const receipts = parseLiveReceipts(value.receipts, expected.scope, { allowPartialPrefix: true });
+    const receipts = parseLiveReceipts(value.receipts, expected.scope, { allowPartialPrefix: true, quality20Depth: expected.quality20?.definition.depth });
     let diagnostic;
     try { diagnostic = parseLiveJourneyDiagnostic(value.diagnostic); }
     catch { fail("The live failure diagnostic is malformed.", "live_receipt_invalid"); }
@@ -1047,7 +1087,9 @@ export function runReviewedLiveJourney(
     return parseLiveJourneyChildReceipt(result, {
       scope: config.liveJourney.scope,
       previewHost: config.liveJourney.previewHost,
-      commit: config.expectedCommitSha
+      commit: config.expectedCommitSha,
+      quality20: config.liveJourney.quality20,
+      acquisition: config.liveJourney.acquisition
     });
   } catch {
     return {
@@ -1421,7 +1463,7 @@ export async function runHostedProbe(options = {}) {
       : liveJourney;
     const retirementProven = personas.every(personaRetirementProven);
     const successStatus = !executionError && retirementProven && cleanupFailures.length === 0 &&
-      ["PASS", "INCONCLUSIVE"].includes(sanitizedLiveJourney.status)
+      ["PASS", "INCONCLUSIVE", "ACQUIRED_NOT_ANALYSED"].includes(sanitizedLiveJourney.status)
       ? sanitizedLiveJourney.status
       : null;
     const baseReceipt = {
@@ -1441,7 +1483,7 @@ export async function runHostedProbe(options = {}) {
         checks: successfulChecks(personas, observations),
         retirement: successfulRetirement(personas)
       });
-      setExitCode(successStatus === "PASS" ? 0 : 2);
+      setExitCode(successStatus === "INCONCLUSIVE" ? 2 : 0);
       return;
     }
     const actionRequired = cleanupFailures.length > 0 || !retirementProven;
