@@ -3,9 +3,9 @@
   "lastVerified": "2026-09-18",
   "authority": "docs/DOCUMENTATION_INDEX.md",
   "counts": {
-    "markdownDocuments": 236,
+    "markdownDocuments": 238,
     "activeAuthorities": 12,
-    "nonActiveDocuments": 224
+    "nonActiveDocuments": 226
   },
   "documents": {
     "AGENTS.md": {
@@ -1365,6 +1365,18 @@
       "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
     },
     "docs/sprint20/MAP_FIND_RECEIPT.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/sprint20/NIGHT21_DESIGN_ALIGNMENT.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/sprint20/NIGHT21_SOURCE_RELIABILITY_RECEIPT.md": {
       "lifecycle": "historical_or_scoped_reference",
       "currentAuthority": false,
       "successor": "docs/DOCUMENTATION_INDEX.md",
