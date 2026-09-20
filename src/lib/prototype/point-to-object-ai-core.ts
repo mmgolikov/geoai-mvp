@@ -1258,6 +1258,7 @@ function openMapHeightTagValue(value: string, locale: PointObjectLocale): string
 }
 
 const FRIENDLY_FEATURE_LABELS: Record<string, { en: string; ru: string }> = {
+  "building:yes": { en: "building", ru: "здание" },
   "tourism:hotel": { en: "hotel", ru: "отель" },
   "tourism:hostel": { en: "hostel", ru: "хостел" },
   "tourism:museum": { en: "museum", ru: "музей" },
@@ -1286,6 +1287,20 @@ function friendlyFeatureLabel(value: string | null, locale: PointObjectLocale): 
   if (exact) return exact[locale];
   const readable = (value.split(":").at(-1) ?? value).replaceAll("_", " ");
   return readable || localized(locale, "unclassified object", "объект без указанного типа");
+}
+
+/** Display only: preserve the source classification used by geometry contracts.
+ * structuredAttributes contains only tags joined to this exact source receipt.
+ */
+function selectedFeatureDisplay(selected: ReturnType<typeof buildModelEvidenceProjection>["selectedObject"], locale: PointObjectLocale) {
+  if (selected.featureClass === "building:yes") {
+    for (const key of ["tourism", "amenity", "shop", "office"] as const) {
+      const value = selected.structuredAttributes[`tag.${key}`];
+      const label = value ? FRIENDLY_FEATURE_LABELS[`${key}:${value}`] : null;
+      if (label) return { label: label[locale], fromAttributes: true };
+    }
+  }
+  return { label: friendlyFeatureLabel(selected.featureClass, locale), fromAttributes: false };
 }
 
 function humanList(values: string[], locale: PointObjectLocale): string {
@@ -1331,10 +1346,13 @@ function deterministicEvidenceContent(
       : localized(locale, `OpenStreetMap resolves this location to ${sourceFeatureId}.`, `OpenStreetMap связывает эту локацию с объектом ${sourceFeatureId}.`),
     evidenceRefs: [objectRef]
   });
-  if (classificationRef && featureClass) sourceFacts.push({
-    statement: localized(locale, `The open-map classification is ${friendlyFeatureLabel(featureClass, locale)}.`, `Тип объекта в открытой карте: ${friendlyFeatureLabel(featureClass, locale)}.`),
-    evidenceRefs: [classificationRef]
-  });
+  if (classificationRef && featureClass) {
+    const display = selectedFeatureDisplay(selected, locale);
+    sourceFacts.push({
+      statement: localized(locale, `The open-map classification is ${display.label}.`, `Тип объекта в открытой карте: ${display.label}.`),
+      evidenceRefs: uniqueRefs(classificationRef, display.fromAttributes ? attributesRef : null)
+    });
+  }
   if (attributesRef) {
     const labels: Record<string, { en: string; ru: string }> = {
       "tag.building": { en: "building", ru: "тип здания" }, "tag.building:levels": { en: "levels", ru: "этажность" },
@@ -1657,7 +1675,8 @@ export function renderInitialSemanticBrief(
   const implicationCode = semanticImplicationCodeFor(request);
   const subjectName = selected.name ?? localized(locale, "Selected location", "Выбранная локация");
   const russianSubjectFor = selected.name ? `объекта «${selected.name}»` : "выбранной локации";
-  const subjectClass = friendlyFeatureLabel(selected.featureClass, locale);
+  const subjectDisplay = selectedFeatureDisplay(selected, locale);
+  const subjectClass = subjectDisplay.label;
   const address = selected.displayAddress;
   const conciseAddress = address && selected.name && address.toLocaleLowerCase("en-US").startsWith(`${selected.name.toLocaleLowerCase("en-US")},`)
     ? address.slice(selected.name.length + 1).trim()
@@ -1782,7 +1801,7 @@ export function renderInitialSemanticBrief(
     : sparseImplicationByPerspective[request.perspective][request.goal]}`;
   const contextRefs = uniqueRefs(support.contextSummaryRef, ...nearby.map((item) => item.evidenceId));
   const accessRefs = uniqueRefs(support.contextSummaryRef);
-  const subjectRefs = uniqueRefs(support.objectRef, support.classificationRef, address ? support.addressRef : null);
+  const subjectRefs = uniqueRefs(support.objectRef, support.classificationRef, subjectDisplay.fromAttributes ? support.attributesRef : null, address ? support.addressRef : null);
   const allRefs = uniqueRefs(...subjectRefs, ...contextRefs, ...accessRefs).slice(0, 6);
   return {
     codes: { subject: subjectCode, context: contextCode, access: accessCode, implication: implicationCode },
@@ -2764,13 +2783,20 @@ function directAttributeRequirement(
 
 function requiredMissingEvidence(
   question: string,
-  support: PointObjectEvidenceSupport
+  support: PointObjectEvidenceSupport,
+  goal?: PointObjectAnalysisGoal
 ): PointObjectMissingEvidenceCode[] {
   const normalized = question.normalize("NFKC").toLocaleLowerCase("en-US");
   const required: PointObjectMissingEvidenceCode[] = [];
   const add = (...codes: PointObjectMissingEvidenceCode[]) => {
     for (const code of codes) if (!required.includes(code)) required.push(code);
   };
+  // Broad preset questions may name no individual evidence domain. Their goal
+  // still requires these absent non-map sources; a narrow fact keeps its own gate.
+  const broadReview = /\b(?:screen|screening|assess whether|due[ -]diligence plan|opportunities and risks)\b|(?:предварительн[^.?!]*оценк|проверять гипотезу|план\s+due\s+diligence|возможности и риски)/i.test(normalized);
+  if (broadReview && (goal === "development_screening" || goal === "redevelopment" || goal === "due_diligence")) {
+    add("official_identity", "parcel_boundary", "title_rights", "planning_controls", "physical_baseline", "current_market", "cost_financials");
+  }
   if (/\b(?:parcel|cadast|boundary|plot)\b|(?:участ|кадастр|границ|земл)/.test(normalized)) add("parcel_boundary", "official_identity");
   if (/\b(?:owner|ownership|title|right|legal)\b|(?:собствен|владел|право|титул|юрид)/.test(normalized)) add("title_rights", "official_identity");
   if (/\b(?:zoning|planning|permitted|approval|development rights|far|fsi)\b|(?:зонир|планир|разреш|регламент)/.test(normalized)) add("planning_controls", "parcel_boundary");
@@ -2821,7 +2847,7 @@ function validateFocusedAnswer(
   const unsupportedReason = value.unsupportedReasonCode === null
     ? null
     : enumValue(value.unsupportedReasonCode, POINT_OBJECT_UNSUPPORTED_REASON_CODES);
-  const requiredMissing = requiredMissingEvidence(question, support);
+  const requiredMissing = requiredMissingEvidence(question, support, request.goal);
   const directAttribute = directAttributeRequirement(question, support);
   const canonicalDirectAttribute = Boolean(
     directAttribute?.value && directAttribute.evidenceRef && requiredMissing.length === 0
@@ -2947,7 +2973,7 @@ function recoveredFocusedAnswerPlan(
   const question = stringValue(request.question, 500);
   if (!question) return null;
 
-  const requiredMissing = requiredMissingEvidence(question, support);
+  const requiredMissing = requiredMissingEvidence(question, support, request.goal);
   const nearbyLanguage = /\b(?:nearby|surround|school|hospital|clinic|pharmacy|metro|station|transport|road|park|retail|shop)\b|(?:рядом|вокруг|окружен|школ|больниц|клиник|аптек|метро|станци|транспорт|дорог|парк|магазин|ретейл)/i;
   const asksForNearbyContext = nearbyLanguage.test(question);
   const normalizedQuestion = question.normalize("NFKC").toLocaleLowerCase("en-US");
