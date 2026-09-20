@@ -43,6 +43,7 @@ import { validateGoalDepthCaptureEnvironment, writeSprint10GoalDepthEvidence } f
 import { validateSprint10FindAnalysisRequest } from "./helpers/sprint10-live-journey-gate";
 import { CONSTRUCTION_FIND_CASE, acceptedConstructionFindRequest, assertConstructionViewport, freezeConstructionFindCohort, validateConstructionAnalysisRequest } from "./helpers/sprint20-construction-find";
 import { validateFindAnalysisCaptureEnvironment } from "./helpers/sprint10-find-analysis-evidence";
+import { createScreenMetrics, readCreateScreen } from "./helpers/night21-create-screen";
 import { observeComparisonMapNetwork, readComparisonMapDiagnostic, withComparisonGeometryDeadline, ComparisonGeometryProbeTimeout } from "./helpers/sprint10-map-diagnostics";
 import {
   SPRINT10_ANALYSIS_EVIDENCE_CAPTURE_OPT_IN,
@@ -2129,36 +2130,13 @@ async function assertCreateMap(page: Page, expected: unknown, dimension: "2d" | 
   await expect(preview).toHaveAttribute("data-preview-basemap", "rendered");
   await expect(preview).toHaveAttribute("data-preview-camera-pitch", dimension === "3d" ? "50" : "0");
   // Read the mounted MapLibre source and rendered features, not only React data attributes.
-  await expect.poll(async () => preview.evaluate(async (element) => {
-    type Fiber = { memoizedState: { memoizedState: unknown; next: unknown } | null; return: Fiber | null };
-    const key = Object.getOwnPropertyNames(element).find(name => name.startsWith("__reactFiber$"));
-    let fiber = key ? (element as unknown as Record<string, Fiber>)[key] : null;
-    while (fiber) {
-      let hook = fiber.memoizedState;
-      while (hook) {
-        const map = (hook.memoizedState as { current?: import("maplibre-gl").Map } | null)?.current;
-        if (map && typeof map.queryRenderedFeatures === "function" && typeof map.getSource === "function") {
-          const source = map.getSource("create-result-preview-massing") as import("maplibre-gl").GeoJSONSource | undefined;
-          const rendered = map.queryRenderedFeatures();
-          const geometry = source ? await source.getData() : null;
-          const canvas = map.getCanvas();
-          const points = geometry?.type === "FeatureCollection" ? geometry.features.flatMap(f =>
-            f.geometry.type === "Polygon" ? f.geometry.coordinates.flat() : []) : [];
-          return { geometry,
-            framed: points.length > 0 && points.every(p => {
-              const pixel = map.project([p[0], p[1]]);
-              return pixel.x >= -1 && pixel.x <= canvas.clientWidth + 1 && pixel.y >= -1 && pixel.y <= canvas.clientHeight + 1;
-            }),
-            context: rendered.filter(f => !String(f.source).startsWith("create-result-preview-")).length > 0,
-            massing: rendered.filter(f => f.source === "create-result-preview-massing").length > 0,
-            pitch: Math.round(map.getPitch()) };
-        }
-        hook = hook.next as typeof hook;
-      }
-      fiber = fiber.return;
-    }
-    return null;
-  }), { timeout: 30_000 }).toEqual({ geometry: expected, framed: true, context: true, massing: true, pitch: dimension === "3d" ? 50 : 0 });
+  await expect.poll(async () => {
+    const state = await readCreateScreen(preview);
+    if (!state) return null;
+    const metrics = createScreenMetrics(state.projection);
+    return { geometry: state.geometry, framed: state.groundFramed && metrics.framed, useful: metrics.useful,
+      scene: state.scene, context: state.context, massing: state.massing, pitch: state.pitch };
+  }, { timeout: 30_000 }).toEqual({ geometry: expected, framed: true, useful: true, scene: "map", context: true, massing: true, pitch: dimension === "3d" ? 50 : 0 });
 }
 
 async function assertSavedCreateGeometry(page: Page, userId: string, expected: unknown,

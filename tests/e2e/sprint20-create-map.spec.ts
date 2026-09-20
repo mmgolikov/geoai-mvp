@@ -3,6 +3,7 @@ import { conceptTemplate, generateConceptMassingAlternatives, validateRedevelopm
 import { POINT_OBJECT_CREATE_RESULT_CAVEAT } from "../../src/lib/prototype/point-to-object-create-result";
 import { parsePointObjectCreateSessionState } from "../../src/lib/prototype/point-to-object-create-session";
 import { installLoopbackBrowserHarness } from "./helpers/local-webkit-csp";
+import { createScreenMetrics, readCreateScreen } from "./helpers/night21-create-screen";
 
 test("saved synthetic large concave concept shows basemap, local model, A/B and unchanged KPIs without AI", async ({ page, browserName }, testInfo) => {
   await installLoopbackBrowserHarness(page, browserName, testInfo.project.use.baseURL);
@@ -43,6 +44,20 @@ test("saved synthetic large concave concept shows basemap, local model, A/B and 
   await page.getByTestId("create-open-result-dashboard").click();
   await expect(page.getByTestId("create-full-result-dashboard")).toBeVisible();
   const preview = page.getByTestId("create-result-preview-3d");
+  const verifyScreen = async (variant: "A" | "B", scene: "map" | "model", pitch: number) => {
+    const expected = alternatives.find(option => option.id === variant)!.massing.featureCollection;
+    await expect.poll(async () => {
+      const state = await readCreateScreen(preview);
+      if (!state) return null;
+      const metrics = createScreenMetrics(state.projection);
+      return { geometry: state.geometry, framed: state.groundFramed && metrics.framed, useful: metrics.useful,
+        scene: state.scene, context: state.context, massing: state.massing, pitch: state.pitch };
+    }, { timeout: 30_000 }).toEqual({ geometry: expected, framed: true, useful: true,
+      scene, context: scene === "map", massing: true, pitch });
+    const state = await readCreateScreen(preview);
+    await testInfo.attach(`screen-${variant}-${scene}-${pitch}`, { contentType: "application/json",
+      body: JSON.stringify({ scene, pitch, ...(state ? createScreenMetrics(state.projection) : {}) }) });
+  };
   await expect(preview).toHaveAttribute("data-preview-status", "ready");
   await expect(preview).toHaveAttribute("data-preview-scene", "map");
   await expect(preview).toHaveAttribute("data-preview-basemap", "rendered");
@@ -50,6 +65,7 @@ test("saved synthetic large concave concept shows basemap, local model, A/B and 
   await page.getByTestId("create-preview-mode-3d").click();
   await expect(preview).toHaveAttribute("data-preview-camera-pitch", "50");
   await expect.poll(async () => Number(await preview.getAttribute("data-preview-rendered-massing-count"))).toBeGreaterThan(0);
+  await verifyScreen("A", "map", 50);
   await page.screenshot({ path: testInfo.outputPath("synthetic-large-L-real-basemap-A.png"), fullPage: true });
   const key = await preview.getAttribute("data-preview-geometry-key");
   await page.getByTestId("create-dashboard-alternative-b").click();
@@ -60,10 +76,12 @@ test("saved synthetic large concave concept shows basemap, local model, A/B and 
   await expect(preview).toHaveAttribute("data-preview-basemap", "none");
   await expect(preview).toHaveAttribute("data-preview-rendered-scene", "model");
   await expect.poll(async () => Number(await preview.getAttribute("data-preview-rendered-massing-count"))).toBeGreaterThan(0);
+  await verifyScreen("B", "model", 50);
   await page.screenshot({ path: testInfo.outputPath("synthetic-large-L-local-model-B.png"), fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByTestId("create-preview-mode-2d").click();
   await expect(preview).toHaveAttribute("data-preview-camera-pitch", "0");
+  await verifyScreen("B", "model", 0);
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("synthetic-large-L-mobile-model-B.png"), fullPage: true });
   expect(paidRequests).toEqual(["GET", "POST"]); // One entirely mocked generation, zero calls on view/A/B changes.
