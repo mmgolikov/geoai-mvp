@@ -168,6 +168,20 @@ for (const functionName of ["runDubaiFind", "runSingaporeFind"]) {
     assert.ok(start >= 0 && assertion > start && complete > assertion,
       `${functionName} must bind ${stage} around its exact existing UI action/assertion`);
   }
+  if (functionName === "runDubaiFind") {
+    const ready = body.indexOf("data-project-restoration");
+    const citySelection = body.indexOf('selectOption("dubai")');
+    const dispatchGate = body.indexOf("installFindPreDispatchGate");
+    assert.ok(ready >= 0 && ready < citySelection,
+      "Dubai Find must wait for profile/session reconciliation before selecting the market");
+    assert.ok(body.lastIndexOf('toHaveValue("dubai")') > citySelection &&
+      body.lastIndexOf('toHaveValue("hospitality")') < dispatchGate,
+    "Dubai Find must recheck the effective market and scenario criteria before installing the source gate");
+    const minimumPreset = body.lastIndexOf('getByLabel("Levels from", { exact: true })).toHaveValue("")');
+    const maximumPreset = body.lastIndexOf('getByLabel("Levels to", { exact: true })).toHaveValue("")');
+    assert.ok(minimumPreset >= 0 && maximumPreset >= 0 && minimumPreset < dispatchGate && maximumPreset < dispatchGate,
+    "Dubai Find must prove the scenario's no-levels preset before source dispatch");
+  }
   assert.match(body, /boundedLiveJourneyResponseJson\(response, 10_000\)/,
     `${functionName} must use the existing bounded response-body reader`);
   assert.match(body, /observeSourcePostResponse\(page, "\/api\/prototype\/point-to-object\/find", SOURCE_REQUEST_HARNESS_TIMEOUT_MS\)/,

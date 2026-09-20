@@ -73,8 +73,8 @@ const LIVE_SCOPES: readonly Sprint10LiveScope[] = [
 const ANALYSE_SUGGESTION_RESPONSE_TIMEOUT_MS = 30_000;
 const SINGAPORE_MARINA_BAY_REFERENCE_BOUNDS = [103.855, 1.278, 103.868, 1.289] as const;
 type LiveScope = Sprint10LiveScope;
-type SingaporeFindRequestIssue = "shape" | "market_or_locale" | "criteria" | "bounds";
-type FindPreDispatchIssue = SingaporeFindRequestIssue | "method" | "contract_mismatch" | "timeout";
+type FindRequestIssue = "shape" | "market_or_locale" | "criteria" | "bounds";
+type FindPreDispatchIssue = FindRequestIssue | "method" | "contract_mismatch" | "timeout";
 type SourceResponseObservation =
   | { kind: "response"; response: Response }
   | { kind: "aborted" | "network_failed" | "timeout" };
@@ -242,7 +242,7 @@ function isoTimestamp(value: unknown): value is string {
   return typeof value === "string" && Number.isFinite(Date.parse(value));
 }
 
-function singaporeFindRequestIssue(value: unknown): SingaporeFindRequestIssue | null {
+function singaporeFindRequestIssue(value: unknown): FindRequestIssue | null {
   if (!exactObjectKeys(value, ["bounds", "group", "limit", "locale", "mappedMaximumLevels", "mappedMinimumLevels", "marketKey"]) ||
       !Array.isArray(value.bounds) || value.bounds.length !== 4 ||
       value.bounds.some((item) => typeof item !== "number" || !Number.isFinite(item))) return "shape";
@@ -261,15 +261,20 @@ function acceptedSingaporeFindRequest(value: unknown): value is Record<string, u
   return singaporeFindRequestIssue(value) === null;
 }
 
-function acceptedDubaiFindRequest(value: unknown): value is Record<string, unknown> & { bounds: number[] } {
+function dubaiFindRequestIssue(value: unknown): FindRequestIssue | null {
   if (!exactObjectKeys(value, ["bounds", "group", "limit", "locale", "mappedMaximumLevels", "mappedMinimumLevels", "marketKey"]) ||
       !Array.isArray(value.bounds) || value.bounds.length !== 4 ||
-      value.bounds.some((item) => typeof item !== "number" || !Number.isFinite(item))) return false;
-  return value.marketKey === "dubai" && value.locale === "en" && value.group === "hospitality" &&
-    value.mappedMinimumLevels === null && value.mappedMaximumLevels === null && value.limit === 12 &&
-    value.bounds[0] < value.bounds[2] && value.bounds[1] < value.bounds[3] &&
+      value.bounds.some((item) => typeof item !== "number" || !Number.isFinite(item))) return "shape";
+  if (value.marketKey !== "dubai" || value.locale !== "en") return "market_or_locale";
+  if (value.group !== "hospitality" || value.mappedMinimumLevels !== null ||
+      value.mappedMaximumLevels !== null || value.limit !== 12) return "criteria";
+  return value.bounds[0] < value.bounds[2] && value.bounds[1] < value.bounds[3] &&
     coordinatesMatchPointObjectMarket("dubai", value.bounds[0], value.bounds[1]) &&
-    coordinatesMatchPointObjectMarket("dubai", value.bounds[2], value.bounds[3]);
+    coordinatesMatchPointObjectMarket("dubai", value.bounds[2], value.bounds[3]) ? null : "bounds";
+}
+
+function acceptedDubaiFindRequest(value: unknown): value is Record<string, unknown> & { bounds: number[] } {
+  return dubaiFindRequestIssue(value) === null;
 }
 
 type AcceptedFindRequest = Record<string, unknown> & { bounds: number[] };
@@ -298,7 +303,7 @@ async function installFindPreDispatchGate(
         ? "method"
         : label === "Singapore"
           ? singaporeFindRequestIssue(submitted) ?? "contract_mismatch"
-          : "contract_mismatch";
+          : dubaiFindRequestIssue(submitted) ?? "contract_mismatch";
       rejectRequest(new FindPreDispatchError(reason));
       await route.abort("blockedbyclient");
       return;
@@ -1362,7 +1367,9 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
   progress.start("find_source_ui");
   progress.start("find_source_ui_navigation");
   await page.goto("/prototype/point-to-object");
+  await expect(page.locator('main[data-project-restoration="ready"]')).toBeVisible({ timeout: 30_000 });
   await page.getByTestId("point-object-city-select").selectOption("dubai");
+  await expect(page.getByTestId("point-object-city-select")).toHaveValue("dubai");
   progress.complete("find_source_ui_navigation");
   progress.start("find_source_ui_tab");
   await page.getByRole("tab", { name: "Find", exact: true }).click();
@@ -1375,6 +1382,8 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
   progress.complete("find_source_ui_scenario");
   progress.start("find_source_ui_group");
   await expect(page.getByTestId("point-object-find-group-select")).toHaveValue("hospitality");
+  await expect(page.getByLabel("Levels from", { exact: true })).toHaveValue("");
+  await expect(page.getByLabel("Levels to", { exact: true })).toHaveValue("");
   progress.complete("find_source_ui_group");
   progress.start("find_source_camera");
   const zoomOut = page.getByRole("button", { name: "Zoom out" });
@@ -1384,6 +1393,12 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
   }
   progress.complete("find_source_camera");
   progress.start("find_source_cta");
+  await expect(page.getByTestId("point-object-city-select")).toHaveValue("dubai");
+  await expect(page.getByTestId("point-object-find-role-select")).toHaveValue("consultant_broker");
+  await expect(page.getByTestId("point-object-find-scenario-select")).toHaveValue("b2b_hotel_development");
+  await expect(page.getByTestId("point-object-find-group-select")).toHaveValue("hospitality");
+  await expect(page.getByLabel("Levels from", { exact: true })).toHaveValue("");
+  await expect(page.getByLabel("Levels to", { exact: true })).toHaveValue("");
   await expect(page.getByTestId("find-search-cta")).toBeEnabled({ timeout: 30_000 });
   progress.complete("find_source_cta");
   progress.start("find_source_pre_dispatch");
