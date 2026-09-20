@@ -265,6 +265,8 @@ jobs:
         run: |
           set -euo pipefail
           npm run test:point-to-object-create | tee artifacts/point-to-object-create-check.txt
+          node --experimental-strip-types scripts/sprint20-create-geometry-check.ts | tee artifacts/sprint20-create-geometry-check.txt
+          node --experimental-strip-types scripts/sprint20-create-preflight-parity-check.ts | tee artifacts/sprint20-create-preflight-parity-check.txt
 
       - name: Point-to-object runtime gates
         shell: bash

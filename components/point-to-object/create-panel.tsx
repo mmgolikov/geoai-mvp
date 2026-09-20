@@ -255,7 +255,7 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
           worker?.terminate();
           setLocalPreflight({ key: draftKey, kind: "failed", code: "solver_timeout" });
         }, 15_000);
-        worker.postMessage({ aoiCoordinates: aoi.coordinates, aoiHash: aoi.id, locale,
+        worker.postMessage({ aoiCoordinates: aoi.coordinates, locale,
           templateId, customPrompt: customPrompt.trim() || null, controls, lockedControlKeys: [...lockedControlKeys] });
       } catch { setLocalPreflight({ key: draftKey, kind: "failed" }); }
     }, 250);
