@@ -5,6 +5,7 @@ import { QUALITY20_AMENDMENT, QUALITY20_CASES, validateQuality20Manifest, qualit
   validateQuality20PaidBody, validateQuality20Context, validateQuality20AnalysisResult } from "../tests/e2e/helpers/quality20-frozen-case.ts";
 import { sprint10PaidPostDecision, dispatchSprint10PaidRequest } from "../tests/e2e/helpers/sprint10-live-journey-gate.ts";
 import { LIVE_SCOPE_RECEIPT_PLAN, validateLiveLedgerScopeHeadroom } from "./sprint10-live-journey-run.mjs";
+import { createSprint10SpendLedger, reserveSprint10Spend, SPRINT10_ANALYSIS_PROMPT_VERSION } from "../tests/e2e/helpers/sprint10-live-budget.ts";
 
 // Synthetic identifiers ONLY for deterministic offline negative tests; never runtime bindings.
 const execution = { commit: "a".repeat(40), origin: "https://geoai-offline-test.vercel.app", deploymentId: "dpl_OFFLINE" };
@@ -31,7 +32,17 @@ assert.equal(QUALITY20_CASES.filter((c) => /^A(09|10|11|12)$/.test(c.id)).length
 for (const goal of ["object_profile", "development_screening", "redevelopment", "due_diligence"]) {
   assert.equal(QUALITY20_CASES.filter((c) => c.goal === goal && /-Q$/.test(c.id)).length, 2);
 }
-assert.match(quality20RequestKey(selected, "ai"), /^Q20:A01-Q:AI:[a-f0-9]{64}$/);
+assert.match(quality20RequestKey(selected, "ai"), /^Q20:A01-Q:AI:[A-F0-9]{64}$/);
+const requestIdentity = { requestKey: quality20RequestKey(selected, "ai"), phase: "S4",
+  candidateHost: new URL(execution.origin).host, candidateCommit: execution.commit,
+  route: "ai", depth: "quick", promptVersion: SPRINT10_ANALYSIS_PROMPT_VERSION, schemaVersion: 6 };
+const offlineLedger = createSprint10SpendLedger("2026-09-20T00:00:00.000Z");
+assert.match(selected.manifestSha256, /[a-f]/, "real SHA fixture must exercise the alphabet mismatch");
+assert.equal(reserveSprint10Spend(offlineLedger, requestIdentity, "2026-09-20T00:01:00.000Z").ok, true,
+  "frozen identity must pass the actual ledger reservation parser");
+assert.equal(reserveSprint10Spend(offlineLedger, { ...requestIdentity,
+  requestKey: `Q20:A01-Q:AI:${selected.manifestSha256}` }, "2026-09-20T00:01:00.000Z").ok, false,
+  "do not weaken the uppercase-only ledger identity contract");
 assert.notEqual(quality20RequestKey(selected, "ai"), quality20RequestKey(validate(manifest, "A01-D"), "ai"));
 assert.ok(quality20RequestKey(selected, "ai").length <= 96);
 assert.equal(quality20ApprovalSuffix(selected), `:A01-Q:${selected.manifestSha256}`);

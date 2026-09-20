@@ -200,7 +200,9 @@ export function loadQuality20Selection(env: Record<string, string | undefined>, 
 export function quality20RequestKey(selection: Quality20Selection, route: "ai" | "create"): string {
   requireCondition(route === (selection.definition.scope === "quality20-create" ? "create" : "ai") &&
     selection.definition.scope !== "quality20-find", "Paid route differs from the frozen case.");
-  return `Q20:${selection.definition.id}:${route.toUpperCase()}:${selection.manifestSha256}`;
+  // Ledger request identities use an uppercase-only alphabet. The separately
+  // verified manifest SHA remains lowercase; this is only its key encoding.
+  return `Q20:${selection.definition.id}:${route.toUpperCase()}:${selection.manifestSha256.toUpperCase()}`;
 }
 export function quality20ApprovalSuffix(selection: Quality20Selection | null): string {
   return selection ? `:${selection.definition.id}:${selection.manifestSha256}` : "";
