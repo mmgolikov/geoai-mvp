@@ -1,7 +1,25 @@
 import { getEffectiveAuthMode } from "@/src/lib/auth/auth-mode";
 import { evaluateApiMutationOrigin } from "@/src/lib/auth/api-mutation-origin";
+import { isExactProjectKey } from "@/src/lib/auth/request-project-read-policy";
 import { getConfiguredPublicOrigin } from "@/src/lib/platform/public-request-origin";
+import { pointObjectProductionAuthConfigured } from "@/src/lib/prototype/point-object-runtime-policy";
 import type { RequestAuthContext, RequestAuthStatus } from "@/src/lib/auth/request-context";
+
+type ProductionMembershipEnvironment = Readonly<Record<string, string | undefined>>;
+type ProductionMembershipAction = "analysis.read" | "analysis.run";
+type PointObjectMembershipAuthorizer = (input: {
+  request: Request;
+  projectKey: unknown;
+  action: ProductionMembershipAction;
+}) => Promise<
+  | { allowed: true }
+  | { allowed: false; status: 400 | 401 | 403 | 503; code: string }
+>;
+
+export type ProductionPointObjectMembershipResult =
+  | { required: false; allowed: true }
+  | { required: true; allowed: true }
+  | { required: true; allowed: false; status: 401 | 403 | 503; code: string };
 
 type PilotIdentityAllowed = {
   allowed: true;
@@ -29,6 +47,76 @@ const forbiddenIdentityStatuses = new Set<RequestAuthStatus>([
   "profile_missing",
   "profile_inactive"
 ]);
+
+function explicitlyEnabled(value: string | undefined) {
+  return value?.trim().toLowerCase() === "true";
+}
+
+/** Preview takes precedence because Vercel builds run with NODE_ENV=production. */
+export function productionPointObjectMembershipRequired(
+  environment: ProductionMembershipEnvironment = process.env
+) {
+  const vercelEnvironment = environment.VERCEL_ENV?.trim();
+  const runtimeTarget = environment.GEOAI_RUNTIME_TARGET?.trim();
+  const productionRuntime = vercelEnvironment === "production" || (
+    !vercelEnvironment &&
+    runtimeTarget !== "self_hosted_candidate" &&
+    environment.NODE_ENV?.trim() === "production"
+  );
+  return productionRuntime && (
+    explicitlyEnabled(environment.GEOAI_ALLOW_POINT_OBJECT_PRODUCTION_SURFACE) ||
+    explicitlyEnabled(environment.GEOAI_ALLOW_POINT_OBJECT_PRODUCTION_PERSISTENCE)
+  );
+}
+
+function membershipDependencyUnavailable(): ProductionPointObjectMembershipResult {
+  return {
+    required: true,
+    allowed: false,
+    status: 503,
+    code: "project_membership_dependency_unavailable"
+  };
+}
+
+export async function authorizeProductionPointObjectMembership(input: {
+  request: Request;
+  action: ProductionMembershipAction;
+  environment?: ProductionMembershipEnvironment;
+  authorize?: PointObjectMembershipAuthorizer;
+}): Promise<ProductionPointObjectMembershipResult> {
+  const environment = input.environment ?? process.env;
+  if (!productionPointObjectMembershipRequired(environment)) return { required: false, allowed: true };
+  if (!pointObjectProductionAuthConfigured(environment)) return membershipDependencyUnavailable();
+
+  const projectKey = environment.GEOAI_POINT_OBJECT_PRODUCTION_PROJECT_KEY;
+  if (!isExactProjectKey(projectKey)) return membershipDependencyUnavailable();
+
+  try {
+    const authorize = input.authorize ??
+      (await import("@/src/lib/prototype/point-object-analysis-runs")).authorizePointObjectAnalysis;
+    const access = await authorize({ request: input.request, projectKey, action: input.action });
+    if (access.allowed) return { required: true, allowed: true };
+    if (access.status === 503) return membershipDependencyUnavailable();
+    return {
+      required: true,
+      allowed: false,
+      status: access.status === 401 ? 401 : 403,
+      code: access.code
+    };
+  } catch {
+    return membershipDependencyUnavailable();
+  }
+}
+
+export class ProductionPointObjectMembershipUnavailableError extends Error {
+  readonly status = 503;
+  readonly code = "project_membership_dependency_unavailable";
+
+  constructor() {
+    super("Production project membership could not be verified.");
+    this.name = "ProductionPointObjectMembershipUnavailableError";
+  }
+}
 
 function denied(context: RequestAuthContext, status: 401 | 403 | 503, code: string): PilotIdentityDenied {
   return {
@@ -64,6 +152,13 @@ export async function requirePilotIdentity(request: Request): Promise<PilotIdent
   const { createRequestAuthContext } = await import("@/src/lib/auth/request-context");
   const context = await createRequestAuthContext(request);
   if (mode === "supabase_auth" && context.verified) {
+    const membership = await authorizeProductionPointObjectMembership({
+      request,
+      action: request.method === "GET" || request.method === "HEAD" ? "analysis.read" : "analysis.run"
+    });
+    if (!membership.allowed) {
+      return denied(context, membership.status, membership.code);
+    }
     return { allowed: true, mode, context };
   }
   if (invalidSessionStatuses.has(context.status)) {
