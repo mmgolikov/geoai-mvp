@@ -1399,7 +1399,9 @@ test("auth-persona: public demo reopens saved A/B Create without AI while protec
     await json(route, { mode: "unavailable", error: "deliberate demo update failure" }, 502);
   });
   await page.getByText("Concept parameters", { exact: true }).click();
-  await page.getByRole("slider", { name: "Blocks" }).fill("2");
+  // Change vertical programme only: the update-failure regression must reach
+  // its controlled 502, not an unrelated infeasible footprint preflight.
+  await page.getByRole("slider", { name: "Maximum levels" }).fill("30");
   await page.getByTestId("create-generate-action").click();
   await expect(page.getByTestId("create-generation-error")).toBeVisible();
   await expect(page.getByTestId("generated-concept-summary")).toBeVisible();

@@ -89,8 +89,8 @@ for (const locale of ["en","ru"] as const) for (const width of [390,834,1440]) {
     const dashboard = page.getByTestId("role-decision-cards");
     await expect(dashboard).toBeVisible();
     await dashboard.locator('[data-category="education"]').click();
-    await dashboard.locator('[data-module="surroundings"]').screenshot({path:`docs/sprint20/design/surroundings-${locale}-${width}.png`});
-    await dashboard.screenshot({path:`docs/sprint20/design/dashboard-${locale}-${width}.png`});
+    await dashboard.locator('[data-module="surroundings"]').screenshot({path:info.outputPath(`surroundings-${locale}-${width}.png`)});
+    await dashboard.screenshot({path:info.outputPath(`dashboard-${locale}-${width}.png`)});
     const bounds = await dashboard.evaluate(element => ({width:element.getBoundingClientRect().width, scroll:element.scrollWidth, client:element.clientWidth, page:document.documentElement.scrollWidth, viewport:innerWidth, font:getComputedStyle(element).fontFamily}));
     expect(bounds.scroll).toBeLessThanOrEqual(bounds.client+1);
     expect(bounds.page).toBeLessThanOrEqual(bounds.viewport+1);
@@ -101,7 +101,7 @@ for (const locale of ["en","ru"] as const) for (const width of [390,834,1440]) {
   });
 }
 
-for (const variant of ["unavailable","partial"] as const) test(`QH05 ${variant} remains explicit`, async ({page}) => {
+for (const variant of ["unavailable","partial"] as const) test(`QH05 ${variant} remains explicit`, async ({page}, info) => {
   await prepare(page,variant);
   await page.goto("/prototype/point-to-object/analysis");
   const dashboard = page.getByTestId("role-decision-cards");
@@ -110,5 +110,5 @@ for (const variant of ["unavailable","partial"] as const) test(`QH05 ${variant} 
     await expect(dashboard.locator('[data-category]')).toHaveCount(0);
     await expect(dashboard.locator('dl').first()).toContainText("—");
   } else await expect(dashboard).toContainText("Sample cap reached");
-  await dashboard.screenshot({path:`docs/sprint20/design/dashboard-${variant}.png`});
+  await dashboard.screenshot({path:info.outputPath(`dashboard-${variant}.png`)});
 });

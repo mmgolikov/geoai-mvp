@@ -1551,7 +1551,15 @@ export function LiveObjectMap({
         const candidate = navigationTarget.exactFindCandidate?.sourceFeatureId === navigationTarget.expectedSourceFeatureId ? navigationTarget.exactFindCandidate : null;
         const candidateGeometry = candidate?.geometry ? pointObjectFindVerifiedFootprint(candidate.geometry, candidate.geometryProvenance ?? null,
           candidate.observedTags.building || candidate.observedTags.landuse ? "mapped_building_or_landuse" : "mapped_poi") : null;
-        const resolved = navigationTarget.resolvedFindContext;
+        const resolved = navigationTarget.resolvedFindContext?.sourceFeatureId === navigationTarget.expectedSourceFeatureId &&
+          navigationTarget.resolvedFindContext.coordinateAssociation === "trusted_open_map_identity"
+          ? navigationTarget.resolvedFindContext : null;
+        // Legacy saved Find cohorts may contain centroids only. A previously
+        // acquired, exact-identity complete footprint must survive navigation.
+        // Never transfer a neighbour's geometry or promote a POI into a parcel.
+        const resolvedGeometry = resolved?.displayGeometry && candidate && (candidate.observedTags.building || candidate.observedTags.landuse)
+          ? pointObjectFindVerifiedFootprint(resolved.displayGeometry, resolved.geometryProvenance ?? null, "mapped_building_or_landuse") : null;
+        const selectionGeometry = candidateGeometry ?? resolvedGeometry;
         const exactSelection: LiveMapSelection = {
           locationKey: locationKeyRef.current,
           longitude: coordinates[0],
@@ -1561,12 +1569,12 @@ export function LiveObjectMap({
             name: navigationTarget.expectedLabel ?? null,
             featureClass: navigationTarget.expectedFeatureClass ?? "open_map_object",
             sourceFeatureId: navigationTarget.expectedSourceFeatureId,
-            geometry: candidateGeometry ? candidateGeometry as LiveMapSelection["object"]["geometry"] : { type: "Point", coordinates },
-            ...(candidateGeometry ? {geometryProvenance: "confirmed_complete_footprint" as const} : {}),
-            renderHeightM: candidate?.renderHeightM ?? null,
-            renderMinHeightM: candidate?.renderMinHeightM ?? null
+            geometry: selectionGeometry ? selectionGeometry as LiveMapSelection["object"]["geometry"] : { type: "Point", coordinates },
+            ...(selectionGeometry ? {geometryProvenance: "confirmed_complete_footprint" as const} : {}),
+            renderHeightM: candidateGeometry ? candidate?.renderHeightM ?? null : resolvedGeometry ? resolved?.renderHeightM ?? null : null,
+            renderMinHeightM: candidateGeometry ? candidate?.renderMinHeightM ?? null : resolvedGeometry ? resolved?.renderMinHeightM ?? null : null
           },
-          resolvedObject: resolved?.sourceFeatureId === navigationTarget.expectedSourceFeatureId && resolved.coordinateAssociation === "trusted_open_map_identity" ? resolved : null,
+          resolvedObject: resolved,
           viewport: {
             center: [center.lng, center.lat],
             zoom: map.getZoom(),

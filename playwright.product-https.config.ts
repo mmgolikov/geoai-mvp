@@ -8,6 +8,7 @@ const productSpecs = [
   "sprint06-security-compat.spec.ts",
   "point-to-object-map10.spec.ts",
   "quality20-map-find.spec.ts",
+  "quality20-dashboard.spec.ts",
   "project-hub-unified.spec.ts",
   "point-object-project-restoration-readiness.spec.ts",
   "point-to-object-find-viewport.spec.ts",

@@ -273,6 +273,8 @@ jobs:
         run: |
           set -euo pipefail
           npm run test:point-to-object-runtime-gate | tee artifacts/point-to-object-runtime-gate-check.txt
+          node scripts/quality20-production-gate-check.mjs | tee artifacts/quality20-production-gate-check.txt
+          node scripts/quality20-password-only-check.mjs | tee artifacts/quality20-password-only-check.txt
 
       - name: Point-to-object saved Projects and live-producer contract
         shell: bash
