@@ -1561,7 +1561,14 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
     }
     progress.complete("find_compare_basemap");
     progress.start("find_compare_geometry");
-    const state = await withComparisonGeometryDeadline(quality20MapState(map)).catch(async (error: unknown) => {
+    let state: Awaited<ReturnType<typeof quality20MapState>> | undefined;
+    const expectedFootprintIds = selectedCandidates.filter(hasFootprint).map((candidate) => candidate.sourceFeatureId).sort();
+    await expect.poll(async () => {
+      state = await withComparisonGeometryDeadline(quality20MapState(map));
+      if (state.width <= 100 || state.height <= 100 || !state.footprintsLoaded ||
+          !record(state.geometry) || !Array.isArray(state.geometry.features)) return null;
+      return state.geometry.features.filter(record).map((feature) => feature.id).sort();
+    }, { message: "Comparison must finish loading every exact source footprint, independently of its basemap." }).toEqual(expectedFootprintIds).catch(async (error: unknown) => {
       try {
         test.info().annotations.push({ type: "find-comparison-map-failure", description: JSON.stringify({
           ...await readComparisonMapDiagnostic(map, comparisonNetwork.snapshot()), stage: "find_compare_geometry",
@@ -1571,10 +1578,10 @@ async function runDubaiFind(page: Page, configuration: LiveConfiguration, policy
       finally { comparisonNetwork.dispose(); }
       throw error;
     });
-    guard(state.width > 100 && state.height > 100, "Dubai comparison basemap has no useful dimensions.");
+    guard(state && state.width > 100 && state.height > 100, "Dubai comparison basemap has no useful dimensions.");
     guard(record(state.geometry) && Array.isArray(state.geometry.features), "Dubai comparison footprint source is missing.");
     const footprints = state.geometry.features.filter(record);
-    expect(footprints.map((feature) => feature.id).sort()).toEqual(selectedCandidates.filter(hasFootprint).map((candidate) => candidate.sourceFeatureId).sort());
+    expect(footprints.map((feature) => feature.id).sort()).toEqual(expectedFootprintIds);
     progress.complete("find_compare_geometry");
     progress.start("find_compare_markers");
     await expect(dashboard.locator("[data-find-result-marker]")).toHaveCount(3);
@@ -2225,7 +2232,8 @@ async function quality20MapState(container: Locator, bounds?: number[]) {
           const geometry: unknown = source ? await source.getData() : null;
           const canvas = map.getCanvas();
           return { ready: map.isStyleLoaded(), basemapCount: layers.length ? map.queryRenderedFeatures(undefined, { layers }).length : 0,
-            geometry, width: canvas.clientWidth, height: canvas.clientHeight, bounds: map.getBounds().toArray() };
+            geometry, footprintsLoaded: Boolean(source) && map.isSourceLoaded("geoai-find-footprints"),
+            width: canvas.clientWidth, height: canvas.clientHeight, bounds: map.getBounds().toArray() };
         }
         hook = hook.next as typeof hook;
       }
