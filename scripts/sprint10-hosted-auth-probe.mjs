@@ -884,7 +884,7 @@ export function runExistingPreviewHarness(config, personas, { env = process.env,
   return diagnostic.status === "PASS"
     ? "passed_existing_reviewed_runner"
     : { status: "failed_existing_reviewed_runner", stage: hostedPreviewFailureStage(diagnostic),
-      ...(diagnostic.failedStep ? { authDiagnostic: diagnostic } : {}) };
+      authDiagnostic: diagnostic };
 }
 
 function exactKeys(value, keys) {

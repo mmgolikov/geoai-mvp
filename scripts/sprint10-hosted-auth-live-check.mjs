@@ -782,6 +782,25 @@ assert.deepEqual(integratedPreviewFailureUnknownLane.receipt.liveJourney,
   { status: "FAIL", stage: "preview_test_execution_none" });
 assert.equal(integratedPreviewFailureUnknownLane.counters.live, 0);
 assert.equal(integratedPreviewFailureUnknownLane.counters.retire, 2);
+// Preserve validated, non-secret diagnostics even when no single test lane or
+// checkpoint can be identified. Do not discard global/multiple-lane failures.
+for (const counts of [
+  { ...emptyAuthDiagnosticCounts(2), discoveredProjects: 1, discoveredTests: 2 },
+  { ...emptyAuthDiagnosticCounts(2), discoveredProjects: 1, discoveredTests: 2, unexpected: 2 }
+]) {
+  const diagnostic = makeAuthDiagnostic({ status: "FAIL", stage: "test_execution", testLane: "none",
+    counts, processOutcome: "nonzero", timeoutMs: 390_000 });
+  const projected = runExistingPreviewHarness(config, personas, {
+    env: baseEnvironment, spawn: () => childResult(1, diagnostic)
+  });
+  assert.deepEqual(projected, { status: "failed_existing_reviewed_runner",
+    stage: "preview_test_execution_none", authDiagnostic: diagnostic });
+  const result = await runLifecycleFixture(null, "PASS", projected);
+  assert.deepEqual(result.receipt.liveJourney, { status: "FAIL",
+    stage: "preview_test_execution_none", authDiagnostic: diagnostic });
+  assert.equal(result.counters.live, 0, "global Auth failure must not reach paid dispatch");
+  assert.equal(result.counters.retire, 2);
+}
 for (const faultAt of lifecycleFaults) {
   const outcome = await runLifecycleFixture(faultAt);
   assert.equal(outcome.exit, 1);

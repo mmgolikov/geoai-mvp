@@ -174,7 +174,7 @@ const nonzeroPreview = runExistingPreviewHarness(previewChildConfig, previewChil
     stderr: plantedChildSecret })
 });
 assert.deepEqual(nonzeroPreview,
-  { status: "failed_existing_reviewed_runner", stage: "preview_test_execution_primary_continuity" });
+  { status: "failed_existing_reviewed_runner", stage: "preview_test_execution_primary_continuity", authDiagnostic: executionFailureDiagnostic });
 assert(!JSON.stringify(nonzeroPreview).includes(plantedChildSecret));
 
 const dispatched = [];
