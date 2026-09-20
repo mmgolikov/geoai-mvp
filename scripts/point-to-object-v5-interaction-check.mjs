@@ -226,7 +226,12 @@ assert.doesNotMatch(create, /setLockedControlKeys\(new Set\(\)\)/, "Reset must n
 assert.ok(create.includes('data-testid={`create-alternative-${alternative.id.toLowerCase()}`}'), "Create must expose stable A/B option controls");
 assert.match(client, /conceptMassing=\{mode === "create" \? activeConceptMassing : null\}/, "The map must render the active returned concept alternative");
 assert.match(create, /id="point-object-create-prompt"[\s\S]*onChange=\{\(event\) => \{[\s\S]*invalidatePendingRequest\(\);[\s\S]*setCustomPrompt/);
-assert.match(create, /generatedFromCurrentDraft[\s\S]*disabled=\{loading \|\| generatedFromCurrentDraft\}/, "Unchanged generated input must be an explicit disabled no-op");
+assert.match(create, /const preflightBlocked = !preflightCurrent \|\| \["checking", "failed", "suggestion"\]\.includes\(preflightCurrent\.kind\);/,
+  "Create must block generation until the current local placement check is ready or not applicable");
+assert.match(create, /async function generate\(\)[\s\S]*if \(loading \|\| generatedFromCurrentDraft \|\| preflightBlocked\) return;/,
+  "The generation handler must retain loading, unchanged-draft and preflight no-op guards");
+assert.match(create, /disabled=\{loading \|\| generatedFromCurrentDraft \|\| preflightBlocked\}/,
+  "The Generate control must expose the same loading, unchanged-draft and preflight blockers natively");
 assert.match(create, /generatedLocale === locale/);
 assert.match(create, /create-result-language-stale/);
 assert.match(create, /upToDate: "Already generated"/);
