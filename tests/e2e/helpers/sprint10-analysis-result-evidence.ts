@@ -18,6 +18,8 @@ import { basename, dirname, isAbsolute, resolve } from "node:path";
 
 // @ts-expect-error The Node transform-types offline runner requires the explicit TypeScript extension.
 import { parseSprint10ProviderTelemetry, type Sprint10RequestIdentity, type Sprint10SpendTelemetry } from "./sprint10-live-budget.ts";
+// @ts-expect-error The Node transform-types offline runner requires the explicit TypeScript extension.
+import { validateSprint10PublicEvidenceReceipt } from "./sprint10-live-journey-gate.ts";
 
 export const SPRINT10_ANALYSIS_EVIDENCE_SCHEMA = "geoai.sprint10.analysis-result-evidence.v1" as const;
 export const SPRINT10_ANALYSIS_EVIDENCE_CAPTURE_OPT_IN = "write-one-synthetic-public-analysis-response" as const;
@@ -395,6 +397,11 @@ function parseSubmitted(value: unknown, responseRequest: JsonRecord) {
   if (value.question !== SPRINT10_PUBLIC_ANALYSIS_QUESTION || value.expectedSourceFeatureId === undefined) {
     fail("capture is restricted to the fixed synthetic public analysis question and exact source identity.");
   }
+  // Historical sanitized captures had no lease. A present current lease must be
+  // structurally valid; the live pre-dispatch gate additionally requires freshness.
+  if (Object.hasOwn(value, "evidenceReceipt")) {
+    validateSprint10PublicEvidenceReceipt(value.evidenceReceipt, String(value.expectedSourceFeatureId), false);
+  }
   const selected = { role, scenario, depth, goal, perspective, horizon, locale };
   for (const [key, submitted] of Object.entries(selected)) {
     if (responseRequest[key] !== submitted) fail(`response request ${key} does not match the submitted request.`);
@@ -446,6 +453,10 @@ export function buildSprint10AnalysisResultEvidence(input: Sprint10AnalysisEvide
   if (typeof response.evidencePackHash !== "string" || !HASH_PATTERN.test(response.evidencePackHash) ||
       response.evidencePackId !== `p2o_live_evidence_${response.evidencePackHash.slice(0, 24)}`) {
     fail("evidence pack identity is invalid.");
+  }
+  if (record(input.submittedRequest) && record(input.submittedRequest.evidenceReceipt) &&
+      input.submittedRequest.evidenceReceipt.evidencePackHash !== response.evidencePackHash) {
+    fail("submitted public evidence receipt changed before the response.");
   }
   if (input.telemetryIdentity.route !== "ai" || input.telemetryIdentity.schemaVersion !== 6 ||
       input.telemetryIdentity.depth !== submitted.depth) fail("telemetry identity does not match the submitted analysis.");

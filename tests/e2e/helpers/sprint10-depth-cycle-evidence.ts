@@ -23,6 +23,8 @@ import {
   type Sprint10AnalysisResultEvidence
 // @ts-expect-error The Node transform-types offline runner requires the explicit TypeScript extension.
 } from "./sprint10-analysis-result-evidence.ts";
+// @ts-expect-error The Node transform-types offline runner requires the explicit TypeScript extension.
+import { validateSprint10PublicEvidenceReceipt } from "./sprint10-live-journey-gate.ts";
 
 export const SPRINT10_DEPTH_CYCLE_EVIDENCE_SCHEMA = "geoai.sprint10.depth-cycle-evidence.v1" as const;
 export const SPRINT10_DEPTH_CYCLE_EVIDENCE_CAPTURE_OPT_IN = "write-three-dubai-depth-cycle-responses" as const;
@@ -33,7 +35,7 @@ export const SPRINT10_DEVELOPMENT_SCREENING_QUESTION =
 const DEPTHS = ["standard", "deep", "quick"] as const;
 const SUBMITTED_KEYS = [
   "caseKey", "longitude", "latitude", "locale", "role", "scenario", "question", "depth", "goal",
-  "perspective", "horizon", "expectedSourceFeatureId", "consent", "challenge"
+  "perspective", "horizon", "expectedSourceFeatureId", "consent", "challenge", "evidenceReceipt"
 ] as const;
 
 type JsonRecord = Record<string, unknown>;
@@ -98,6 +100,7 @@ export function validateSprint10DepthCycleTransportIdentity(
       submittedRequest.consent !== true) {
     fail("the public source transport identity is invalid.");
   }
+  validateSprint10PublicEvidenceReceipt(submittedRequest.evidenceReceipt, expectedSourceFeatureId, false);
   return {
     caseKey: "dubai",
     longitude: submittedRequest.longitude,

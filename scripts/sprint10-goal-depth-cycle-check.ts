@@ -52,10 +52,19 @@ try {
     assert.throws(() => validateGoalDepthCaptureEnvironment(capture, "dubai-depth-cycle"));
     assert.throws(() => validateGoalDepthCaptureEnvironment({ ...capture, GEOAI_SPRINT10_ANALYSIS_EVIDENCE_PATH: "x" }, scope));
     for (const [index, step] of recipe.entries()) {
+      const created = Math.floor(Date.now() / 900_000) * 900_000;
       const request = { ...step, caseKey: "dubai", longitude: source.longitude, latitude: source.latitude,
         expectedSourceFeatureId: source.sourceFeatureId, consent: true, challenge: "private-test-challenge",
-        perspective: "developer", horizon: "current", role: "developer", scenario: "unspecified", locale: "en" };
+        perspective: "developer", horizon: "current", role: "developer", scenario: "unspecified", locale: "en",
+        evidenceReceipt: { version: "PUBLIC_EVIDENCE_LEASE_V1", evidencePackHash: String(index).repeat(64),
+          sourceResponseHash: "b".repeat(64), acquiredAt: new Date(created).toISOString(),
+          createdAt: new Date(created).toISOString(), expiresAt: new Date(created + 900_000).toISOString(),
+          cacheWindow: Math.floor(created / 900_000), sourceLocale: "en", lookupSourceFeatureId: source.sourceFeatureId } };
       validateSprint10GoalDepthRequest(request, index + 1, source, scope);
+      validateSprint10GoalDepthRequest({ ...request, evidenceReceipt: { ...request.evidenceReceipt, lookupSourceFeatureId: null } }, index + 1, source, scope);
+      assert.throws(() => validateSprint10GoalDepthRequest({ ...request, evidenceReceipt: undefined }, index + 1, source, scope));
+      assert.throws(() => validateSprint10GoalDepthRequest({ ...request, evidenceReceipt: { ...request.evidenceReceipt, lookupSourceFeatureId: "way/999" } }, index + 1, source, scope));
+      assert.throws(() => validateSprint10GoalDepthRequest({ ...request, evidenceReceipt: { ...request.evidenceReceipt, extra: true } }, index + 1, source, scope));
       assert.throws(() => validateSprint10GoalDepthRequest({ ...request, extra: "unexpected" }, index + 1, source, scope));
       assert.throws(() => validateSprint10GoalDepthRequest(request, index + 1, null, scope));
       for (const key of ["goal", "depth", "question", "expectedSourceFeatureId", "longitude", "role", "scenario", "perspective", "horizon", "consent"]) {

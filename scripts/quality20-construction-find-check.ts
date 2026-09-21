@@ -33,9 +33,14 @@ assert.throws(() => freezeConstructionFindCohort(candidates.slice(0, 2), bounds)
 assert.throws(() => freezeConstructionFindCohort([candidates[0], candidates[0], candidates[2]], bounds));
 const pointOnly = { ...candidates[0], geometry: null, geometryStatus: "point_only", geometryProvenance: null };
 assert.equal(freezeConstructionFindCohort([pointOnly, ...candidates.slice(1)], bounds).selected[0].geometry, null);
+const created = Math.floor(Date.now() / 900_000) * 900_000;
 const body = { caseKey: "dubai", longitude: frozen.sources[0].longitude, latitude: frozen.sources[0].latitude, locale: "en",
   role: C.role, scenario: C.scenario, question: C.question, depth: "standard", goal: "custom", perspective: "developer",
-  horizon: "one_to_three_years", expectedSourceFeatureId: frozen.sources[0].sourceFeatureId, consent: true, challenge: "offline-challenge" };
+  horizon: "one_to_three_years", expectedSourceFeatureId: frozen.sources[0].sourceFeatureId, consent: true, challenge: "offline-challenge",
+  evidenceReceipt: { version: "PUBLIC_EVIDENCE_LEASE_V1", evidencePackHash: "a".repeat(64), sourceResponseHash: "b".repeat(64),
+    acquiredAt: new Date(created).toISOString(), createdAt: new Date(created).toISOString(),
+    expiresAt: new Date(created + 900_000).toISOString(), cacheWindow: Math.floor(created / 900_000),
+    sourceLocale: "en", lookupSourceFeatureId: frozen.sources[0].sourceFeatureId } };
 validateConstructionAnalysisRequest(body, 1, frozen.sources);
 for (const patch of [{ role: "consultant_broker" }, { scenario: "b2b_hotel_development" }, { expectedSourceFeatureId: "way/99999" }, { depth: "deep" }, { question: "other" }]) {
   assert.throws(() => validateConstructionAnalysisRequest({ ...body, ...patch }, 1, frozen.sources));

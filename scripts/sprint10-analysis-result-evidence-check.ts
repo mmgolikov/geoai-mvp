@@ -130,6 +130,19 @@ function rejects(run: () => unknown, pattern?: RegExp) {
 try {
   assert.equal(validateSprint10AnalysisEvidencePath(outputPath), outputPath);
   const built = buildSprint10AnalysisResultEvidence(input());
+  const created = Math.floor(Date.now() / 900_000) * 900_000;
+  const publicReceipt = { version: "PUBLIC_EVIDENCE_LEASE_V1", evidencePackHash, sourceResponseHash: "b".repeat(64),
+    acquiredAt: new Date(created).toISOString(), createdAt: new Date(created).toISOString(),
+    expiresAt: new Date(created + 900_000).toISOString(), cacheWindow: Math.floor(created / 900_000),
+    sourceLocale: "en", lookupSourceFeatureId: sourceFeatureId };
+  const withReceipt = buildSprint10AnalysisResultEvidence({ ...input(), submittedRequest: { ...submittedRequest, evidenceReceipt: publicReceipt } });
+  assert.deepEqual(withReceipt, built, "public receipt is validated but excluded from sanitized evidence");
+  rejects(() => buildSprint10AnalysisResultEvidence({ ...input(), submittedRequest: {
+    ...submittedRequest, evidenceReceipt: { ...publicReceipt, evidencePackHash: "c".repeat(64) }
+  } }), /public evidence receipt changed/);
+  rejects(() => buildSprint10AnalysisResultEvidence({ ...input(), submittedRequest: {
+    ...submittedRequest, evidenceReceipt: { ...publicReceipt, extra: true }
+  } }), /unexpected shape/);
   assert.equal(built.schemaVersion, SPRINT10_ANALYSIS_EVIDENCE_SCHEMA);
   assert.equal(built.rawSourcePackCaptured, false);
   assert.equal(built.coordinateReferencedItemsCaptured, false);

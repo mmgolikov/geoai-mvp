@@ -66,6 +66,34 @@ export function sprint10GoalDepthRecipe(scope: Sprint10GoalDepthScope) {
 
 export type Sprint10GoalDepthSource = { sourceFeatureId: string; longitude: number; latitude: number };
 
+/** The live harness checks the public lease before reserving a paid AI POST. */
+export function validateSprint10PublicEvidenceReceipt(value: unknown, expectedSourceFeatureId: string, requireCurrent = true): void {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Public evidence receipt is missing.");
+  const receipt = value as Record<string, unknown>;
+  const keys = ["version", "evidencePackHash", "sourceResponseHash", "acquiredAt", "createdAt", "expiresAt",
+    "cacheWindow", "sourceLocale", "lookupSourceFeatureId"];
+  const iso = (item: unknown) => typeof item === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(item) && Number.isFinite(Date.parse(item));
+  if (Object.keys(receipt).length !== keys.length || Object.keys(receipt).some(key => !keys.includes(key)) ||
+      receipt.version !== "PUBLIC_EVIDENCE_LEASE_V1" ||
+      typeof receipt.evidencePackHash !== "string" || !/^[a-f0-9]{64}$/.test(receipt.evidencePackHash) ||
+      typeof receipt.sourceResponseHash !== "string" || !/^[a-f0-9]{64}$/.test(receipt.sourceResponseHash) ||
+      !iso(receipt.acquiredAt) || !iso(receipt.createdAt) || !iso(receipt.expiresAt) ||
+      !Number.isSafeInteger(receipt.cacheWindow) || (receipt.cacheWindow as number) < 0 ||
+      (receipt.sourceLocale !== "en" && receipt.sourceLocale !== "ru,en") ||
+      (receipt.lookupSourceFeatureId !== null && (typeof receipt.lookupSourceFeatureId !== "string" ||
+        !/^(?:node|way|relation)\/[1-9]\d{0,19}$/.test(receipt.lookupSourceFeatureId)))) {
+    throw new Error("Public evidence receipt has an unexpected shape.");
+  }
+  const created = Date.parse(receipt.createdAt as string);
+  const expires = Date.parse(receipt.expiresAt as string);
+  if (expires - created !== 900_000 || Math.floor(created / 900_000) !== receipt.cacheWindow ||
+      Date.parse(receipt.acquiredAt as string) > expires ||
+      (receipt.lookupSourceFeatureId !== null && receipt.lookupSourceFeatureId !== expectedSourceFeatureId) ||
+      (requireCurrent && !(created <= Date.now() && Date.now() < expires))) {
+    throw new Error("Public evidence receipt is stale or bound to another source.");
+  }
+}
+
 export function validateSprint10FindAnalysisRequest(body: unknown, occurrence: number, sources: readonly Sprint10GoalDepthSource[] | null): void {
   if (!sources || sources.length !== 3 || new Set(sources.map((source) => source.sourceFeatureId)).size !== 3 ||
       !Number.isInteger(occurrence) || occurrence < 1 || occurrence > 3) throw new Error("Find analysis requires three distinct armed live source identities.");
@@ -88,7 +116,7 @@ export function validateSprint10GoalDepthRequest(body: unknown, occurrence: numb
   }
   const value = body as Record<string, unknown>;
   const keys = ["caseKey", "longitude", "latitude", "locale", "role", "scenario", "question", "depth", "goal",
-    "perspective", "horizon", "expectedSourceFeatureId", "consent", "challenge"];
+    "perspective", "horizon", "expectedSourceFeatureId", "consent", "challenge", "evidenceReceipt"];
   if (Object.keys(value).sort().join("|") !== keys.sort().join("|") ||
       !/^(?:node|way|relation)\/[1-9]\d{0,19}$/.test(source.sourceFeatureId) ||
       !Number.isFinite(source.longitude) || !Number.isFinite(source.latitude) ||
@@ -99,6 +127,7 @@ export function validateSprint10GoalDepthRequest(body: unknown, occurrence: numb
       typeof value.challenge !== "string" || value.challenge.length === 0) {
     throw new Error("Goal/depth matrix request changed its exact goal, depth, public question, settings or source identity.");
   }
+  validateSprint10PublicEvidenceReceipt(value.evidenceReceipt, source.sourceFeatureId);
 }
 
 export function sprint10PaidPostDecision(

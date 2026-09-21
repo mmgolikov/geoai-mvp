@@ -21,6 +21,8 @@ const root = realpathSync(mkdtempSync(join(tmpdir(), "geoai-depth-cycle-evidence
 chmodSync(root, 0o700);
 
 function input(depth: typeof depths[number], sequence: number, hashCharacter = "a") {
+  const created = Math.floor(Date.now() / 900_000) * 900_000;
+  const hash = hashCharacter.repeat(64);
   const submittedRequest = {
     caseKey: "dubai",
     longitude: 55.27,
@@ -35,7 +37,11 @@ function input(depth: typeof depths[number], sequence: number, hashCharacter = "
     horizon: "current",
     expectedSourceFeatureId: sourceFeatureId,
     consent: true,
-    challenge: `synthetic-private-challenge-${sequence}`
+    challenge: `synthetic-private-challenge-${sequence}`,
+    evidenceReceipt: { version: "PUBLIC_EVIDENCE_LEASE_V1", evidencePackHash: hash,
+      sourceResponseHash: "b".repeat(64), acquiredAt: new Date(created).toISOString(),
+      createdAt: new Date(created).toISOString(), expiresAt: new Date(created + 900_000).toISOString(),
+      cacheWindow: Math.floor(created / 900_000), sourceLocale: "en", lookupSourceFeatureId: sourceFeatureId }
   } as const;
   const response: any = structuredClone(sprint10AnalysisResponse({
     role: submittedRequest.role,
@@ -47,7 +53,6 @@ function input(depth: typeof depths[number], sequence: number, hashCharacter = "
     locale: submittedRequest.locale,
     question: submittedRequest.question
   }, sequence));
-  const hash = hashCharacter.repeat(64);
   response.evidencePackHash = hash;
   response.evidencePackId = `p2o_live_evidence_${hash.slice(0, 24)}`;
   response.subject.sourceFeatureId = sourceFeatureId;

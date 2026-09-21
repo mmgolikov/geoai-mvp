@@ -14,11 +14,18 @@ import { LIVE_SCOPE_RECEIPT_PLAN, validateLiveLedgerScopeHeadroom } from "./spri
 const scope = "dubai-find-analysis";
 const sources = [1, 2, 3].map((index) => ({ sourceFeatureId: `way/${index}`, longitude: 55.27 + index / 1000, latitude: 25.2 }));
 for (const [index, source] of sources.entries()) {
+  const created = Math.floor(Date.now() / 900_000) * 900_000;
   const body = { caseKey: "dubai", locale: "en", longitude: source.longitude, latitude: source.latitude,
     expectedSourceFeatureId: source.sourceFeatureId, depth: "standard", goal: "custom", role: "consultant_broker",
     scenario: "b2b_hotel_development", perspective: "developer", horizon: "one_to_three_years",
-    question: SPRINT10_PUBLIC_ANALYSIS_QUESTION, consent: true, challenge: "offline-synthetic-challenge" };
+    question: SPRINT10_PUBLIC_ANALYSIS_QUESTION, consent: true, challenge: "offline-synthetic-challenge",
+    evidenceReceipt: { version: "PUBLIC_EVIDENCE_LEASE_V1", evidencePackHash: "a".repeat(64),
+      sourceResponseHash: "b".repeat(64), acquiredAt: new Date(created).toISOString(),
+      createdAt: new Date(created).toISOString(), expiresAt: new Date(created + 900_000).toISOString(),
+      cacheWindow: Math.floor(created / 900_000), sourceLocale: "en", lookupSourceFeatureId: source.sourceFeatureId } };
   validateSprint10FindAnalysisRequest(body, index + 1, sources);
+  assert.throws(() => validateSprint10FindAnalysisRequest({ ...body, evidenceReceipt: null }, index + 1, sources));
+  assert.throws(() => validateSprint10FindAnalysisRequest({ ...body, evidenceReceipt: { ...body.evidenceReceipt, expiresAt: new Date(created).toISOString() } }, index + 1, sources));
   for (const key of ["expectedSourceFeatureId", "longitude", "latitude", "depth", "goal", "role", "scenario", "perspective", "horizon", "question", "locale", "consent"]) {
     assert.throws(() => validateSprint10FindAnalysisRequest({ ...body, [key]: "changed" }, index + 1, sources));
   }
