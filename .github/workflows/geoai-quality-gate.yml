@@ -432,6 +432,7 @@ jobs:
           node scripts/night21-find-completeness-check.mjs | tee artifacts/night21-find-completeness-contract.txt
           node --experimental-transform-types scripts/night21-create-screen-check.mjs | tee artifacts/night21-create-screen-contract.txt
           node --experimental-transform-types scripts/quality20-analysis-evidence-check.mjs | tee artifacts/quality20-analysis-evidence-contract.txt
+          node --experimental-transform-types scripts/night21-visual-evidence-check.mjs | tee artifacts/night21-visual-evidence-contract.txt
           node --experimental-transform-types scripts/quality20-real-artifact-check.ts | tee artifacts/quality20-real-artifact-check.txt
           node --experimental-transform-types scripts/quality20-construction-find-check.ts | tee artifacts/quality20-construction-find-check.txt
           node --experimental-transform-types scripts/quality20-construction-copy-check.ts | tee artifacts/quality20-construction-copy-check.txt

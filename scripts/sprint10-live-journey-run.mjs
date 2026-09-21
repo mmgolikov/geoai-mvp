@@ -38,6 +38,7 @@ import { loadQuality20Acquisition } from "../tests/e2e/helpers/quality20-acquisi
 import { validateGoalDepthCaptureEnvironment } from "../tests/e2e/helpers/sprint10-goal-depth-evidence.ts";
 import { validateFindAnalysisCaptureEnvironment } from "../tests/e2e/helpers/sprint10-find-analysis-evidence.ts";
 import { validateQuality20AnalysisCaptureEnvironment } from "../tests/e2e/helpers/quality20-analysis-evidence.ts";
+import { validateVisualEvidenceEnvironment } from "../tests/e2e/helpers/night21-visual-evidence.ts";
 import { validateQuality20ArtifactExportEnvironment } from "../tests/e2e/helpers/quality20-real-artifact.ts";
 import { comparisonMapDiagnosticsFromReport } from "../tests/e2e/helpers/sprint10-map-diagnostics.ts";
 import { DUBAI_CREATE_PROGRAMME_SCOPES } from "../tests/e2e/helpers/sprint10-live-journey-gate.ts";
@@ -330,6 +331,7 @@ function preflight(repositoryRoot) {
   const goalDepthEvidenceEnvironment = validateGoalDepthCaptureEnvironment(process.env, scope);
   const findAnalysisEvidenceEnvironment = validateFindAnalysisCaptureEnvironment(process.env, scope);
   const quality20AnalysisEvidenceEnvironment = validateQuality20AnalysisCaptureEnvironment(process.env, scope);
+  const visualEvidenceEnvironment = validateVisualEvidenceEnvironment(process.env, scope);
   const realArtifactExportEnvironment = validateQuality20ArtifactExportEnvironment(process.env, scope);
   const previewUrl = canonicalOrigin(required("GEOAI_SPRINT10_LIVE_PREVIEW_URL"));
   const baseUrl = canonicalOrigin(required("GEOAI_E2E_BASE_URL"));
@@ -388,6 +390,7 @@ function preflight(repositoryRoot) {
     goalDepthEvidenceEnvironment,
     findAnalysisEvidenceEnvironment,
     quality20AnalysisEvidenceEnvironment,
+    visualEvidenceEnvironment,
     realArtifactExportEnvironment
   };
 }
@@ -625,6 +628,7 @@ module.exports = defineConfig({
     ...config.goalDepthEvidenceEnvironment,
     ...config.findAnalysisEvidenceEnvironment,
     ...config.quality20AnalysisEvidenceEnvironment,
+    ...config.visualEvidenceEnvironment,
     ...config.realArtifactExportEnvironment,
     ...config.quality20Environment,
     GEOAI_SPRINT10_LIVE_RUNNER_ACTIVE: "1"
