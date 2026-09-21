@@ -14,6 +14,14 @@ test.beforeEach(async ({ page, browserName }, testInfo) => {
 const CAVEAT = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
 const CLICKED_AT = "2026-09-06T08:59:00.000Z";
 const SYNTHETIC_OBJECT_ID = "way/91001";
+function publicReceipt(locale: "en" | "ru", lookupSourceFeatureId: string | null = SYNTHETIC_OBJECT_ID) {
+  const created = Math.floor(Date.now() / 900_000) * 900_000;
+  return { version: "PUBLIC_EVIDENCE_LEASE_V1" as const, evidencePackHash: "a".repeat(64),
+    sourceResponseHash: "b".repeat(64), acquiredAt: new Date(created).toISOString(),
+    createdAt: new Date(created).toISOString(), expiresAt: new Date(created + 900_000).toISOString(),
+    cacheWindow: Math.floor(created / 900_000), sourceLocale: locale === "ru" ? "ru,en" : "en",
+    lookupSourceFeatureId };
+}
 
 const geoContext = {
   radiusM: 400,
@@ -504,6 +512,11 @@ async function installAnalysisRoutes(page: Page) {
   });
   await page.route("**/api/auth/session", (route) => json(route, sessionMissingFixture));
   await page.route("**/api/auth/logout", (route) => json(route, { ok: true }));
+  await page.route("**/api/prototype/point-to-object/context", route => {
+    const body = route.request().postDataJSON() as { locale: "en" | "ru"; expectedSourceFeatureId: string | null };
+    return json(route, { mode: "resolved", subject: { ...selection.resolvedObject,
+      evidenceReceipt: publicReceipt(body.locale, body.expectedSourceFeatureId) } });
+  });
   await page.route("**/api/prototype/point-to-object/ai", async (route) => {
     if (route.request().method() === "GET") {
       await json(route, { mode: "ready", challenge: "A".repeat(43) });
@@ -572,10 +585,10 @@ async function seedSelection(page: Page) {
     if (!sessionStorage.getItem("geoai:point-to-object:selection:v3")) {
       sessionStorage.setItem("geoai:point-to-object:selection:v3", JSON.stringify(value));
     }
-  }, selection);
+  }, { ...selection, resolvedObject: { ...selection.resolvedObject, evidenceReceipt: publicReceipt("en") } });
 }
 
-function pointObjectCalls(apiCalls: Array<{ path: string }>) {
+function pointObjectCalls<T extends { path: string }>(apiCalls: T[]): T[] {
   return apiCalls.filter((call) => call.path.startsWith("/api/prototype/point-to-object/"));
 }
 
@@ -603,7 +616,8 @@ test('auth-persona: public demo recovers the RU draft while protected entry redi
     results: [{ id: 'way/91001', label: 'Synthetic Harbour Hotel', secondaryLabel: 'Dubai', longitude: 55.27, latitude: 25.2, category: 'tourism', featureType: 'hotel', boundingBox: null }],
     source: { attribution: '© OpenStreetMap contributors', licenceId: 'ODbL-1.0', licenceUrl: 'https://www.openstreetmap.org/copyright', serviceUrl: 'https://photon.komoot.io/', officialStatus: 'open_context_not_official' }
   } }));
-  await page.route('**/api/prototype/point-to-object/context', route => route.fulfill({ json: { mode: 'resolved', subject: selection.resolvedObject } }));
+  await page.route('**/api/prototype/point-to-object/context', route => route.fulfill({ json: { mode: 'resolved', subject: {
+    ...selection.resolvedObject, evidenceReceipt: publicReceipt("ru") } } }));
   await page.context().addCookies([{ name: 'geoai_locale', value: 'ru', url: testInfo.project.use.baseURL! }]);
   if (persona === "supabase_auth") {
     await expectProtectedEntryDeniedWithoutByteMutation(page, "/prototype/point-to-object", {
@@ -829,13 +843,15 @@ test("V6 renders useful GeoContext and linked-source facts in EN/RU and restores
   await expect(dashboard).toHaveAttribute("data-goal", "development_screening");
   await expect(dashboard).toHaveAttribute("data-depth", "standard");
   expect(apiCalls).toHaveLength(callsAfterRussian);
-  expect(pointObjectCalls(apiCalls).filter((call) => !call.path.endsWith("/ai"))).toEqual([]);
+  expect(pointObjectCalls(apiCalls).filter((call) => !call.path.endsWith("/ai")).map((call) => [call.method, call.path]))
+    .toEqual([["POST", "/api/prototype/point-to-object/context"]]);
   expect(unexpectedExternal).toEqual([]);
 });
 
 test("a rendered tile selection never promotes a nearest POI into the requested exact identity", async ({ page }) => {
   const { apiCalls, unexpectedExternal } = await installAnalysisRoutes(page);
-  const tileSelection = { ...selection, object: { ...selection.object, name: "Selected building footprint", sourceFeatureId: "18290731" } };
+  const tileSelection = { ...selection, object: { ...selection.object, name: "Selected building footprint", sourceFeatureId: "18290731" },
+    resolvedObject: { ...selection.resolvedObject, evidenceReceipt: publicReceipt("en", null) } };
   await page.addInitScript((value) => sessionStorage.setItem("geoai:point-to-object:selection:v3", JSON.stringify(value)), tileSelection);
   await page.route("**/api/prototype/point-to-object/ai", async (route) => {
     if (route.request().method() === "GET") return json(route, { mode: "ready", challenge: "A".repeat(43) });

@@ -1,4 +1,14 @@
 export const SPRINT10_CAVEAT = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
+export const SPRINT10_FIXTURE_EVIDENCE_PACK_HASH = String(1).padStart(64, "a").slice(-64);
+
+export function sprint10PublicEvidenceReceipt(lookupSourceFeatureId: string | null, locale: "en" | "ru" = "en") {
+  const created = Math.floor(Date.now() / 900_000) * 900_000;
+  return { version: "PUBLIC_EVIDENCE_LEASE_V1" as const, evidencePackHash: SPRINT10_FIXTURE_EVIDENCE_PACK_HASH,
+    sourceResponseHash: "b".repeat(64), acquiredAt: new Date(created).toISOString(),
+    createdAt: new Date(created).toISOString(), expiresAt: new Date(created + 900_000).toISOString(),
+    cacheWindow: Math.floor(created / 900_000), sourceLocale: locale === "ru" ? "ru,en" : "en",
+    lookupSourceFeatureId };
+}
 
 export const sprint10Selection = {
   locationKey: "dubai",
@@ -54,6 +64,14 @@ export const sprint10Selection = {
   nearbyLabels: []
 } as const;
 
+export function sprint10SelectionWithReceipt<T extends { object: { sourceFeatureId: string | null }; resolvedObject: object | null }>(selection: T): T {
+  const selectedId = selection.object.sourceFeatureId;
+  const lookupId = selectedId && /^(?:node|way|relation)\/[1-9]\d{0,19}$/.test(selectedId) ? selectedId : null;
+  return { ...selection, resolvedObject: selection.resolvedObject ? {
+    ...selection.resolvedObject, evidenceReceipt: sprint10PublicEvidenceReceipt(lookupId)
+  } : null } as T;
+}
+
 type AnalysisRequest = {
   role?: string;
   scenario?: string;
@@ -67,7 +85,7 @@ type AnalysisRequest = {
 
 const claim = (statement: string) => ({ statement, evidenceRefs: ["EVD-ALLOWED-FIELDS"] });
 
-export function sprint10AnalysisResponse(request: AnalysisRequest, sequence = 1) {
+export function sprint10AnalysisResponse(request: AnalysisRequest, sequence = 1, evidencePackHash = String(sequence).padStart(64, "a").slice(-64)) {
   const depthCounts = request.depth === "quick"
     ? { checks: 2, alternatives: 0, uncertainties: 1, triggers: 1 }
     : request.depth === "deep"
@@ -79,7 +97,7 @@ export function sprint10AnalysisResponse(request: AnalysisRequest, sequence = 1)
     schemaVersion: 6,
     generatedAt: `2026-09-18T10:00:${String(sequence).padStart(2, "0")}.000Z`,
     evidencePackId: `sprint10-pack-${sequence}`,
-    evidencePackHash: String(sequence).padStart(64, "a").slice(-64),
+    evidencePackHash,
     request: { ...request, focused: Boolean(request.question) },
     content: {
       initialSemanticBrief: {

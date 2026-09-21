@@ -1,5 +1,5 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
-import { sprint10AnalysisResponse, sprint10Selection } from "./helpers/sprint10-analysis-fixture";
+import { sprint10AnalysisResponse, sprint10Selection, sprint10SelectionWithReceipt, sprint10PublicEvidenceReceipt } from "./helpers/sprint10-analysis-fixture";
 import { installLoopbackBrowserHarness } from "./helpers/local-webkit-csp";
 
 const caveat = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
@@ -100,7 +100,7 @@ function responseFor(body: Record<string, unknown>, sequence: number) {
     horizon: body.horizon as "current" | "one_to_three_years" | "long_term",
     question: body.question as string | null,
     locale: body.locale as "en" | "ru"
-  }, sequence);
+  }, sequence, (body.evidenceReceipt as { evidencePackHash?: string } | undefined)?.evidencePackHash);
   return {
     ...base,
     request: {
@@ -123,7 +123,12 @@ async function prepare(page: Page, options: { holdPost?: boolean; selection?: un
   await page.addInitScript(({ selection, session }) => {
     sessionStorage.setItem("geoai:point-to-object:selection:v3", JSON.stringify(selection));
     sessionStorage.setItem("geoai:point-to-object:find:v1", JSON.stringify(session));
-  }, { selection: options.selection ?? sprint10Selection, session: options.session ?? findSession(initialContext) });
+  }, { selection: sprint10SelectionWithReceipt((options.selection ?? sprint10Selection) as typeof sprint10Selection),
+    session: options.session ?? findSession(initialContext) });
+  if (options.selection && (options.selection as { resolvedObject?: unknown }).resolvedObject === null) {
+    await page.route("**/api/prototype/point-to-object/context", route => json(route, { mode: "resolved",
+      subject: { ...sprint10Selection.resolvedObject, evidenceReceipt: sprint10PublicEvidenceReceipt(null) } }));
+  }
   await page.route("**/api/auth/session", (route) => json(route, {
     isAuthenticated: false,
     sessionStatus: "session_missing",

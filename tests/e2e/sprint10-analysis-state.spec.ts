@@ -1,5 +1,5 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
-import { sprint10AnalysisResponse, sprint10Selection } from "./helpers/sprint10-analysis-fixture";
+import { sprint10AnalysisResponse, sprint10PublicEvidenceReceipt, sprint10Selection, sprint10SelectionWithReceipt } from "./helpers/sprint10-analysis-fixture";
 import { POINT_OBJECT_ANALYSIS_CLIENT_DEADLINE_MS } from "../../src/lib/prototype/point-to-object-analysis-request-state";
 import { installLoopbackBrowserHarness } from "./helpers/local-webkit-csp";
 
@@ -21,9 +21,14 @@ async function prepare(page: Page) {
   let sequence = 0;
   await page.addInitScript((selection) => {
     sessionStorage.setItem("geoai:point-to-object:selection:v3", JSON.stringify(selection));
-  }, sprint10Selection);
+  }, sprint10SelectionWithReceipt(sprint10Selection));
   await page.route("**/api/auth/session", (route) => json(route, { isAuthenticated: false, user: null }));
   await page.route("**/api/auth/logout", (route) => json(route, { ok: true }));
+  await page.route("**/api/prototype/point-to-object/context", route => {
+    const body = route.request().postDataJSON() as { locale: "en" | "ru"; expectedSourceFeatureId: string | null };
+    return json(route, { mode: "resolved", subject: { ...sprint10Selection.resolvedObject,
+      evidenceReceipt: sprint10PublicEvidenceReceipt(body.expectedSourceFeatureId, body.locale) } });
+  });
   await page.route("**/api/prototype/point-to-object/ai", async (route) => {
     if (route.request().method() === "GET") {
       if (holdNextChallenge) await new Promise<void>((resolve) => { releaseChallenge = resolve; });
@@ -48,7 +53,7 @@ async function prepare(page: Page) {
       horizon: body.horizon as "current" | "one_to_three_years" | "long_term",
       question: body.question as string | null,
       locale: body.locale as "en" | "ru"
-    }, sequence));
+    }, sequence, (body.evidenceReceipt as { evidencePackHash?: string } | undefined)?.evidencePackHash));
   });
   return {
     posts,

@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { sprint10Selection, sprint10AnalysisResponse } from "./helpers/sprint10-analysis-fixture";
+import { sprint10Selection, sprint10SelectionWithReceipt, sprint10AnalysisResponse } from "./helpers/sprint10-analysis-fixture";
 import { dashboardCategoryRows, dashboardLayout } from "../../src/lib/prototype/point-to-object-dashboard-registry";
 import { installLoopbackBrowserHarness } from "./helpers/local-webkit-csp";
 
@@ -15,13 +15,13 @@ const context = { ...sprint10Selection.resolvedObject.geoContext, sampleSize:20,
 
 async function prepare(page: Page, variant: "available" | "unavailable" | "partial" = "available") {
   let posts = 0;
-  await page.addInitScript(selection => sessionStorage.setItem("geoai:point-to-object:selection:v3", JSON.stringify(selection)), sprint10Selection);
+  await page.addInitScript(selection => sessionStorage.setItem("geoai:point-to-object:selection:v3", JSON.stringify(selection)), sprint10SelectionWithReceipt(sprint10Selection));
   await page.route("**/api/auth/session", route => route.fulfill({ json:{ isAuthenticated:false, user:null } }));
   await page.route("**/api/prototype/point-to-object/ai", async route => {
     if (route.request().method() === "GET") return route.fulfill({ json:{mode:"ready", challenge:"A".repeat(43)} });
     posts++;
-    const { role, scenario, depth, goal, perspective, horizon, question, locale } = route.request().postDataJSON();
-    const response = sprint10AnalysisResponse({ role, scenario, depth, goal, perspective, horizon, question, locale }, posts);
+    const { role, scenario, depth, goal, perspective, horizon, question, locale, evidenceReceipt } = route.request().postDataJSON();
+    const response = sprint10AnalysisResponse({ role, scenario, depth, goal, perspective, horizon, question, locale }, posts, evidenceReceipt?.evidencePackHash);
     const evidence = variant === "unavailable" ? { ...context, coverage:"unavailable", sampleSize:0, groups:[], mappedBuildingCount:0, mappedLevelsKnownCount:0, medianMappedLevels:null, nearestTransitM:null, nearestMajorRoadM:null } : { ...context, capReached:variant === "partial" };
     // The response parser, not a new product source, owns runtime validation.
     return route.fulfill({ json:{...response, content:{...response.content, geoContext:evidence}, subject:{...response.subject, geoContext:evidence}} });
