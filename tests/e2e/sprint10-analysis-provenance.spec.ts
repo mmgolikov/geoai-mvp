@@ -110,7 +110,7 @@ function responseFor(body: Record<string, unknown>, sequence: number) {
     },
     telemetry: {
       ...base.telemetry,
-      promptVersion: "POINT_OBJECT_AI_PROMPT_V10_2026_09_18"
+      promptVersion: "POINT_OBJECT_AI_PROMPT_V12_2026_09_21"
     }
   };
 }

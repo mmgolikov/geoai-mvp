@@ -85,7 +85,8 @@ type AnalysisRequest = {
 
 const claim = (statement: string) => ({ statement, evidenceRefs: ["EVD-ALLOWED-FIELDS"] });
 
-export function sprint10AnalysisResponse(request: AnalysisRequest, sequence = 1, evidencePackHash = String(sequence).padStart(64, "a").slice(-64)) {
+export function sprint10AnalysisResponse(request: AnalysisRequest, sequence = 1,
+  evidencePackHash = String(sequence).padStart(64, "a").slice(-64), promptVersion = "POINT_OBJECT_AI_PROMPT_V10_2026_09_18") {
   const depthCounts = request.depth === "quick"
     ? { checks: 2, alternatives: 0, uncertainties: 1, triggers: 1 }
     : request.depth === "deep"
@@ -168,7 +169,7 @@ export function sprint10AnalysisResponse(request: AnalysisRequest, sequence = 1,
       model: "fixture-only",
       reasoningEffort: request.depth === "deep" ? "high" : "medium",
       depth: request.depth,
-      promptVersion: "POINT_OBJECT_AI_PROMPT_V10_2026_09_18",
+      promptVersion,
       requestId: `resp_sprint10_${sequence}`,
       latencyMs: 1,
       attempts: 1,

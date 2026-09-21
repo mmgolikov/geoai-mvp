@@ -53,7 +53,8 @@ async function prepare(page: Page) {
       horizon: body.horizon as "current" | "one_to_three_years" | "long_term",
       question: body.question as string | null,
       locale: body.locale as "en" | "ru"
-    }, sequence, (body.evidenceReceipt as { evidencePackHash?: string } | undefined)?.evidencePackHash));
+    }, sequence, (body.evidenceReceipt as { evidencePackHash?: string } | undefined)?.evidencePackHash,
+    "POINT_OBJECT_AI_PROMPT_V12_2026_09_21"));
   });
   return {
     posts,
