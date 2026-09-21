@@ -283,6 +283,7 @@ jobs:
           node --experimental-strip-types scripts/quality20-analysis-content-check.ts | tee artifacts/quality20-analysis-content-check.txt
           node --experimental-strip-types scripts/night21-analysis-quality-check.ts | tee artifacts/night21-analysis-quality-check.txt
           node scripts/point-to-object-evidence-lease-check.mjs | tee artifacts/point-to-object-evidence-lease-check.txt
+          node scripts/point-to-object-shared-exact-source-check.mjs | tee artifacts/point-to-object-shared-exact-source-check.txt
           node --experimental-transform-types scripts/quality20-ai-failure-check.ts | tee artifacts/quality20-ai-failure-check.txt
           node --experimental-transform-types scripts/sprint10-map-diagnostics-check.ts | tee artifacts/sprint10-map-diagnostics-check.txt
           node scripts/quality20-review-fixes-check.mjs | tee artifacts/quality20-review-fixes-check.txt
