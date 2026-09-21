@@ -1,5 +1,5 @@
 import "server-only";
-import { ExactFindSnapshotConflictError, rememberExactFindElements, shareExactFindElements } from "./point-to-object-exact-source";
+import { ExactFindSnapshotConflictError, ExactFindSnapshotUnavailableError, rememberExactFindElements, shareExactFindElements } from "./point-to-object-exact-source";
 
 import { unstable_cache } from "next/cache";
 import { sourceRetryAfterSeconds, waitForSourceAdmission } from "./point-to-object-source-recovery";
@@ -206,6 +206,9 @@ export async function findPointObjects(
   try {
     await shareExactFindElements(payload, acquiredAt, normalized.candidates.map(candidate => candidate.sourceFeatureId));
   } catch (error) {
+    if (error instanceof ExactFindSnapshotUnavailableError) throw new PointObjectFindError(
+      "OVERPASS_UNAVAILABLE", 503, "The selected public object snapshot could not be verified. Retry later.", true
+    );
     if (error instanceof ExactFindSnapshotConflictError) throw new PointObjectFindError(
       "OVERPASS_RESPONSE_INVALID", 409, "An object changed during the current data snapshot. Retry after the snapshot expires.", true
     );

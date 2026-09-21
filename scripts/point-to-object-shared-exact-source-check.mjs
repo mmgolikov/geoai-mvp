@@ -61,6 +61,9 @@ try {
   now += 30_000;
   await writer.shareExactFindElements(payload, new Date(now).toISOString(), ["way/123"]);
   assert.equal((await reader.readSharedExactFindSnapshot("way/123")).acquiredAt, sourceTime, "Identical reacquisition cannot renew source time");
+  const newerObservation = structuredClone(payload); newerObservation.osm3s.timestamp_osm_base = new Date(now).toISOString();
+  await writer.shareExactFindElements(newerObservation, new Date(now).toISOString(), ["way/123"]);
+  assert.equal((await reader.readSharedExactFindSnapshot("way/123")).observedAt, payload.osm3s.timestamp_osm_base);
   for (const change of [entry => { entry.tags.height = "43"; }, entry => { entry.geometry[1].lon += 0.0001; }]) {
     const changedPayload = structuredClone(payload); change(changedPayload.elements[0]);
     await assert.rejects(writer.shareExactFindElements(changedPayload, new Date(now).toISOString(), ["way/123"]), writer.ExactFindSnapshotConflictError);
@@ -104,6 +107,14 @@ try {
     assert.equal(await reader.readSharedExactFindSnapshot("way/456"), null);
   }
   assert.ok(!JSON.stringify([...entries.values()]).includes("private")); checks++;
+  const originalSet = globalThis.__incrementalCache.set;
+  for (const failingSet of [async () => { throw new Error("Offline cache write failed"); }, async () => {}]) {
+    globalThis.__incrementalCache.set = failingSet;
+    try {
+      await assert.rejects(writer.shareExactFindElements({ elements: [{ ...element, id: 789 }] }, sourceTime, ["way/789"]), writer.ExactFindSnapshotUnavailableError);
+    } finally { globalThis.__incrementalCache.set = originalSet; }
+  }
+  checks++;
   process.env.VERCEL_DEPLOYMENT_ID = "other_deployment";
   assert.equal(await reader.readSharedExactFindSnapshot("way/123"), null);
   process.env.VERCEL_DEPLOYMENT_ID = "offline_exact_deployment"; checks++;

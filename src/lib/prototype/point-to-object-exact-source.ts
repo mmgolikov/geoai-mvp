@@ -16,6 +16,9 @@ export type SharedExactSourceSnapshot = Receipt & { sourceFeatureId: string; exp
 export class ExactFindSnapshotConflictError extends Error {
   constructor() { super("The public object changed during the current snapshot window. Retry after the snapshot expires."); }
 }
+export class ExactFindSnapshotUnavailableError extends Error {
+  constructor() { super("The public object snapshot could not be stored and verified. Retry later."); }
+}
 
 function validSharedSnapshot(value: unknown, id: string, now: number): value is SharedExactSourceSnapshot {
   if (!record(value) || Object.keys(value).sort().join(",") !== "acquiredAt,element,expiresAt,integrityHash,observedAt,sourceFeatureId" ||
@@ -59,14 +62,18 @@ export async function shareExactFindElements(payload: unknown, acquiredAt: strin
     const snapshot = { ...content, integrityHash: semanticHash(content) };
     if (!validSharedSnapshot(snapshot, id, now)) return;
     const current = await readSharedExactFindSnapshot(id, now);
-    const matches = (value: SharedExactSourceSnapshot) => semanticHash(value.element) === semanticHash(element) && value.observedAt === observedAt;
+    const matches = (value: SharedExactSourceSnapshot) => semanticHash(value.element) === semanticHash(element);
     if (current && !matches(current)) throw new ExactFindSnapshotConflictError();
     // Identical reacquisition retains the original snapshot and original clock.
     if (current) return;
     const stored: unknown = await sharedSlot(id, Math.floor(Date.parse(acquiredAt) / SHARED_TTL_MS), snapshot).catch(() => null);
+    if (!validSharedSnapshot(stored, id, now)) throw new ExactFindSnapshotUnavailableError();
     // A concurrent publication may have filled the same slot first. Do not return
     // different Find geometry while Analyse would read that earlier snapshot.
-    if (validSharedSnapshot(stored, id, now) && !matches(stored)) throw new ExactFindSnapshotConflictError();
+    if (!matches(stored)) throw new ExactFindSnapshotConflictError();
+    const confirmed = await readSharedExactFindSnapshot(id, now);
+    if (!confirmed) throw new ExactFindSnapshotUnavailableError();
+    if (!matches(confirmed)) throw new ExactFindSnapshotConflictError();
   }));
 }
 
