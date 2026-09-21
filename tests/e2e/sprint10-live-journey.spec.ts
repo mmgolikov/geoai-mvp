@@ -1278,6 +1278,12 @@ async function runDubaiDepthCycle(page: Page, configuration: LiveConfiguration, 
   guard(context.status() === 200 && record(contextPayload) && contextPayload.mode === "resolved" && contextPayload.schemaVersion === 2 &&
     record(contextPayload.subject) && contextPayload.subject.sourceFeatureId === chosen.id,
   "The selected Dubai depth-cycle source identity was not resolved to the exact structured object.");
+  guard(record(contextPayload.evidenceReceipt) &&
+    typeof contextPayload.evidenceReceipt.evidencePackHash === "string" &&
+    /^[a-f0-9]{64}$/.test(contextPayload.evidenceReceipt.evidencePackHash),
+  "Depth comparison requires the Context source snapshot receipt before any paid request.");
+  const frozenEvidencePackHash = contextPayload.evidenceReceipt.evidencePackHash;
+  const frozenEvidenceReceipt = JSON.stringify(contextPayload.evidenceReceipt);
   progress.complete("analyse_source_context_contract");
   progress.start("analyse_source_context");
   progress.complete("analyse_source_context");
@@ -1318,6 +1324,8 @@ async function runDubaiDepthCycle(page: Page, configuration: LiveConfiguration, 
     baselinePayload.subject.sourceLabel === "© OpenStreetMap contributors" &&
     record(baselinePayload.content) && record(baselinePayload.content.depthReview) && baselinePayload.content.depthReview.depth === "standard",
   "The initial Dubai Standard baseline did not preserve its exact source, submitted settings and completed depth receipt.");
+  expect(baselinePayload.evidencePackHash, "Initial AI must reuse the displayed Context snapshot").toBe(frozenEvidencePackHash);
+  expect(JSON.stringify(baselineSubmitted.evidenceReceipt)).toBe(frozenEvidenceReceipt);
   progress.complete("analyse_result_contract");
   await expect(page.getByTestId("ai-success")).toBeVisible();
   await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
@@ -1374,6 +1382,7 @@ async function runDubaiDepthCycle(page: Page, configuration: LiveConfiguration, 
       transportIdentity.longitude === baselineTransportIdentity.longitude &&
       transportIdentity.latitude === baselineTransportIdentity.latitude,
     `The submitted ${depth} screening request changed a fixed non-depth input or source identity.`);
+    expect(JSON.stringify(submittedRequest.evidenceReceipt), "Depth changes must retain one Context lease").toBe(frozenEvidenceReceipt);
     progress.complete("analyse_depth_contract");
     progress.start("analyse_depth_inflight");
     await expect(state).toHaveAttribute("data-in-flight-depth", depth);
@@ -1409,6 +1418,7 @@ async function runDubaiDepthCycle(page: Page, configuration: LiveConfiguration, 
       record(payload.subject) && payload.subject.sourceFeatureId === chosen.id && payload.subject.sourceLabel === "© OpenStreetMap contributors" &&
       record(payload.content) && payload.content.caveat === CAVEAT && record(payload.content.depthReview) && payload.content.depthReview.depth === depth,
     `The completed ${depth} screening result changed source identity, fixed inputs, provenance or depth receipt.`);
+    expect(payload.evidencePackHash, "Depth comparison cannot silently change source data").toBe(frozenEvidencePackHash);
     progress.complete("analyse_result_contract");
     await expect(page.getByTestId("ai-success")).toBeVisible();
     await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", depth);
