@@ -8,6 +8,7 @@ import {
   sessionMissingFixture
 } from "./helpers/auth-persona";
 import { externalHttpUrlPattern, installLoopbackBrowserHarness } from "./helpers/local-webkit-csp";
+import { sprint10PublicEvidenceReceipt } from "./helpers/sprint10-analysis-fixture";
 
 test.beforeEach(async ({ page, browserName }, testInfo) => {
   await installLoopbackBrowserHarness(page, browserName, testInfo.project.use.baseURL);
@@ -178,7 +179,11 @@ async function installOfflineRoutes(page: Page, options: { areaContextMode?: "su
     const body = route.request().postDataJSON() as Record<string, unknown>;
     contextRequests.push(body);
     const sourceFeatureId = typeof body.expectedSourceFeatureId === "string" ? body.expectedSourceFeatureId : "invalid/missing";
-    await json(route, { mode: "resolved", subject: contextSubject(sourceFeatureId) });
+    const lookupId = /^(?:node|way|relation)\/[1-9]\d{0,19}$/.test(sourceFeatureId) ? sourceFeatureId : null;
+    const locale = body.locale === "ru" ? "ru" : "en";
+    await json(route, { mode: "resolved", subject: {
+      ...contextSubject(sourceFeatureId), evidenceReceipt: sprint10PublicEvidenceReceipt(lookupId, locale)
+    } });
   });
   await page.route("**/api/prototype/point-to-object/find", async (route) => {
     const request = route.request().postDataJSON() as Record<string, unknown>;
