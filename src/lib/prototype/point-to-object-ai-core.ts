@@ -1576,6 +1576,8 @@ type PointObjectEvidenceSupport = {
   contextRefs: string[];
   fallbackRef: string | null;
   hasBuildingAttributes: boolean;
+  hasMappedBuilding: boolean;
+  hasPolygonGeometry: boolean;
   hasBuildingGeometry: boolean;
   hasBuildingForm: boolean;
   hasLifecycleMarker: boolean;
@@ -1606,11 +1608,17 @@ function evidenceSupport(evidencePack: GroundablePointObjectEvidencePack): Point
   if (contextSummaryRef) contextRefs.push(contextSummaryRef);
   if (districtRef) contextRefs.push(districtRef);
   const tags = projection.selectedObject.structuredAttributes;
-  const hasBuildingAttributes = Boolean(attributesRef && ["tag.building", "tag.building:levels", "tag.height", "tag.min_height"]
+  const buildingTag = attributesRef ? tags["tag.building"] : null;
+  const buildingClass = classificationRef ? projection.selectedObject.featureClass : null;
+  const hasMappedBuilding = buildingTag !== "no" && buildingClass !== "building:no" && Boolean(
+    buildingTag || (buildingClass?.startsWith("building:") && buildingClass.length > "building:".length)
+  );
+  const hasBuildingAttributes = hasMappedBuilding && Boolean(attributesRef && ["tag.building", "tag.building:levels", "tag.height", "tag.min_height"]
     .some((key) => Boolean(tags[key])));
-  const hasBuildingGeometry = Boolean(geometryRef && projection.selectedObject.geometryType &&
+  const hasPolygonGeometry = Boolean(geometryRef && projection.selectedObject.geometryType &&
     ["Polygon", "MultiPolygon"].includes(projection.selectedObject.geometryType));
-  const hasBuildingForm = hasBuildingAttributes || hasBuildingGeometry;
+  const hasBuildingGeometry = hasMappedBuilding && hasPolygonGeometry;
+  const hasBuildingForm = hasMappedBuilding;
   const hasLifecycleMarker = Boolean(attributesRef && tags["tag.start_date"]);
   return {
     allowed,
@@ -1628,6 +1636,8 @@ function evidenceSupport(evidencePack: GroundablePointObjectEvidencePack): Point
     contextRefs,
     fallbackRef: sourceStatusRef ?? objectRef ?? coordinateRef,
     hasBuildingAttributes,
+    hasMappedBuilding,
+    hasPolygonGeometry,
     hasBuildingGeometry,
     hasBuildingForm,
     hasLifecycleMarker
@@ -1803,7 +1813,9 @@ export function renderInitialSemanticBrief(
       custom: localized(locale, `For ${subjectName}, test the operating question against owner and technical records.`, `Для ${russianSubjectFor} проверьте операционный вопрос по данным собственника и техническим материалам.`)
     }
   };
-  const implicationStatement = `${horizonLead}${hasUsableContext
+  const implicationStatement = `${horizonLead}${!support.hasMappedBuilding && (request.goal === "redevelopment" || request.perspective === "asset_owner")
+    ? localized(locale, `For ${subjectName}, establish the selected object's extent, current uses and structure inventory before comparing site options. Building reuse is conditional on identifying the relevant buildings and verifying their technical baseline.`, `Для ${russianSubjectFor} установите границы выбранного объекта, текущее использование и состав застройки до сравнения вариантов территории. Повторное использование зданий требует их идентификации и проверки технического состояния.`)
+    : hasUsableContext
     ? implicationByPerspective[request.perspective][request.goal]
     : sparseImplicationByPerspective[request.perspective][request.goal]}`;
   const contextRefs = uniqueRefs(support.contextSummaryRef, ...nearby.map((item) => item.evidenceId));
@@ -1827,6 +1839,7 @@ function reasonRefs(code: PointObjectReasonCode, support: PointObjectEvidenceSup
       ? uniqueRefs(support.classificationRef) : [];
     case "building_form_available": return support.hasBuildingForm
       ? uniqueRefs(
+        support.hasMappedBuilding ? support.classificationRef : null,
         support.hasBuildingAttributes ? support.attributesRef : null,
         support.hasBuildingGeometry ? support.geometryRef : null
       ) : [];
@@ -1851,6 +1864,7 @@ function signalRefs(code: PointObjectSignalCode, support: PointObjectEvidenceSup
       ? uniqueRefs(support.classificationRef) : [];
     case "building_form": return support.hasBuildingForm
       ? uniqueRefs(
+        support.hasMappedBuilding ? support.classificationRef : null,
         support.hasBuildingAttributes ? support.attributesRef : null,
         support.hasBuildingGeometry ? support.geometryRef : null
       ) : [];
@@ -1884,10 +1898,10 @@ function opportunityRefs(code: PointObjectOpportunityCode, support: PointObjectE
       support.hasBuildingAttributes ? support.attributesRef : null,
       support.hasBuildingGeometry ? support.geometryRef : null
     );
-    case "lifecycle_capital_review": return support.hasLifecycleMarker ? uniqueRefs(support.attributesRef) : [];
-    case "redevelopment_envelope_test": return uniqueRefs(support.hasBuildingGeometry ? support.geometryRef : null);
+    case "lifecycle_capital_review": return support.hasMappedBuilding && support.hasLifecycleMarker ? uniqueRefs(support.attributesRef) : [];
+    case "redevelopment_envelope_test": return uniqueRefs(support.hasPolygonGeometry ? support.geometryRef : null);
     case "technical_reuse_test": return support.hasBuildingForm
-      ? uniqueRefs(support.hasBuildingAttributes ? support.attributesRef : null, support.hasBuildingGeometry ? support.geometryRef : null) : [];
+      ? uniqueRefs(support.classificationRef, support.hasBuildingAttributes ? support.attributesRef : null, support.hasBuildingGeometry ? support.geometryRef : null) : [];
     case "operational_baseline_test": return uniqueRefs(hasClassification ? support.classificationRef : null);
     case "comparative_screening": return uniqueRefs(
       hasAddress ? support.addressRef : null,
@@ -1911,11 +1925,12 @@ function riskRefs(code: PointObjectRiskCode, support: PointObjectEvidenceSupport
 function answerRefs(code: PointObjectAnswerCode, support: PointObjectEvidenceSupport): string[] {
   switch (code) {
     case "identity_rights_planning_first": return uniqueRefs(support.objectRef, support.geometryRef, support.sourceStatusRef);
-    case "technical_baseline_first": return uniqueRefs(
+    case "technical_baseline_first": return support.hasBuildingForm ? uniqueRefs(
+      support.classificationRef,
       support.hasBuildingAttributes ? support.attributesRef : null,
       support.hasBuildingGeometry ? support.geometryRef : null,
       support.sourceStatusRef
-    );
+    ) : [];
     case "market_financial_after_gates": return uniqueRefs(support.objectRef, support.sourceStatusRef);
     case "source_evidence_only": return uniqueRefs(support.sourceStatusRef, support.objectRef);
     case "insufficient_for_requested_conclusion": return uniqueRefs(support.sourceStatusRef, support.objectRef, support.coordinateRef);
@@ -2074,6 +2089,8 @@ function featureClassLabel(support: PointObjectEvidenceSupport, locale: PointObj
 function mappedFormLabel(support: PointObjectEvidenceSupport, locale: PointObjectLocale = "en"): string {
   const tags = support.projection.selectedObject.structuredAttributes;
   const parts = [
+    support.hasMappedBuilding && support.classificationRef && support.projection.selectedObject.featureClass?.startsWith("building:")
+      ? featureClassLabel(support, locale) : null,
     support.hasBuildingAttributes && tags["tag.building"] ? localized(locale, `building ${tags["tag.building"]}`, `тип здания ${tags["tag.building"]}`) : null,
     support.hasBuildingAttributes && tags["tag.building:levels"] ? localized(locale, `${tags["tag.building:levels"]} mapped levels`, `картированная этажность: ${tags["tag.building:levels"]}`) : null,
     support.hasBuildingAttributes && tags["tag.height"] ? openMapHeightTagValue(tags["tag.height"], locale) : null,
@@ -2117,7 +2134,8 @@ function renderDecisionBrief(
   path: PointObjectDecisionPath,
   reasons: PointObjectReasonCode[],
   support: PointObjectEvidenceSupport,
-  locale: PointObjectLocale
+  locale: PointObjectLocale,
+  request: PointObjectAnalysisRequest
 ): PointObjectDecisionBrief {
   const copy: Record<PointObjectDecisionPath, { headline: string; summary: string }> = {
     existing_asset_screen: {
@@ -2163,7 +2181,8 @@ function renderDecisionBrief(
       summary: "Набор данных привязывает анализ к локации, но не поддерживает обоснованный имущественный, градостроительный, технический или коммерческий вывод. Добавьте авторитетные и одобренные клиентом данные."
     }
   };
-  const disposition = path === "insufficient_open_context" ? "insufficient_evidence" : plan.decision.disposition;
+  const commitmentHold = broadCommitmentReview(request) && path !== "insufficient_open_context";
+  const disposition = path === "insufficient_open_context" ? "insufficient_evidence" : commitmentHold ? "hold" : plan.decision.disposition;
   const holdHeadlines: Record<Exclude<PointObjectDecisionPath, "insufficient_open_context">, string> = {
     existing_asset_screen: "Hold before advancing the existing-asset screen",
     identity_first_due_diligence: "Hold until object and parcel identity are confirmed",
@@ -2180,9 +2199,10 @@ function renderDecisionBrief(
   const selectedHoldHeadlines = locale === "ru" ? ruHoldHeadlines : holdHeadlines;
   return {
     ...selectedCopy[path],
-    headline: disposition === "hold" && path !== "insufficient_open_context" ? selectedHoldHeadlines[path] : selectedCopy[path].headline,
+    headline: commitmentHold ? localized(locale, "Hold commitments; continue evidence gathering", "Отложить обязательства; продолжить сбор данных") : disposition === "hold" && path !== "insufficient_open_context" ? selectedHoldHeadlines[path] : selectedCopy[path].headline,
+    summary: commitmentHold ? `${selectedCopy[path].summary} ${localized(locale, "Hold acquisition, capital and substantive development or reuse decisions: authoritative identity, rights, planning, physical and commercial evidence are missing. Evidence gathering may continue; analysis depth cannot satisfy these gates.", "Отложите приобретение, капитальные вложения и решения о развитии или повторном использовании: не хватает подтверждённых данных об идентичности, правах, регламентах, физических и коммерческих условиях. Сбор данных можно продолжать; глубина анализа не закрывает эти проверки.")}` : selectedCopy[path].summary,
     disposition,
-    confidence: path === "insufficient_open_context" ? "low" : plan.decision.confidence,
+    confidence: path === "insufficient_open_context" || commitmentHold ? "low" : plan.decision.confidence,
     reasons: reasons.map((code) => renderReason(code, support, locale))
   };
 }
@@ -2331,7 +2351,14 @@ function renderOpportunity(code: PointObjectOpportunityCode, support: PointObjec
       evidenceNeeded: ["Определение группы аналогов", "Лицензированные рыночные данные и сделки", "Сопоставимые параметры объектов и доступности"]
     }
   };
-  return { ...(locale === "ru" ? ruCopy[code] : copy[code]), evidenceRefs, confidence: "low" };
+  const selected = locale === "ru" ? ruCopy[code] : copy[code];
+  if (!support.hasMappedBuilding && code === "existing_asset_repositioning") return {
+    ...selected,
+    hypothesis: localized(locale, "Compare retaining or improving current site use with a redevelopment hypothesis after confirming extent, uses and structure inventory. Building reuse remains conditional on identifying relevant buildings.", "Сравните сохранение или улучшение текущего использования территории с гипотезой редевелопмента после проверки границ, использования и состава застройки. Повторное использование требует выявления соответствующих зданий."),
+    evidenceNeeded: locale === "ru" ? ["Подтверждённые границы и текущее использование", "Состав застройки и привязка зданий", "Сопоставимые рыночные данные и затраты"] : ["Verified extent and current use", "Structure inventory and building identity", "Comparable market and cost evidence"],
+    evidenceRefs, confidence: "low"
+  };
+  return { ...selected, evidenceRefs, confidence: "low" };
 }
 
 const RISK_DEFAULT_RATINGS: Record<PointObjectRiskCode, Pick<PointObjectRisk, "severity" | "confidence">> = {
@@ -2505,7 +2532,7 @@ function renderDepthAlternative(
     technical_baseline_first: {
       title: "Alternative: technical-baseline review",
       rationale: "Use the mapped building form to target a verified condition, capacity and systems review before testing reuse or repositioning.",
-      refs: uniqueRefs(support.hasBuildingAttributes ? support.attributesRef : null, support.hasBuildingGeometry ? support.geometryRef : null)
+      refs: uniqueRefs(support.classificationRef, support.hasBuildingAttributes ? support.attributesRef : null, support.hasBuildingGeometry ? support.geometryRef : null)
     },
     insufficient_open_context: {
       title: "Alternative: hold for evidence",
@@ -2815,6 +2842,22 @@ function isBroadPresetReview(question: string): boolean {
   return /\b(?:screen|screening|assess whether|due[ -]diligence plan|opportunities and risks)\b|(?:предварительн[^.?!]*оценк|проверять гипотезу|план\s+due\s+diligence|возможности и риски)/i.test(question.normalize("NFKC"));
 }
 
+// This policy applies only to the current open-map packs and broad commitments,
+// never to a narrow fact question merely carrying a development goal.
+function broadCommitmentReview(request: PointObjectAnalysisRequest): boolean {
+  return ["development_screening", "redevelopment", "due_diligence"].includes(request.goal) &&
+    (!request.question || isBroadPresetReview(request.question));
+}
+
+function deepScenarioAnswerIsMeaningful(statement: string, request: PointObjectAnalysisRequest): boolean {
+  if (request.depth !== "deep" || !broadCommitmentReview(request) ||
+      !["redevelopment", "due_diligence"].includes(request.goal)) return true;
+  const conditional = /\b(?:if|unless|when)\b|(?:если|при подтверждени)/i.test(statement);
+  const comparison = /\b(?:compar\w*|versus|against|whereas|retain\w*|alternative\w*|rather than)\b|(?:сравн|сопостав|сохран|альтернатив|вместо)/i.test(statement);
+  const reversal = /\b(?:hold|stop|redirect\w*|mismatch|contradict\w*|invalidat\w*)\b|(?:приостанов|отлож|останов|пересмотр|перенаправ|расхожд|несовпад|опроверг)/i.test(statement);
+  return conditional && comparison && reversal;
+}
+
 function requiredMissingEvidence(
   question: string,
   support: PointObjectEvidenceSupport,
@@ -2969,6 +3012,7 @@ function validateFocusedAnswer(
   if (FOCUSED_ANSWER_FORBIDDEN.test(statement)) return { ok: false, detail: "focused_answer_forbidden_claim" };
   if (UNMAPPED_PHYSICAL_LANGUAGE.test(statement)) return { ok: false, detail: "focused_answer_unmapped_physical_claim" };
   if (novelNumberInStatement(statement, support)) return { ok: false, detail: "focused_answer_novel_number" };
+  if (!deepScenarioAnswerIsMeaningful(statement, request)) return { ok: false, detail: "focused_answer_scenario_depth" };
   const contextRefs = refs.filter((ref) => support.contextRefs.includes(ref));
   if (scope === "nearby_context" && contextRefs.length === 0) {
     return { ok: false, detail: "focused_answer_nearby_scope_without_context_receipt" };
@@ -3008,6 +3052,28 @@ function recoveredFocusedAnswerPlan(
   if (!question) return null;
 
   const requiredMissing = requiredMissingEvidence(question, support, request.goal);
+  if (broadCommitmentReview(request) && (request.goal === "redevelopment" || request.goal === "due_diligence")) {
+    const locale = request.locale;
+    const subject = support.hasMappedBuilding
+      ? localized(locale, "The record identifies a mapped building, not its verified condition.", "Запись описывает картированное здание, но не подтверждает его состояние.")
+      : localized(locale, "The record anchors a mapped object; building identity is not established. Confirm its extent, uses and structure inventory.", "Запись привязывает объект карты; идентичность здания не установлена. Уточните границы объекта, использование и состав застройки.");
+    const redevelopment = {
+      quick: localized(locale, "A redevelopment hypothesis is useful to investigate after confirming object and parcel identity, rights and planning evidence. Keep current use as the baseline; no preference for demolition is established.", "Гипотезу редевелопмента стоит проверить после подтверждения объекта, участка, прав и регламентов. Сохраните текущее использование как базовый вариант; оснований предпочесть снос нет."),
+      standard: localized(locale, "Compare retaining or improving current use with site redevelopment; building reuse is conditional on identifying viable buildings. First obtain identity, rights and planning records, then comparable technical, market and cost baselines before preferring an option.", "Сравните сохранение или улучшение текущего использования с редевелопментом территории; повторное использование возможно после выявления пригодных зданий. Сначала получите данные об объекте, правах и регламентах, затем сопоставимые технические, рыночные и стоимостные данные."),
+      deep: localized(locale, "If viable buildings are confirmed, compare reuse against replacement and retaining current use; otherwise test site options only after planning, access and environmental evidence. Adverse planning or technical findings hold or redirect the hypothesis. Prefer no option until comparable market and cost evidence exists; identity and rights remain prior gates.", "Если пригодные здания подтверждены, сравните повторное использование с заменой и сохранением текущего использования; иначе проверяйте варианты территории после получения данных о регламентах, доступе и экологии. Неблагоприятные регламенты или технические выводы требуют приостановки или пересмотра гипотезы. Выбор требует сопоставимых данных о рынке и затратах; идентичность и права проверяются раньше.")
+    };
+    const diligence = {
+      quick: localized(locale, "Start with official or client-validated object identity, parcel association, rights and planning records. These gates precede technical or commercial spend because a wrong subject would misdirect the investigation.", "Начните с подтверждённых органом власти или клиентом данных об объекте, его связи с участком, правах и регламентах. Они предшествуют техническим и коммерческим расходам: ошибка объекта меняет предмет проверки."),
+      standard: localized(locale, "Order the review: official or client identity and parcel association, then rights and planning records, then a site and identified-building technical baseline, then market and cost assumptions. Each stage scopes the next; unresolved identity can misdirect every later conclusion.", "Порядок проверки: подтверждённые данные об объекте и его связи с участком, затем права и регламенты, затем технические данные территории и выявленных зданий, затем рынок и затраты. Каждый этап определяет следующий; ошибка идентификации меняет предмет последующих выводов."),
+      deep: localized(locale, "Compare identity-first investigation with technical review only after the subject is confirmed. If the subject mismatches, invalidate its findings; if only parcel association mismatches, rebind site conclusions while retaining valid object metrics. Adverse planning or technical evidence holds or redirects the hypothesis; corroboration advances only to the next unresolved gate, before market and cost conclusions.", "Сравните проверку идентичности с техническим обследованием, допустимым после подтверждения объекта. Если объект не совпадает, его выводы недействительны; если расходится только привязка участка, пересмотрите выводы о территории, сохранив корректные метрики объекта. Неблагоприятные регламенты или технические данные требуют приостановки или пересмотра гипотезы; подтверждение открывает лишь следующую проверку, до выводов о рынке и затратах.")
+    };
+    return {
+      status: "partial", scope: "screening_implication", perspective: request.perspective, horizon: request.horizon,
+      statement: `${subject} ${request.goal === "redevelopment" ? redevelopment[request.depth] : diligence[request.depth]}`,
+      evidenceRefs: uniqueRefs(support.objectRef, support.classificationRef, support.attributesRef, support.geometryRef, support.sourceStatusRef).slice(0, 6),
+      confidence: "low", missingEvidenceCodes: requiredMissing, unsupportedReasonCode: null
+    };
+  }
   if (isBroadObjectProfile(question, request.goal) || isBroadCustomDevelopmentReview(question, request.goal) ||
       (request.goal === "development_screening" && isBroadPresetReview(question))) {
     const locale = request.locale;
@@ -3045,7 +3111,7 @@ function recoveredFocusedAnswerPlan(
   const nearbyCandidates = support.projection.nearbyContext
     .filter((item) => support.allowed.has(item.evidenceId));
   const requestedNearbyClass = (() => {
-    if (/\b(?:school|education|kindergarten|college|university)\b|(?:школ|образован|детск[^ ]*\s+сад|университет|колледж)/.test(normalizedQuestion)) return /school|kindergarten|college|university/;
+    if (/\b(?:schools?|education|kindergartens?|colleges?|universit(?:y|ies))\b|(?:школ|образован|детск[^ ]*\s+сад|университет|колледж)/.test(normalizedQuestion)) return /school|kindergarten|college|university/;
     if (/\b(?:hospital|clinic|pharmacy|healthcare|medical)\b|(?:больниц|клиник|аптек|медицин|здравоохран)/.test(normalizedQuestion)) return /hospital|clinic|doctors|pharmacy/;
     if (/\b(?:metro|station|transit|transport|bus|tram)\b|(?:метро|станци|транспорт|останов|автобус|трамва)/.test(normalizedQuestion)) return /station|platform|stop_position|halt|tram_stop|subway_entrance|bus_stop/;
     if (/\b(?:road|access|motorway|highway)\b|(?:дорог|магистрал|подъезд|доступ)/.test(normalizedQuestion)) return /motorway|trunk|primary|secondary|tertiary/;
@@ -3344,7 +3410,7 @@ export function validatePointObjectAiContentDetailed(
     content: {
       initialSemanticBrief: renderInitialSemanticBrief(support, request),
       ...(depthReview ? { depthReview } : {}),
-      decisionBrief: renderDecisionBrief(rawPlan, normalizedPath, reasons, support, request.locale),
+      decisionBrief: renderDecisionBrief(rawPlan, normalizedPath, reasons, support, request.locale, request),
       signals: signals.map((code) => renderSignal(code, support, request.locale)),
       opportunities: opportunities.map((code) => renderOpportunity(code, support, request.locale)),
       risks: normalizedRisks.map((risk) => renderRisk(risk, support, request.locale)),
@@ -3438,6 +3504,10 @@ export function buildPointObjectResponsesRequest(
         },
         validationPolicy: {
           exactCaveat: LIVE_POINT_CAVEAT,
+          commitmentBoundary: broadCommitmentReview(request)
+            ? "Hold downstream acquisition, capital and substantive development/reuse judgments: this open-map pack lacks authoritative identity, rights, planning, physical and commercial evidence. Evidence gathering may continue. Keep this gate across depths. Preserve insufficient_evidence when the requested conclusion is unsupported."
+            : "continue_screening permits bounded description/evidence gathering only. hold pauses the named downstream judgment; insufficient_evidence means the requested conclusion lacks support.",
+          focusedDepthRule: "For broad redevelopment or due-diligence questions, Quick identifies the first controlling gate; Standard orders dependencies and comparable options; Deep must include a conditional comparison and stop/redirect evidence in focusedAnswer.statement itself. For redevelopment compare retaining current use, conditional building reuse and site replacement. For diligence distinguish subject mismatch from parcel association mismatch; the latter does not invalidate valid object metrics. Do not infer buildings from a generic polygon.",
           serverRenderingRule: "The server deterministically renders facts, the initial context brief, coded analysis and depth review; the model selects supported codes and distinct decision paths but does not author visible depth-review prose. Only focusedAnswer.statement may contain model-authored visible interpretation, and every sentence must be grounded by eligible evidenceRefs. Focused-answer scope is the primary theme: at least one citation must match it, while additional citations may bind other relevant selected-object or nearby-context facts."
         },
         evidenceProjection

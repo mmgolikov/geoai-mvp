@@ -290,6 +290,7 @@ function isRepairableValidationCode(code: PointObjectAiValidationCode): boolean 
 
 function isDeterministicFocusedRecovery(detail: string | undefined): boolean {
   return detail === "focused_answer_context_value_mismatch" ||
+    detail === "focused_answer_scenario_depth" ||
     detail === "focused_answer_context_without_context_receipt" ||
     detail === "focused_answer_novel_number";
 }
