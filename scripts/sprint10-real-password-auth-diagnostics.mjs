@@ -22,6 +22,8 @@ export const AUTH_FAILURE_STEPS = Object.freeze([
   "login_profile_response_other", "login_profile_navigation", "login_profile_hydration",
   "session_initial", "guarded_api",
   "local_sample_login", "profile_reload", "session_reload", "local_sample_reload", "logout",
+  "logout_click", "logout_navigation", "logout_session", "logout_guarded_api",
+  "logout_revisit_navigation", "logout_revisit_redirect",
   "local_sample_logout", "network_policy", "session_isolation", "local_sample_isolation", "cleanup"
 ]);
 const OUTCOMES = new Set(["not_started", "success", "nonzero", "timeout", "spawn_error"]);

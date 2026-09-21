@@ -64,6 +64,8 @@ type AuthFailureStep = "anonymous_protection" | "exact_preview" | "login_ui" |
   "login_profile_response_other" | "login_profile_navigation" | "login_profile_hydration" |
   "session_initial" | "guarded_api" |
   "local_sample_login" | "profile_reload" | "session_reload" | "local_sample_reload" | "logout" |
+  "logout_click" | "logout_navigation" | "logout_session" | "logout_guarded_api" |
+  "logout_revisit_navigation" | "logout_revisit_redirect" |
   "local_sample_logout" | "network_policy" | "session_isolation" | "local_sample_isolation" | "cleanup";
 
 async function authStep<T>(step: AuthFailureStep, run: () => T | Promise<T>): Promise<T> {
@@ -480,20 +482,24 @@ async function expectLoginRedirect(page: Page, expectedNext: string) {
 }
 
 async function signOutAndVerify(page: Page) {
-  await page.getByRole("button", { name: "Sign out", exact: true }).click();
-  await expectLoginRedirect(page, "/profile");
+  await authStep("logout_click", () => page.getByRole("button", { name: "Sign out", exact: true }).click());
+  await authStep("logout_navigation", () => expectLoginRedirect(page, "/profile"));
 
-  const signedOutSession = await readSessionEvidence(page, "signed-out-no-identity");
-  guard(signedOutSession.status === 200 && signedOutSession.noStore &&
-    !signedOutSession.authenticated && !signedOutSession.supabaseAuthenticated,
-  "The browser retained an authenticated SSR session after logout.");
+  await authStep("logout_session", async () => {
+    const signedOutSession = await readSessionEvidence(page, "signed-out-no-identity");
+    guard(signedOutSession.status === 200 && signedOutSession.noStore &&
+      !signedOutSession.authenticated && !signedOutSession.supabaseAuthenticated,
+    "The browser retained an authenticated SSR session after logout.");
+  });
 
-  const guarded = await readGuardedApiEvidence(page);
-  guard(guarded.status === 401 && guarded.code === "authentication_required" && guarded.noStore,
-    "The guarded API remained accessible after logout.");
+  await authStep("logout_guarded_api", async () => {
+    const guarded = await readGuardedApiEvidence(page);
+    guard(guarded.status === 401 && guarded.code === "authentication_required" && guarded.noStore,
+      "The guarded API remained accessible after logout.");
+  });
 
-  await page.goto("/profile");
-  await expectLoginRedirect(page, "/profile");
+  await authStep("logout_revisit_navigation", () => page.goto("/profile"));
+  await authStep("logout_revisit_redirect", () => expectLoginRedirect(page, "/profile"));
 }
 
 test.describe("Sprint 10 existing-user password Auth acceptance harness", () => {

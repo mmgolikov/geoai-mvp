@@ -59,7 +59,7 @@ for (const failedStep of AUTH_FAILURE_STEPS) {
   assert.deepEqual(parseAuthDiagnostic(JSON.stringify(diagnostic), 1), diagnostic);
   assert(!JSON.stringify(diagnostic).includes(secret));
 }
-for (const failedStep of [secret, "https://private.invalid", null, 1, {}, "unknown"]) {
+for (const failedStep of [secret, "https://private.invalid", null, 1, {}, "unknown", "logout_session\n", "logout_session:private-secret"]) {
   assert.throws(() => fixedFailedAuthStep(checkpointReport(failedStep), "dual_session_isolation"));
   assert.throws(() => parseAuthDiagnostic(JSON.stringify({ ...failure, failedStep }), 1));
 }
@@ -86,6 +86,61 @@ await assert.rejects(authStep("session_initial", () => { throw originalFailure; 
 await assert.rejects(authStep("cleanup", () => { throw new Error(secret); }));
 assert.deepEqual(annotations, [{ type: "auth-failed-step", description: "session_initial" }], "Cleanup must not overwrite the first failure.");
 assert(!JSON.stringify(annotations).includes(secret));
+const logoutSteps = ["logout_click", "logout_navigation", "logout_session", "logout_guarded_api",
+  "logout_revisit_navigation", "logout_revisit_redirect"];
+const logoutSource = specSource.slice(specSource.indexOf("async function signOutAndVerify("), specSource.indexOf("test.describe("));
+assert.deepEqual([...logoutSource.matchAll(/authStep\("([a-z_]+)"/g)].map((match) => match[1]), logoutSteps,
+  "Every logout operation must retain its ordered, fixed checkpoint.");
+for (const failedStep of [null, ...logoutSteps, "logout_session_invalid", "logout_guarded_api_invalid"]) {
+  annotations.length = 0;
+  const visited = [];
+  let redirects = 0;
+  const operation = (step) => { if (failedStep === step) throw originalFailure; };
+  const signOutAndVerify = new Function("authStep", "readSessionEvidence", "readGuardedApiEvidence", "guard", "expectLoginRedirect",
+    `${stripTypeScriptTypes(logoutSource)}; return signOutAndVerify;`)(
+    (step, run) => { visited.push(step); return authStep(step, run); },
+    async (_page, identity) => {
+      assert.equal(identity, "signed-out-no-identity");
+      operation("logout_session");
+      return { status: 200, noStore: true, authenticated: failedStep === "logout_session_invalid", supabaseAuthenticated: false };
+    },
+    async () => {
+      operation("logout_guarded_api");
+      return { status: failedStep === "logout_guarded_api_invalid" ? 200 : 401, code: "authentication_required", noStore: true };
+    },
+    (condition) => { if (!condition) throw originalFailure; },
+    async (_page, next) => {
+      assert.equal(next, "/profile");
+      operation(redirects++ === 0 ? "logout_navigation" : "logout_revisit_redirect");
+    }
+  );
+  const page = {
+    getByRole(role, options) {
+      assert.equal(role, "button");
+      assert.deepEqual(options, { name: "Sign out", exact: true });
+      return { click: async () => operation("logout_click") };
+    },
+    goto: async (path) => { assert.equal(path, "/profile"); operation("logout_revisit_navigation"); }
+  };
+  if (failedStep === null) {
+    await authStep("logout", () => signOutAndVerify(page));
+    assert.deepEqual(visited, logoutSteps);
+    assert.deepEqual(annotations, []);
+  } else {
+    const expectedStep = failedStep.replace(/_invalid$/, "");
+    await assert.rejects(authStep("logout", () => signOutAndVerify(page)), (error) => error === originalFailure);
+    await assert.rejects(authStep("cleanup", () => { throw originalFailure; }));
+    assert.deepEqual(visited, logoutSteps.slice(0, logoutSteps.indexOf(expectedStep) + 1));
+    assert.deepEqual(annotations, [{ type: "auth-failed-step", description: expectedStep }],
+      "Neither the coarse logout wrapper nor cleanup may overwrite the first precise checkpoint.");
+    assert(!JSON.stringify(annotations).includes(secret));
+  }
+}
+const historicalLogoutReceipt = makeAuthDiagnostic({ ...failure, failedStep: "logout" });
+assert.deepEqual(parseAuthDiagnostic(JSON.stringify(historicalLogoutReceipt), 1), historicalLogoutReceipt);
+const malformedLogoutAnnotation = checkpointReport("logout_session");
+malformedLogoutAnnotation.suites[0].specs[0].tests[0].annotations[0].rawError = secret;
+assert.throws(() => fixedFailedAuthStep(malformedLogoutAnnotation, "dual_session_isolation"));
 for (const [, step] of specSource.matchAll(/authStep\("([a-z_]+)"/g)) assert(AUTH_FAILURE_STEPS.includes(step));
 for (const expectedSubstep of [
   "login_navigation", "login_heading", "login_sample_seed", "login_identifier_control",
@@ -192,9 +247,13 @@ console.log(JSON.stringify({
     plantedSecretExcluded: 1,
     fixedFailureLane: 1,
     fixedFailureSteps: AUTH_FAILURE_STEPS.length,
-    checkpointPrivacyAndStatusDenials: 16,
+    checkpointPrivacyAndStatusDenials: 21,
     checkpointProducerFirstFailurePreserved: 1,
     historicalLoginUiReceiptCompatible: 1,
+    historicalLogoutReceiptCompatible: 1,
+    fixedLogoutSubsteps: logoutSteps.length,
+    logoutProducerFirstFailurePreserved: logoutSteps.length + 2,
+    logoutSuccessOrderPreserved: 1,
     fixedLoginSubsteps: 16,
     boundedLoginWaiters: 4,
     unboundedWaiterNegative: 1,
