@@ -45,6 +45,7 @@ import { CONSTRUCTION_FIND_CASE, acceptedConstructionFindRequest, assertConstruc
 import { validateFindAnalysisCaptureEnvironment } from "./helpers/sprint10-find-analysis-evidence";
 import { createScreenMetrics, readCreateScreen } from "./helpers/night21-create-screen";
 import { buildQuality20AnalysisEvidence, validateQuality20AnalysisCaptureEnvironment, writeQuality20AnalysisEvidence } from "./helpers/quality20-analysis-evidence";
+import { capturePublicMapView, createVisualEvidenceWriter, validateVisualEvidenceEnvironment } from "./helpers/night21-visual-evidence";
 import { observeComparisonMapNetwork, readComparisonMapDiagnostic, withComparisonGeometryDeadline, ComparisonGeometryProbeTimeout } from "./helpers/sprint10-map-diagnostics";
 import {
   SPRINT10_ANALYSIS_EVIDENCE_CAPTURE_OPT_IN,
@@ -127,6 +128,7 @@ type LiveConfiguration = {
   depthCycleEvidencePath: string | null;
   goalDepthEvidencePrefix: string | null;
   quality20AnalysisEvidencePath: string | null;
+  visualEvidence: ReturnType<typeof createVisualEvidenceWriter> | null;
   findAnalysisEvidencePrefix: string | null;
   realArtifactExportPath: string | null;
   quality20: Quality20Selection | null;
@@ -411,6 +413,7 @@ function loadConfiguration(baseURL: string | undefined): LiveConfiguration {
   const findCapture = validateFindAnalysisCaptureEnvironment(process.env, selectedScope);
   const artifactExport = validateQuality20ArtifactExportEnvironment(process.env, selectedScope);
   const quality20Capture = validateQuality20AnalysisCaptureEnvironment(process.env, selectedScope);
+  const visualCapture = validateVisualEvidenceEnvironment(process.env, selectedScope);
   return {
     scope: selectedScope,
     origin: preview.origin,
@@ -427,6 +430,8 @@ function loadConfiguration(baseURL: string | undefined): LiveConfiguration {
     depthCycleEvidencePath: depthEvidenceRequested ? depthEvidencePath! : null,
     goalDepthEvidencePrefix: goalCapture.GEOAI_SPRINT10_GOAL_DEPTH_EVIDENCE_PREFIX ?? null,
     quality20AnalysisEvidencePath: quality20Capture.GEOAI_QUALITY20_ANALYSIS_EVIDENCE_PATH ?? null,
+    visualEvidence: visualCapture.GEOAI_SPRINT10_VISUAL_EVIDENCE_DIR
+      ? createVisualEvidenceWriter(visualCapture.GEOAI_SPRINT10_VISUAL_EVIDENCE_DIR, commit, selectedScope) : null,
     findAnalysisEvidencePrefix: findCapture.GEOAI_SPRINT10_FIND_ANALYSIS_EVIDENCE_PREFIX ?? null,
     realArtifactExportPath: artifactExport.GEOAI_QUALITY20_ARTIFACT_EXPORT_PATH ?? null,
     quality20: loadQuality20Selection(process.env, selectedScope, { commit, origin: preview.origin }),
@@ -1762,6 +1767,7 @@ async function runFindCohort(page: Page, configuration: LiveConfiguration, polic
     progress.start(parentStep);
   };
   await verifyComparison();
+  await capturePublicMapView(page, configuration.visualEvidence, "find-comparison-map");
   progress.start("find_compare_artifact");
   await expect.poll(async () => {
     const state = await localArtifactState(page, configuration.userId, "find");
@@ -2128,9 +2134,10 @@ type LiveCreateCase = {
   assertGeometry?: typeof assertDubaiCreateGeometry;
 };
 
-async function assertCreateMap(page: Page, expected: unknown, dimension: "2d" | "3d") {
+async function assertCreateMap(page: Page, expected: unknown, dimension: "2d" | "3d", visualEvidence: LiveConfiguration["visualEvidence"] = null,
+  selectDimension = true) {
   const preview = page.getByTestId("create-result-preview-3d");
-  await page.getByTestId(`create-preview-mode-${dimension}`).click();
+  if (selectDimension) await page.getByTestId(`create-preview-mode-${dimension}`).click();
   await expect(preview).toHaveAttribute("data-preview-status", "ready");
   await expect(preview).toHaveAttribute("data-preview-basemap", "rendered");
   await expect(preview).toHaveAttribute("data-preview-camera-pitch", dimension === "3d" ? "50" : "0");
@@ -2142,6 +2149,12 @@ async function assertCreateMap(page: Page, expected: unknown, dimension: "2d" | 
     return { geometry: state.geometry, framed: state.groundFramed && metrics.framed, useful: metrics.useful,
       scene: state.scene, context: state.context, massing: state.massing, pitch: state.pitch };
   }, { timeout: 30_000 }).toEqual({ geometry: expected, framed: true, useful: true, scene: "map", context: true, massing: true, pitch: dimension === "3d" ? 50 : 0 });
+  if (visualEvidence) {
+    const variant = await preview.getAttribute("data-preview-variant");
+    guard(variant === "A" || variant === "B", "Create visual evidence has no exact displayed alternative.");
+    if (variant === "A" && dimension === "3d") await capturePublicMapView(page, visualEvidence, "create-a-map-3d");
+    if (variant === "B") await capturePublicMapView(page, visualEvidence, dimension === "3d" ? "create-b-map-3d" : "create-b-map-2d");
+  }
 }
 
 async function assertSavedCreateGeometry(page: Page, userId: string, expected: unknown,
@@ -2319,6 +2332,15 @@ async function runMarketCreate(
   await page.getByTestId("create-open-result-dashboard").click();
   await expect(page.getByTestId("create-full-result-dashboard")).toBeVisible();
   await expect(page.getByTestId("create-result-kpis")).toHaveAttribute("data-active-variant", "B");
+  const captureObservedB = async (dimension: "2d" | "3d") => {
+    if (!configuration.visualEvidence) return;
+    const option = (payload.alternatives as Array<Record<string, unknown>>).find(item => item.id === "B");
+    guard(record(option?.massing) && record(option.massing.featureCollection), "Observed Create screenshot has no canonical B geometry.");
+    // Observe the already displayed dimension, without changing camera, scene
+    // or alternative merely to manufacture a screenshot.
+    await assertCreateMap(page, option.massing.featureCollection, dimension, configuration.visualEvidence, false);
+  };
+  if (!goldenConcept && !configuration.quality20) await captureObservedB("2d");
   if (configuration.quality20) {
     const preview = page.getByTestId("create-result-preview-3d");
     await expect(preview).toHaveAttribute("data-preview-basemap", "rendered");
@@ -2326,6 +2348,7 @@ async function runMarketCreate(
     await page.getByTestId("create-preview-mode-3d").click();
     await expect(preview).toHaveAttribute("data-preview-camera-pitch", "50");
     await expect.poll(async () => Number(await preview.getAttribute("data-preview-rendered-massing-count"))).toBeGreaterThan(0);
+    await captureObservedB("3d");
     await page.getByTestId("create-dashboard-alternative-a").click();
     await expect(preview).toHaveAttribute("data-preview-variant", "A");
     await page.getByTestId("create-dashboard-alternative-b").click();
@@ -2336,7 +2359,7 @@ async function runMarketCreate(
       const option = goldenConcept.alternatives!.find(a => a.id === id)!;
       await page.getByTestId(`create-dashboard-alternative-${id.toLowerCase()}`).click();
       await expect(page.getByTestId("create-result-kpis")).toHaveAttribute("data-estimated-floor-area-sqm", String(option.massing.estimatedFloorAreaSqM));
-      for (const mode of ["2d", "3d"] as const) await assertCreateMap(page, option.massing.featureCollection, mode);
+      for (const mode of ["2d", "3d"] as const) await assertCreateMap(page, option.massing.featureCollection, mode, configuration.visualEvidence);
     }
   }
   expect(budget.paidDispatchCount()).toBe(paidAfterGeneration);
@@ -2365,7 +2388,7 @@ async function runMarketCreate(
     await expect(page.getByTestId("create-result-kpis")).toHaveAttribute("data-active-variant", "B");
     if (goldenConcept) {
       await assertSavedCreateGeometry(page, configuration.userId, payload, input.coordinates, contextPayload, assertGeometry!);
-      await assertCreateMap(page, goldenConcept.alternatives!.find(a => a.id === "B")!.massing.featureCollection, "3d");
+      await assertCreateMap(page, goldenConcept.alternatives!.find(a => a.id === "B")!.massing.featureCollection, "3d", configuration.visualEvidence);
     }
   });
   const beforeReload = policy.snapshotJourneyRequests();
@@ -2377,7 +2400,7 @@ async function runMarketCreate(
   assertSameArtifact(saved, reloaded);
   if (goldenConcept) {
     await assertSavedCreateGeometry(page, configuration.userId, payload, input.coordinates, contextPayload, assertGeometry!);
-    await assertCreateMap(page, goldenConcept.alternatives!.find(a => a.id === "B")!.massing.featureCollection, "2d");
+    await assertCreateMap(page, goldenConcept.alternatives!.find(a => a.id === "B")!.massing.featureCollection, "2d", configuration.visualEvidence);
   }
   assertNoReplay(beforeReload, policy.snapshotJourneyRequests());
   expect(budget.paidDispatchCount()).toBe(paidAfterGeneration);
@@ -2570,6 +2593,7 @@ async function runQuality20Find(page: Page, configuration: LiveConfiguration, po
   }
   await expect(dashboard.locator("[data-find-result-marker]")).toHaveCount(3);
   for (const id of f.candidateIds) await expect(dashboard.locator(`[data-find-result-marker="${id}"]`)).toBeVisible();
+  await capturePublicMapView(page, configuration.visualEvidence, "find-comparison-map");
   const saved = await requireLocalArtifactState(page, configuration.userId, "find");
   expect(saved.shortlistCount).toBe(3);
   expect(saved.comparisonView).toBe("dashboard");
@@ -2684,6 +2708,7 @@ test("root-authorized protected Preview source-to-decision journey", async ({ pa
   let primaryStage: string | null = null;
   let cleanupFailureStage: string | null = null;
   let loginAttempted = false;
+  let visualFinalizationFailed = false;
   try {
     progress.start("anonymous_protection");
     await verifyAnonymousProtection(configuration);
@@ -2780,6 +2805,8 @@ test("root-authorized protected Preview source-to-decision journey", async ({ pa
         primaryStage = "network_policy";
       }
     }
+    try { configuration.visualEvidence?.finalize(cleanupFailureStage ? "failed" : primaryStatus ?? "passed"); }
+    catch { visualFinalizationFailed = true; }
   }
   if (primaryStatus || cleanupFailureStage) {
     throw new Error(encodeLiveJourneyDiagnostic({
@@ -2789,4 +2816,5 @@ test("root-authorized protected Preview source-to-decision journey", async ({ pa
       completedSteps: progress.completed()
     }));
   }
+  guard(!visualFinalizationFailed, "Visual evidence index could not be finalized safely.");
 });
