@@ -1,5 +1,5 @@
 import "server-only";
-import { rememberExactFindElements } from "./point-to-object-exact-source";
+import { ExactFindSnapshotConflictError, rememberExactFindElements, shareExactFindElements } from "./point-to-object-exact-source";
 
 import { unstable_cache } from "next/cache";
 import { sourceRetryAfterSeconds, waitForSourceAdmission } from "./point-to-object-source-recovery";
@@ -203,6 +203,14 @@ export async function findPointObjects(
     throw error;
   }
   const normalized = normalizePointObjectFindCandidates(payload, request);
+  try {
+    await shareExactFindElements(payload, acquiredAt, normalized.candidates.map(candidate => candidate.sourceFeatureId));
+  } catch (error) {
+    if (error instanceof ExactFindSnapshotConflictError) throw new PointObjectFindError(
+      "OVERPASS_RESPONSE_INVALID", 409, "An object changed during the current data snapshot. Retry after the snapshot expires.", true
+    );
+    throw error;
+  }
   rememberExactFindElements(payload, acquiredAt);
   const sourceResponseHash = semanticHash({
     observedAt: normalized.observedAt,

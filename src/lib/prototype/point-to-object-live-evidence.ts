@@ -1,5 +1,6 @@
 import "server-only";
 import { readExactSourceElement, exactSourcePlacePayload } from "./point-to-object-exact-source";
+import type { SharedExactSourceSnapshot } from "./point-to-object-exact-source";
 
 import { unstable_cache } from "next/cache";
 import type { MultiPolygon, Polygon, Position } from "geojson";
@@ -259,6 +260,8 @@ export type LivePointEvidenceRequest = {
   expectedCountryCode: PointObjectWikidataCountryCode;
   /** Optional enclosing route deadline; it always wins over the adapter cap. */
   deadlineAtMs?: number;
+  /** Server-only verified Find snapshot; never accepted from a route request body. */
+  serverExactSnapshot?: SharedExactSourceSnapshot | null;
 };
 
 export type LivePointSearchResult = {
@@ -1567,7 +1570,7 @@ async function lookupPlace(
   return { place: place ?? null, receipt };
 }
 
-async function exactSourcePlace(sourceFeatureId: string, locale: string, deadlineAtMs?: number): Promise<{ place: SafeNominatimPlace | null; receipt: NominatimResponseReceipt }> {
+async function exactSourcePlace(sourceFeatureId: string, locale: string, deadlineAtMs?: number, shared?: SharedExactSourceSnapshot | null): Promise<{ place: SafeNominatimPlace | null; receipt: NominatimResponseReceipt }> {
   try {
     const source = await readExactSourceElement(sourceFeatureId, async (query) => {
       const payload = await fetchOverpassJson(query, deadlineAtMs);
@@ -1583,7 +1586,7 @@ async function exactSourcePlace(sourceFeatureId: string, locale: string, deadlin
         throw new LivePointEvidenceError("OBJECT_NOT_RESOLVED", 409, "The expected OpenStreetMap object could not be resolved exactly.", true);
       }
       return payload;
-    });
+    }, Date.now(), shared);
     const payload = exactSourcePlacePayload(source.element, locale);
     return { place: sanitizePlace(payload), receipt: {
       payload, sourceResponseHash: semanticHash(source.element),
@@ -1915,7 +1918,7 @@ export async function buildLivePointObjectEvidencePack(
   // Resolve and validate the mandatory subject before optional enrichment takes
   // admission slots from the same bounded Overpass queue. Never replace a failed
   // exact identity with nearby context, and do not spend calls on an invalid one.
-  const placeReceipt = await (trustedIdentity ? exactSourcePlace(`${trustedIdentity.type}/${trustedIdentity.id}`, locale, deadlineAtMs) : reversePlace(endpoint, point, locale));
+  const placeReceipt = await (trustedIdentity ? exactSourcePlace(`${trustedIdentity.type}/${trustedIdentity.id}`, locale, deadlineAtMs, input.serverExactSnapshot) : reversePlace(endpoint, point, locale));
   const place = placeReceipt.place;
   const matchMethod = trustedIdentity ? "overpass_exact_identity" as const : "nominatim_reverse" as const;
 

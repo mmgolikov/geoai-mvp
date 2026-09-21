@@ -1,5 +1,6 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
+import { readSharedExactFindSnapshot, type SharedExactSourceSnapshot } from "./point-to-object-exact-source";
 import { unstable_cache } from "next/cache";
 import { semanticHash } from "@/src/lib/point-to-object/hash";
 import { buildLivePointObjectEvidencePack, type LivePointEvidenceRequest, type LivePointObjectEvidencePack } from "./point-to-object-live-evidence";
@@ -55,11 +56,11 @@ function validatedPublicPack(value: LivePointObjectEvidencePack, input: Required
   return JSON.parse(serialized) as LivePointObjectEvidencePack;
 }
 
-async function boundedSource(input: Required<PublicLookup>): Promise<LivePointObjectEvidencePack> {
+async function boundedSource(input: Required<PublicLookup>, serverExactSnapshot: SharedExactSourceSnapshot | null): Promise<LivePointObjectEvidencePack> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     return await Promise.race([
-      buildLivePointObjectEvidencePack({ ...input, deadlineAtMs: Date.now() + SOURCE_BUDGET_MS }),
+      buildLivePointObjectEvidencePack({ ...input, ...(serverExactSnapshot ? { serverExactSnapshot } : {}), deadlineAtMs: Date.now() + SOURCE_BUDGET_MS }),
       new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new PublicEvidenceLeaseError()), SOURCE_BUDGET_MS); })
     ]);
   } finally { if (timer) clearTimeout(timer); }
@@ -73,11 +74,14 @@ async function readLease(input: PublicLookup, allowFill: boolean, expected: Publ
   // the original window. It is not a physical retention/deletion guarantee.
   const cacheWindow = expected?.cacheWindow ?? Math.floor(startedAt / PUBLIC_EVIDENCE_LEASE_MS);
   const cacheKey = semanticHash({ version: CACHE_VERSION, deployment: deploymentIdentity(), lookup, cacheWindow });
+  // Lookup only, outside the pack cache. The builder revalidates identity, original
+  // timestamp and anchor; no browser-supplied geometry enters this trusted lane.
+  const exactSnapshot = allowFill && lookup.osmFeatureId ? await readSharedExactFindSnapshot(lookup.osmFeatureId) : null;
   const cached = unstable_cache(async () => {
     // Mode is deliberately a closure, not a key argument: both routes read the
     // SAME entry. A cache miss or stale revalidation in AI never fetches sources.
     if (!allowFill) throw new PublicEvidenceLeaseError();
-    const pack = validatedPublicPack(await boundedSource(lookup), lookup);
+    const pack = validatedPublicPack(await boundedSource(lookup, exactSnapshot), lookup);
     const receipt: PublicEvidenceReceipt = {
       version: "PUBLIC_EVIDENCE_LEASE_V1", evidencePackHash: pack.evidencePackHash,
       sourceResponseHash: pack.source.sourceResponseHash, acquiredAt: pack.source.acquiredAt,
@@ -93,6 +97,9 @@ async function readLease(input: PublicLookup, allowFill: boolean, expected: Publ
       receipt.lookupSourceFeatureId !== lookup.osmFeatureId || receipt.sourceLocale !== lookup.locale ||
       (expected && semanticHash(receipt) !== semanticHash(expected))) throw new PublicEvidenceLeaseError();
   const pack = validatedPublicPack(value.pack, lookup);
+  // A newer Find snapshot can outlive a source window while an older pack still
+  // exists in this pack window. Never serve differing subject data on Context.
+  if (exactSnapshot && pack.source.sourceResponseHash !== semanticHash(exactSnapshot.element)) throw new PublicEvidenceLeaseError();
   if (value.integrityHash !== semanticHash(pack) || receipt.evidencePackHash !== pack.evidencePackHash ||
       receipt.sourceResponseHash !== pack.source.sourceResponseHash || receipt.acquiredAt !== pack.source.acquiredAt) throw new PublicEvidenceLeaseError();
   return { receipt, pack, integrityHash: value.integrityHash };
