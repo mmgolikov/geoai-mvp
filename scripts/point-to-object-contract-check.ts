@@ -3234,6 +3234,9 @@ async function assertLiveOverpassContext(): Promise<void> {
   const sourceRecoveryModuleUrl = pathToFileURL(
     path.join(ROOT, "src/lib/prototype/point-to-object-source-recovery.ts")
   ).href;
+  const sourceBudgetModuleUrl = pathToFileURL(
+    path.join(ROOT, "src/lib/prototype/point-to-object-source-budget.ts")
+  ).href;
   const liveEvidence = await importErasableTypeScript(liveEvidencePath, [
     [/import "server-only";\n/, ""],
     // This lane tests pure nearby-context normalization. Exact identity executes
@@ -3245,6 +3248,10 @@ async function assertLiveOverpassContext(): Promise<void> {
     [
       /from "\.\/point-to-object-source-recovery";/,
       `from ${JSON.stringify(sourceRecoveryModuleUrl)};`
+    ],
+    [
+      /from "\.\/point-to-object-source-budget";/,
+      `from ${JSON.stringify(sourceBudgetModuleUrl)};`
     ],
     [
       /import \{ unstable_cache \} from "next\/cache";\n/,

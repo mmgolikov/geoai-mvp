@@ -90,7 +90,9 @@ try {
   assert.equal(pack.source.contextDiagnostic.failureCode, "timeout"); assert.equal(pack.source.fabricDiagnostic.failureCode, "timeout");
   assert.equal(pack.source.wikidataStatus, "not_requested_no_qid");
   assert.equal(pack.nearbyContext.length, 0); assert.equal(pack.geoContext.groups.length, 0);
-  assert.ok(Number.isFinite(pack.source.wikidataElapsedMs));
+  assert.equal("wikidataElapsedMs" in pack.source, false, "Transport timings must not destabilize evidence identity.");
+  assert.deepEqual(Object.keys(pack.source.contextDiagnostic), ["failureCode"]);
+  assert.deepEqual(Object.keys(pack.source.fabricDiagnostic), ["failureCode"]);
   assert.ok(!JSON.stringify(pack).includes("private diagnostics")); checks++;
 } finally { globalThis.fetch = originalFetch; }
 console.log(`PASS ${checks} source budget cases: admission, network allowance, total deadline, exact + enrichments, truthful unavailable diagnostics.`);

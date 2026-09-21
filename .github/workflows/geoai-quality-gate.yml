@@ -108,6 +108,8 @@ jobs:
         run: |
           set -euo pipefail
           npm run test:auth-ssr-transport | tee artifacts/auth-ssr-transport-check.txt
+          node scripts/night21-auth-session-generation-check.mjs | tee artifacts/auth-session-generation-check.txt
+          node scripts/point-to-object-source-budget-check.mjs | tee artifacts/source-budget-check.txt
 
       - name: Supabase exact-target checks
         shell: bash

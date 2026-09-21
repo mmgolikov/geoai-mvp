@@ -338,7 +338,6 @@ export type LivePointObjectEvidencePack = {
     persistenceUsed: false;
     wikidataStatus: PointObjectWikidataResolution["status"];
     wikidataReason: PointObjectWikidataResolution["reason"];
-    wikidataElapsedMs?: number;
   };
   nearbyContext: LiveNearbyContextItem[];
   geoContext: LiveGeoContextProfile;
@@ -814,19 +813,17 @@ function fetchOverpassJson(query: string, deadlineAtMs?: number): Promise<unknow
 
 type PublicSourceDiagnostic = {
   failureCode: "timeout" | "rate_limited" | "invalid_response" | "response_too_large" | "unavailable" | null;
-  elapsedMs: number;
 };
 
 async function acquireOptionalOverpass(query: string, deadlineAtMs: number) {
-  const startedAt = Date.now();
   try {
     const payload = await fetchOverpassJson(query, deadlineAtMs);
-    return { ok: true as const, payload, diagnostic: { failureCode: null, elapsedMs: Date.now() - startedAt } as PublicSourceDiagnostic };
+    return { ok: true as const, payload, diagnostic: { failureCode: null } as PublicSourceDiagnostic };
   } catch (error) {
     const codes = { OVERPASS_TIMEOUT: "timeout", OVERPASS_RATE_LIMITED: "rate_limited", OVERPASS_RESPONSE_INVALID: "invalid_response", OVERPASS_RESPONSE_TOO_LARGE: "response_too_large" } as const;
     const failureCode = error instanceof LivePointEvidenceError && error.code in codes
       ? codes[error.code as keyof typeof codes] : "unavailable";
-    return { ok: false as const, diagnostic: { failureCode, elapsedMs: Date.now() - startedAt } as PublicSourceDiagnostic };
+    return { ok: false as const, diagnostic: { failureCode } as PublicSourceDiagnostic };
   }
 }
 
@@ -1979,7 +1976,6 @@ export async function buildLivePointObjectEvidencePack(
     geometry: place.geometry
   });
   const selectedMetrics = geometryMetrics(place.geometry);
-  const wikidataStartedAt = Date.now();
   const wikidata = await resolvePointObjectWikidata({
     qid: selectedTags["tag.wikidata"] ?? null,
     osmSourceFeatureId: sourceFeatureId,
@@ -1991,7 +1987,6 @@ export async function buildLivePointObjectEvidencePack(
     expectedCountryCode: input.expectedCountryCode,
     deadlineAtMs
   });
-  const wikidataElapsedMs = Date.now() - wikidataStartedAt;
   if (wikidata.status === "available") conflicts.push(...linkedEntityConflicts(wikidata.linkedEntity, selectedTags));
   const centroidDistance = trustedAnchorMatch?.centroidDistanceM ?? Math.round(distanceM(point, [place.longitude, place.latitude]));
   const sourceResponseCore = {
@@ -2087,8 +2082,7 @@ export async function buildLivePointObjectEvidencePack(
       runtimeNetworkUsed: true as const,
       persistenceUsed: false as const,
       wikidataStatus: wikidata.status,
-      wikidataReason: wikidata.reason,
-      wikidataElapsedMs
+      wikidataReason: wikidata.reason
     },
     nearbyContext: nearby.items,
     geoContext: fabric.profile,
@@ -2132,6 +2126,9 @@ export async function buildLivePointObjectEvidencePack(
     ],
     caveat: LIVE_POINT_CAVEAT
   };
+  // The pack retains fixed failure codes, never variable transport timings.
+  // This keeps identical source evidence comparable without exempting any
+  // part of the pack from its normal semantic and lease-integrity checks.
   const evidencePackHash = semanticHash(core);
   return {
     evidencePackId: `p2o_live_evidence_${evidencePackHash.slice(0, 24)}`,
