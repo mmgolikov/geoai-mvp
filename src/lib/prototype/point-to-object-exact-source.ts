@@ -27,7 +27,7 @@ export async function readExactSourceElement(id: string, loader: (query:string)=
   if (existing && now-Date.parse(existing.acquiredAt)>=0 && now-Date.parse(existing.acquiredAt)<TTL_MS) return structuredClone(existing);
   cache.delete(id);
   const [type,number]=id.split("/");
-  const payload=await loader(`[out:json][timeout:5][maxsize:33554432];${type}(${number});out body geom 1;`);
+  const payload=await loader(`[out:json][timeout:4][maxsize:33554432];${type}(${number});out body geom 1;`);
   if (!record(payload) || payload.remark || !Array.isArray(payload.elements) || payload.elements.length!==1) throw new Error("Exact OSM source unavailable");
   const element=payload.elements[0];
   if (!record(element) || `${element.type}/${element.id}`!==id) throw new Error("Exact OSM source identity mismatch");

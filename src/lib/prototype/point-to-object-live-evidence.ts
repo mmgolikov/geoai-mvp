@@ -4,6 +4,7 @@ import { readExactSourceElement, exactSourcePlacePayload } from "./point-to-obje
 import { unstable_cache } from "next/cache";
 import type { MultiPolygon, Polygon, Position } from "geojson";
 import { sourceRetryAfterSeconds, waitForSourceAdmission } from "./point-to-object-source-recovery";
+import { PUBLIC_SOURCE_TOTAL_BUDGET_MS, runOverpassWithinBudget } from "./point-to-object-source-budget";
 
 import { LIVE_POINT_CAVEAT } from "@/src/lib/point-to-object/contracts";
 import { semanticHash, sha256 } from "@/src/lib/point-to-object/hash";
@@ -42,7 +43,6 @@ const NOMINATIM_REVALIDATE_SECONDS = 24 * 60 * 60;
 const NOMINATIM_MIN_INTERVAL_MS = 1_000;
 const MAX_GEOMETRY_POSITIONS = 25_000;
 const MAX_DISPLAY_GEOMETRY_POSITIONS = 5_000;
-const OVERPASS_TIMEOUT_MS = 4_500;
 const OVERPASS_RESPONSE_MAX_BYTES = 512 * 1024;
 export const POINT_OBJECT_OVERPASS_EXECUTION_MEMORY_MAX_BYTES = 32 * 1024 * 1024;
 const OVERPASS_REVALIDATE_SECONDS = 6 * 60 * 60;
@@ -320,12 +320,14 @@ export type LivePointObjectEvidencePack = {
     usagePolicyUrl: "https://operations.osmfoundation.org/policies/nominatim/" | "https://dev.overpass-api.de/overpass-doc/en/preface/commons.html";
     contextService: "Overpass API";
     contextStatus: "available" | "unavailable";
+    contextDiagnostic?: PublicSourceDiagnostic;
     contextResponseId: string | null;
     contextResponseHash: string | null;
     contextObservedAt: string | null;
     contextRadiusM: number;
     contextUsagePolicyUrl: "https://dev.overpass-api.de/overpass-doc/en/preface/commons.html";
     fabricStatus: "available" | "unavailable";
+    fabricDiagnostic?: PublicSourceDiagnostic;
     fabricResponseId: string | null;
     fabricResponseHash: string | null;
     fabricObservedAt: string | null;
@@ -336,6 +338,7 @@ export type LivePointObjectEvidencePack = {
     persistenceUsed: false;
     wikidataStatus: PointObjectWikidataResolution["status"];
     wikidataReason: PointObjectWikidataResolution["reason"];
+    wikidataElapsedMs?: number;
   };
   nearbyContext: LiveNearbyContextItem[];
   geoContext: LiveGeoContextProfile;
@@ -751,10 +754,9 @@ function assertNoOverpassRuntimeRemark(payload: unknown): void {
   }
 }
 
-async function fetchOverpassJsonUncached(query: string): Promise<unknown> {
-  const signal = AbortSignal.timeout(OVERPASS_TIMEOUT_MS);
+async function fetchOverpassJsonUncached(query: string, deadlineAtMs = Date.now() + PUBLIC_SOURCE_TOTAL_BUDGET_MS): Promise<unknown> {
   try {
-    await waitForSourceAdmission(waitForOverpassSlot(signal), signal);
+    return await runOverpassWithinBudget(deadlineAtMs, waitForOverpassSlot, async (signal) => {
     const url = configuredOverpassEndpoint();
     url.searchParams.set("data", query);
     const response = await fetch(url, {
@@ -788,20 +790,45 @@ async function fetchOverpassJsonUncached(query: string): Promise<unknown> {
     }
     assertUsableOverpassPayload(payload);
     return payload;
+    });
   } catch (error) {
     if (error instanceof LivePointEvidenceError) throw error;
-    if (isTimeout(error) || signal.aborted) {
+    if (isTimeout(error)) {
       throw new LivePointEvidenceError("OVERPASS_TIMEOUT", 504, "The OpenStreetMap source did not respond in time.", true);
     }
     throw new LivePointEvidenceError("OVERPASS_UNAVAILABLE", 502, "The OpenStreetMap source is temporarily unavailable.", true);
   }
 }
 
-const fetchOverpassJson = unstable_cache(
+const fetchOverpassJsonCached = unstable_cache(
   fetchOverpassJsonUncached,
   ["point-object-live-overpass-v2"],
   { revalidate: OVERPASS_REVALIDATE_SECONDS }
 );
+
+// A lease acquisition is already cached as a complete public pack. Its absolute
+// deadline must not become an argument in the reusable query-only cache key.
+function fetchOverpassJson(query: string, deadlineAtMs?: number): Promise<unknown> {
+  return deadlineAtMs === undefined ? fetchOverpassJsonCached(query) : fetchOverpassJsonUncached(query, deadlineAtMs);
+}
+
+type PublicSourceDiagnostic = {
+  failureCode: "timeout" | "rate_limited" | "invalid_response" | "response_too_large" | "unavailable" | null;
+  elapsedMs: number;
+};
+
+async function acquireOptionalOverpass(query: string, deadlineAtMs: number) {
+  const startedAt = Date.now();
+  try {
+    const payload = await fetchOverpassJson(query, deadlineAtMs);
+    return { ok: true as const, payload, diagnostic: { failureCode: null, elapsedMs: Date.now() - startedAt } as PublicSourceDiagnostic };
+  } catch (error) {
+    const codes = { OVERPASS_TIMEOUT: "timeout", OVERPASS_RATE_LIMITED: "rate_limited", OVERPASS_RESPONSE_INVALID: "invalid_response", OVERPASS_RESPONSE_TOO_LARGE: "response_too_large" } as const;
+    const failureCode = error instanceof LivePointEvidenceError && error.code in codes
+      ? codes[error.code as keyof typeof codes] : "unavailable";
+    return { ok: false as const, diagnostic: { failureCode, elapsedMs: Date.now() - startedAt } as PublicSourceDiagnostic };
+  }
+}
 
 function normalizePosition(value: unknown, counter: { count: number }): [number, number] | null {
   if (!Array.isArray(value) || value.length < 2 || value.length > 3) return null;
@@ -1543,10 +1570,10 @@ async function lookupPlace(
   return { place: place ?? null, receipt };
 }
 
-async function exactSourcePlace(sourceFeatureId: string, locale: string): Promise<{ place: SafeNominatimPlace | null; receipt: NominatimResponseReceipt }> {
+async function exactSourcePlace(sourceFeatureId: string, locale: string, deadlineAtMs?: number): Promise<{ place: SafeNominatimPlace | null; receipt: NominatimResponseReceipt }> {
   try {
     const source = await readExactSourceElement(sourceFeatureId, async (query) => {
-      const payload = await fetchOverpassJson(query);
+      const payload = await fetchOverpassJson(query, deadlineAtMs);
       assertUsableOverpassPayload(payload);
       if (payload.elements.length === 0) {
         throw new LivePointEvidenceError("OBJECT_NOT_RESOLVED", 422, "The exact OpenStreetMap source record was not found. The selected identity has not changed.", false);
@@ -1861,6 +1888,7 @@ function linkedEntityConflicts(
 export async function buildLivePointObjectEvidencePack(
   input: LivePointEvidenceRequest
 ): Promise<LivePointObjectEvidencePack> {
+  const deadlineAtMs = Math.min(input.deadlineAtMs ?? Infinity, Date.now() + PUBLIC_SOURCE_TOTAL_BUDGET_MS);
   if (!Number.isFinite(input.longitude) || Math.abs(input.longitude) > 180 ||
       !Number.isFinite(input.latitude) || Math.abs(input.latitude) > 90) {
     throw new LivePointEvidenceError(
@@ -1890,7 +1918,7 @@ export async function buildLivePointObjectEvidencePack(
   // Resolve and validate the mandatory subject before optional enrichment takes
   // admission slots from the same bounded Overpass queue. Never replace a failed
   // exact identity with nearby context, and do not spend calls on an invalid one.
-  const placeReceipt = await (trustedIdentity ? exactSourcePlace(`${trustedIdentity.type}/${trustedIdentity.id}`, locale) : reversePlace(endpoint, point, locale));
+  const placeReceipt = await (trustedIdentity ? exactSourcePlace(`${trustedIdentity.type}/${trustedIdentity.id}`, locale, deadlineAtMs) : reversePlace(endpoint, point, locale));
   const place = placeReceipt.place;
   const matchMethod = trustedIdentity ? "overpass_exact_identity" as const : "nominatim_reverse" as const;
 
@@ -1931,12 +1959,8 @@ export async function buildLivePointObjectEvidencePack(
   const coordinateAssociation = pointObjectLookupAssociation(matchMethod, geometryContainsAnchor);
 
   const [nearbyPayload, fabricPayload] = await Promise.all([
-    fetchOverpassJson(buildOverpassNearbyQuery(point))
-      .then((payload) => ({ ok: true as const, payload }))
-      .catch(() => ({ ok: false as const })),
-    fetchOverpassJson(buildOverpassUrbanFabricQuery(point))
-      .then((payload) => ({ ok: true as const, payload }))
-      .catch(() => ({ ok: false as const }))
+    acquireOptionalOverpass(buildOverpassNearbyQuery(point), deadlineAtMs),
+    acquireOptionalOverpass(buildOverpassUrbanFabricQuery(point), deadlineAtMs)
   ]);
 
   const sourceFeatureId = resolvedIdentity;
@@ -1955,6 +1979,7 @@ export async function buildLivePointObjectEvidencePack(
     geometry: place.geometry
   });
   const selectedMetrics = geometryMetrics(place.geometry);
+  const wikidataStartedAt = Date.now();
   const wikidata = await resolvePointObjectWikidata({
     qid: selectedTags["tag.wikidata"] ?? null,
     osmSourceFeatureId: sourceFeatureId,
@@ -1964,8 +1989,9 @@ export async function buildLivePointObjectEvidencePack(
     osmFeatureClass: featureClass(place),
     osmTags: selectedTags,
     expectedCountryCode: input.expectedCountryCode,
-    deadlineAtMs: input.deadlineAtMs
+    deadlineAtMs
   });
+  const wikidataElapsedMs = Date.now() - wikidataStartedAt;
   if (wikidata.status === "available") conflicts.push(...linkedEntityConflicts(wikidata.linkedEntity, selectedTags));
   const centroidDistance = trustedAnchorMatch?.centroidDistanceM ?? Math.round(distanceM(point, [place.longitude, place.latitude]));
   const sourceResponseCore = {
@@ -2042,12 +2068,16 @@ export async function buildLivePointObjectEvidencePack(
       usagePolicyUrl: trustedIdentity ? "https://dev.overpass-api.de/overpass-doc/en/preface/commons.html" as const : "https://operations.osmfoundation.org/policies/nominatim/" as const,
       contextService: "Overpass API" as const,
       contextStatus: nearby.status,
+      contextDiagnostic: nearbyPayload.ok && nearby.status === "unavailable"
+        ? { ...nearbyPayload.diagnostic, failureCode: "invalid_response" as const } : nearbyPayload.diagnostic,
       contextResponseId: nearby.responseHash ? `overpass_response_${nearby.responseHash.slice(0, 24)}` : null,
       contextResponseHash: nearby.responseHash,
       contextObservedAt: nearby.observedAt,
       contextRadiusM: OVERPASS_RADIUS_M,
       contextUsagePolicyUrl: "https://dev.overpass-api.de/overpass-doc/en/preface/commons.html" as const,
       fabricStatus: fabric.profile.coverage,
+      fabricDiagnostic: fabricPayload.ok && fabric.profile.coverage === "unavailable"
+        ? { ...fabricPayload.diagnostic, failureCode: "invalid_response" as const } : fabricPayload.diagnostic,
       fabricResponseId: fabric.responseHash ? `overpass_fabric_${fabric.responseHash.slice(0, 24)}` : null,
       fabricResponseHash: fabric.responseHash,
       fabricObservedAt: fabric.observedAt,
@@ -2057,7 +2087,8 @@ export async function buildLivePointObjectEvidencePack(
       runtimeNetworkUsed: true as const,
       persistenceUsed: false as const,
       wikidataStatus: wikidata.status,
-      wikidataReason: wikidata.reason
+      wikidataReason: wikidata.reason,
+      wikidataElapsedMs
     },
     nearbyContext: nearby.items,
     geoContext: fabric.profile,
