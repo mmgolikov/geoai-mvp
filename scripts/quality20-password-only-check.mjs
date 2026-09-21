@@ -28,7 +28,15 @@ try {
   const names = ["signIn", "signInWithPhone", "verifyPhoneCode", "requestEmailChange", "register"];
   const bodies = provider.body.statements.filter((node) => ts.isFunctionDeclaration(node) && names.includes(node.name?.text)).map((node) => node.getText(ast)).join("\n");
   assert.equal(provider.body.statements.filter((node) => ts.isFunctionDeclaration(node) && names.includes(node.name?.text)).length, names.length);
-  const context = { ...policy, authStatus: { effectiveMode: "supabase_auth" }, session: { user: { email: "fixture@example.test" }, isDemo: false }, loadSupabaseBrowserClient: () => { throw new Error("Network/client access forbidden"); } };
+  const context = {
+    ...policy,
+    authStatus: { effectiveMode: "supabase_auth" },
+    session: { user: { email: "fixture@example.test" }, isDemo: false },
+    // The real phone-code handler checks an in-progress logout before its
+    // password-only guard. Exercise the ordinary settled-session branch.
+    logoutPendingRef: { current: false },
+    loadSupabaseBrowserClient: () => { throw new Error("Network/client access forbidden"); }
+  };
   vm.createContext(context);
   vm.runInContext(transpile(bodies), context);
   for (const name of names) {

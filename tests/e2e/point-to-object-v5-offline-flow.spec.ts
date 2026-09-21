@@ -526,16 +526,32 @@ test("Singapore Find waits for its real 2D zoom before dispatching the frozen Ma
   const twoDimensionalControl = page.getByTestId("map-dimension-control").getByRole("button", { name: "2d", exact: true });
   await expect(twoDimensionalControl).toHaveAttribute("aria-pressed", "true");
   await expect(findCta).toBeEnabled();
+  const observeDisabledPhase = async (phase: "market" | "zoom") => page.evaluate((key) => {
+    // Camera movement may finish before selectOption/click yields back to the
+    // test. Observe the real disabled DOM transition before starting it.
+    document.documentElement.dataset[key] = "false";
+    const observer = new MutationObserver(() => {
+      if (document.querySelector<HTMLButtonElement>('[data-testid="find-search-cta"]')?.disabled) {
+        document.documentElement.dataset[key] = "true";
+      }
+    });
+    observer.observe(document.body, { attributes: true, attributeFilter: ["disabled"], childList: true, subtree: true });
+    window.setTimeout(() => observer.disconnect(), 3_000);
+  }, phase === "market" ? "findMarketDisabledSeen" : "findZoomDisabledSeen");
+  await observeDisabledPhase("market");
   await page.getByTestId("point-object-city-select").selectOption("singapore");
-  await expect(findCta).toBeDisabled();
+  await expect.poll(() => page.evaluate(() => document.documentElement.dataset.findMarketDisabledSeen)).toBe("true");
   await expect(findCta).toBeEnabled();
+  expect(findPostRequests).toHaveLength(findCallsBefore);
   await page.getByTestId("point-object-find-role-select").selectOption("consultant_broker");
   await page.getByTestId("point-object-find-scenario-select").selectOption("b2b_commercial_real_estate");
   await expect(page.getByTestId("point-object-find-group-select")).toHaveValue("commercial_office");
 
+  await observeDisabledPhase("zoom");
   await page.getByRole("button", { name: "Zoom in", exact: true }).click();
-  await expect(findCta).toBeDisabled();
+  await expect.poll(() => page.evaluate(() => document.documentElement.dataset.findZoomDisabledSeen)).toBe("true");
   await expect(findCta).toBeEnabled();
+  expect(findPostRequests).toHaveLength(findCallsBefore);
   await findCta.click();
 
   await expect.poll(() => findPostRequests.length).toBe(findCallsBefore + 1);
