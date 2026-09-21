@@ -73,7 +73,15 @@ export function createPointObjectAnalysisRequestIdentity(
   input: PointObjectAnalysisIdentityInput
 ): PointObjectAnalysisRequestIdentity {
   const identity = {
-    ...input,
+    objectKey: input.objectKey,
+    evidenceKey: input.evidenceKey,
+    role: input.role,
+    scenario: input.scenario,
+    depth: input.depth,
+    goal: input.goal,
+    perspective: input.perspective,
+    horizon: input.horizon,
+    locale: input.locale,
     question: normalizePointObjectAnalysisQuestion(input.question),
     method: POINT_OBJECT_ANALYSIS_METHOD
   };

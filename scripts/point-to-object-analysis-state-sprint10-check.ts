@@ -19,6 +19,7 @@ const analysisStateModule = await import("../src/lib/prototype/point-to-object-a
 const {
   POINT_OBJECT_ANALYSIS_CLIENT_DEADLINE_MS,
   createPointObjectAnalysisRequestIdentity,
+  parsePointObjectAnalysisRequestIdentity,
   pointObjectAnalysisReceiptMatches,
   pointObjectAnalysisRequestChanged,
   pointObjectSelectionEvidenceKeys
@@ -86,6 +87,12 @@ for (const completedDepth of depths) {
 
 const custom = createPointObjectAnalysisRequestIdentity({ ...base, depth: "standard", question: "  Check access  ", goal: "custom" });
 assert.equal(custom.question, "Check access");
+const refreshed = createPointObjectAnalysisRequestIdentity({ ...custom, evidenceKey: `${custom.evidenceKey}:refreshed` });
+assert.deepEqual(createPointObjectAnalysisRequestIdentity({ ...custom }), custom,
+  "Recreating a request identity from an existing identity must be idempotent, not hash its old key.");
+assert.equal(parsePointObjectAnalysisRequestIdentity(refreshed)?.key, refreshed.key,
+  "An identity rebuilt after an evidence refresh must remain parseable for completed-request restore.");
+assert.notEqual(refreshed.key, custom.key, "A changed evidence scope must still change request identity.");
 assert.equal(pointObjectAnalysisRequestChanged(custom, createPointObjectAnalysisRequestIdentity({ ...base, depth: "standard" })), true);
 assert.equal(pointObjectAnalysisRequestChanged(
   createPointObjectAnalysisRequestIdentity({ ...base, depth: "standard", role: "consultant_broker" }),
