@@ -1060,7 +1060,7 @@ export function parseLiveJourneyChildReceipt(result, expected) {
       fail("The live INCONCLUSIVE diagnostic contradicts its status.", "live_receipt_invalid");
     }
     return { status: "INCONCLUSIVE", scope: value.scope, previewHost: value.previewHost, commit: value.commit, receipts,
-      reason: value.reason, ...(diagnostic ? { diagnostic } : {}) };
+      reason: value.reason, ...(diagnostic ? { diagnostic } : {}), ...(frozenEnvelope ? { quality20: frozenEnvelope } : {}) };
   }
   if (value.status === "FAIL_CLEANUP") {
     const receipts = parseLiveReceipts(value.receipts, expected.scope, { allowPartialPrefix: true, quality20Depth: expected.quality20?.definition.depth });
@@ -1077,7 +1077,8 @@ export function parseLiveJourneyChildReceipt(result, expected) {
       fail("The live cleanup diagnostic contradicts its status.", "live_receipt_invalid");
     }
     return { status: "FAIL_CLEANUP", scope: value.scope, previewHost: value.previewHost, commit: value.commit, receipts,
-      stage: value.stage, ...(diagnostic ? { diagnostic } : {}), ...(mapDiagnostics ? { mapDiagnostics } : {}) };
+      stage: value.stage, ...(diagnostic ? { diagnostic } : {}), ...(mapDiagnostics ? { mapDiagnostics } : {}),
+      ...(frozenEnvelope ? { quality20: frozenEnvelope } : {}) };
   }
   if (value.status === "FAIL") {
     const receipts = parseLiveReceipts(value.receipts, expected.scope, { allowPartialPrefix: true, quality20Depth: expected.quality20?.definition.depth });
@@ -1089,7 +1090,7 @@ export function parseLiveJourneyChildReceipt(result, expected) {
       fail("The live FAIL receipt is not accepted.", "live_receipt_invalid");
     }
     return { status: "FAIL", scope: value.scope, previewHost: value.previewHost, commit: value.commit, receipts, diagnostic,
-      ...(mapDiagnostics ? { mapDiagnostics } : {}) };
+      ...(mapDiagnostics ? { mapDiagnostics } : {}), ...(frozenEnvelope ? { quality20: frozenEnvelope } : {}) };
   }
   fail("The live child returned an unsupported status.", "live_receipt_invalid");
 }

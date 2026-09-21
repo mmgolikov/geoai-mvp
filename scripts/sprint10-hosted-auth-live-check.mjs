@@ -385,6 +385,54 @@ assert.equal(parseLiveJourneyChildReceipt(childResult(1, failureValue), childTup
 assert.equal(parseLiveJourneyChildReceipt(childResult(1, simultaneousValue), childTuple).diagnostic.primaryStage,
   "analyse_result_contract");
 assert.equal(parseLiveJourneyChildReceipt(childResult(2, diagnosticInconclusiveValue), childTuple).status, "INCONCLUSIVE");
+let frozenReceiptRoundTrips = 0;
+let frozenReceiptMutationDenials = 0;
+// The operator projects the child receipt; the root bridge independently parses
+// that projection again. Preserve the validated frozen binding in every status.
+for (const definition of QUALITY20_CASES) {
+  const tuple = { ...childTuple, scope: definition.scope };
+  const expected = { ...tuple, quality20: { definition, manifestSha256: "a".repeat(64) } };
+  const quality20 = {
+    caseId: definition.id, manifestSha256: expected.quality20.manifestSha256, depth: definition.depth,
+    observations: [{ caseId: definition.id,
+      entryCoverage: definition.scope === "quality20-find" ? "find_three_candidate_compare" :
+        definition.scope === "quality20-create" ? "create_ui" : "ordinary_auto_entry_custom_goal",
+      sourceLatencyMs: null, responseMs: null, renderedMs: null, evidencePackHash: "b".repeat(64),
+      paidPostCount: definition.scope === "quality20-find" ? 0 : 1, reopenPaidPostCount: 0 }]
+  };
+  const receipts = definition.scope === "quality20-find" ? [] :
+    [{ ...paidReceipts[definition.scope === "quality20-create" ? 1 : 0], depth: definition.depth }];
+  for (const [status, source] of [[0, passValue], [1, failureValue], [1, simultaneousValue],
+    [1, cleanupValue], [2, inconclusiveValue], [2, diagnosticInconclusiveValue]]) {
+    const value = { ...source, ...tuple, receipts, quality20 };
+    const once = parseLiveJourneyChildReceipt(childResult(status, value), expected);
+    const twice = parseLiveJourneyChildReceipt(childResult(status, once), expected);
+    assert.deepEqual(once.quality20, quality20, "Do not lose frozen binding or observations in the operator projection.");
+    assert.deepEqual(twice, once, "Root revalidation must accept exactly the validated child projection.");
+    frozenReceiptRoundTrips += 1;
+    for (const invalid of [undefined, { ...quality20, caseId: "wrong-case" },
+      { ...quality20, manifestSha256: "c".repeat(64) }, { ...quality20, depth: "wrong-depth" },
+      { ...quality20, rawResponse: "not-allowed" },
+      { ...quality20, observations: [{ ...quality20.observations[0], rawResponse: "not-allowed" }] }]) {
+      assert.throws(() => parseLiveJourneyChildReceipt(childResult(status, { ...once, quality20: invalid }), expected),
+        "Revalidation must still reject missing, changed or extended frozen evidence.");
+      frozenReceiptMutationDenials += 1;
+    }
+  }
+  for (const source of [failureValue, simultaneousValue]) {
+    const once = parseLiveJourneyChildReceipt(childResult(1, { ...source, ...tuple, receipts: [],
+      quality20: { ...quality20, observations: [] } }), expected);
+    assert.deepEqual(parseLiveJourneyChildReceipt(childResult(1, once), expected), once,
+      "A failure before paid dispatch or case observation must retain its frozen identity too.");
+    frozenReceiptRoundTrips += 1;
+  }
+}
+const acquisitionTuple = { ...childTuple, scope: "quality20-acquire" };
+const acquisitionExpected = { ...acquisitionTuple, acquisition: { caseId: "A01-Q", planSha256: "a".repeat(64) } };
+const acquisitionValue = { status: "ACQUIRED_NOT_ANALYSED", ...acquisitionTuple, browserLocalPersistenceOnly: true,
+  receipts: [], quality20: { caseId: "A01-Q", manifestSha256: "a".repeat(64), depth: null, observations: [] } };
+const acquisitionOnce = parseLiveJourneyChildReceipt(childResult(0, acquisitionValue), acquisitionExpected);
+assert.deepEqual(parseLiveJourneyChildReceipt(childResult(0, acquisitionOnce), acquisitionExpected), acquisitionOnce);
 assert.throws(() => parseLiveJourneyChildReceipt(childResult(0, { ...passValue, extra: true }), childTuple));
 assert.throws(() => parseLiveJourneyChildReceipt(childResult(0, { ...passValue, receipts: [] }), childTuple));
 assert.throws(() => parseLiveJourneyChildReceipt(childResult(2, { ...inconclusiveValue, reason: "bad\nreason" }), childTuple));
@@ -454,7 +502,10 @@ for (const scope of ["dubai-find", "dubai-find-analysis", "quality20-find"]) {
   for (const cleanup of [false, true]) {
     const value = { ...mapFailure, ...frozen, scope, ...(cleanup ? { status: "FAIL_CLEANUP", stage: "logout_action_missing",
       diagnostic: { ...mapFailure.diagnostic, cleanupStage: "logout_action_missing" } } : {}) };
-    assert.deepEqual(parseLiveJourneyChildReceipt(childResult(1, value), expected).mapDiagnostics, [mapDiagnostic]);
+    const projected = parseLiveJourneyChildReceipt(childResult(1, value), expected);
+    assert.deepEqual(projected.mapDiagnostics, [mapDiagnostic]);
+    assert.deepEqual(parseLiveJourneyChildReceipt(childResult(1, projected), expected), projected,
+      "Map diagnostics and the optional frozen envelope must survive together.");
   }
 }
 for (const patch of [
@@ -999,6 +1050,9 @@ console.log(JSON.stringify({
     publicCaptureValidatedChildChains: 2,
     publicCaptureMalformedPathScopeDenials: 15,
     childReceiptStates: 3,
+    frozenReceiptRoundTrips,
+    frozenReceiptMutationDenials,
+    acquisitionReceiptRoundTrip: 1,
     strictReceiptDenials: 23,
     unresolvedFailureReceiptAcceptances: 3,
     unresolvedOrMalformedReceiptDenials: 32,
