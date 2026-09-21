@@ -22,7 +22,13 @@ assert.match(client, /expectedSourceFeatureId,/);
 assert.match(map, /if \(navigationTarget\.expectedSourceFeatureId\) \{/);
 assert.match(map, /sourceFeatureId: navigationTarget\.expectedSourceFeatureId/);
 assert.match(contextRoute, /osmFeatureId: parsed\.value\.expectedSourceFeatureId \?\? null/);
-assert.match(aiRoute, /osmFeatureId: body\.expectedSourceFeatureId/);
+assert.match(aiRoute, /const receipt = parsePublicEvidenceReceipt\(body\.evidenceReceipt\)/);
+assert.match(aiRoute, /reusePublicEvidenceLease\(\{[\s\S]*osmFeatureId: receipt\.lookupSourceFeatureId/,
+  "AI must reuse the exact source lookup bound to the public evidence receipt");
+assert.match(aiRoute, /body\.expectedSourceFeatureId && body\.expectedSourceFeatureId !== evidencePack\.selectedObject\.sourceFeatureId/,
+  "AI must reject a changed selected object even when a cached lease exists");
+assert.doesNotMatch(aiRoute, /buildLivePointObjectEvidencePack\(/,
+  "AI must not reacquire live evidence after the user accepted a context receipt");
 assert.match(evidence, /new URL\("lookup", endpoint\)/);
 assert.match(evidence, /The expected OpenStreetMap object could not be resolved exactly/);
 assert.match(evidence, /"trusted_open_map_identity"/);

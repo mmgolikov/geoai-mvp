@@ -15,12 +15,25 @@ function replaceRequired(source, pattern, replacement, label) {
 
 const actualEvidencePackHash = "a".repeat(64);
 const actualSourceResponseHash = "b".repeat(64);
-const acquiredAt = "2026-09-20T12:34:56.000Z";
+const created = Math.floor(Date.now() / 900_000) * 900_000;
+const actualReceipt = {
+  version: "PUBLIC_EVIDENCE_LEASE_V1",
+  evidencePackHash: actualEvidencePackHash,
+  sourceResponseHash: actualSourceResponseHash,
+  acquiredAt: new Date(created).toISOString(),
+  createdAt: new Date(created).toISOString(),
+  expiresAt: new Date(created + 900_000).toISOString(),
+  cacheWindow: Math.floor(created / 900_000),
+  sourceLocale: "en",
+  lookupSourceFeatureId: "way/123"
+};
 const clientEvidencePackHash = "c".repeat(64);
 const clientSourceResponseHash = "d".repeat(64);
 
-assert.match(original, /evidenceReceipt:\s*\{[\s\S]*evidencePackHash:\s*evidencePack\.evidencePackHash,[\s\S]*sourceResponseHash:\s*evidencePack\.source\.sourceResponseHash,[\s\S]*acquiredAt:\s*evidencePack\.source\.acquiredAt/,
-  "The integration route must build the receipt from the acquired evidence pack.");
+assert.match(original, /const \{ pack: evidencePack, receipt \} = await acquirePublicEvidenceLease\(\{[\s\S]*osmFeatureId: parsed\.value\.expectedSourceFeatureId \?\? null/,
+  "Context must acquire a lease for the exact selected lookup identity.");
+assert.match(original, /evidenceReceipt: receipt,[\s\S]*subject: \{\s*evidenceReceipt: receipt,/,
+  "Context must expose the same server-issued receipt at the response and subject scopes.");
 
 let transformed = original;
 transformed = replaceRequired(transformed,
@@ -50,27 +63,31 @@ transformed = replaceRequired(transformed,
    };`,
   "bounded-json adapter");
 transformed = replaceRequired(transformed,
-  /import \{\s*buildLivePointObjectEvidencePack,\s*LivePointEvidenceError\s*\} from "@\/src\/lib\/prototype\/point-to-object-live-evidence";/,
-  `class LivePointEvidenceError extends Error {}
-   const buildLivePointObjectEvidencePack = async () => {
+  'import { LivePointEvidenceError } from "@/src/lib/prototype/point-to-object-live-evidence";',
+  'class LivePointEvidenceError extends Error {}',
+  "source-error adapter");
+transformed = replaceRequired(transformed,
+  'import { acquirePublicEvidenceLease, PublicEvidenceLeaseError } from "@/src/lib/prototype/point-to-object-evidence-lease";',
+  `class PublicEvidenceLeaseError extends Error {}
+   const acquirePublicEvidenceLease = async (lookup) => {
      globalThis.__quality20AcquisitionCalls += 1;
+     globalThis.__quality20LeaseLookup = lookup;
      return {
-       evidencePackHash: ${JSON.stringify(actualEvidencePackHash)},
-       source: {
-         sourceResponseHash: ${JSON.stringify(actualSourceResponseHash)},
-         acquiredAt: ${JSON.stringify(acquiredAt)},
-         rawProviderPayload: "DO_NOT_EXPOSE_SOURCE_PAYLOAD"
-       },
-       selectedObject: {
-         name: "Synthetic object", displayAddress: "Synthetic address", featureClass: "building",
-         sourceFeatureId: "way/123", geometryType: "Polygon", addressParts: {}, tags: {}, metrics: {},
-         internalSecret: "DO_NOT_EXPOSE_INTERNAL_FIELD"
-       },
-       resolution: { coordinateAssociation: "inside", resultCentroidDistanceM: 0 },
-       displayGeometry: null, geoContext: null, linkedEntity: null
+       receipt: ${JSON.stringify(actualReceipt)},
+       pack: {
+         evidencePackHash: ${JSON.stringify(actualEvidencePackHash)},
+         source: { sourceResponseHash: ${JSON.stringify(actualSourceResponseHash)}, rawProviderPayload: "DO_NOT_EXPOSE_SOURCE_PAYLOAD" },
+         selectedObject: {
+           name: "Synthetic object", displayAddress: "Synthetic address", featureClass: "building",
+           sourceFeatureId: "way/123", geometryType: "Polygon", addressParts: {}, tags: {}, metrics: {},
+           internalSecret: "DO_NOT_EXPOSE_INTERNAL_FIELD"
+         },
+         resolution: { coordinateAssociation: "inside", resultCentroidDistanceM: 0 },
+         displayGeometry: null, geoContext: null, linkedEntity: null
+       }
      };
    };`,
-  "evidence acquisition adapter");
+  "leased evidence acquisition adapter");
 transformed = replaceRequired(transformed,
   /import \{\s*coordinatesMatchPointObjectMarket,[\s\S]*?type PointObjectMarketKey\s*\} from "@\/src\/lib\/prototype\/point-to-object-markets";/,
   `const coordinatesMatchPointObjectMarket = () => true;
@@ -127,16 +144,18 @@ const resolved = await route.POST(request(validBody, "https://preview.example.te
 }));
 assert.equal(resolved.status, 200);
 assert.equal(globalThis.__quality20AcquisitionCalls, 1);
+assert.deepEqual(globalThis.__quality20LeaseLookup, {
+  longitude: validBody.longitude, latitude: validBody.latitude, locale: "en",
+  osmFeatureId: validBody.expectedSourceFeatureId, expectedCountryCode: "ae"
+}, "Lease acquisition must retain the selected lookup identity and server market scope.");
 const payload = await resolved.json();
-assert.deepEqual(payload.evidenceReceipt, {
-  evidencePackHash: actualEvidencePackHash,
-  sourceResponseHash: actualSourceResponseHash,
-  acquiredAt
-}, "The receipt must contain the exact hashes and timestamp returned by the server acquisition adapter.");
-assert.deepEqual(Object.keys(payload.evidenceReceipt).sort(), ["acquiredAt", "evidencePackHash", "sourceResponseHash"]);
+assert.deepEqual(payload.evidenceReceipt, actualReceipt,
+  "The public receipt must be exactly the server-issued lease, including hashes, clock window and lookup identity.");
+assert.deepEqual(payload.subject.evidenceReceipt, actualReceipt,
+  "The subject must carry the same receipt as the top-level response.");
 assert.notEqual(payload.evidenceReceipt.evidencePackHash, clientEvidencePackHash);
 assert.notEqual(payload.evidenceReceipt.sourceResponseHash, clientSourceResponseHash);
 assert.doesNotMatch(JSON.stringify(payload), /DO_NOT_EXPOSE|rawProviderPayload|internalSecret/,
   "The public response must not expose raw provider data or internal fixture fields.");
 
-console.log("Quality20 evidence receipt actual-route check PASS: server-acquired values preserved; client hashes rejected; auth/origin negatives acquire nothing; no raw data or secret sentinel exposed.");
+console.log("Quality20 evidence receipt actual-route check PASS: exact server lease preserved at both scopes; client hashes rejected; auth/origin negatives acquire nothing; no raw data or secret sentinel exposed.");
