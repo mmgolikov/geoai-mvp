@@ -2,12 +2,15 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { stripTypeScriptTypes } from "node:module";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 const CAVEAT = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
 
 async function loadSession(): Promise<Record<string, any>> {
   const file = path.join(process.cwd(), "components/point-to-object/live-session.ts");
   let source = readFileSync(file, "utf8");
+  source = source.replace(/from "@\/src\/lib\/prototype\/point-to-object-evidence-receipt"/,
+    `from ${JSON.stringify(pathToFileURL(path.join(process.cwd(), "src/lib/prototype/point-to-object-evidence-receipt.ts")).href)}`);
   source = source.replace(/import \{ LIVE_POINT_CAVEAT \} from "@\/src\/lib\/point-to-object\/contracts";\n/,
     `const LIVE_POINT_CAVEAT = ${JSON.stringify(CAVEAT)};\n`);
   source = source.replace(/import \{ isPointObjectLocale, isPointObjectMarketKey \} from "@\/src\/lib\/prototype\/point-to-object-markets";\n/,
@@ -15,7 +18,7 @@ async function loadSession(): Promise<Record<string, any>> {
   source = source.replace(/import \{\n  parsePointObjectAnalysisRoleScenario,\n  POINT_OBJECT_ANALYSIS_UNSPECIFIED\n\} from "@\/src\/lib\/prototype\/point-to-object-ai-provenance";\n/,
     `const POINT_OBJECT_ANALYSIS_UNSPECIFIED = "unspecified";\nconst parsePointObjectAnalysisRoleScenario = (role, scenario) => role === "unspecified" && scenario === "unspecified" ? { role, scenario } : null;\n`);
   source = source.replace(/import \{[\s\S]*?POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION\n\} from "@\/components\/point-to-object\/live-types";\n/,
-    `const POINT_OBJECT_ANALYSIS_LEGACY_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V7_2026_09_04";\nconst POINT_OBJECT_ANALYSIS_LEGACY_RESULT_SCHEMA_VERSION = 5;\nconst POINT_OBJECT_ANALYSIS_PREVIOUS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V9_2026_09_12";\nconst POINT_OBJECT_ANALYSIS_PRE_PROFILE_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V10_2026_09_18";\nconst POINT_OBJECT_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V11_2026_09_20";\nconst POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION = 6;\n`);
+    `const POINT_OBJECT_ANALYSIS_LEGACY_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V7_2026_09_04";\nconst POINT_OBJECT_ANALYSIS_LEGACY_RESULT_SCHEMA_VERSION = 5;\nconst POINT_OBJECT_ANALYSIS_PREVIOUS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V9_2026_09_12";\nconst POINT_OBJECT_ANALYSIS_PRE_PROFILE_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V10_2026_09_18";\nconst POINT_OBJECT_ANALYSIS_PRE_COMMITMENT_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V11_2026_09_20";\nconst POINT_OBJECT_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V12_2026_09_21";\nconst POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION = 6;\n`);
   const javascript = stripTypeScriptTypes(source, { mode: "transform", sourceMap: false });
   return await import(`data:text/javascript;base64,${Buffer.from(javascript).toString("base64")}`) as Record<string, any>;
 }

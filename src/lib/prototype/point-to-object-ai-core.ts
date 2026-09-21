@@ -26,7 +26,7 @@ import type {
 export type { PointObjectAnalysisDepth, PointObjectDepthReview } from "./point-to-object-analysis-depth-contract";
 
 export const POINT_OBJECT_AI_SCHEMA_NAME = "geoai_point_object_decision_plan_v6";
-export const POINT_OBJECT_AI_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V11_2026_09_20";
+export const POINT_OBJECT_AI_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V12_2026_09_21";
 export const POINT_OBJECT_AI_RESULT_SCHEMA_VERSION = 6 as const;
 const POINT_OBJECT_ANALYSIS_ROLE_POLICY = "decision_lens_only_not_permission_or_evidence" as const;
 

@@ -20,11 +20,16 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "nod
 
 export const SPRINT10_CYCLE_ID = "GEOAI_FOUR_SPRINTS_2026_09_18" as const;
 export const SPRINT10_LIVE_CEILING_USD = 15 as const;
-export const SPRINT10_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V11_2026_09_20" as const;
+export const SPRINT10_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V12_2026_09_21" as const;
 // Exact immutable read-back compatibility only; never a new dispatch version.
 export const SPRINT10_LEGACY_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V10_2026_09_18" as const;
+export const SPRINT10_PRE_COMMITMENT_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V11_2026_09_20" as const;
 export const SPRINT10_CREATE_PROMPT_VERSION = "POINT_OBJECT_CREATE_PROGRAM_V1_2026_09_04" as const;
-type Sprint10StoredPromptVersion = typeof SPRINT10_ANALYSIS_PROMPT_VERSION | typeof SPRINT10_LEGACY_ANALYSIS_PROMPT_VERSION | typeof SPRINT10_CREATE_PROMPT_VERSION;
+type Sprint10StoredPromptVersion = typeof SPRINT10_ANALYSIS_PROMPT_VERSION | typeof SPRINT10_LEGACY_ANALYSIS_PROMPT_VERSION | typeof SPRINT10_PRE_COMMITMENT_ANALYSIS_PROMPT_VERSION | typeof SPRINT10_CREATE_PROMPT_VERSION;
+
+function isHistoricalAnalysisPrompt(value: unknown): boolean {
+  return value === SPRINT10_LEGACY_ANALYSIS_PROMPT_VERSION || value === SPRINT10_PRE_COMMITMENT_ANALYSIS_PROMPT_VERSION;
+}
 
 export type Sprint10Phase = "S1" | "S2" | "S3" | "S4";
 export type Sprint10Route = "ai" | "create";
@@ -214,7 +219,7 @@ function parseIdentity(value: unknown, allowHistorical = false): Sprint10Request
       !validRoute(value.route) || !validDepth(value.depth)) return null;
   const expectedPrompt = value.route === "ai" ? SPRINT10_ANALYSIS_PROMPT_VERSION : SPRINT10_CREATE_PROMPT_VERSION;
   const expectedSchema = value.route === "ai" ? 6 : null;
-  const acceptedHistorical = allowHistorical && value.route === "ai" && value.promptVersion === SPRINT10_LEGACY_ANALYSIS_PROMPT_VERSION;
+  const acceptedHistorical = allowHistorical && value.route === "ai" && isHistoricalAnalysisPrompt(value.promptVersion);
   if ((value.promptVersion !== expectedPrompt && !acceptedHistorical) || value.schemaVersion !== expectedSchema) return null;
   return { ...(value as Sprint10RequestIdentity) };
 }
@@ -490,8 +495,8 @@ export function reserveSprint10Spend(
   if (!ledger) return { ok: false, reason: "The cycle-root ledger is malformed or corrupt." };
   if (!identity) return { ok: false, reason: "The immutable request identity is invalid." };
   if (ledger.receipts.some((receipt) => receipt.state === "reserved" && receipt.identity.route === "ai" &&
-      receipt.identity.promptVersion === SPRINT10_LEGACY_ANALYSIS_PROMPT_VERSION)) {
-    return { ok: false, reason: "An unresolved historical V10 reservation requires explicit review before new dispatch." };
+      isHistoricalAnalysisPrompt(receipt.identity.promptVersion))) {
+    return { ok: false, reason: "An unresolved historical V10/V11 reservation requires explicit review before new dispatch." };
   }
   if (!validIso(createdAt) || Date.parse(createdAt) < Date.parse(ledger.createdAt)) {
     return { ok: false, reason: "The reservation time is invalid or predates the root ledger." };

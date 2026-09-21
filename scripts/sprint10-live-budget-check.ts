@@ -18,7 +18,7 @@ import { pathToFileURL } from "node:url";
 // @ts-expect-error The Node transform-types runner requires the explicit TypeScript extension.
 import { SPRINT10_ANALYSIS_PROMPT_VERSION, SPRINT10_CREATE_PROMPT_VERSION, acquireSprint10LedgerLock, createSprint10SpendLedger, createSprint10SpendLedgerFile, markSprint10SpendUnknownFile, parseSprint10ProviderTelemetry, parseSprint10SpendLedger, readSprint10SpendLedgerFile, reserveSprint10Spend, reserveSprint10SpendFile, settleSprint10SpendFile, sprint10LedgerCharge, type Sprint10AttemptTelemetry, type Sprint10RequestIdentity, type Sprint10SpendTelemetry } from "../tests/e2e/helpers/sprint10-live-budget.ts";
 // @ts-expect-error The Node transform-types runner requires the explicit TypeScript extension.
-import { SPRINT10_LEGACY_ANALYSIS_PROMPT_VERSION, settleSprint10Spend, markSprint10SpendUnknown } from "../tests/e2e/helpers/sprint10-live-budget.ts";
+import { SPRINT10_LEGACY_ANALYSIS_PROMPT_VERSION, SPRINT10_PRE_COMMITMENT_ANALYSIS_PROMPT_VERSION, settleSprint10Spend, markSprint10SpendUnknown } from "../tests/e2e/helpers/sprint10-live-budget.ts";
 
 const node = process.execPath;
 const helperUrl = pathToFileURL(resolve("tests/e2e/helpers/sprint10-live-budget.ts")).href;
@@ -134,7 +134,7 @@ const telemetry = parseSprint10ProviderTelemetry(aiIdentity, payloadFor(aiIdenti
 assert.ok(telemetry, "A complete pinned-rate provider receipt must pass.");
 
 // Entirely synthetic in-memory history. Never inspect or rewrite the actual
-// global ledger while certifying the V10-read / V11-dispatch boundary.
+// global ledger while certifying the historical-read / V12-dispatch boundary.
 const seed = reserveSprint10Spend(createSprint10SpendLedger(createdAt, ledgerId), aiIdentity, reserveAt);
 assert.ok(seed.ok);
 const settledSeed = settleSprint10Spend(seed.ledger, seed.receipt.id, aiIdentity, {
@@ -190,18 +190,18 @@ const immutableHistory = JSON.stringify(historical);
 const parsedHistorical = parseSprint10SpendLedger(historical);
 assert.ok(parsedHistorical, "All 23 immutable V10 settled receipts must remain readable.");
 assert.equal(JSON.stringify(parsedHistorical), immutableHistory, "Historical versions, telemetry, order and charges must not be rewritten.");
-const currentIdentity = identity({ requestKey: "S4.CURRENT.V11.NEW" });
+const currentIdentity = identity({ requestKey: "S4.CURRENT.V12.NEW" });
 const currentReservation = reserveSprint10Spend(parsedHistorical, currentIdentity, reserveAt);
-assert.ok(currentReservation.ok, "A settled V10 history must allow an exact current V11 reservation.");
-assert.equal(currentReservation.receipt.identity.promptVersion, "POINT_OBJECT_AI_PROMPT_V11_2026_09_20");
+assert.ok(currentReservation.ok, "A settled V10 history must allow an exact current V12 reservation.");
+assert.equal(currentReservation.receipt.identity.promptVersion, "POINT_OBJECT_AI_PROMPT_V12_2026_09_21");
 assert.deepEqual(currentReservation.ledger.receipts.slice(0, 23), historical.receipts);
 assert.equal(currentReservation.ledger.estimatedOrReservedUsd, Number((historical.estimatedOrReservedUsd + 1.2).toFixed(8)));
 const currentTelemetry = parseSprint10ProviderTelemetry(currentIdentity, payloadFor(currentIdentity));
-assert.ok(currentTelemetry, "Current V11 provider/capture telemetry must pass.");
+assert.ok(currentTelemetry, "Current V12 provider/capture telemetry must pass.");
 const mixed = settleSprint10Spend(currentReservation.ledger, 24, currentIdentity, {
   settledAt: settleAt, status: 200, resultHash: "b".repeat(64), telemetry: currentTelemetry
 });
-assert.ok(parseSprint10SpendLedger(mixed), "Mixed V10 historical and V11 current settled receipts must parse.");
+assert.ok(parseSprint10SpendLedger(mixed), "Mixed V10 historical and V12 current settled receipts must parse.");
 assert.deepEqual(mixed.receipts.slice(0, 23), historical.receipts);
 assert.equal(mixed.estimatedOrReservedUsd, Number((historical.estimatedOrReservedUsd + currentTelemetry.estimatedCostUsd).toFixed(8)));
 assert.equal(JSON.stringify(historical), immutableHistory, "New operations must leave the historical input untouched.");
@@ -234,6 +234,34 @@ legacyUnknown.receipts[0]!.identity.promptVersion = SPRINT10_LEGACY_ANALYSIS_PRO
 assert.ok(parseSprint10SpendLedger(legacyUnknown), "Historical unknown-charge evidence must remain readable without forgiving its charge.");
 assert.equal(legacyUnknown.estimatedOrReservedUsd, 1.2);
 assert.equal(reserveSprint10Spend(legacyUnknown, currentIdentity, reserveAt).ok, false, "Historical unknown charges retain the existing stop.");
+
+// Model the existing 74-receipt journal without reading or changing real spend.
+const historical74 = settledHistory(74);
+for (const [index, receipt] of historical74.receipts.entries()) {
+  const version = index < 23 ? SPRINT10_LEGACY_ANALYSIS_PROMPT_VERSION : SPRINT10_PRE_COMMITMENT_ANALYSIS_PROMPT_VERSION;
+  receipt.identity.promptVersion = version;
+  receipt.telemetry!.promptVersion = version;
+}
+const immutable74 = JSON.stringify(historical74);
+assert.equal(JSON.stringify(parseSprint10SpendLedger(historical74)), immutable74, "All V10/V11 receipts, versions and charges survive exact read-back.");
+const next75 = reserveSprint10Spend(historical74, identity({ requestKey: "S4.CURRENT.V12.75" }), reserveAt);
+assert.ok(next75.ok);
+assert.deepEqual(next75.ledger.receipts.slice(0, 74), historical74.receipts);
+assert.equal(next75.receipt.identity.promptVersion, SPRINT10_ANALYSIS_PROMPT_VERSION);
+const previousIdentity = { ...currentIdentity, promptVersion: SPRINT10_PRE_COMMITMENT_ANALYSIS_PROMPT_VERSION };
+assert.equal(reserveSprint10Spend(historical74, previousIdentity, reserveAt).ok, false);
+assert.equal(parseSprint10ProviderTelemetry(previousIdentity, payloadFor(previousIdentity)), null);
+const previousPending = structuredClone(seed.ledger);
+previousPending.receipts[0]!.identity.promptVersion = SPRINT10_PRE_COMMITMENT_ANALYSIS_PROMPT_VERSION;
+assert.ok(parseSprint10SpendLedger(previousPending));
+assert.equal(reserveSprint10Spend(previousPending, currentIdentity, reserveAt).ok, false);
+assert.throws(() => settleSprint10Spend(previousPending, 1, previousPending.receipts[0]!.identity,
+  { settledAt: settleAt, status: 200, resultHash: "c".repeat(64), telemetry: historical74.receipts[23]!.telemetry }), /identity is invalid/);
+const previousUnknown = structuredClone(legacyUnknown);
+previousUnknown.receipts[0]!.identity.promptVersion = SPRINT10_PRE_COMMITMENT_ANALYSIS_PROMPT_VERSION;
+assert.ok(parseSprint10SpendLedger(previousUnknown));
+assert.equal(reserveSprint10Spend(previousUnknown, currentIdentity, reserveAt).ok, false);
+assert.equal(JSON.stringify(historical74), immutable74);
 
 const repairTrace = [
   attempt({ purpose: "initial", model: "gpt-5.6-luna", requestId: "resp_initial" }),
