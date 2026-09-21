@@ -1245,6 +1245,7 @@ function assertStaticBoundaries(): void {
     "components/point-to-object/create-result-dashboard.tsx",
     "components/point-to-object/create-result-preview-3d.tsx",
     "components/point-to-object/decision-cards.tsx",
+    "components/point-to-object/evidence-selection.ts",
     "components/point-to-object/find-comparison-dashboard.tsx",
     "components/point-to-object/live-object-map.tsx",
     "components/point-to-object/live-session.ts",
@@ -2054,9 +2055,18 @@ async function assertCandidateAiSafety(): Promise<void> {
   assert.equal(standardValidation.ok, true,
     `Standard control must remain renderable: ${JSON.stringify(standardValidation)}`);
   const standardReview = (standardValidation as { ok: true; content: any }).content.depthReview as any;
-  assert.equal(sha256(JSON.stringify(standardReview)),
+  const technicalGate = standardReview.decisionTriggers.find((item: any) => item.title === "Technical-baseline gate");
+  assert.deepEqual(technicalGate?.evidenceRefs,
+    ["EVD-CLASSIFICATION", "EVD-ALLOWED-FIELDS", "EVD-GEOMETRY", "EVD-SOURCE"],
+    "Building-only technical gates must include the bound classification evidence.");
+  const priorStandardReview = structuredClone(standardReview);
+  priorStandardReview.decisionTriggers.find((item: any) => item.title === "Technical-baseline gate").evidenceRefs.shift();
+  assert.equal(sha256(JSON.stringify(priorStandardReview)),
     "e33250cb1739dfe122a077a07ea95bf3331b184bdd9085fda73472f31a124725",
-    "The complete Standard depth review must remain byte-for-byte at its pre-change deterministic snapshot.");
+    "Only the bound classification reference may differ from the prior Standard snapshot.");
+  assert.equal(sha256(JSON.stringify(standardReview)),
+    "4b5216fdb3bdb131a7f351561709f402b1e3a33f3a0f9a0468b48185977546a1",
+    "The complete Standard depth review must match the verified classification-reference snapshot.");
   assert.equal(
     standardReview.analyticChecks.find((item: any) => item.title === "Mapped use classification")?.implication,
     "investor · development screening · long-term horizon: Use the classification to choose the first screening workflow, not as proof of legal or permitted use.",
@@ -2150,6 +2160,10 @@ async function assertCandidateAiSafety(): Promise<void> {
   delete evidencePackWithoutAttributes.selectedObject.tags["tag.start_date"];
   evidencePackWithoutAttributes.evidence = evidencePackWithoutAttributes.evidence
     .filter((item: any) => item.id !== "EVD-ALLOWED-FIELDS");
+  const tourismOnlyPolygon = structuredClone(evidencePackWithoutAttributes);
+  evidencePackWithoutAttributes.selectedObject.featureClass = "building:hotel";
+  evidencePackWithoutAttributes.evidence.find((item: any) => item.id === "EVD-CLASSIFICATION").value =
+    JSON.stringify({ sourceFeatureId: "way/1", featureClass: "building:hotel" });
   const noAttributesValidation = validateContentDetailed(
     {
       ...rawPlan,
@@ -2169,7 +2183,16 @@ async function assertCandidateAiSafety(): Promise<void> {
     `Deep challenge must degrade honestly without mapped attributes: ${JSON.stringify(noAttributesValidation)}`);
   const noAttributesReview = (noAttributesValidation as { ok: true; content: any }).content.depthReview as any;
   const noAttributesForm = noAttributesReview.analyticChecks.find((item: any) => item.title === "Mapped physical form");
-  assert.deepEqual(noAttributesForm?.evidenceRefs, ["EVD-GEOMETRY"]);
+  assert.deepEqual(noAttributesForm?.evidenceRefs, ["EVD-CLASSIFICATION", "EVD-GEOMETRY"]);
+  const tourismBuildingClaim = validateContentDetailed({ ...rawPlan, answerCode: null, focusedAnswer: null,
+    depthPlan: {
+      criteriaSignalCodes: ["building_form", "use_classification", "source_limit", "object_identity"],
+      alternativePaths: ["planning_first_due_diligence", "identity_first_due_diligence"],
+      counterEvidenceRiskCodes: ["non_official_source", "identity_uncertainty", "geometry_not_parcel"],
+      decisionTriggerCodes: ["identity_rights_planning_first", "technical_baseline_first", "source_evidence_only"]
+    } }, tourismOnlyPolygon, { ...initialAnalysisRequest, depth: "deep" });
+  assert.equal(tourismBuildingClaim.ok, false,
+    "A tourism POI polygon without bound building classification cannot support a building-form or technical-baseline claim.");
   assert.match(noAttributesForm?.implication ?? "",
     /verified outline or surveyed form of the same identified building or object differs from its corresponding mapped outline[\s\S]*recalculate only the affected object-footprint metrics/,
     "A geometry-only comparison must bind both outlines to the same building or object and metric grain.");
@@ -2236,7 +2259,8 @@ async function assertCandidateAiSafety(): Promise<void> {
   const noGeometryContent = (noGeometryValidation as { ok: true; content: any }).content as any;
   const noGeometryForm = noGeometryContent.depthReview.analyticChecks
     .find((item: any) => item.title === "Mapped physical form");
-  assert.deepEqual(noGeometryForm?.evidenceRefs, ["EVD-ALLOWED-FIELDS"]);
+  assert.deepEqual(noGeometryForm?.evidenceRefs, ["EVD-CLASSIFICATION", "EVD-ALLOWED-FIELDS"],
+    "Building-form claims retain their bound classification and attributes without inventing a geometry receipt.");
   assert.match(noGeometryForm?.implication ?? "", /verified building-form records differ from the mapped attributes/);
   assert.doesNotMatch(noGeometryForm?.implication ?? "", /mapped geometry|validated boundary|surveyed form/,
     "An attribute-only Deep challenge must not claim that mapped geometry was observed.");
@@ -2302,8 +2326,8 @@ async function assertCandidateAiSafety(): Promise<void> {
   assert.deepEqual(renderedSignals.find((signal) => signal.title === "Open-context evidence boundary")?.evidenceRefs,
     ["EVD-SOURCE"], "Generic source limitations must cite only the live source-status receipt.");
   assert.deepEqual(renderedSignals.find((signal) => signal.title === "Mapped physical form")?.evidenceRefs,
-    ["EVD-ALLOWED-FIELDS", "EVD-GEOMETRY"],
-    "Mapped form text must cite only its attribute and supported polygon-geometry receipts.");
+    ["EVD-CLASSIFICATION", "EVD-ALLOWED-FIELDS", "EVD-GEOMETRY"],
+    "Mapped form text must cite its bound classification, attributes and supported polygon geometry.");
   assert.equal(validated.answerToQuestion.status, "partial", "A supported but incomplete custom answer must remain explicitly partial.");
   assert.deepEqual(validated.answerToQuestion.evidenceRefs, ["EVD-OBJECT", "EVD-ALLOWED-FIELDS", "EVD-CONTEXT-01"],
     "Model-authored focused interpretation must retain only canonically bound evidence references.");
@@ -2606,7 +2630,7 @@ async function assertCandidateAiSafety(): Promise<void> {
       "EVD-CLASSIFICATION", "EVD-ADDRESS", "EVD-ALLOWED-FIELDS"
     ].includes(item.id))
   };
-  const sparseEvidenceResult = validateContent({
+  const sparseRawPlan = {
     ...rawPlan,
     decision: {
       ...rawPlan.decision,
@@ -2616,7 +2640,17 @@ async function assertCandidateAiSafety(): Promise<void> {
     opportunityCodes: ["lifecycle_capital_review", "existing_asset_repositioning"],
     answerCode: null,
     focusedAnswer: null
-  }, sparseEvidencePack, initialAnalysisRequest) as any;
+  };
+  const sparseLegacyValidation = validateContentDetailed(sparseRawPlan, sparseEvidencePack, initialAnalysisRequest);
+  assert.equal(sparseLegacyValidation.ok, false,
+    "The legacy fixed-four-signal contract must reject a pack with only three supported signals instead of inventing building form.");
+  assert.equal((sparseLegacyValidation as { detail?: string }).detail, "counts_3_3_2_3");
+  const sparseEvidenceResult = validateContent({ ...sparseRawPlan, depthPlan: {
+    criteriaSignalCodes: ["object_identity", "source_limit", "address_context"],
+    alternativePaths: ["identity_first_due_diligence", "insufficient_open_context"],
+    counterEvidenceRiskCodes: ["non_official_source", "identity_uncertainty", "geometry_not_parcel"],
+    decisionTriggerCodes: ["identity_rights_planning_first", "source_evidence_only", "insufficient_for_requested_conclusion"]
+  } }, sparseEvidencePack, initialAnalysisRequest) as any;
   assert.ok(sparseEvidenceResult, "A sparse pack must remain renderable without borrowing evidence across fields.");
   const sparseRendered = JSON.stringify(sparseEvidenceResult);
   assert.equal(sparseRendered.includes("tourism:hotel"), false,
@@ -2654,8 +2688,12 @@ async function assertCandidateAiSafety(): Promise<void> {
       } : item)
   }, initialAnalysisRequest) as any;
   assert.ok(classificationOnlyResult, "Classification plus point geometry must remain renderable through a non-technical path.");
-  assert.equal(classificationOnlyResult.decisionBrief.headline, "Make planning evidence the next decision gate",
-    "Classification alone must not support the technical-baseline-first decision path.");
+  assert.equal(classificationOnlyResult.decisionBrief.headline, "Hold commitments; continue evidence gathering");
+  assert.equal(classificationOnlyResult.decisionBrief.disposition, "hold");
+  assert.match(classificationOnlyResult.decisionBrief.summary, /Obtain authoritative parcel, permitted-use, planning-control and approval evidence/,
+    "Tourism classification alone must select the planning path instead of a technical building baseline.");
+  assert.doesNotMatch(classificationOnlyResult.decisionBrief.summary, /Verify capacity, condition, occupancy, systems and refurbishment history/,
+    "The broad commitment hold must not disguise an unsupported technical building path.");
   assert.equal(JSON.stringify(classificationOnlyResult).includes("mapped object geometry"), false,
     "The renderer must never invent a generic geometry phrase when no building-form geometry is supported.");
 

@@ -241,15 +241,20 @@ const routeSource = readFileSync(routePath, "utf8")
       };
     };
   `)
-  .replace(/import \{\s*buildLivePointObjectEvidencePack as buildPointObjectEvidencePack,\s*LivePointEvidenceError\s*\} from "@\/src\/lib\/prototype\/point-to-object-live-evidence";/, `
+  .replace('import { LivePointEvidenceError } from "@/src/lib/prototype/point-to-object-live-evidence";', `
     class LivePointEvidenceError extends Error {}
-    const buildPointObjectEvidencePack = async () => {
+  `)
+  .replace('import { reusePublicEvidenceLease, PublicEvidenceLeaseError } from "@/src/lib/prototype/point-to-object-evidence-lease";', `
+    class PublicEvidenceLeaseError extends Error {
+      code = "EVIDENCE_SNAPSHOT_UNAVAILABLE";
+    }
+    const reusePublicEvidenceLease = async (_input, receipt) => {
       globalThis.__analysisProvenanceEvidenceCalls += 1;
-      return {
+      return { receipt, pack: {
         selectedObject: { name: "Fixture object", displayAddress: "Dubai", featureClass: "building", sourceFeatureId: "way/123", geometryType: "Polygon", addressParts: {}, tags: {}, metrics: null },
         resolution: { matchMethod: "nominatim_lookup", coordinateAssociation: "open_map_geometry_contains_point", resultCentroidDistanceM: 0 },
         source: { attribution: "Offline fixture" }, geoContext: null, linkedEntity: null
-      };
+      } };
     };
   `)
   .replace(/from "@\/([^\"]+)";/g, (_match, relative: string) =>
@@ -262,6 +267,13 @@ const route = await import(`data:text/javascript;base64,${Buffer.from(stripTypeS
 const origin = "https://fixture.example.test";
 const routeUrl = `${origin}/api/prototype/point-to-object/ai`;
 async function routeCall(overrides: Record<string, unknown> = {}) {
+  const leaseCreatedAt = Date.now();
+  const evidenceReceipt = {
+    version: "PUBLIC_EVIDENCE_LEASE_V1", evidencePackHash: "a".repeat(64), sourceResponseHash: "b".repeat(64),
+    acquiredAt: new Date(leaseCreatedAt).toISOString(), createdAt: new Date(leaseCreatedAt).toISOString(),
+    expiresAt: new Date(leaseCreatedAt + 15 * 60_000).toISOString(), cacheWindow: Math.floor(leaseCreatedAt / (15 * 60_000)),
+    sourceLocale: "en", lookupSourceFeatureId: "way/123"
+  };
   const challengeResponse = await route.GET(new Request(routeUrl));
   assert.equal(challengeResponse.status, 200);
   const challengeBody = await challengeResponse.json() as { challenge: string };
@@ -283,6 +295,7 @@ async function routeCall(overrides: Record<string, unknown> = {}) {
       horizon: "one_to_three_years",
       question: null,
       expectedSourceFeatureId: "way/123",
+      evidenceReceipt,
       consent: true,
       challenge: challengeBody.challenge,
       ...overrides
@@ -299,8 +312,13 @@ for (const invalid of [
   assert.equal(response.status, 400);
   assert.equal((await response.json()).code, "AI_REQUEST_INVALID");
 }
-assert.equal(fixture.__analysisProvenanceEvidenceCalls, 0, "Invalid context must fail before evidence acquisition.");
+assert.equal(fixture.__analysisProvenanceEvidenceCalls, 0, "Invalid context must fail before evidence-lease lookup.");
 assert.equal(fixture.__analysisProvenanceProviderCalls, 0, "Invalid context must fail before provider invocation.");
+
+const missingLease = await routeCall({ evidenceReceipt: undefined });
+assert.equal(missingLease.status, 409, "A missing lease must stop before provider invocation.");
+assert.equal(fixture.__analysisProvenanceEvidenceCalls, 0);
+assert.equal(fixture.__analysisProvenanceProviderCalls, 0);
 
 const validResponse = await routeCall();
 assert.equal(validResponse.status, 200);
