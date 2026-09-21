@@ -96,12 +96,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     authStatus.effectiveMode === "demo_public" ? createDemoSession() : createAnonymousSession()
   );
   const [isSessionResolved, setIsSessionResolved] = useState(authStatus.effectiveMode === "demo_public");
+  // Auth transitions invalidate older identities; read order separately prevents
+  // a slow refresh from replacing a newer one (including our own SDK auth event).
+  const authEpochRef = useRef(0);
+  const refreshSequenceRef = useRef(0);
+  const logoutPendingRef = useRef(false);
   const signOutSingleFlightRef = useRef<ReturnType<typeof createSingleFlight<{ ok: boolean; message: string }>> | null>(null);
   if (!signOutSingleFlightRef.current) {
     signOutSingleFlightRef.current = createSingleFlight<{ ok: boolean; message: string }>();
   }
 
-  async function applyAuthenticatedServerSession(user: NonNullable<GeoAIAuthSession["user"]>) {
+  function isCurrentSessionRead(epoch: number, sequence: number) {
+    return epoch === authEpochRef.current && sequence === refreshSequenceRef.current;
+  }
+
+  async function applyAuthenticatedServerSession(user: NonNullable<GeoAIAuthSession["user"]>, epoch: number, sequence: number) {
+    if (!isCurrentSessionRead(epoch, sequence)) return;
     let browserUser = user;
     try {
       browserUser = await loadBrowserUserProfile(user);
@@ -109,6 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // The server identity is authoritative even if optional browser profile
       // enrichment is unavailable.
     }
+    if (!isCurrentSessionRead(epoch, sequence)) return;
     setSession({
       user: mergeLocalProfileIntoUser(browserUser),
       organization: null,
@@ -120,6 +131,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function refreshSession() {
+    if (logoutPendingRef.current) return;
+    const epoch = authEpochRef.current;
+    const sequence = ++refreshSequenceRef.current;
     try {
       if (authStatus.effectiveMode === "demo_public") {
         setSession(createDemoSession());
@@ -136,19 +150,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
       const summary = await readBrowserServerSession();
+      if (!isCurrentSessionRead(epoch, sequence)) return;
       if (summary.status === "anonymous") {
         setSession(createAnonymousSession());
         return;
       }
       if (summary.status === "authenticated") {
-        await applyAuthenticatedServerSession(summary.user);
+        await applyAuthenticatedServerSession(summary.user, epoch, sequence);
       }
     } catch {
       // A transport or dependency failure is not proof that the server session
       // ended. Preserve the last confirmed client state until a readable server
       // response reconciles it.
     } finally {
-      setIsSessionResolved(true);
+      if (isCurrentSessionRead(epoch, sequence)) setIsSessionResolved(true);
     }
   }
 
@@ -159,6 +174,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearBrowserDemoStorage({ reason: "startup" });
     }
     void refreshSession();
+    return () => {
+      // Invalidate asynchronous work from this mount, including profile fallback.
+      authEpochRef.current += 1;
+      refreshSequenceRef.current += 1;
+    };
     // Run once at startup; auth mode is static per deployment.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -251,12 +271,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
     }
     activateMockDemoSession();
+    authEpochRef.current += 1;
     setSession(createDemoSession());
     setIsSessionResolved(true);
     return { ok: true, message: "Demo account is ready." };
   }
 
   async function signInWithPassword(email: string, password: string) {
+    if (logoutPendingRef.current) return { ok: false, message: "Sign-out is still in progress. Try signing in again once it finishes." };
     if (authStatus.effectiveMode !== "supabase_auth") {
       return { ok: false, message: authStatus.caveat };
     }
@@ -267,19 +289,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (password.length < 8 || password.length > 128) {
       return { ok: false, message: "Use a password with at least 8 characters." };
     }
+    const epoch = ++authEpochRef.current;
     const supabase = await loadSupabaseBrowserClient();
+    if (epoch !== authEpochRef.current) return { ok: false, message: "The sign-in attempt was superseded. Try again." };
     if (!supabase) return { ok: false, message: authStatus.caveat };
     clearMockDemoSession();
     const { error } = await supabase.auth.signInWithPassword({
       email: normalizedEmail,
       password
     });
+    if (epoch !== authEpochRef.current) return { ok: false, message: "The sign-in attempt was superseded. Try again." };
     if (error) {
       return { ok: false, message: isPasswordOnlyAuthEnabled()
         ? "The email or password is incorrect. Contact the project owner if account access is unavailable."
         : "The email or password is incorrect, or this account still uses an email sign-in link." };
     }
     await refreshSession();
+    if (epoch !== authEpochRef.current) return { ok: false, message: "The sign-in attempt was superseded. Try again." };
     return { ok: true, message: "Signed in." };
   }
 
@@ -306,21 +332,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function verifyPhoneCode(phone: string, code: string) {
+    if (logoutPendingRef.current) return { ok: false, message: "Sign-out is still in progress. Try signing in again once it finishes." };
     if (isPasswordOnlyAuthEnabled()) return { ok: false, message: passwordOnlyAuthMessage };
     const normalizedPhone = phone.replace(/[\s()-]/g, "");
     const normalizedCode = code.trim();
     if (!/^\+[1-9]\d{7,14}$/.test(normalizedPhone) || !/^\d{6}$/.test(normalizedCode)) {
       return { ok: false, message: "Enter the six-digit code from the SMS." };
     }
+    const epoch = ++authEpochRef.current;
     const supabase = await loadSupabaseBrowserClient();
+    if (epoch !== authEpochRef.current) return { ok: false, message: "The sign-in attempt was superseded. Try again." };
     if (!supabase) return { ok: false, message: authStatus.caveat };
     const { error } = await supabase.auth.verifyOtp({
       phone: normalizedPhone,
       token: normalizedCode,
       type: "sms"
     });
+    if (epoch !== authEpochRef.current) return { ok: false, message: "The sign-in attempt was superseded. Try again." };
     if (error) return { ok: false, message: "The code is invalid or expired. Request a new code." };
     await refreshSession();
+    if (epoch !== authEpochRef.current) return { ok: false, message: "The sign-in attempt was superseded. Try again." };
     return { ok: true, message: "Phone verified. You are signed in." };
   }
 
@@ -407,36 +438,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   function signOut() {
     return signOutSingleFlightRef.current!.run(async () => {
-      if (authStatus.effectiveMode !== "supabase_auth") {
-        clearMockDemoSession();
-        clearLocalUserProfile(demoUser.id);
-        clearBrowserDemoStorage();
-        setSession(authStatus.effectiveMode === "demo_public" ? createDemoSession() : createAnonymousSession());
-        return { ok: true, message: "Browser session cleared." };
-      }
+      const epoch = ++authEpochRef.current;
+      const sequence = ++refreshSequenceRef.current;
+      logoutPendingRef.current = true;
+      try {
+        if (authStatus.effectiveMode !== "supabase_auth") {
+          clearMockDemoSession();
+          clearLocalUserProfile(demoUser.id);
+          clearBrowserDemoStorage();
+          setSession(authStatus.effectiveMode === "demo_public" ? createDemoSession() : createAnonymousSession());
+          return { ok: true, message: "Browser session cleared." };
+        }
 
-      const request = await requestConfirmedBrowserSignOut();
-      const sessionRead = request.ok ? null : await readBrowserServerSession();
-      const disposition = resolveBrowserSignOutDisposition(request, sessionRead);
+        const request = await requestConfirmedBrowserSignOut();
+        const sessionRead = request.ok ? null : await readBrowserServerSession();
+        const disposition = resolveBrowserSignOutDisposition(request, sessionRead);
+        if (!isCurrentSessionRead(epoch, sequence)) {
+          return { ok: false, message: "The session changed while signing out. Check the current session before continuing." };
+        }
 
-      if (disposition.status === "signed_out") {
-        clearMockDemoSession();
-        clearLocalUserProfile(demoUser.id);
-        clearBrowserDemoStorage();
-        setSession(createAnonymousSession());
-        return { ok: true, message: "Signed out." };
-      }
-      if (disposition.status === "still_authenticated") {
-        await applyAuthenticatedServerSession(disposition.user);
+        if (disposition.status === "signed_out") {
+          clearMockDemoSession();
+          clearLocalUserProfile(demoUser.id);
+          clearBrowserDemoStorage();
+          setSession(createAnonymousSession());
+          return { ok: true, message: "Signed out." };
+        }
+        if (disposition.status === "still_authenticated") {
+          await applyAuthenticatedServerSession(disposition.user, epoch, sequence);
+          return {
+            ok: false,
+            message: "Sign-out was not confirmed. Your server session is still active; retry."
+          };
+        }
         return {
           ok: false,
-          message: "Sign-out was not confirmed. Your server session is still active; retry."
+          message: "Sign-out could not be confirmed. Your current session was kept; check the connection and retry."
         };
+      } finally {
+        logoutPendingRef.current = false;
       }
-      return {
-        ok: false,
-        message: "Sign-out could not be confirmed. Your current session was kept; check the connection and retry."
-      };
     });
   }
 
