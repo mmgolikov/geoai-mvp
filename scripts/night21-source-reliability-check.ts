@@ -30,6 +30,7 @@ registerHooks({
 const { buildLivePointObjectEvidencePack, LivePointEvidenceError } = await import("../src/lib/prototype/point-to-object-live-evidence");
 const { rememberExactFindElements } = await import("../src/lib/prototype/point-to-object-exact-source");
 const { semanticHash } = await import("../src/lib/point-to-object/hash");
+const { parsePublicEvidenceReceipt, PUBLIC_EVIDENCE_LEASE_MS } = await import("../src/lib/prototype/point-to-object-evidence-receipt");
 const originalFetch = globalThis.fetch;
 const queries: string[] = [];
 let nextId = 810001;
@@ -162,9 +163,16 @@ try {
     assert.equal(body.subject.renderHeightM, 42);
     assert.equal(body.subject.geometryProvenance, "confirmed_complete_footprint");
     assert.deepEqual(body.subject.displayGeometry, warm.displayGeometry);
-    assert.deepEqual(body.evidenceReceipt, {
-      evidencePackHash: warm.evidencePackHash, sourceResponseHash: warm.source.sourceResponseHash, acquiredAt
-    });
+    const receipt = parsePublicEvidenceReceipt(body.evidenceReceipt);
+    assert.ok(receipt, "Context must return an exact, well-formed public evidence lease.");
+    assert.deepEqual(body.subject.evidenceReceipt, receipt, "Subject and response must expose the same source receipt.");
+    assert.equal(receipt.evidencePackHash, warm.evidencePackHash);
+    assert.equal(receipt.sourceResponseHash, warm.source.sourceResponseHash);
+    assert.equal(receipt.acquiredAt, acquiredAt, "The lease must preserve the original source acquisition time.");
+    assert.equal(receipt.sourceLocale, "en");
+    assert.equal(receipt.lookupSourceFeatureId, `way/${warmId}`);
+    assert.equal(Date.parse(receipt.expiresAt) - Date.parse(receipt.createdAt), PUBLIC_EVIDENCE_LEASE_MS);
+    assert.equal(receipt.cacheWindow, Math.floor(Date.parse(receipt.createdAt) / PUBLIC_EVIDENCE_LEASE_MS));
     checks++;
   } finally {
     delete harness.__night21Authorized;
