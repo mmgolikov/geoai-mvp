@@ -9,6 +9,7 @@ import type {
   PointObjectAnalysisScenario
 } from "@/src/lib/prototype/point-to-object-ai-provenance";
 import type { PointObjectWikidataLinkedEntity } from "@/src/lib/prototype/point-to-object-wikidata-contract";
+import type { PublicEvidenceReceipt } from "@/src/lib/prototype/point-to-object-evidence-receipt";
 
 export type LiveMapLocationKey = PointObjectMarketKey;
 export type LiveMapMarket = LiveMapLocationKey;
@@ -80,6 +81,8 @@ export type LiveMapNearbyLabel = {
 };
 
 export type LiveResolvedObjectContext = {
+  /** Absent on legacy saved objects; refresh Context before new paid analysis. */
+  evidenceReceipt?: PublicEvidenceReceipt;
   name: string | null;
   address: string | null;
   featureClass: string;
@@ -148,7 +151,8 @@ export type PointObjectReasoningEffort = "low" | "medium" | "high" | "xhigh";
 export type PointObjectEvidenceClass = "observed" | "derived" | "hypothesis";
 export type PointObjectConfidence = "low" | "medium";
 
-export const POINT_OBJECT_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V11_2026_09_20" as const;
+export const POINT_OBJECT_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V12_2026_09_21" as const;
+export const POINT_OBJECT_ANALYSIS_PRE_COMMITMENT_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V11_2026_09_20" as const;
 export const POINT_OBJECT_ANALYSIS_PRE_PROFILE_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V10_2026_09_18" as const;
 export const POINT_OBJECT_ANALYSIS_PREVIOUS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V9_2026_09_12" as const;
 export const POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION = 6 as const;
@@ -320,7 +324,7 @@ export type PointObjectAiTelemetry = {
   model: string;
   reasoningEffort: PointObjectReasoningEffort;
   depth: PointObjectAnalysisDepth;
-  promptVersion: typeof POINT_OBJECT_ANALYSIS_PROMPT_VERSION | typeof POINT_OBJECT_ANALYSIS_PRE_PROFILE_PROMPT_VERSION | typeof POINT_OBJECT_ANALYSIS_PREVIOUS_PROMPT_VERSION |
+  promptVersion: typeof POINT_OBJECT_ANALYSIS_PROMPT_VERSION | typeof POINT_OBJECT_ANALYSIS_PRE_COMMITMENT_PROMPT_VERSION | typeof POINT_OBJECT_ANALYSIS_PRE_PROFILE_PROMPT_VERSION | typeof POINT_OBJECT_ANALYSIS_PREVIOUS_PROMPT_VERSION |
     "POINT_OBJECT_AI_PROMPT_V8_2026_09_06";
   requestId: string | null;
   latencyMs: number;
@@ -361,6 +365,7 @@ export type PointObjectLiveContextResponse =
   | {
       mode: "resolved";
       schemaVersion: 2;
+      evidenceReceipt?: PublicEvidenceReceipt;
       subject: LiveResolvedObjectContext;
     }
   | {

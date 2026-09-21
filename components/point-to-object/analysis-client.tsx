@@ -10,6 +10,7 @@ import { PointObjectHeader } from "@/components/point-to-object/prototype-header
 import { PointObjectDecisionCards } from "@/components/point-to-object/decision-cards";
 import {
   parsePointObjectAiResponse,
+  writePointObjectSelection,
   readPointObjectAnalysis,
   readPointObjectQuestion,
   readPointObjectQuestionDraft,
@@ -57,6 +58,7 @@ import {
   type PointObjectAnalysisRequestIdentity
 } from "@/src/lib/prototype/point-to-object-analysis-request-state";
 import { pointObjectHasSelectedIdentity, pointObjectSelectedLookupId, pointObjectSelectionLabel } from "@/src/lib/prototype/point-to-object-trusted-identity";
+import { selectionWithCurrentEvidence } from "./evidence-selection";
 
 type AnalysisSettings = {
   depth: PointObjectAnalysisDepth;
@@ -337,6 +339,13 @@ export function PointToObjectAnalysis() {
     setRequestError(null);
     setAnnouncement("");
     try {
+      activeSelection = await selectionWithCurrentEvidence(activeSelection, requestSnapshot.locale, controller.signal);
+      if (!isCurrent()) return;
+      const evidenceKeys = pointObjectSelectionEvidenceKeys(activeSelection);
+      requestSnapshot = createPointObjectAnalysisRequestIdentity({ ...requestSnapshot, ...evidenceKeys });
+      setSelection(activeSelection);
+      writePointObjectSelection(activeSelection);
+      setInFlightRequest(requestSnapshot);
       const challengeResponse = await fetch("/api/prototype/point-to-object/ai", { method: "GET", cache: "no-store", signal: controller.signal });
       const challengePayload = await challengeResponse.json() as { mode: "ready" | "unavailable"; challenge?: string; error?: string };
       if (!isCurrent()) return;
@@ -364,12 +373,23 @@ export function PointToObjectAnalysis() {
           perspective: requestSnapshot.perspective,
           horizon: requestSnapshot.horizon,
           expectedSourceFeatureId: pointObjectSelectedLookupId(activeSelection),
+          evidenceReceipt: activeSelection.resolvedObject?.evidenceReceipt ?? null,
           consent: true,
           challenge: challengePayload.challenge
         })
       });
       const rawPayload: unknown = await response.json();
       if (!isCurrent()) return;
+      if (response.status === 409 && rawPayload && typeof rawPayload === "object" && "code" in rawPayload && rawPayload.code === "AI_EVIDENCE_REFRESH_REQUIRED") {
+        // Preserve the last good report, but invalidate only the reusable source
+        // receipt. The next explicit retry refreshes Context once before AI.
+        const { evidenceReceipt: discarded, ...previousContext } = activeSelection.resolvedObject!;
+        const nextSelection = { ...activeSelection, resolvedObject: previousContext };
+        setSelection(nextSelection);
+        writePointObjectSelection(nextSelection);
+        setRequestError(requestSnapshot.locale === "ru" ? "Данные объекта изменились или устарели. Нажмите повторно — сначала обновим данные." : "Object data changed or expired. Retry to refresh the data first.");
+        return;
+      }
       const payload = parsePointObjectAiResponse(rawPayload);
       if (!payload) {
         const unavailable: PointObjectAiResponse = {
@@ -387,7 +407,8 @@ export function PointToObjectAnalysis() {
         retryable: payload.retryable ?? response.status >= 500
       };
       if (normalized.mode === "openai") {
-        if (!pointObjectAnalysisReceiptMatches(normalized.request, requestSnapshot)) {
+        if (!pointObjectAnalysisReceiptMatches(normalized.request, requestSnapshot) ||
+            normalized.evidencePackHash !== activeSelection.resolvedObject?.evidenceReceipt?.evidencePackHash) {
           const mismatch = translationRef.current("analysis.unavailable.body");
           if (preserveExisting) setRequestError(mismatch);
           else commitAnalysis({ mode: "unavailable", error: mismatch, retryable: true }, activeSelection, null);
@@ -410,7 +431,8 @@ export function PointToObjectAnalysis() {
       }
     } catch (error) {
       if (!isCurrent() || (error instanceof DOMException && error.name === "AbortError")) return;
-      const unavailable: PointObjectAiResponse = { mode: "unavailable", error: translationRef.current("analysis.unavailable.body"), retryable: true };
+      const unavailable: PointObjectAiResponse = { mode: "unavailable", error: error instanceof Error && /analysis was not started|анализ не запускался/.test(error.message)
+        ? error.message : translationRef.current("analysis.unavailable.body"), retryable: true };
       if (preserveExisting) setRequestError(unavailable.error ?? translationRef.current("analysis.unavailable.body"));
       else commitAnalysis(unavailable, activeSelection, null);
     } finally {

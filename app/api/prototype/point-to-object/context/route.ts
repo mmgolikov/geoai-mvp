@@ -6,10 +6,8 @@ import { NextResponse } from "next/server";
 import { getPointObjectSurfaceStatus } from "@/src/lib/ai/openai-upstream-gate";
 import { requirePilotIdentity, requirePilotMutationOrigin } from "@/src/lib/auth/require-pilot-identity";
 import { readBoundedJson } from "@/src/lib/http/bounded-json";
-import {
-  buildLivePointObjectEvidencePack,
-  LivePointEvidenceError
-} from "@/src/lib/prototype/point-to-object-live-evidence";
+import { LivePointEvidenceError } from "@/src/lib/prototype/point-to-object-live-evidence";
+import { acquirePublicEvidenceLease, PublicEvidenceLeaseError } from "@/src/lib/prototype/point-to-object-evidence-lease";
 import {
   coordinatesMatchPointObjectMarket,
   isPointObjectLocale,
@@ -144,25 +142,21 @@ export async function POST(request: Request) {
   }
 
   try {
-    const evidencePack = await buildLivePointObjectEvidencePack({
+    const { pack: evidencePack, receipt } = await acquirePublicEvidenceLease({
       longitude: parsed.value.longitude,
       latitude: parsed.value.latitude,
       locale: nominatimLocale(parsed.value.locale),
       osmFeatureId: parsed.value.expectedSourceFeatureId ?? null,
-      expectedCountryCode: pointObjectMarket(parsed.value.caseKey).countryCode,
-      deadlineAtMs: Date.now() + 12_000
+      expectedCountryCode: pointObjectMarket(parsed.value.caseKey).countryCode
     });
     return NextResponse.json({
       mode: "resolved",
       schemaVersion: 2,
       // Actual server-acquired evidence provenance, not a client-inferred
       // freshness claim. Allows comparing analyses against the same evidence.
-      evidenceReceipt: {
-        evidencePackHash: evidencePack.evidencePackHash,
-        sourceResponseHash: evidencePack.source.sourceResponseHash,
-        acquiredAt: evidencePack.source.acquiredAt
-      },
+      evidenceReceipt: receipt,
       subject: {
+        evidenceReceipt: receipt,
         name: evidencePack.selectedObject.name,
         address: evidencePack.selectedObject.displayAddress,
         featureClass: evidencePack.selectedObject.featureClass,
@@ -181,6 +175,11 @@ export async function POST(request: Request) {
       }
     }, { headers: noStoreHeaders() });
   } catch (error) {
+    if (error instanceof PublicEvidenceLeaseError) {
+      return NextResponse.json({ mode: "unavailable", code: error.code, error: error.message, retryable: true }, {
+        status: 409, headers: noStoreHeaders()
+      });
+    }
     if (error instanceof LivePointEvidenceError) {
       return NextResponse.json({ mode: "unavailable", code: error.code, error: error.message, retryable: error.retryable }, {
         status: error.httpStatus,

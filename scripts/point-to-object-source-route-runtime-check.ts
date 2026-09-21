@@ -59,14 +59,17 @@ const definitions: RouteDefinition[] = [
     clientRateLimit: 12,
     validBody: { caseKey: "moscow", longitude: 37.62, latitude: 55.75, locale: "en", expectedSourceFeatureId: "way/123" },
     replaceAdapters(source) {
-      return source.replace(/import \{\s*buildLivePointObjectEvidencePack,\s*LivePointEvidenceError\s*\} from "@\/src\/lib\/prototype\/point-to-object-live-evidence";/,
+      return source.replace(/import \{ LivePointEvidenceError \} from "@\/src\/lib\/prototype\/point-to-object-live-evidence";/,
         `class LivePointEvidenceError extends Error { constructor(message) { super(message); } }
-         const buildLivePointObjectEvidencePack = async () => { globalThis.__geoaiSourceCalls.context += 1; return {
+        `).replace(/import \{ acquirePublicEvidenceLease, PublicEvidenceLeaseError \} from "@\/src\/lib\/prototype\/point-to-object-evidence-lease";/,
+        `class PublicEvidenceLeaseError extends Error {}
+         const acquirePublicEvidenceLease = async () => { globalThis.__geoaiSourceCalls.context += 1; return {
+           receipt: { evidencePackHash: "a".repeat(64), sourceResponseHash: "b".repeat(64), acquiredAt: "2026-09-20T12:34:56.000Z" }, pack: {
            evidencePackHash: "a".repeat(64),
            source: { sourceResponseHash: "b".repeat(64), acquiredAt: "2026-09-20T12:34:56.000Z" },
            selectedObject: { name: "Offline object", displayAddress: "Offline address", featureClass: "building", sourceFeatureId: "way/123", geometryType: "Polygon", addressParts: {}, tags: {}, metrics: {} },
            resolution: { coordinateAssociation: "inside", resultCentroidDistanceM: 0 }, geoContext: null, linkedEntity: null
-         }; };`);
+         } }; };`);
     }
   },
   {

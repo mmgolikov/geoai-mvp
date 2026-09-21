@@ -148,6 +148,7 @@ export function pointObjectSelectionEvidenceKeys(selection: {
     geometryType: string | null;
     tags: Record<string, string>;
     linkedEntity: null | { identity: { identityReceiptHash: string }; source: { sourceRevisionId: number } };
+    evidenceReceipt?: { evidencePackHash: string };
   };
 }): { objectKey: string; evidenceKey: string } {
   const sourceFeatureId = selection.resolvedObject?.sourceFeatureId ?? selection.object.sourceFeatureId;
@@ -160,7 +161,8 @@ export function pointObjectSelectionEvidenceKeys(selection: {
     geometryType: selection.resolvedObject?.geometryType ?? null,
     tags: selection.resolvedObject?.tags ?? {},
     linkedIdentityReceiptHash: selection.resolvedObject?.linkedEntity?.identity.identityReceiptHash ?? null,
-    linkedSourceRevisionId: selection.resolvedObject?.linkedEntity?.source.sourceRevisionId ?? null
+    linkedSourceRevisionId: selection.resolvedObject?.linkedEntity?.source.sourceRevisionId ?? null,
+    ...(selection.resolvedObject?.evidenceReceipt ? { evidencePackHash: selection.resolvedObject.evidenceReceipt.evidencePackHash } : {})
   });
   return { objectKey, evidenceKey };
 }

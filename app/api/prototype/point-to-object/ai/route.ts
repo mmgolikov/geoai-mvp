@@ -16,10 +16,9 @@ import type {
   PointObjectAnalysisPerspective,
   PointObjectAnalysisRequest
 } from "@/src/lib/prototype/point-to-object-ai-core";
-import {
-  buildLivePointObjectEvidencePack as buildPointObjectEvidencePack,
-  LivePointEvidenceError
-} from "@/src/lib/prototype/point-to-object-live-evidence";
+import { LivePointEvidenceError } from "@/src/lib/prototype/point-to-object-live-evidence";
+import { reusePublicEvidenceLease, PublicEvidenceLeaseError } from "@/src/lib/prototype/point-to-object-evidence-lease";
+import { parsePublicEvidenceReceipt, type PublicEvidenceReceipt } from "@/src/lib/prototype/point-to-object-evidence-receipt";
 import {
   parsePointObjectAnalysisRoleScenario,
   POINT_OBJECT_ANALYSIS_UNSPECIFIED,
@@ -194,11 +193,12 @@ function validBody(value: unknown): value is {
   scenario?: PointObjectAnalysisScenario;
   question: string | null;
   expectedSourceFeatureId: string | null;
+  evidenceReceipt?: PublicEvidenceReceipt | null;
   consent: true;
   challenge: string;
 } {
   if (!isRecord(value) || Object.keys(value).some((key) =>
-    !["caseKey", "longitude", "latitude", "locale", "role", "scenario", "depth", "goal", "perspective", "horizon", "question", "expectedSourceFeatureId", "consent", "challenge"].includes(key))) return false;
+    !["caseKey", "longitude", "latitude", "locale", "role", "scenario", "depth", "goal", "perspective", "horizon", "question", "expectedSourceFeatureId", "evidenceReceipt", "consent", "challenge"].includes(key))) return false;
   const questionValid = value.question === null || (
     typeof value.question === "string" &&
     value.question.trim().length >= 1 &&
@@ -221,6 +221,7 @@ function validBody(value: unknown): value is {
     questionValid &&
     (value.goal !== "custom" || value.question !== null) &&
     (value.expectedSourceFeatureId === null || (typeof value.expectedSourceFeatureId === "string" && /^(?:node|way|relation)\/[1-9]\d{0,19}$/.test(value.expectedSourceFeatureId))) &&
+    (value.evidenceReceipt === undefined || value.evidenceReceipt === null || parsePublicEvidenceReceipt(value.evidenceReceipt) !== null) &&
     value.consent === true && typeof value.challenge === "string" && value.challenge.length <= 100;
 }
 
@@ -299,14 +300,15 @@ export async function POST(request: Request) {
   }
 
   try {
-    const evidencePack = await buildPointObjectEvidencePack({
+    const receipt = parsePublicEvidenceReceipt(body.evidenceReceipt);
+    if (!receipt) throw new PublicEvidenceLeaseError();
+    const { pack: evidencePack } = await reusePublicEvidenceLease({
       longitude: body.longitude,
       latitude: body.latitude,
       locale: nominatimLocale(body.locale),
-      osmFeatureId: body.expectedSourceFeatureId,
-      expectedCountryCode: pointObjectMarket(body.caseKey).countryCode,
-      deadlineAtMs: routeDeadline
-    });
+      osmFeatureId: receipt.lookupSourceFeatureId,
+      expectedCountryCode: pointObjectMarket(body.caseKey).countryCode
+    }, receipt);
     if (body.expectedSourceFeatureId && body.expectedSourceFeatureId !== evidencePack.selectedObject.sourceFeatureId) {
       return NextResponse.json({
         mode: "unavailable",
@@ -349,6 +351,11 @@ export async function POST(request: Request) {
       }
     }, { headers: clearChallengeHeader(request) });
   } catch (error) {
+    if (error instanceof PublicEvidenceLeaseError) {
+      return NextResponse.json({ mode: "unavailable", code: error.code, error: error.message, retryable: true }, {
+        status: 409, headers: clearChallengeHeader(request)
+      });
+    }
     if (error instanceof LivePointEvidenceError) {
       return NextResponse.json({ mode: "unavailable", code: error.code, error: error.message, retryable: error.retryable }, {
         status: error.httpStatus,

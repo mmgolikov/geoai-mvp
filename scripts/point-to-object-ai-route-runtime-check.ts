@@ -60,13 +60,15 @@ const source = readFileSync(new URL("app/api/prototype/point-to-object/ai/route.
   .replace(/import \{\s*generatePointObjectAiAnalysis,\s*PointObjectAiServiceError\s*\} from "@\/src\/lib\/prototype\/point-to-object-ai";/,
     `class PointObjectAiServiceError extends Error { constructor(code, httpStatus, message) { super(message); this.code = code; this.httpStatus = httpStatus; } }
      const generatePointObjectAiAnalysis = async () => { globalThis.__geoaiAiProviderCalls += 1; return { mode: "openai_analysis", analysis: { summary: "Offline grounded result" } }; };`)
-  .replace(/import \{\s*buildLivePointObjectEvidencePack as buildPointObjectEvidencePack,\s*LivePointEvidenceError\s*\} from "@\/src\/lib\/prototype\/point-to-object-live-evidence";/,
-    `class LivePointEvidenceError extends Error { constructor(code, httpStatus, message, retryable = false) { super(message); this.code = code; this.httpStatus = httpStatus; this.retryable = retryable; } }
-     const buildPointObjectEvidencePack = async () => { globalThis.__geoaiAiEvidenceCalls += 1; return {
+  .replace(/import \{ LivePointEvidenceError \} from "@\/src\/lib\/prototype\/point-to-object-live-evidence";/,
+    `class LivePointEvidenceError extends Error {}`)
+  .replace(/import \{ reusePublicEvidenceLease, PublicEvidenceLeaseError \} from "@\/src\/lib\/prototype\/point-to-object-evidence-lease";/,
+    `class PublicEvidenceLeaseError extends Error { code = "AI_EVIDENCE_REFRESH_REQUIRED"; }
+     const reusePublicEvidenceLease = async () => { globalThis.__geoaiAiEvidenceCalls += 1; return { pack: {
        selectedObject: { name: "Offline object", displayAddress: "Offline address", featureClass: "building", sourceFeatureId: "way/123", geometryType: "Polygon", addressParts: {}, tags: {}, metrics: {} },
        resolution: { matchMethod: "explicit_osm_feature", coordinateAssociation: "inside", resultCentroidDistanceM: 0 },
        source: { attribution: "Offline open-map fixture" }, geoContext: null, linkedEntity: null
-     }; };`)
+     } }; };`)
   .replace(/from "@\/([^\"]+)";/g, (_match, relative: string) =>
     `from ${JSON.stringify(new URL(`${relative}.ts`, repositoryRoot).href)};`);
 
@@ -106,18 +108,22 @@ async function challenge() {
   return { response, challenge: body.challenge, cookie: response.headers.get("Set-Cookie")?.split(";")[0] };
 }
 
-async function execute(requestOrigin = origin) {
+async function execute(requestOrigin = origin, missingReceipt = false, lookupSourceFeatureId: string | null = "way/123", expectedSourceFeatureId = "way/123") {
   const issued = await challenge();
   assert.equal(issued.response.status, 200);
   assert.ok(issued.challenge);
   assert.ok(issued.cookie);
+  const receiptTime = Date.now();
   return route.POST(new Request(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", Origin: requestOrigin, Cookie: issued.cookie, "x-forwarded-for": "203.0.113.40" },
     body: JSON.stringify({
       caseKey: "moscow", longitude: 37.62, latitude: 55.75, locale: "en", depth: "standard",
       goal: "development_screening", perspective: "developer", horizon: "current", question: null,
-      expectedSourceFeatureId: "way/123", consent: true, challenge: issued.challenge
+      expectedSourceFeatureId, consent: true, challenge: issued.challenge,
+      evidenceReceipt: missingReceipt ? null : { version: "PUBLIC_EVIDENCE_LEASE_V1", evidencePackHash: "a".repeat(64), sourceResponseHash: "b".repeat(64),
+        acquiredAt: new Date(receiptTime).toISOString(), createdAt: new Date(receiptTime).toISOString(), expiresAt: new Date(receiptTime + 900_000).toISOString(),
+        cacheWindow: Math.floor(receiptTime / 900_000), sourceLocale: "en", lookupSourceFeatureId }
     })
   }));
 }
@@ -175,5 +181,15 @@ assert.equal(successBody.mode, "openai_analysis");
 assert.equal(successBody.subject.sourceFeatureId, "way/123");
 assert.equal(fixtureGlobal.__geoaiAiEvidenceCalls, 1);
 assert.equal(fixtureGlobal.__geoaiAiProviderCalls, 1);
+
+const missing = await execute(origin, true);
+assert.equal(missing.status, 409);
+assert.equal((await missing.json()).code, "AI_EVIDENCE_REFRESH_REQUIRED");
+assert.equal(fixtureGlobal.__geoaiAiEvidenceCalls, 1, "No lease means no source fallback.");
+assert.equal(fixtureGlobal.__geoaiAiProviderCalls, 1, "No lease means no paid provider call.");
+assert.equal((await execute(origin, false, null)).status, 200, "Reverse lookup receipt may preserve its null key while expected subject remains exact.");
+assert.equal(fixtureGlobal.__geoaiAiProviderCalls, 2);
+assert.equal((await execute(origin, false, null, "way/999")).status, 409, "Reverse receipt must never downgrade the expected subject guard.");
+assert.equal(fixtureGlobal.__geoaiAiProviderCalls, 2);
 
 console.log("AI actual-route offline checks passed: identity/origin before body and upstream, zero denied challenge/provider calls, Production flag/key denial matrix, Preview compatibility and one bounded generated result.");
