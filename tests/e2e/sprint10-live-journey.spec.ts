@@ -37,7 +37,7 @@ import {
   type Sprint10LiveScope,
   sprint10LiveRequestKey
 } from "./helpers/sprint10-live-journey-gate";
-import { SPRINT10_GOAL_DEPTH_SCOPES, validateSprint10GoalDepthRequest,
+import { SPRINT10_GOAL_DEPTH_SCOPES, validateSprint10GoalDepthRequest, validateSprint10PublicEvidenceReceipt,
   type Sprint10GoalDepthScope, type Sprint10GoalDepthSource } from "./helpers/sprint10-live-journey-gate";
 import { validateGoalDepthCaptureEnvironment, writeSprint10GoalDepthEvidence } from "./helpers/sprint10-goal-depth-evidence";
 import { validateSprint10FindAnalysisRequest } from "./helpers/sprint10-live-journey-gate";
@@ -576,6 +576,20 @@ function installBudgetGate(page: Page, configuration: LiveConfiguration) {
       const parsed = request.postDataJSON();
       body = record(parsed) ? parsed : null;
     } catch { body = null; }
+    if (routeName === "ai") {
+      try {
+        guard(typeof body?.expectedSourceFeatureId === "string", "A live paid test must bind one exact public object.");
+        validateSprint10PublicEvidenceReceipt(body.evidenceReceipt, body.expectedSourceFeatureId);
+        if (configuration.quality20?.binding.subject) {
+          guard(record(body.evidenceReceipt) && body.evidenceReceipt.evidencePackHash === configuration.quality20.binding.subject.evidencePackHash,
+            "Current receipt must match the independently frozen source snapshot.");
+        }
+      } catch {
+        denialStage = "analyse_budget_contract_denied";
+        fatal = "Public evidence lease is missing, stale or changed; paid reservation was not created.";
+        return route.abort("blockedbyclient");
+      }
+    }
     if (configuration.scope === "dubai-create") {
       try { assertDubaiCreateRequest(body); }
       catch {
