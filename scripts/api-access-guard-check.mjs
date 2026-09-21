@@ -119,18 +119,22 @@ for (const file of await collectRouteFiles(apiRoot)) {
         const bodyIndex = handler.body.indexOf("await readBoundedJson(request, 4 * 1024)");
         const challengeIndex = handler.body.indexOf("if (!challengeIsValid(request, body.challenge))");
         const rateIndex = handler.body.indexOf("consumeRateLimit(request)");
-        const evidenceIndex = handler.body.indexOf("buildPointObjectEvidencePack(");
+        const receiptIndex = handler.body.indexOf("parsePublicEvidenceReceipt(body.evidenceReceipt)", rateIndex);
+        const evidenceIndex = handler.body.indexOf("reusePublicEvidenceLease(", receiptIndex);
         const providerIndex = handler.body.indexOf("generatePointObjectAiAnalysis(");
         if (
           originIndex < runtimeIndex ||
           bodyIndex < originIndex ||
           challengeIndex < bodyIndex ||
           rateIndex < challengeIndex ||
-          evidenceIndex < rateIndex ||
+          receiptIndex < rateIndex ||
+          evidenceIndex < receiptIndex ||
           providerIndex < evidenceIndex ||
+          handler.body.includes("buildLivePointObjectEvidencePack(") ||
+          handler.body.includes("buildPointObjectEvidencePack(") ||
           !handler.body.includes("clearChallengeHeader(request)")
         ) {
-          failures.push(`${relative} ${handler.method}: bounded AI execution must enforce runtime, origin, bounded body, one-time challenge and rate limit before rebuilding evidence and calling the provider`);
+          failures.push(`${relative} ${handler.method}: bounded AI execution must enforce runtime, origin, bounded body, one-time challenge, rate limit and receipt validation before reusing leased evidence and calling the provider; live reacquisition is forbidden`);
         }
         protectedHandlers += 1;
         continue;
@@ -140,7 +144,7 @@ for (const file of await collectRouteFiles(apiRoot)) {
         const originIndex = handler.body.indexOf("if (!sameOrigin(request))");
         const bodyIndex = handler.body.indexOf("await readBoundedJson(request, 1_024)");
         const rateIndex = handler.body.indexOf("consumeRateLimit(request)");
-        const evidenceIndex = handler.body.indexOf("buildLivePointObjectEvidencePack(");
+        const evidenceIndex = handler.body.indexOf("acquirePublicEvidenceLease(", rateIndex);
         if (
           originIndex < runtimeIndex ||
           bodyIndex < originIndex ||
@@ -148,7 +152,7 @@ for (const file of await collectRouteFiles(apiRoot)) {
           evidenceIndex < rateIndex ||
           !handler.body.includes("noStoreHeaders")
         ) {
-          failures.push(`${relative} ${handler.method}: bounded context resolution must enforce runtime, origin, bounded body and rate limit before rebuilding live evidence`);
+          failures.push(`${relative} ${handler.method}: bounded context resolution must enforce runtime, origin, bounded body and rate limit before acquiring public evidence`);
         }
         protectedHandlers += 1;
         continue;
