@@ -2137,6 +2137,9 @@ function renderDecisionBrief(
   locale: PointObjectLocale,
   request: PointObjectAnalysisRequest
 ): PointObjectDecisionBrief {
+  // Commitment readiness is a server-evidence decision, independent of the
+  // model's valid choice of a screening strategy or depth-review alternatives.
+  path = groundedCommitmentPath(support, request) ?? path;
   const copy: Record<PointObjectDecisionPath, { headline: string; summary: string }> = {
     existing_asset_screen: {
       headline: "Screen the location as an existing asset",
@@ -2847,6 +2850,24 @@ function isBroadPresetReview(question: string): boolean {
 function broadCommitmentReview(request: PointObjectAnalysisRequest): boolean {
   return ["development_screening", "redevelopment", "due_diligence"].includes(request.goal) &&
     (!request.question || isBroadPresetReview(request.question));
+}
+
+function groundedCommitmentPath(
+  support: PointObjectEvidenceSupport,
+  request: PointObjectAnalysisRequest
+): PointObjectDecisionPath | null {
+  if (!broadCommitmentReview(request)) return null;
+  // A model's inability to approve an investment is not absence of a mapped
+  // subject. Determine the evidence-gathering workflow from bound server facts;
+  // none of these open-map paths permits downstream commitments.
+  const hasSubjectAnchor = Boolean(support.objectRef && (
+    support.projection.selectedObject.name ||
+    (support.classificationRef && support.projection.selectedObject.featureClass) ||
+    (support.geometryRef && support.projection.selectedObject.geometryType)
+  ));
+  if (!hasSubjectAnchor) return "insufficient_open_context";
+  return pathDefaults(request).find((path) => path !== "insufficient_open_context" && pathSupported(path, support)) ??
+    "insufficient_open_context";
 }
 
 function deepScenarioAnswerIsMeaningful(statement: string, request: PointObjectAnalysisRequest): boolean {

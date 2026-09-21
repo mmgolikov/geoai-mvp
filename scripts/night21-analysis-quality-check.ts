@@ -111,7 +111,59 @@ assert.equal(valid.ok, true, valid.detail);
 assert.equal(valid.content.answerToQuestion.statement, prose, "Valid model prose must survive");
 const insufficient = core.validatePointObjectAiContentDetailed(plan("insufficient_evidence"), pack, request());
 assert.equal(insufficient.ok, true, insufficient.detail);
-assert.equal(insufficient.content.decisionBrief.disposition, "insufficient_evidence");
+assert.equal(insufficient.content.decisionBrief.disposition, "hold", "Model uncertainty cannot change the server-grounded commitment gate.");
+// Same server pack/goal must retain its commitment gate even when different
+// models choose a different path or conflate missing authority with no subject.
+let commitmentParityCases = 0;
+for (const locale of ["en", "ru"]) for (const goal of ["development_screening", "redevelopment", "due_diligence"]) {
+  for (const anchoredPack of [fixture("building:yes", { "tag.building": "yes", "tag.tourism": "hotel" }), fixture()]) {
+    let expectedSummary: string | undefined;
+    for (const depth of ["quick", "standard", "deep"]) for (const disposition of ["hold", "continue_screening", "insufficient_evidence"]) {
+      for (const path of ["existing_asset_screen", "technical_baseline_first", "identity_first_due_diligence", "planning_first_due_diligence", "insufficient_open_context"]) {
+        const candidate = plan(disposition); candidate.decision.path = path;
+        const result = core.validatePointObjectAiContentDetailed(candidate, anchoredPack, request(depth, goal, locale));
+        assert.equal(result.ok, true, result.detail);
+        assert.equal(result.content.decisionBrief.disposition, "hold");
+        assert.equal(result.content.decisionBrief.confidence, "low");
+        assert.match(result.content.decisionBrief.summary, locale === "en" ? /Evidence gathering may continue/ : /Сбор данных можно продолжать/);
+        expectedSummary ??= result.content.decisionBrief.summary;
+        assert.equal(result.content.decisionBrief.summary, expectedSummary, "The commitment meaning must be stable, not only its label.");
+        commitmentParityCases++;
+      }
+    }
+  }
+}
+const unanchored = fixture("building:yes", { "tag.building": "yes" });
+unanchored.evidence = unanchored.evidence.filter((item: any) => item.id !== "EVD-OSM-OBJECT");
+for (const depth of ["quick", "standard", "deep"]) for (const disposition of ["hold", "continue_screening", "insufficient_evidence"]) {
+  const result = core.validatePointObjectAiContentDetailed(plan(disposition), unanchored, request(depth));
+  assert.equal(result.ok, true, result.detail);
+  assert.equal(result.content.decisionBrief.disposition, "insufficient_evidence", "A missing grounded subject must not be upgraded to a screened asset.");
+  commitmentParityCases++;
+}
+const narrowInsufficient = core.validatePointObjectAiContentDetailed(plan("insufficient_evidence"), pack,
+  request("standard", "object_profile"));
+assert.equal(narrowInsufficient.ok, true, narrowInsufficient.detail);
+assert.equal(narrowInsufficient.content.decisionBrief.disposition, "insufficient_evidence", "Non-commitment requests retain their uncertainty semantics.");
+for (const depth of ["quick", "standard", "deep"]) for (const disposition of ["hold", "continue_screening", "insufficient_evidence"]) {
+  const captureInspired = fixture("building:yes", { "tag.building": "yes", "tag.tourism": "hotel", "tag.building:levels": "43" });
+  const req = request(depth, "development_screening", "en",
+    "Screen this object from the selected perspective. Identify what the available evidence implies, the strongest preliminary opportunities and risks, and what must be validated before further commitment.");
+  const counts = depth === "quick" ? [2, 0, 1, 1] : depth === "standard" ? [3, 1, 2, 2] : [4, 2, 3, 3];
+  const raw = { ...plan(disposition), depthPlan: {
+    criteriaSignalCodes: ["object_identity", "use_classification", "building_form", "source_limit"].slice(0, counts[0]),
+    alternativePaths: ["planning_first_due_diligence", "technical_baseline_first"].slice(0, counts[1]),
+    counterEvidenceRiskCodes: ["non_official_source", "identity_uncertainty", "geometry_not_parcel"].slice(0, counts[2]),
+    decisionTriggerCodes: ["identity_rights_planning_first", "technical_baseline_first", "market_financial_after_gates"].slice(0, counts[3])
+  } };
+  const result = core.recoverPointObjectAiFocusedContentDetailed(raw, captureInspired, req);
+  assert.equal(result.ok, true, result.detail);
+  assert.equal(result.content.decisionBrief.disposition, "hold");
+  assert.equal(result.content.answerToQuestion.status, "partial");
+  assert.ok(result.content.answerToQuestion.missingEvidence.length >= 7);
+  assert.equal(result.content.depthReview.depth, depth);
+  commitmentParityCases++;
+}
 for (const question of ["What is the mapped object name?", "What is the height?", "What nearby schools are mapped?", "What is the roof material?"]) {
   const narrowRequest = request("deep", "redevelopment", "en", question);
   const narrow = /height/.test(question)
@@ -131,4 +183,4 @@ for (const goal of ["redevelopment", "due_diligence"] as const) {
   assert.doesNotMatch(sparse.content.answerToQuestion.statement, /Metro Gate|400|there are no buildings/);
   checks++;
 }
-console.log(`night21-analysis-quality-check: PASS (${checks + 4} synthetic cases; building type, commitment gate, focused depth and narrow-query guards; zero API calls)`);
+console.log(`night21-analysis-quality-check: PASS (${checks + 4} synthetic cases + ${commitmentParityCases} same-evidence commitment cases; building type, commitment gate, focused depth and narrow-query guards; zero API calls)`);
