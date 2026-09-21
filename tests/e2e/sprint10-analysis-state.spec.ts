@@ -1,5 +1,5 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
-import { sprint10AnalysisResponse, sprint10PublicEvidenceReceipt, sprint10Selection, sprint10SelectionWithReceipt } from "./helpers/sprint10-analysis-fixture";
+import { sprint10AnalysisResponse, sprint10PublicEvidenceReceipt, sprint10Selection } from "./helpers/sprint10-analysis-fixture";
 import { POINT_OBJECT_ANALYSIS_CLIENT_DEADLINE_MS } from "../../src/lib/prototype/point-to-object-analysis-request-state";
 import { installLoopbackBrowserHarness } from "./helpers/local-webkit-csp";
 
@@ -11,8 +11,17 @@ async function json(route: Route, body: unknown, status = 200) {
   await route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
 }
 
-async function prepare(page: Page) {
+function receiptAt(lookupId: string | null, locale: "en" | "ru", createdAtMs: number) {
+  return { ...sprint10PublicEvidenceReceipt(lookupId, locale),
+    acquiredAt: new Date(createdAtMs).toISOString(), createdAt: new Date(createdAtMs).toISOString(),
+    expiresAt: new Date(createdAtMs + 900_000).toISOString(), cacheWindow: Math.floor(createdAtMs / 900_000) };
+}
+
+async function prepare(page: Page, initialReceiptAgeMs = 0) {
   const posts: Array<Record<string, unknown>> = [];
+  const contextPosts: Array<Record<string, unknown>> = [];
+  let settledPosts = 0;
+  let settledChallenges = 0;
   let releasePending: (() => void) | null = null;
   let releaseChallenge: (() => void) | null = null;
   let holdNextPost = false;
@@ -21,43 +30,55 @@ async function prepare(page: Page) {
   let sequence = 0;
   await page.addInitScript((selection) => {
     sessionStorage.setItem("geoai:point-to-object:selection:v3", JSON.stringify(selection));
-  }, sprint10SelectionWithReceipt(sprint10Selection));
+  }, { ...sprint10Selection, resolvedObject: { ...sprint10Selection.resolvedObject,
+    evidenceReceipt: receiptAt(sprint10Selection.object.sourceFeatureId, "en", Date.now() - initialReceiptAgeMs) } });
   await page.route("**/api/auth/session", (route) => json(route, { isAuthenticated: false, user: null }));
   await page.route("**/api/auth/logout", (route) => json(route, { ok: true }));
-  await page.route("**/api/prototype/point-to-object/context", route => {
+  await page.route("**/api/prototype/point-to-object/context", async route => {
     const body = route.request().postDataJSON() as { locale: "en" | "ru"; expectedSourceFeatureId: string | null };
+    contextPosts.push(body);
+    // Playwright advances browser Date independently of this Node process. A
+    // source refresh must issue a fresh lease on the same test clock as its client.
+    const now = await page.evaluate(() => Date.now());
     return json(route, { mode: "resolved", subject: { ...sprint10Selection.resolvedObject,
-      evidenceReceipt: sprint10PublicEvidenceReceipt(body.expectedSourceFeatureId, body.locale) } });
+      evidenceReceipt: receiptAt(body.expectedSourceFeatureId, body.locale, now) } });
   });
   await page.route("**/api/prototype/point-to-object/ai", async (route) => {
     if (route.request().method() === "GET") {
       if (holdNextChallenge) await new Promise<void>((resolve) => { releaseChallenge = resolve; });
-      return json(route, { mode: "ready", challenge: "A".repeat(43) });
+      await json(route, { mode: "ready", challenge: "A".repeat(43) });
+      settledChallenges += 1;
+      return;
     }
     const body = route.request().postDataJSON() as Record<string, unknown>;
     posts.push(body);
     sequence += 1;
-    if (holdNextPost) await new Promise<void>((resolve) => { releasePending = resolve; });
-    if (nextFailure) {
-      const failure = nextFailure;
-      nextFailure = null;
-      await json(route, failure.body, failure.status);
-      return;
-    }
-    await json(route, sprint10AnalysisResponse({
-      role: body.role as string,
-      scenario: body.scenario as string,
-      depth: body.depth as "quick" | "standard" | "deep",
-      goal: body.goal as "object_profile" | "development_screening" | "redevelopment" | "due_diligence" | "custom",
-      perspective: body.perspective as "developer" | "investor" | "asset_owner",
-      horizon: body.horizon as "current" | "one_to_three_years" | "long_term",
-      question: body.question as string | null,
-      locale: body.locale as "en" | "ru"
-    }, sequence, (body.evidenceReceipt as { evidencePackHash?: string } | undefined)?.evidencePackHash,
-    "POINT_OBJECT_AI_PROMPT_V12_2026_09_21"));
+    try {
+      if (holdNextPost) await new Promise<void>((resolve) => { releasePending = resolve; });
+      if (nextFailure) {
+        const failure = nextFailure;
+        nextFailure = null;
+        await json(route, failure.body, failure.status);
+        return;
+      }
+      await json(route, sprint10AnalysisResponse({
+        role: body.role as string,
+        scenario: body.scenario as string,
+        depth: body.depth as "quick" | "standard" | "deep",
+        goal: body.goal as "object_profile" | "development_screening" | "redevelopment" | "due_diligence" | "custom",
+        perspective: body.perspective as "developer" | "investor" | "asset_owner",
+        horizon: body.horizon as "current" | "one_to_three_years" | "long_term",
+        question: body.question as string | null,
+        locale: body.locale as "en" | "ru"
+      }, sequence, (body.evidenceReceipt as { evidencePackHash?: string } | undefined)?.evidencePackHash,
+      "POINT_OBJECT_AI_PROMPT_V12_2026_09_21"));
+    } finally { settledPosts += 1; }
   });
   return {
     posts,
+    contextPosts,
+    settledPosts: () => settledPosts,
+    settledChallenges: () => settledChallenges,
     hasPendingPost: () => releasePending !== null,
     hasPendingChallenge: () => releaseChallenge !== null,
     holdNext: () => { holdNextPost = true; },
@@ -154,7 +175,8 @@ test("S1 allows a valid Deep request to run beyond 45 seconds", async ({ page })
 });
 
 test("S1 times out only after the route contract and supports an explicit retry", async ({ page }) => {
-  const api = await prepare(page);
+  // Deliberately cross the lease expiry, independently of wall-clock quarter hours.
+  const api = await prepare(page, 14 * 60_000);
   await page.goto("/prototype/point-to-object/analysis");
   await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
   await page.clock.install();
@@ -165,21 +187,23 @@ test("S1 times out only after the route contract and supports an explicit retry"
   // Advancing the clock during the challenge GET exercises a different branch.
   await expect.poll(api.hasPendingPost).toBe(true);
   expect(api.posts).toHaveLength(2);
+  expect(api.contextPosts).toHaveLength(0);
   await page.clock.fastForward(POINT_OBJECT_ANALYSIS_CLIENT_DEADLINE_MS + 1);
   await expect(page.getByRole("alert").filter({ hasText: "timed out" })).toBeVisible();
   await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
   await expect(page.getByTestId("analysis-request-state")).toHaveAttribute("data-in-flight-depth", "none");
   api.release();
-  await page.clock.fastForward(100);
-  await page.waitForTimeout(100);
+  await expect.poll(api.settledPosts).toBe(2);
   await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
   await page.getByRole("button", { name: "Run focused analysis", exact: true }).click();
   await expect.poll(() => api.posts.length).toBe(3);
+  expect(api.contextPosts).toHaveLength(1);
+  expect(api.contextPosts[0]).toMatchObject({ expectedSourceFeatureId: "way/91010", locale: "en" });
   await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "deep");
 });
 
 test("S1 challenge timeout never dispatches the aborted analysis and supports an explicit retry", async ({ page }) => {
-  const api = await prepare(page);
+  const api = await prepare(page, 14 * 60_000);
   await page.goto("/prototype/point-to-object/analysis");
   await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
   await page.clock.install();
@@ -188,17 +212,19 @@ test("S1 challenge timeout never dispatches the aborted analysis and supports an
   await page.getByRole("button", { name: "Run focused analysis", exact: true }).click();
   await expect.poll(api.hasPendingChallenge).toBe(true);
   expect(api.posts).toHaveLength(1);
+  expect(api.contextPosts).toHaveLength(0);
   await page.clock.fastForward(POINT_OBJECT_ANALYSIS_CLIENT_DEADLINE_MS + 1);
   await expect(page.getByRole("alert").filter({ hasText: "timed out" })).toBeVisible();
   api.releaseChallenge();
-  await page.clock.fastForward(100);
-  await page.waitForTimeout(100);
+  await expect.poll(api.settledChallenges).toBe(2);
   expect(api.posts).toHaveLength(1);
   await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
   await expect(page.getByTestId("analysis-request-state")).toHaveAttribute("data-in-flight-depth", "none");
   await page.getByRole("button", { name: "Run focused analysis", exact: true }).click();
   await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "deep");
   expect(api.posts).toHaveLength(2);
+  expect(api.contextPosts).toHaveLength(1);
+  expect(api.contextPosts[0]).toMatchObject({ expectedSourceFeatureId: "way/91010", locale: "en" });
 });
 
 test("S1 preserves the last result across cancel and unrelated Find context without a paid-route replay", async ({ page }) => {
