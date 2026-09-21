@@ -23,6 +23,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { validateGoalDepthCaptureEnvironment } from "../tests/e2e/helpers/sprint10-goal-depth-evidence.ts";
 import { validateFindAnalysisCaptureEnvironment } from "../tests/e2e/helpers/sprint10-find-analysis-evidence.ts";
 import { validateQuality20ArtifactExportEnvironment } from "../tests/e2e/helpers/quality20-real-artifact.ts";
+import { validateQuality20AnalysisCaptureEnvironment } from "../tests/e2e/helpers/quality20-analysis-evidence.ts";
+import { validateVisualEvidenceEnvironment } from "../tests/e2e/helpers/night21-visual-evidence.ts";
 import {
   LIVE_SCOPE_RECEIPT_PLAN,
   validateAnalysisEvidenceCaptureEnvironment,
@@ -298,6 +300,10 @@ export function validateRuntimeConfig(
     liveJourneySeam === exactLiveJourneySeamOptIn ? env.GEOAI_HOSTED_AUTH_PROBE_LIVE_JOURNEY_SCOPE : undefined);
   const realArtifactExportEnvironment = validateQuality20ArtifactExportEnvironment(env,
     liveJourneySeam === exactLiveJourneySeamOptIn ? env.GEOAI_HOSTED_AUTH_PROBE_LIVE_JOURNEY_SCOPE : undefined);
+  const quality20AnalysisEvidenceEnvironment = validateQuality20AnalysisCaptureEnvironment(env,
+    liveJourneySeam === exactLiveJourneySeamOptIn ? env.GEOAI_HOSTED_AUTH_PROBE_LIVE_JOURNEY_SCOPE : undefined);
+  const visualEvidenceEnvironment = validateVisualEvidenceEnvironment(env,
+    liveJourneySeam === exactLiveJourneySeamOptIn ? env.GEOAI_HOSTED_AUTH_PROBE_LIVE_JOURNEY_SCOPE : undefined);
   let liveJourney = null;
   if (liveJourneySeam === exactLiveJourneySeamOptIn) {
     if (previewSeam !== exactPreviewSeamOptIn) {
@@ -348,7 +354,9 @@ export function validateRuntimeConfig(
       depthCycleEvidenceEnvironment,
       goalDepthEvidenceEnvironment,
       findAnalysisEvidenceEnvironment,
-      realArtifactExportEnvironment
+      realArtifactExportEnvironment,
+      quality20AnalysisEvidenceEnvironment,
+      visualEvidenceEnvironment
     };
   }
   return {
@@ -929,6 +937,8 @@ export function buildLiveJourneyChildEnvironment(config, personas, env = process
     ...config.liveJourney.goalDepthEvidenceEnvironment,
     ...config.liveJourney.findAnalysisEvidenceEnvironment,
     ...config.liveJourney.realArtifactExportEnvironment,
+    ...config.liveJourney.quality20AnalysisEvidenceEnvironment,
+    ...config.liveJourney.visualEvidenceEnvironment,
     ...config.liveJourney.quality20Environment,
     GEOAI_SPRINT10_LIVE_EXPLICIT_RUN: "root-paid-live-journey-2026-09-18",
     GEOAI_SPRINT10_LIVE_SCOPE: config.liveJourney.scope,

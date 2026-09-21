@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import {
   chmodSync,
   existsSync,
@@ -29,6 +30,9 @@ import {
 import { DUBAI_CREATE_PROGRAMME_SCOPES } from "../tests/e2e/helpers/sprint10-live-journey-gate.ts";
 import { LIVE_JOURNEY_DIAGNOSTIC_SCHEMA } from "./sprint10-live-journey-diagnostics.mjs";
 import { makeAuthDiagnostic, emptyAuthDiagnosticCounts } from "./sprint10-real-password-auth-diagnostics.mjs";
+import { QUALITY20_AMENDMENT, QUALITY20_CASES } from "../tests/e2e/helpers/quality20-frozen-case.ts";
+import { validateQuality20AnalysisCaptureEnvironment } from "../tests/e2e/helpers/quality20-analysis-evidence.ts";
+import { validateVisualEvidenceEnvironment } from "../tests/e2e/helpers/night21-visual-evidence.ts";
 
 const exactLedgerId = "5aa405b3-bbda-48aa-aeea-ca3357be4042";
 const exactCycleId = "GEOAI_FOUR_SPRINTS_2026_09_18";
@@ -185,6 +189,102 @@ assert.throws(() => assertActiveCurrentPersona([
 const childEnvironment = buildLiveJourneyChildEnvironment(config, personas, baseEnvironment);
 assert.equal(childEnvironment.GEOAI_SPRINT10_ANALYSIS_EVIDENCE_CAPTURE, undefined);
 assert.equal(childEnvironment.GEOAI_SPRINT10_ANALYSIS_EVIDENCE_PATH, undefined);
+for (const name of ["GEOAI_SPRINT10_VISUAL_EVIDENCE_CAPTURE", "GEOAI_SPRINT10_VISUAL_EVIDENCE_DIR",
+  "GEOAI_QUALITY20_ANALYSIS_EVIDENCE_CAPTURE", "GEOAI_QUALITY20_ANALYSIS_EVIDENCE_PATH"]) {
+  assert.equal(childEnvironment[name], undefined, "Public evidence remains disabled without explicit opt-in.");
+}
+
+const visualDirectory = realpathSync(mkdtempSync(join(privateRoot, "visual-")));
+chmodSync(visualDirectory, 0o700);
+const visualEnvironment = {
+  ...baseEnvironment,
+  OPENAI_API_KEY: "offline-do-not-forward",
+  GEOAI_SPRINT10_VISUAL_EVIDENCE_SECRET: "offline-do-not-forward",
+  GEOAI_HOSTED_AUTH_PROBE_LIVE_JOURNEY_SCOPE: "dubai-find",
+  GEOAI_HOSTED_AUTH_PROBE_LIVE_RUN_APPROVAL: `paid-live-journey:${exactLedgerId}:${previewHost}:${head}:dubai-find`,
+  GEOAI_SPRINT10_VISUAL_EVIDENCE_CAPTURE: "write-public-map-png-evidence-v1",
+  GEOAI_SPRINT10_VISUAL_EVIDENCE_DIR: visualDirectory
+};
+const publicEvidenceChild = environment => {
+  // Ledger accounting is independently tested; preserve its required historical
+  // denominator in this offline mocked preflight for the frozen-case parser.
+  const captureLedger = environment.GEOAI_HOSTED_AUTH_PROBE_LIVE_JOURNEY_SCOPE === "quality20-analyse"
+    ? { ...ledger, receipts: Array.from({ length: 13 }, (_, index) => ({ state: "settled", identity: { requestKey: `OFFLINE.HISTORY.${index}` } })) }
+    : ledger;
+  const validated = validateRuntimeConfig(environment, ["node", "operator"], head, 22, { ledgerPreflight: () => captureLedger });
+  const child = buildLiveJourneyChildEnvironment(validated, personas, environment);
+  for (const name of ["OPENAI_API_KEY", "GEOAI_HOSTED_AUTH_PROBE_ADMIN_SECRET_KEY", "UNRELATED_RUNTIME_SECRET",
+    "NODE_OPTIONS", "GEOAI_SPRINT10_VISUAL_EVIDENCE_SECRET", "GEOAI_QUALITY20_ANALYSIS_EVIDENCE_SECRET"]) {
+    assert.equal(child[name], undefined, `${name} must not cross the probe-to-runner boundary.`);
+  }
+  return { validated, child };
+};
+const visualChain = publicEvidenceChild(visualEnvironment);
+assert.deepEqual(validateVisualEvidenceEnvironment(visualChain.child, visualChain.child.GEOAI_SPRINT10_LIVE_SCOPE),
+  visualChain.validated.liveJourney.visualEvidenceEnvironment,
+  "The runner's exact validator must receive both visual fields preserved by the middle probe.");
+assert.equal(visualChain.child.GEOAI_SPRINT10_VISUAL_EVIDENCE_DIR, visualDirectory);
+assert.equal(buildLiveJourneyChildEnvironment(visualChain.validated, personas, {
+  ...visualEnvironment, GEOAI_SPRINT10_VISUAL_EVIDENCE_DIR: "/unvalidated-replacement"
+}).GEOAI_SPRINT10_VISUAL_EVIDENCE_DIR, visualDirectory, "Forward only the validated capture destination.");
+
+const frozenBinding = {
+  query: "OFFLINE fixture", locale: "en", question: "OFFLINE fixture question", role: "developer", scenario: "unspecified", goal: "object_profile",
+  subject: { sourceIdentity: "way/1001", geometryHash: "b".repeat(64), sourceResponseHash: "c".repeat(64), evidencePackHash: "d".repeat(64), acquiredAt: "2026-09-19T00:00:00.000Z" },
+  find: null, create: null
+};
+const frozenManifest = {
+  schemaVersion: "geoai.quality20.frozen-cases.v1", amendment: QUALITY20_AMENDMENT,
+  frozenAt: "2026-09-20T00:00:00.000Z", execution: { commit: head, origin: previewUrl, deploymentId: "dpl_OFFLINE" },
+  cases: QUALITY20_CASES.map(entry => ({ id: entry.id, binding: entry.id.startsWith("A01-") ? structuredClone(frozenBinding) : null }))
+};
+const manifestBytes = JSON.stringify(frozenManifest);
+const manifestHash = createHash("sha256").update(manifestBytes).digest("hex");
+const manifestPath = join(privateRoot, "public-capture-manifest.json");
+writeFileSync(manifestPath, manifestBytes, { mode: 0o600 });
+const qualityCaptureEnvironment = {
+  ...baseEnvironment,
+  OPENAI_API_KEY: "offline-do-not-forward",
+  GEOAI_QUALITY20_ANALYSIS_EVIDENCE_SECRET: "offline-do-not-forward",
+  GEOAI_HOSTED_AUTH_PROBE_LIVE_JOURNEY_SCOPE: "quality20-analyse",
+  GEOAI_HOSTED_AUTH_PROBE_LIVE_RUN_APPROVAL: `paid-live-journey:${exactLedgerId}:${previewHost}:${head}:quality20-analyse:A01-Q:${manifestHash}`,
+  GEOAI_QUALITY20_MANIFEST_PATH: manifestPath, GEOAI_QUALITY20_MANIFEST_SHA256: manifestHash, GEOAI_QUALITY20_CASE_ID: "A01-Q",
+  GEOAI_QUALITY20_ANALYSIS_EVIDENCE_CAPTURE: "write-one-synthetic-public-analysis-response",
+  GEOAI_QUALITY20_ANALYSIS_EVIDENCE_PATH: join(privateRoot, "quality20-analysis-evidence.json")
+};
+const qualityChain = publicEvidenceChild(qualityCaptureEnvironment);
+assert.deepEqual(validateQuality20AnalysisCaptureEnvironment(qualityChain.child, qualityChain.child.GEOAI_SPRINT10_LIVE_SCOPE),
+  qualityChain.validated.liveJourney.quality20AnalysisEvidenceEnvironment,
+  "The frozen Analyse opt-in and path must survive probe validation and allowlisted forwarding to the runner.");
+assert.equal(qualityChain.child.GEOAI_QUALITY20_ANALYSIS_EVIDENCE_PATH, qualityCaptureEnvironment.GEOAI_QUALITY20_ANALYSIS_EVIDENCE_PATH);
+
+for (const [environment, deltas] of [
+  [visualEnvironment, [
+    { GEOAI_SPRINT10_VISUAL_EVIDENCE_CAPTURE: "yes" },
+    { GEOAI_SPRINT10_VISUAL_EVIDENCE_CAPTURE: undefined },
+    { GEOAI_SPRINT10_VISUAL_EVIDENCE_DIR: undefined },
+    { GEOAI_SPRINT10_VISUAL_EVIDENCE_DIR: "relative-output" },
+    { GEOAI_SPRINT10_VISUAL_EVIDENCE_DIR: privateRoot },
+    { GEOAI_HOSTED_AUTH_PROBE_LIVE_JOURNEY_SCOPE: "dubai-analyse" },
+    { GEOAI_HOSTED_AUTH_PROBE_LIVE_JOURNEY_SEAM: "disabled" }
+  ]],
+  [qualityCaptureEnvironment, [
+    { GEOAI_QUALITY20_ANALYSIS_EVIDENCE_CAPTURE: "yes" },
+    { GEOAI_QUALITY20_ANALYSIS_EVIDENCE_CAPTURE: undefined },
+    { GEOAI_QUALITY20_ANALYSIS_EVIDENCE_PATH: undefined },
+    { GEOAI_QUALITY20_ANALYSIS_EVIDENCE_PATH: "relative.json" },
+    { GEOAI_QUALITY20_ANALYSIS_EVIDENCE_PATH: ledgerPath },
+    { GEOAI_HOSTED_AUTH_PROBE_LIVE_JOURNEY_SCOPE: "quality20-find" },
+    { GEOAI_HOSTED_AUTH_PROBE_LIVE_JOURNEY_SEAM: "disabled" },
+    { GEOAI_SPRINT10_ANALYSIS_EVIDENCE_CAPTURE: "write-one-synthetic-public-analysis-response", GEOAI_SPRINT10_ANALYSIS_EVIDENCE_PATH: join(privateRoot, "other.json") }
+  ]]
+]) for (const delta of deltas) {
+  let reachedLedger = 0;
+  assert.throws(() => validateRuntimeConfig({ ...environment, ...delta }, ["node", "operator"], head, 22,
+    { ledgerPreflight: () => { reachedLedger += 1; return ledger; } }),
+  undefined, "Malformed opt-in, path or scope must fail closed before account creation.");
+  assert.equal(reachedLedger, 0, "Capture validation must reject invalid inputs before ledger/account work.");
+}
 const evidenceEnvironment = {
   ...baseEnvironment,
   GEOAI_SPRINT10_ANALYSIS_EVIDENCE_CAPTURE: "write-one-synthetic-public-analysis-response",
@@ -895,6 +995,9 @@ console.log(JSON.stringify({
     livePreflightDenials: 6,
     activePersonaGuards: 4,
     childEnvironmentSecretExclusions: 10,
+    publicCaptureDefaultDisabledFields: 4,
+    publicCaptureValidatedChildChains: 2,
+    publicCaptureMalformedPathScopeDenials: 15,
     childReceiptStates: 3,
     strictReceiptDenials: 23,
     unresolvedFailureReceiptAcceptances: 3,
