@@ -1132,7 +1132,7 @@ function installGeoAiLayers(map: MapLibreMap, viewMode: MapViewMode) {
   }, labelLayer);
 }
 
-function applyViewMode(map: MapLibreMap, viewMode: MapViewMode, suppressExistingBuildings = false, animate = true, updateCamera = true) {
+function applyViewMode(map: MapLibreMap, viewMode: MapViewMode, animate = true, updateCamera = true) {
   const camera = CAMERA[viewMode];
   if (viewMode === "3d") {
     map.dragRotate.enable();
@@ -1145,9 +1145,10 @@ function applyViewMode(map: MapLibreMap, viewMode: MapViewMode, suppressExisting
     map.touchZoomRotate.disableRotation();
     map.keyboard.disableRotation();
   }
-  if (map.getLayer(BUILDINGS_3D_LAYER_ID)) {
-    if (!suppressExistingBuildings) map.setLayoutProperty(BUILDINGS_3D_LAYER_ID, "visibility", viewMode === "3d" ? "visible" : "none");
-  }
+  // Spatial replacement is controlled by filters, not whole-layer visibility.
+  // Restore the native dimension even while source work makes isStyleLoaded
+  // false; otherwise a 2D -> 3D toggle can leave its only source layer hidden.
+  setPointObjectLayerVisibilityIfChanged(map, BUILDINGS_3D_LAYER_ID, viewMode === "3d" ? "visible" : "none");
   if (!updateCamera) return;
   if (animate) map.easeTo({ ...camera, duration: 550 });
   else map.jumpTo(camera);
@@ -1324,6 +1325,7 @@ export function LiveObjectMap({
   const createAreaClearedRef = useRef(createAreaCleared);
   const conceptMassingRef = useRef(conceptMassing);
   const styleChangeInProgressRef = useRef(true);
+  const pendingViewModeLayersRef = useRef(false);
   const [isReady, setIsReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [retryVersion, setRetryVersion] = useState(0);
@@ -1511,7 +1513,7 @@ export function LiveObjectMap({
       if (createDrawing && viewModeRef.current !== "2d") {
         viewModeRef.current = "2d";
         setViewMode("2d");
-        applyViewMode(map, "2d", createAreaCleared);
+        applyViewMode(map, "2d");
         const current = selectionRef.current;
         if (current) {
           const nextSelection = { ...current, viewport: { ...current.viewport, ...CAMERA["2d"], viewMode: "2d" as const } };
@@ -1562,7 +1564,7 @@ export function LiveObjectMap({
       // would interrupt the tagged fit when reopening from a 3D map.
       viewModeRef.current = navigationTarget.viewMode;
       setViewMode(navigationTarget.viewMode);
-      applyViewMode(map, navigationTarget.viewMode, createAreaClearedRef.current, false, false);
+      applyViewMode(map, navigationTarget.viewMode, false, false);
     }
     const coordinates: Wgs84Position = [navigationTarget.longitude, navigationTarget.latitude];
     let selectionCompleted = false;
@@ -1743,7 +1745,7 @@ export function LiveObjectMap({
           attributionControl: false
         });
         mapRef.current = map;
-        applyViewMode(map, initialViewMode, createAreaClearedRef.current, false, false);
+        applyViewMode(map, initialViewMode, false, false);
         map.addControl(new maplibregl.NavigationControl({ showCompass: false, showZoom: true }), "top-right");
         map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
 
@@ -1791,10 +1793,11 @@ export function LiveObjectMap({
           // Camera state is independent of the style lifecycle. Reinstall only
           // mode-specific handlers and layer visibility here so a basemap load
           // cannot overwrite a user's rotation or a 2D/3D choice made mid-load.
-          applyViewMode(map, viewModeRef.current, createAreaClearedRef.current, false, false);
+          applyViewMode(map, viewModeRef.current, false, false);
           setHighlight(map, selectionRef.current, viewModeRef.current, showSelectedVolumeRef.current);
           const replacementStatus = setCreateLayers(map, createDraftRef.current, createAoiRef.current, createAreaClearedRef.current, conceptMassingRef.current, viewModeRef.current);
           replacementStatusCallbackRef.current?.(replacementStatus);
+          pendingViewModeLayersRef.current = false;
           replacementZoomEligible = map.getZoom() >= pointObjectReplacementMinimumReliableZoom;
           observedBuildingLayerIds = new Set(buildingLayerIds(map));
           buildingLayerReconciliationReady = true;
@@ -2041,6 +2044,19 @@ export function LiveObjectMap({
         let nativeHighlightSignature = "";
         map.on("idle", () => {
           if (disposed || !map.isStyleLoaded()) return;
+          if (pendingViewModeLayersRef.current) {
+            // Source loading is not a style reload, so style.load may never
+            // fire. Apply only the latest requested mode once after readiness.
+            // setData can start another source pass; let its next idle publish
+            // the collision-checked result instead of using stale rendered data.
+            pendingViewModeLayersRef.current = false;
+            applyViewMode(map, viewModeRef.current, false, false);
+            setFindFootprintLayers(map, findResultsRef.current, activeFindResultIdRef.current, hoveredFindResultIdRef.current, shortlistedFindResultIdsRef.current, interactionModeRef.current, viewModeRef.current);
+            setSelectedVolumeVisibility(map, selectionRef.current, viewModeRef.current, showSelectedVolumeRef.current);
+            const replacementStatus = setCreateLayers(map, createDraftRef.current, createAoiRef.current, createAreaClearedRef.current, conceptMassingRef.current, viewModeRef.current);
+            replacementStatusCallbackRef.current?.(replacementStatus);
+            return;
+          }
           publishReadyBuildingReplacement();
           const geometry = currentNativeSelectionGeometry(map, selectionRef.current);
           const signature = JSON.stringify([geometry, viewModeRef.current, showSelectedVolumeRef.current]);
@@ -2106,8 +2122,15 @@ export function LiveObjectMap({
     }
     // MapLibre camera operations remain available while a style is loading.
     // Applying the mode immediately eliminates the style.load/toggle race.
-    applyViewMode(map, nextMode, createAreaClearedRef.current);
-    if (!map.isStyleLoaded()) return;
+    pendingViewModeLayersRef.current = true;
+    applyViewMode(map, nextMode);
+    if (!map.isStyleLoaded()) {
+      setPointObjectLayerVisibilityIfChanged(map, CONCEPT_FILL_LAYER_ID, "none");
+      setPointObjectLayerVisibilityIfChanged(map, CONCEPT_VOLUME_LAYER_ID, "none");
+      setConceptEnvironmentVisibility(map, false);
+      return;
+    }
+    pendingViewModeLayersRef.current = false;
     setFindFootprintLayers(map, findResultsRef.current, activeFindResultIdRef.current, hoveredFindResultIdRef.current, shortlistedFindResultIdsRef.current, interactionModeRef.current, nextMode);
     setSelectedVolumeVisibility(map, selectionRef.current, nextMode, showSelectedVolumeRef.current);
     const replacementStatus = setCreateLayers(map, createDraftRef.current, createAoiRef.current, createAreaClearedRef.current, conceptMassingRef.current, nextMode);
