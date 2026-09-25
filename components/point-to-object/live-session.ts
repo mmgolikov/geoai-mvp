@@ -741,7 +741,7 @@ function parseFocusedAnswer(value: unknown): PointObjectFocusedAnswer | null {
     ? value.status : null;
   const scope = value.scope === "object_identity" || value.scope === "mapped_use" || value.scope === "mapped_form" ||
     value.scope === "mapped_lifecycle" || value.scope === "address_context" || value.scope === "nearby_context" ||
-    value.scope === "screening_implication" || value.scope === "development_hypothesis" || value.scope === "source_limitation"
+    value.scope === "screening_implication" || value.scope === "development_hypothesis" || value.scope === "regional_climate" || value.scope === "source_limitation"
     ? value.scope : null;
   const confidence = value.confidence === "low" || value.confidence === "medium" ? value.confidence : null;
   const perspective = value.perspective === "developer" || value.perspective === "investor" || value.perspective === "asset_owner"

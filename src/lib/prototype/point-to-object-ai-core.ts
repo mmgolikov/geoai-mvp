@@ -151,6 +151,7 @@ export const POINT_OBJECT_FOCUSED_ANSWER_SCOPES = [
   "nearby_context",
   "screening_implication",
   "development_hypothesis",
+  "regional_climate",
   "source_limitation"
 ] as const;
 export type PointObjectFocusedAnswerScope = (typeof POINT_OBJECT_FOCUSED_ANSWER_SCOPES)[number];
@@ -349,7 +350,7 @@ type PointObjectRawFocusedAnswer = {
   scope: PointObjectFocusedAnswerScope;
   perspective: PointObjectAnalysisPerspective;
   horizon: PointObjectAnalysisHorizon;
-  statement: string | null;
+  statement: string | RegionalClimateSelection | null;
   evidenceRefs: string[];
   confidence: "low" | "medium";
   missingEvidenceCodes: PointObjectMissingEvidenceCode[];
@@ -369,7 +370,8 @@ function semanticImplicationCodeFor(request: PointObjectAnalysisRequest): PointO
 
 function pointObjectAiJsonSchemaFor(
   request: PointObjectAnalysisRequest,
-  allowedEvidenceRefs: readonly string[]
+  allowedEvidenceRefs: readonly string[],
+  climateSelection: RegionalClimateSelection | null = null
 ) {
   const focused = Boolean(stringValue(request.question, 500));
   const depthContract = pointObjectAnalysisDepthContract(request.depth);
@@ -382,26 +384,30 @@ function pointObjectAiJsonSchemaFor(
       "confidence", "missingEvidenceCodes", "unsupportedReasonCode"
     ],
     properties: {
-      status: { type: "string", enum: ["answered", "partial", "unsupported"] },
-      scope: { type: "string", enum: POINT_OBJECT_FOCUSED_ANSWER_SCOPES },
+      status: { type: "string", enum: climateSelection ? ["answered"] : ["answered", "partial", "unsupported"] },
+      scope: { type: "string", enum: climateSelection ? ["regional_climate"] : POINT_OBJECT_FOCUSED_ANSWER_SCOPES.filter(scope => scope !== "regional_climate") },
       perspective: { type: "string", const: request.perspective },
       horizon: { type: "string", const: request.horizon },
-      statement: {
+      statement: climateSelection ? {
+        type: "object", additionalProperties: false, required: ["metric", "month"],
+        properties: { metric: { type: "string", const: climateSelection.metric },
+          month: climateSelection.month === null ? { type: "null" } : { type: "integer", const: climateSelection.month } }
+      } : {
         anyOf: [
           { type: "string" },
           { type: "null" }
         ]
       },
       evidenceRefs: {
-        type: "array", minItems: 0, maxItems: 6,
-        items: { type: "string", enum: safeEvidenceRefs }
+        type: "array", minItems: climateSelection ? 1 : 0, maxItems: climateSelection ? 1 : 6,
+        items: { type: "string", enum: climateSelection ? [CLIMATE_EVIDENCE_ID] : safeEvidenceRefs.filter(ref => ref !== CLIMATE_EVIDENCE_ID) }
       },
-      confidence: { type: "string", enum: ["low", "medium"] },
+      confidence: { type: "string", enum: climateSelection ? ["low"] : ["low", "medium"] },
       missingEvidenceCodes: {
-        type: "array", minItems: 0, maxItems: POINT_OBJECT_MISSING_EVIDENCE_CODES.length,
+        type: "array", minItems: 0, maxItems: climateSelection ? 0 : POINT_OBJECT_MISSING_EVIDENCE_CODES.length,
         items: { type: "string", enum: POINT_OBJECT_MISSING_EVIDENCE_CODES }
       },
-      unsupportedReasonCode: {
+      unsupportedReasonCode: climateSelection ? { type: "null" } : {
         anyOf: [
           { type: "string", enum: POINT_OBJECT_UNSUPPORTED_REASON_CODES },
           { type: "null" }
@@ -1960,6 +1966,7 @@ function focusedScopeRefs(
   support: PointObjectEvidenceSupport
 ): string[] {
   switch (scope) {
+    case "regional_climate": return support.projection.climate && support.allowed.has(CLIMATE_EVIDENCE_ID) ? [CLIMATE_EVIDENCE_ID] : [];
     case "object_identity": return uniqueRefs(support.objectRef, support.geometryRef, support.addressRef, support.coordinateRef);
     case "mapped_use": return uniqueRefs(support.objectRef, support.classificationRef);
     case "mapped_form": return uniqueRefs(support.objectRef, support.classificationRef, support.attributesRef, support.geometryRef);
@@ -2931,6 +2938,55 @@ function requiredMissingEvidence(
   return required;
 }
 
+type RegionalClimateSelection = { metric: "T2M" | "T2M_MAX" | "RH2M"; month: number | null };
+
+// A deliberately narrow source-value lookup grammar, not a climate reasoning engine.
+// Unknown words, multiple measures/months, other years and unit conversions fail closed.
+function regionalClimateSelection(question: string, year: number): RegionalClimateSelection | null {
+  const text = question.normalize("NFKC").toLocaleLowerCase("en-US");
+  const monthPatterns = ["january|январ[ьяе]", "february|феврал[ьяе]", "march|март[ае]?", "april|апрел[ьяе]",
+    "may|ма[йяе]", "june|июн[ьяе]", "july|июл[ьяе]", "august|август[ае]?", "september|сентябр[ьяе]",
+    "october|октябр[ьяе]", "november|ноябр[ьяе]", "december|декабр[ьяе]"];
+  const tokens = text.match(/[\p{L}\p{N}_]+/gu) ?? [];
+  const allowed = /^(?:what|is|the|a|an|are|was|were|show|tell|me|please|for|in|of|at|this|location|area|region|regional|monthly|month|year|air|temperature|mean|average|maximum|humidity|relative|climate|nasa|power|t2m|t2m_max|rh2m|какая|какой|какие|что|покажи|показать|пожалуйста|за|в|на|для|по|этом|этой|регионе|районе|региональн(?:ый|ая|ую|ые)|месячн(?:ый|ая|ую|ые)|среднемесячн(?:ая|ую|ые)|средн(?:яя|юю)|максимальн(?:ая|ую)|температур(?:а|у|ы)|воздуха|относительн(?:ая|ую)|влажност[ьи]|климат|год[ау]?|месяц)$/u;
+  if (!tokens.length || tokens.some(token => token !== String(year) && !allowed.test(token) && !monthPatterns.some(pattern => new RegExp(`^(?:${pattern})$`, "u").test(token)))) return null;
+  const months = monthPatterns.flatMap((pattern, i) => tokens.some(token => new RegExp(`^(?:${pattern})$`, "u").test(token)) ? [i + 1] : []);
+  if (months.length > 1) return null;
+  const humidity = tokens.some(token => /^(?:humidity|rh2m|влажност[ьи])$/.test(token));
+  const temperature = tokens.some(token => /^(?:temperature|t2m|t2m_max|температур[ауы])$/.test(token));
+  const maximum = tokens.some(token => /^(?:maximum|t2m_max|максимальн(?:ая|ую))$/.test(token));
+  if ((humidity && (temperature || maximum)) || (!humidity && !temperature)) return null;
+  return { metric: humidity ? "RH2M" : maximum ? "T2M_MAX" : "T2M", month: months[0] ?? null };
+}
+
+function validateRegionalClimateAnswer(value: Record<string, unknown>, request: PointObjectAnalysisRequest, support: PointObjectEvidenceSupport):
+  { ok: true; answer: PointObjectFocusedAnswer } | { ok: false; detail: string } {
+  const climate = support.projection.climate;
+  if (!climate || !support.allowed.has(CLIMATE_EVIDENCE_ID)) return { ok: false, detail: "focused_climate_unbound" };
+  const expected = regionalClimateSelection(request.question ?? "", climate.year);
+  const selection = value.statement;
+  if (!expected || !isRecord(selection) || !hasExactKeys(selection, ["metric", "month"]) ||
+      selection.metric !== expected.metric || selection.month !== expected.month) return { ok: false, detail: "focused_climate_selector_mismatch" };
+  if (value.status !== "answered" || value.perspective !== request.perspective || value.horizon !== request.horizon ||
+      value.confidence !== "low" || !Array.isArray(value.evidenceRefs) || value.evidenceRefs.length !== 1 || value.evidenceRefs[0] !== CLIMATE_EVIDENCE_ID ||
+      !Array.isArray(value.missingEvidenceCodes) || value.missingEvidenceCodes.length !== 0 || value.unsupportedReasonCode !== null) return { ok: false, detail: "focused_climate_shape" };
+  const russian = request.locale === "ru";
+  const label = expected.metric === "RH2M" ? localized(request.locale, "monthly relative humidity", "месячная относительная влажность")
+    : expected.metric === "T2M_MAX" ? localized(request.locale, "monthly maximum temperature metric", "месячный показатель максимума температуры")
+      : localized(request.locale, "monthly mean air temperature", "среднемесячная температура воздуха");
+  const months = expected.month === null ? climate.months : climate.months.filter(month => month.month === expected.month);
+  const values = months.map(month => {
+    const name = new Intl.DateTimeFormat(russian ? "ru" : "en", { month: "short", timeZone: "UTC" }).format(new Date(Date.UTC(climate.year, month.month - 1, 15)));
+    const value = expected.metric === "RH2M" ? month.relativeHumidityPct : expected.metric === "T2M_MAX" ? month.maximumTemperatureC : month.temperatureC;
+    return `${name}: ${value} ${expected.metric === "RH2M" ? "%" : "°C"}`;
+  }).join("; ");
+  return { ok: true, answer: { status: "answered", scope: "regional_climate", perspective: request.perspective, horizon: request.horizon,
+    confidence: "low", evidenceRefs: [CLIMATE_EVIDENCE_ID], missingEvidence: [],
+    statement: `NASA POWER ${climate.year} · ${label} (${expected.metric}): ${values}. ${localized(request.locale,
+      "Regional MERRA-2 grid, air at 2 m; not a site measurement, absolute extreme, forecast or thermal-comfort assessment.",
+      "Региональная ячейка MERRA-2, воздух на высоте 2 м; не измерение на участке, абсолютный экстремум, прогноз или оценка теплового комфорта.")}` } };
+}
+
 function validateFocusedAnswer(
   value: unknown,
   request: PointObjectAnalysisRequest,
@@ -2945,6 +3001,8 @@ function validateFocusedAnswer(
     "status", "scope", "perspective", "horizon", "statement", "evidenceRefs",
     "confidence", "missingEvidenceCodes", "unsupportedReasonCode"
   ])) return { ok: false, detail: "focused_answer_exact_keys" };
+  if (value.scope === "regional_climate") return validateRegionalClimateAnswer(value, request, support);
+  if (Array.isArray(value.evidenceRefs) && value.evidenceRefs.includes(CLIMATE_EVIDENCE_ID)) return { ok: false, detail: "focused_climate_scope_required" };
   const status = enumValue(value.status, ["answered", "partial", "unsupported"] as const);
   const scope = enumValue(value.scope, POINT_OBJECT_FOCUSED_ANSWER_SCOPES);
   const confidence = enumValue(value.confidence, ["low", "medium"] as const);
@@ -3539,10 +3597,13 @@ export function buildPointObjectResponsesRequest(
           eligibleDepthCounterEvidenceCodes: POINT_OBJECT_RISK_CODES.filter((code) => riskRefs(code, support).length > 0),
           eligibleDepthDecisionTriggerCodes: POINT_OBJECT_ANSWER_CODES.filter((code) => answerRefs(code, support).length > 0),
           eligibleFocusedAnswerEvidenceRefs: [...support.allowed].sort(),
+          regionalClimateSelection: support.projection.climate && boundedQuestion ? regionalClimateSelection(boundedQuestion, support.projection.climate.year) : null,
           focusedAnswerRequired: Boolean(boundedQuestion)
         },
         validationPolicy: {
           exactCaveat: LIVE_POINT_CAVEAT,
+          regionalClimateContractVersion: "REGIONAL_CLIMATE_ANSWER_V1",
+          regionalClimateRule: "Only when regionalClimateSelection is non-null, use regional_climate, answered, low confidence, the sole EVD-NASA-POWER-CLIMATE ref, empty missingEvidenceCodes and null unsupportedReasonCode. Return that exact typed selector object as statement, never prose or numbers; the server renders the frozen source values and units. Otherwise never cite NASA in a focused answer or use its numbers in other scopes. Climate does not support forecasts, site measurements, thermal comfort, absolute extremes, conversions or comparisons. The saved answer remains server-rendered text.",
           commitmentBoundary: broadCommitmentReview(request)
             ? "Hold downstream acquisition, capital and substantive development/reuse judgments: this open-map pack lacks authoritative identity, rights, planning, physical and commercial evidence. Evidence gathering may continue. Keep this gate across depths. Preserve insufficient_evidence when the requested conclusion is unsupported."
             : "continue_screening permits bounded description/evidence gathering only. hold pauses the named downstream judgment; insufficient_evidence means the requested conclusion lacks support.",
@@ -3558,7 +3619,7 @@ export function buildPointObjectResponsesRequest(
         type: "json_schema",
         name: POINT_OBJECT_AI_SCHEMA_NAME,
         strict: true,
-        schema: pointObjectAiJsonSchemaFor(request, [...support.allowed].sort())
+        schema: pointObjectAiJsonSchemaFor(request, [...support.allowed].sort(), support.projection.climate && boundedQuestion ? regionalClimateSelection(boundedQuestion, support.projection.climate.year) : null)
       }
     }
   };

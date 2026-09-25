@@ -246,6 +246,7 @@ export type PointObjectFocusedAnswer = GroundedClaim & {
     | "nearby_context"
     | "screening_implication"
     | "development_hypothesis"
+    | "regional_climate"
     | "source_limitation";
   confidence: PointObjectConfidence;
   perspective: PointObjectAnalysisPerspective;
