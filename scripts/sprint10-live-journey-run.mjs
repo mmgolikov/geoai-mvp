@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   closeSync,
   constants,
@@ -21,6 +22,9 @@ import {
   RESERVE_USD,
   SPRINT10_LIVE_CEILING_USD,
   hasSprint10UnresolvedCharge,
+  sprint10LedgerReceiptCount,
+  SPRINT10_MAX_RECEIPTS,
+  recordComplete25CaseAttemptFile,
   readSprint10SpendLedgerFile,
   sprint10LedgerLockPath
 } from "../tests/e2e/helpers/sprint10-live-budget.ts";
@@ -167,6 +171,9 @@ export function validateLiveLedgerPreflight(rootValue, pathValue, scope) {
 
 export function validateLiveLedgerScopeHeadroom(ledger, scope) {
   if (!acceptedScopes.has(scope)) fail("The selected bounded live scope is not accepted for ledger preflight.");
+  if (Array.isArray(ledger.receipts) && sprint10LedgerReceiptCount(ledger) + LIVE_SCOPE_RECEIPT_PLAN[scope].length > SPRINT10_MAX_RECEIPTS) {
+    fail("The complete selected live scope exceeds historic-inclusive receipt capacity.");
+  }
   const reserveRequired = LIVE_SCOPE_RECEIPT_PLAN[scope]
     .reduce((sum, item) => Number((sum + item.reserveUsd).toFixed(8)), 0);
   if (Number((ledger.estimatedOrReservedUsd + reserveRequired).toFixed(8)) > ledger.ceilingUsd) {
@@ -360,6 +367,8 @@ function preflight(repositoryRoot) {
   const ledgerRoot = required("GEOAI_SPRINT10_LIVE_LEDGER_ROOT");
   const ledgerPath = required("GEOAI_SPRINT10_LIVE_LEDGER_PATH");
   const ledger = validateLiveLedgerPreflight(ledgerRoot, ledgerPath, scope);
+  if (ledger.schemaVersion === 2 && (ledger.acceptanceEpoch.candidateCommit !== commit ||
+      ledger.acceptanceEpoch.candidateHost !== target.hostname)) fail("COMPLETE25 recovery is bound to another frozen candidate.");
   if (quality20) validateQuality20Ledger(quality20, ledger);
   const receiptPath = required("GEOAI_SPRINT10_LIVE_DEPLOYMENT_RECEIPT_PATH");
   const deploymentReceipt = validateReceipt(receiptPath, previewUrl, commit);
@@ -378,7 +387,7 @@ function preflight(repositoryRoot) {
     commit,
     ledgerRoot,
     ledgerPath,
-    baselineReceiptCount: ledger.receipts.length,
+    ...captureLiveLedgerBaseline(ledger),
     quality20,
     acquisition,
     quality20Environment: Object.fromEntries((quality20 ? [
@@ -472,15 +481,51 @@ function findCleanupFailure(value) {
   return null;
 }
 
+export function captureLiveLedgerBaseline(ledger) {
+  return {
+    baselineReceiptCount: ledger.receipts.length,
+    baselineLastReceiptId: sprint10LedgerReceiptCount(ledger),
+    baselineGeneration: ledger.generation,
+    baselineOpeningSha256: ledger.schemaVersion === 2 ? ledger.openingCheckpointSha256 : null,
+    baselineAcceptanceRevision: ledger.schemaVersion === 2 ? ledger.acceptanceEpoch.acceptanceRevision : null,
+    baselineReceiptPrefixHash: createHash("sha256").update(JSON.stringify(ledger.receipts)).digest("hex")
+  };
+}
+
 export function receiptSummary(config, { failureProjection = false } = {}) {
   const ledger = validateLiveLedgerPostRun(config.ledgerRoot, config.ledgerPath, { allowActiveRunnerLease: true, failureProjection });
-  return ledger.receipts.slice(config.baselineReceiptCount).map((receipt) => ({
+  if (ledger.schemaVersion === 2) {
+    if (!Number.isInteger(config.baselineReceiptCount) || config.baselineReceiptCount < 0 ||
+        config.baselineLastReceiptId !== ledger.openingCheckpoint.receiptCount + config.baselineReceiptCount ||
+        ledger.receipts.length < config.baselineReceiptCount || !Number.isInteger(config.baselineGeneration) ||
+        ledger.generation < config.baselineGeneration || config.baselineOpeningSha256 !== ledger.openingCheckpointSha256 ||
+        config.baselineReceiptPrefixHash !== createHash("sha256").update(JSON.stringify(ledger.receipts.slice(0, config.baselineReceiptCount))).digest("hex") ||
+        ledger.acceptanceEpoch.candidateCommit !== config.commit || ledger.acceptanceEpoch.candidateHost !== config.host) {
+      fail("COMPLETE25 receipt baseline changed or is missing; no current receipt projection is accepted.");
+    }
+  }
+  const currentReceipts = ledger.schemaVersion === 2
+    ? ledger.receipts.filter(receipt => receipt.id > config.baselineLastReceiptId)
+    : ledger.receipts.slice(config.baselineReceiptCount);
+  return currentReceipts.map((receipt) => ({
     id: receipt.id,
     route: receipt.identity?.route,
     depth: receipt.identity?.depth,
     state: receipt.state,
     estimatedUsd: receipt.estimatedUsd
   }));
+}
+
+export function verifyComplete25ExecutionBaseline(config) {
+  if (!config.baselineOpeningSha256) return;
+  // Preflight and lease acquisition are separate operations; fail before browser
+  // dispatch if another completed run changed either journal in that interval.
+  const ledger = validateLiveLedgerPostRun(config.ledgerRoot, config.ledgerPath, { allowActiveRunnerLease: true });
+  const current = captureLiveLedgerBaseline(ledger);
+  for (const key of Object.keys(current)) {
+    if (current[key] !== config[key]) fail("COMPLETE25 preflight baseline changed before browser dispatch.");
+  }
+  receiptSummary(config);
 }
 
 export function classifyLiveJourneyReport(report, resultStatus, config, receipts) {
@@ -644,6 +689,7 @@ module.exports = defineConfig({
     "--workers=1"
   ];
     lease = acquireRunLease(config.ledgerRoot, config.ledgerPath, config.commit, config.scope);
+    verifyComplete25ExecutionBaseline(config);
     const discovery = spawnSync(process.execPath, [...commonArguments, "--list"], {
       cwd: repositoryRoot,
       env: discoveryEnvironment,
@@ -661,6 +707,13 @@ module.exports = defineConfig({
     if (discovery.status !== 0 || projects.length !== 1 || projects[0] !== projectName || tests !== 1 ||
         (Array.isArray(discoveryReport?.errors) && discoveryReport.errors.length > 0)) {
       fail(`The bounded discovery receipt was not accepted (projects=${projects.length}, tests=${tests}).`);
+    }
+
+    if (config.baselineOpeningSha256 && config.quality20) {
+      const attempt = recordComplete25CaseAttemptFile(config.ledgerRoot, config.ledgerPath,
+        config.quality20.definition.id, config.quality20.manifestSha256, new Date().toISOString(),
+        { candidateCommit: config.commit, candidateHost: config.host });
+      liveEnvironment.GEOAI_COMPLETE25_CASE_ATTEMPT_ID = attempt.attemptId;
     }
 
     const result = spawnSync(process.execPath, commonArguments, {

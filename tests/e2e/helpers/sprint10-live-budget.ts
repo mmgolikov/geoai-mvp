@@ -105,8 +105,7 @@ export type Sprint10Receipt = {
   unknownReason: Sprint10UnknownReason | null;
 };
 
-export type Sprint10SpendLedger = {
-  schemaVersion: 1;
+type Sprint10LedgerCommon = {
   cycleId: typeof SPRINT10_CYCLE_ID;
   ledgerId: string;
   createdAt: string;
@@ -117,6 +116,64 @@ export type Sprint10SpendLedger = {
   // Append-only founder-authorized accounting; original unknown receipts stay unchanged.
   conservativeCharges?: Sprint10ConservativeCharge[];
 };
+
+export const COMPLETE25_RECOVERY_APPROVAL = "founder:complete25_20260925_recover_and_repeat_within_usd15" as const;
+export const COMPLETE25_EPOCH_ID = "COMPLETE25_2026_09_25" as const;
+export const COMPLETE25_OPENING_CHECKPOINT = Object.freeze({
+  kind: "geoai.complete25.accounting-loss-checkpoint.v1",
+  cycleId: SPRINT10_CYCLE_ID,
+  ledgerId: "5aa405b3-bbda-48aa-aeea-ca3357be4042",
+  ceilingUsd: 15,
+  accountedUsd: 7.3097465,
+  generation: 185,
+  receiptCount: 90,
+  conservativeUnknownChargeCount: 5,
+  historicalUnknownActualCostsKnown: false,
+  activeReservations: 0,
+  unresolvedCharges: 0,
+  rawHistoricalReceiptsUnavailable: true,
+  historicalAttemptIndexUnavailable: true,
+  approvalReference: COMPLETE25_RECOVERY_APPROVAL,
+  approvalText: "Да, восстановить учёт и повторить тесты в пределах $15",
+  stateSha256: "e088c9a9a95b9c63b5f89aabe8541e52ef105155426798d2582aa4e513a94605",
+  handoffSha256: "c9dc5a6e7b80564bd536e12142961bd75d3f86a97d86e9159084c1c71b5a5a65",
+  confluencePageId: "26574901",
+  confluenceVersion: 32,
+  confluenceEnvelopeSha256: "681b9f783511c216f247be75f1f4d65afb2f6f1f03be1ec9e0c41d1ba27e96f4"
+});
+// Pinned canonical JSON hash; the independently stored checkpoint must match too.
+export const COMPLETE25_OPENING_SHA256 = "0a1ddb486bb4a1c99ded5e4e0ec9f5d056d61359158c8837b33f82fa5f8adfbf";
+export type Complete25CaseAttempt = {
+  caseId: string; manifestSha256: string; startedAt: string; attemptId: string;
+};
+export type Sprint10SpendLedger = Sprint10LedgerCommon & ({ schemaVersion: 1 } | {
+  schemaVersion: 2;
+  openingCheckpoint: typeof COMPLETE25_OPENING_CHECKPOINT;
+  openingCheckpointSha256: typeof COMPLETE25_OPENING_SHA256;
+  acceptanceEpoch: {
+    id: typeof COMPLETE25_EPOCH_ID;
+    approvalReference: typeof COMPLETE25_RECOVERY_APPROVAL;
+    candidateCommit: string;
+    candidateHost: string;
+    acceptanceRevision: number;
+    attempts: Complete25CaseAttempt[];
+  };
+});
+
+export function sprint10LedgerReceiptCount(ledger: Sprint10SpendLedger): number {
+  return (ledger.schemaVersion === 2 ? ledger.openingCheckpoint.receiptCount : 0) + ledger.receipts.length;
+}
+
+function complete25CheckpointHash(value: unknown): string {
+  try {
+    const serialized = JSON.stringify(value);
+    return typeof serialized === "string" ? createHash("sha256").update(serialized).digest("hex") : "";
+  } catch { return ""; }
+}
+
+function complete25CaseId(value: unknown): value is string {
+  return typeof value === "string" && /^(?:A0[1-8]-[QSD]|A09|A1[0-2]|F0[1-5]|FA(?:0[1-9]|1[0-5])|C-(?:RM|CH|CG)-0[12])$/.test(value);
+}
 
 export type Sprint10ConservativeCharge = {
   receiptId: number;
@@ -404,9 +461,10 @@ function parseStoredTelemetry(value: unknown, identity: Sprint10RequestIdentity)
   return parseProviderTelemetry(identity, payload, true);
 }
 
-export function sprint10LedgerCharge(ledger: Pick<Sprint10SpendLedger, "receipts">): number {
+export function sprint10LedgerCharge(ledger: Pick<Sprint10SpendLedger, "receipts"> & Partial<Pick<Sprint10SpendLedger, "schemaVersion">> & { openingCheckpoint?: typeof COMPLETE25_OPENING_CHECKPOINT }): number {
   return Number(ledger.receipts.reduce((sum, receipt) =>
-    sum + (receipt.state === "settled" && receipt.estimatedUsd !== null ? receipt.estimatedUsd : receipt.reserveUsd), 0)
+    sum + (receipt.state === "settled" && receipt.estimatedUsd !== null ? receipt.estimatedUsd : receipt.reserveUsd),
+    ledger.schemaVersion === 2 ? ledger.openingCheckpoint?.accountedUsd ?? Number.NaN : 0)
     .toFixed(8));
 }
 
@@ -423,6 +481,44 @@ export function createSprint10SpendLedger(createdAt: string, ledgerId = randomUU
     receipts: [],
     estimatedOrReservedUsd: 0
   };
+}
+
+export function createComplete25RecoveryLedger(
+  checkpoint: unknown, createdAt: string,
+  candidate: { candidateCommit: string; candidateHost: string }, approvalReference: string
+): Sprint10SpendLedger {
+  if (complete25CheckpointHash(checkpoint) !== COMPLETE25_OPENING_SHA256 || approvalReference !== COMPLETE25_RECOVERY_APPROVAL) {
+    throw new Error("The exact founder-approved loss-recovery checkpoint is required; no spend reset is permitted.");
+  }
+  const ledger: Sprint10SpendLedger = {
+    schemaVersion: 2, cycleId: SPRINT10_CYCLE_ID, ledgerId: COMPLETE25_OPENING_CHECKPOINT.ledgerId,
+    createdAt, ceilingUsd: SPRINT10_LIVE_CEILING_USD,
+    openingCheckpoint: structuredClone(COMPLETE25_OPENING_CHECKPOINT), openingCheckpointSha256: COMPLETE25_OPENING_SHA256,
+    generation: COMPLETE25_OPENING_CHECKPOINT.generation, receipts: [],
+    estimatedOrReservedUsd: COMPLETE25_OPENING_CHECKPOINT.accountedUsd,
+    acceptanceEpoch: { id: COMPLETE25_EPOCH_ID, approvalReference: COMPLETE25_RECOVERY_APPROVAL,
+      ...candidate, acceptanceRevision: 0, attempts: [] }
+  };
+  if (!parseSprint10SpendLedger(ledger)) throw new Error("Invalid COMPLETE25 recovery identity, timestamp or frozen candidate.");
+  return ledger;
+}
+
+export function recordComplete25CaseAttempt(
+  ledgerValue: Sprint10SpendLedger, caseId: string, manifestSha256: string, startedAt: string,
+  candidate: { candidateCommit: string; candidateHost: string }, attemptId = randomUUID()
+): { ledger: Sprint10SpendLedger; attempt: Complete25CaseAttempt } {
+  const ledger = parseSprint10SpendLedger(ledgerValue);
+  if (!ledger || ledger.schemaVersion !== 2 || hasSprint10UnresolvedCharge(ledger, true) ||
+      candidate.candidateCommit !== ledger.acceptanceEpoch.candidateCommit || candidate.candidateHost !== ledger.acceptanceEpoch.candidateHost ||
+      ledger.acceptanceEpoch.attempts.some(item => item.caseId === caseId)) {
+    throw new Error("COMPLETE25 case was already attempted, candidate changed or the ledger is unresolved; no automatic retry.");
+  }
+  const attempt = { caseId, manifestSha256, startedAt, attemptId };
+  const next: Sprint10SpendLedger = { ...ledger, acceptanceEpoch: { ...ledger.acceptanceEpoch,
+    acceptanceRevision: ledger.acceptanceEpoch.acceptanceRevision + 1,
+    attempts: [...ledger.acceptanceEpoch.attempts, attempt] } };
+  if (!parseSprint10SpendLedger(next)) throw new Error("Invalid COMPLETE25 case-attempt identity.");
+  return { ledger: next, attempt };
 }
 
 function parseReceipt(value: unknown, id: number, ledgerId: string): Sprint10Receipt | null {
@@ -454,16 +550,61 @@ function parseReceipt(value: unknown, id: number, ledgerId: string): Sprint10Rec
 export function parseSprint10SpendLedger(value: unknown): Sprint10SpendLedger | null {
   const keys = ["schemaVersion", "cycleId", "ledgerId", "createdAt", "ceilingUsd", "generation", "receipts",
     "estimatedOrReservedUsd"];
-  if (!record(value) || !exactKeys(value, "conservativeCharges" in value ? [...keys, "conservativeCharges"] : keys) || value.schemaVersion !== 1 ||
+  if (!record(value)) return null;
+  const recovery = value.schemaVersion === 2;
+  const allowedKeys = recovery ? [...keys, "openingCheckpoint", "openingCheckpointSha256", "acceptanceEpoch"] : keys;
+  if (!exactKeys(value, "conservativeCharges" in value ? [...allowedKeys, "conservativeCharges"] : allowedKeys) ||
+      (value.schemaVersion !== 1 && !recovery) ||
       value.cycleId !== SPRINT10_CYCLE_ID || typeof value.ledgerId !== "string" ||
       !LEDGER_ID_PATTERN.test(value.ledgerId) || !validIso(value.createdAt) ||
       value.ceilingUsd !== SPRINT10_LIVE_CEILING_USD || !integer(value.generation) ||
       !Array.isArray(value.receipts) || value.receipts.length > SPRINT10_MAX_RECEIPTS ||
       !finite(value.estimatedOrReservedUsd)) return null;
-  const receipts = value.receipts.map((receipt, index) => parseReceipt(receipt, index + 1, value.ledgerId as string));
+  if (recovery) {
+    if (complete25CheckpointHash(value.openingCheckpoint) !== COMPLETE25_OPENING_SHA256 ||
+        value.openingCheckpointSha256 !== COMPLETE25_OPENING_SHA256 || value.ledgerId !== COMPLETE25_OPENING_CHECKPOINT.ledgerId ||
+        !record(value.acceptanceEpoch)) return null;
+    const epoch = value.acceptanceEpoch;
+    if (!exactKeys(epoch, ["id", "approvalReference", "candidateCommit", "candidateHost", "acceptanceRevision", "attempts"]) ||
+        epoch.id !== COMPLETE25_EPOCH_ID || epoch.approvalReference !== COMPLETE25_RECOVERY_APPROVAL ||
+        typeof epoch.candidateCommit !== "string" || !COMMIT_PATTERN.test(epoch.candidateCommit) ||
+        typeof epoch.candidateHost !== "string" || !safeCandidateHost(epoch.candidateHost) ||
+        !Array.isArray(epoch.attempts) || epoch.attempts.length > 54 || epoch.acceptanceRevision !== epoch.attempts.length) return null;
+    const seenCases = new Set<string>();
+    const seenAttempts = new Set<string>();
+    for (const attempt of epoch.attempts) {
+      if (!record(attempt) || !exactKeys(attempt, ["caseId", "manifestSha256", "startedAt", "attemptId"]) ||
+          !complete25CaseId(attempt.caseId) || seenCases.has(attempt.caseId) ||
+          typeof attempt.manifestSha256 !== "string" || !HASH_PATTERN.test(attempt.manifestSha256) ||
+          !validIso(attempt.startedAt) || Date.parse(attempt.startedAt) < Date.parse(value.createdAt) ||
+          typeof attempt.attemptId !== "string" || !LEDGER_ID_PATTERN.test(attempt.attemptId) || seenAttempts.has(attempt.attemptId)) return null;
+      seenCases.add(attempt.caseId); seenAttempts.add(attempt.attemptId);
+    }
+  }
+  const openingCount = recovery ? COMPLETE25_OPENING_CHECKPOINT.receiptCount : 0;
+  if (openingCount + value.receipts.length > SPRINT10_MAX_RECEIPTS) return null;
+  const receipts = value.receipts.map((receipt, index) => parseReceipt(receipt, openingCount + index + 1, value.ledgerId as string));
   if (receipts.some((receipt) => receipt === null)) return null;
   const typedReceipts = receipts as Sprint10Receipt[];
   if (new Set(typedReceipts.map((receipt) => receipt.identity.requestKey)).size !== typedReceipts.length) return null;
+  if (recovery) {
+    const epoch = value.acceptanceEpoch as Extract<Sprint10SpendLedger, { schemaVersion: 2 }>['acceptanceEpoch'];
+    const paidCases = new Set<string>();
+    for (const receipt of typedReceipts) {
+      if (receipt.identity.candidateCommit !== epoch.candidateCommit || receipt.identity.candidateHost !== epoch.candidateHost ||
+          Date.parse(receipt.createdAt) < Date.parse(value.createdAt)) return null;
+      if (receipt.identity.requestKey.startsWith("Q20:")) {
+        const match = /^Q20:([^:]+):(AI|CREATE):([A-F0-9]{64})$/.exec(receipt.identity.requestKey);
+        const attempt = match && epoch.attempts.find(item => item.caseId === match[1] && item.manifestSha256 === match[3].toLowerCase());
+        if (!match || !attempt || paidCases.has(match[1]) || match[2].toLowerCase() !== receipt.identity.route ||
+            Date.parse(receipt.createdAt) < Date.parse(attempt.startedAt)) return null;
+        const expectedRoute = match[1].startsWith("C-") ? "create" : /^F0/.test(match[1]) ? null : "ai";
+        const expectedDepth = match[1].endsWith("-Q") ? "quick" : match[1].endsWith("-D") ? "deep" : "standard";
+        if (receipt.identity.route !== expectedRoute || receipt.identity.depth !== expectedDepth) return null;
+        paidCases.add(match[1]);
+      }
+    }
+  }
   const charges = value.conservativeCharges ?? [];
   if (!Array.isArray(charges) || charges.length > typedReceipts.length) return null;
   const reconciledIds = new Set<number>();
@@ -471,6 +612,7 @@ export function parseSprint10SpendLedger(value: unknown): Sprint10SpendLedger | 
     if (!record(charge) || !exactKeys(charge, ["receiptId", "receiptHash", "approvedAt", "approvalReference", "chargedUsd", "actualCostKnown"]) ||
         !integer(charge.receiptId, 1) || reconciledIds.has(charge.receiptId) ||
         typeof charge.approvalReference !== "string" || !/^founder:[a-zA-Z0-9:_-]{10,120}$/.test(charge.approvalReference) ||
+        (recovery && charge.approvalReference === COMPLETE25_RECOVERY_APPROVAL) ||
         !validIso(charge.approvedAt) || charge.actualCostKnown !== false) return null;
     const receipt = typedReceipts.find(item => item.id === charge.receiptId);
     if (!receipt || receipt.state !== "unknown" || receipt.settledAt === null ||
@@ -478,7 +620,8 @@ export function parseSprint10SpendLedger(value: unknown): Sprint10SpendLedger | 
         charge.chargedUsd !== receipt.reserveUsd) return null;
     reconciledIds.add(charge.receiptId);
   }
-  const expectedGeneration = typedReceipts.length + typedReceipts.filter((receipt) => receipt.state !== "reserved").length + charges.length;
+  const expectedGeneration = (recovery ? COMPLETE25_OPENING_CHECKPOINT.generation : 0) +
+    typedReceipts.length + typedReceipts.filter((receipt) => receipt.state !== "reserved").length + charges.length;
   const ledger = { ...(value as unknown as Sprint10SpendLedger), receipts: typedReceipts };
   const charge = sprint10LedgerCharge(ledger);
   return value.generation === expectedGeneration && value.estimatedOrReservedUsd === charge &&
@@ -494,6 +637,10 @@ export function reserveSprint10Spend(
   const identity = parseIdentity(identityValue);
   if (!ledger) return { ok: false, reason: "The cycle-root ledger is malformed or corrupt." };
   if (!identity) return { ok: false, reason: "The immutable request identity is invalid." };
+  if (ledger.schemaVersion === 2 && (identity.candidateCommit !== ledger.acceptanceEpoch.candidateCommit ||
+      identity.candidateHost !== ledger.acceptanceEpoch.candidateHost)) {
+    return { ok: false, reason: "The COMPLETE25 epoch is bound to one exact candidate; no automatic new epoch or retry." };
+  }
   if (ledger.receipts.some((receipt) => receipt.state === "reserved" && receipt.identity.route === "ai" &&
       isHistoricalAnalysisPrompt(receipt.identity.promptVersion))) {
     return { ok: false, reason: "An unresolved historical V10/V11 reservation requires explicit review before new dispatch." };
@@ -501,21 +648,21 @@ export function reserveSprint10Spend(
   if (!validIso(createdAt) || Date.parse(createdAt) < Date.parse(ledger.createdAt)) {
     return { ok: false, reason: "The reservation time is invalid or predates the root ledger." };
   }
-  if (hasSprint10UnresolvedCharge(ledger)) {
+  if (hasSprint10UnresolvedCharge(ledger, ledger.schemaVersion === 2)) {
     return { ok: false, reason: "An unknown provider charge blocks every later four-sprint request." };
   }
   if (ledger.receipts.some((receipt) => receipt.identity.requestKey === identity.requestKey)) {
     return { ok: false, reason: "The request identity was already reserved; external reruns require a new requestKey." };
   }
   const reserveUsd = RESERVE_USD[identity.route];
-  if (ledger.receipts.length >= SPRINT10_MAX_RECEIPTS) {
+  if (sprint10LedgerReceiptCount(ledger) >= SPRINT10_MAX_RECEIPTS) {
     return { ok: false, reason: "The bounded cycle-root receipt journal is full." };
   }
   if (Number((sprint10LedgerCharge(ledger) + reserveUsd).toFixed(8)) > ledger.ceilingUsd) {
     return { ok: false, reason: "The shared USD 15 four-sprint ceiling would be exceeded." };
   }
   const receipt: Sprint10Receipt = {
-    id: ledger.receipts.length + 1,
+    id: sprint10LedgerReceiptCount(ledger) + 1,
     ledgerId: ledger.ledgerId,
     createdAt,
     identity,
@@ -535,6 +682,7 @@ export function reserveSprint10Spend(
     estimatedOrReservedUsd: 0
   };
   next.estimatedOrReservedUsd = sprint10LedgerCharge(next);
+  if (!parseSprint10SpendLedger(next)) return { ok: false, reason: "The reservation violates the COMPLETE25 case-attempt registry or ledger invariants." };
   return { ok: true, ledger: next, receipt };
 }
 
@@ -798,6 +946,9 @@ export function createSprint10SpendLedgerFile(
   const { root, target } = validatePrivateLedgerPath(privateRoot, ledgerPath);
   const lock = acquireSprint10LedgerLock(root, target);
   try {
+    if (existsSync(join(root, ".complete25-recovery-initialized.json"))) {
+      throw new Error("The COMPLETE25 recovery marker forbids initialization of a fresh zero-spend journal.");
+    }
     if (existsSync(target)) throw new Error("The cycle-root ledger already exists; refusing to reset the USD 15 authority.");
     const ledger = createSprint10SpendLedger(createdAt, ledgerId);
     let descriptor: number | null = null;
@@ -836,6 +987,49 @@ export function reserveSprint10SpendFile(
   } finally {
     lock.release();
   }
+}
+
+// This helper is intentionally not a CLI. Root must bind the final candidate,
+// verify all pinned evidence and explicitly initialize the ONE durable journal.
+export function createComplete25RecoveryLedgerFile(
+  privateRoot: string, ledgerPath: string, createdAt: string,
+  candidate: { candidateCommit: string; candidateHost: string }, approvalReference: string,
+  evidencePaths: { checkpoint: string; state: string; handoff: string; confluence: string }
+): Sprint10SpendLedger {
+  const { root, target } = validatePrivateLedgerPath(privateRoot, ledgerPath);
+  const lock = acquireSprint10LedgerLock(root, target);
+  try {
+    const marker = join(root, ".complete25-recovery-initialized.json");
+    if (existsSync(target) || existsSync(marker)) throw new Error("COMPLETE25 recovery already initialized or interrupted; refusing to reset spend.");
+    for (const [path, expected] of [
+      [evidencePaths.state, COMPLETE25_OPENING_CHECKPOINT.stateSha256],
+      [evidencePaths.handoff, COMPLETE25_OPENING_CHECKPOINT.handoffSha256],
+      [evidencePaths.confluence, COMPLETE25_OPENING_CHECKPOINT.confluenceEnvelopeSha256]
+    ]) {
+      if (createHash("sha256").update(readFileSync(path!)).digest("hex") !== expected) throw new Error("Recovery provenance bytes do not match the pinned prior artifact hash.");
+    }
+    const ledger = createComplete25RecoveryLedger(JSON.parse(readFileSync(evidencePaths.checkpoint, "utf8")), createdAt, candidate, approvalReference);
+    // Keep this exclusive marker even if a later write fails: loss must fail closed.
+    const fd = openExclusivePrivate(marker);
+    try { writeFileSync(fd, JSON.stringify({ openingCheckpointSha256: COMPLETE25_OPENING_SHA256,
+      initializedAt: createdAt, candidate, ledgerPath: target })); fsyncSync(fd); } finally { closeSync(fd); }
+    syncDirectory(root);
+    writeLedgerAtomic(root, target, ledger);
+    return readSprint10SpendLedgerFile(root, target);
+  } finally { lock.release(); }
+}
+
+export function recordComplete25CaseAttemptFile(
+  privateRoot: string, ledgerPath: string, caseId: string, manifestSha256: string, startedAt: string,
+  candidate: { candidateCommit: string; candidateHost: string }
+): Complete25CaseAttempt {
+  const lock = acquireSprint10LedgerLock(privateRoot, ledgerPath);
+  try {
+    const current = readSprint10SpendLedgerFile(privateRoot, ledgerPath);
+    const result = recordComplete25CaseAttempt(current, caseId, manifestSha256, startedAt, candidate);
+    writeLedgerAtomic(privateRoot, ledgerPath, result.ledger);
+    return result.attempt;
+  } finally { lock.release(); }
 }
 
 export function accountSprint10UnknownAtFullReserveFile(

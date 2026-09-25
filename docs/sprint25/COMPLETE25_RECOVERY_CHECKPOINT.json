@@ -1,0 +1,22 @@
+{
+  "kind": "geoai.complete25.accounting-loss-checkpoint.v1",
+  "cycleId": "GEOAI_FOUR_SPRINTS_2026_09_18",
+  "ledgerId": "5aa405b3-bbda-48aa-aeea-ca3357be4042",
+  "ceilingUsd": 15,
+  "accountedUsd": 7.3097465,
+  "generation": 185,
+  "receiptCount": 90,
+  "conservativeUnknownChargeCount": 5,
+  "historicalUnknownActualCostsKnown": false,
+  "activeReservations": 0,
+  "unresolvedCharges": 0,
+  "rawHistoricalReceiptsUnavailable": true,
+  "historicalAttemptIndexUnavailable": true,
+  "approvalReference": "founder:complete25_20260925_recover_and_repeat_within_usd15",
+  "approvalText": "Да, восстановить учёт и повторить тесты в пределах $15",
+  "stateSha256": "e088c9a9a95b9c63b5f89aabe8541e52ef105155426798d2582aa4e513a94605",
+  "handoffSha256": "c9dc5a6e7b80564bd536e12142961bd75d3f86a97d86e9159084c1c71b5a5a65",
+  "confluencePageId": "26574901",
+  "confluenceVersion": 32,
+  "confluenceEnvelopeSha256": "681b9f783511c216f247be75f1f4d65afb2f6f1f03be1ec9e0c41d1ba27e96f4"
+}

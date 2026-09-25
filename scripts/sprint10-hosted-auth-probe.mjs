@@ -324,9 +324,11 @@ export function validateRuntimeConfig(
     const ledgerPath = required(env, "GEOAI_HOSTED_AUTH_PROBE_LIVE_LEDGER_PATH");
     const ledger = ledgerPreflight(ledgerRoot, ledgerPath, scope);
     if (ledger?.ledgerId !== exactLedgerId) fail("The early read-only ledger receipt is not accepted.");
+    if (ledger.schemaVersion === 2 && (ledger.acceptanceEpoch.candidateCommit !== expectedCommitSha ||
+        ledger.acceptanceEpoch.candidateHost !== preview.hostname)) fail("COMPLETE25 recovery is bound to another frozen candidate.");
     const quality20 = loadQuality20Selection(env, scope, { commit: expectedCommitSha, origin: previewUrl });
     const acquisition = scope === "quality20-acquire" ? loadQuality20Acquisition(env, { commit: expectedCommitSha, origin: previewUrl }) : null;
-    if (quality20) validateQuality20Ledger(quality20, ledger.receipts);
+    if (quality20) validateQuality20Ledger(quality20, ledger.schemaVersion === 2 ? ledger : ledger.receipts);
     const liveApproval = required(env, "GEOAI_HOSTED_AUTH_PROBE_LIVE_RUN_APPROVAL");
     if (liveApproval !== `paid-live-journey:${exactLedgerId}:${preview.hostname}:${expectedCommitSha}:${scope}${quality20ApprovalSuffix(quality20)}${acquisition ? `:${acquisition.caseId}:${acquisition.planSha256}` : ""}`) {
       fail("The live-journey approval is not bound to the exact ledger, host, Git head and scope.");
