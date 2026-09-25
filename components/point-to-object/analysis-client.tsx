@@ -671,7 +671,7 @@ export function PointToObjectAnalysis() {
                   </div> : null}
                   <ClaimList items={content.decisionBrief.reasons} />
                   </details>
-                  {content.answerToQuestion && analysis?.mode === "openai" && Boolean(analysis.request.question) ? (
+                  {content.answerToQuestion && analysis?.mode === "openai" && analysis.request.goal !== "custom" && Boolean(analysis.request.question) ? (
                     <div className="mt-6 rounded-2xl border border-[#cfe0f7] bg-[#eef6ff] p-4">
                       <p className="text-xs font-bold uppercase tracking-[0.08em] text-[#087f8c]">{t("analysis.answer")}</p>
                       {analysis?.mode === "openai" && analysis.request.question ? <p className="mt-2 text-xs leading-5 text-[#52657a]">{analysis.request.question}</p> : null}
