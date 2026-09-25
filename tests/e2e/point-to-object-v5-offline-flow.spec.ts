@@ -1371,6 +1371,11 @@ test("auth-persona: public demo reopens saved A/B Create without AI while protec
   }
   await page.goto("/prototype/point-to-object?mode=create");
   await expectDeclaredAuthPersona(page, persona);
+  // The authenticated header can render before owner restoration completes.
+  // setInputFiles does not wait for an inert ancestor: an early upload is
+  // intentionally rejected so it cannot overwrite the owner's saved work.
+  await expect(page.locator("main[data-project-restoration]")).toHaveAttribute("data-project-restoration", "ready");
+  await expect(page.getByTestId("create-workspace")).not.toHaveAttribute("inert", "");
   await page.getByLabel("Upload GeoJSON").setInputFiles({
     name: "guest-create-area.geojson",
     mimeType: "application/geo+json",
@@ -1379,6 +1384,7 @@ test("auth-persona: public demo reopens saved A/B Create without AI while protec
       coordinates: guestCreateAoiCoordinates
     }))
   });
+  await expect(page.getByTestId("create-local-preflight")).toHaveAttribute("data-preflight-kind", "ready");
   await page.getByTestId("create-generate-action").click();
   await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
   await page.getByTestId("create-alternative-b").click();
