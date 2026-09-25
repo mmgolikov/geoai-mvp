@@ -23,6 +23,17 @@ Coordinates below are **longitude, latitude**. Except D05, they are the Nominati
 
 Search strings not explicitly labeled “observed search” are proposed human-readable inputs, not proof that current product autocomplete returns that exact ID. Exact ID checks are mandatory. Point-only means this record has only a point; it does not prove that no enclosing building exists in the world/map.
 
+### Additional Singapore candidates — 25 September, 19:49 UTC
+
+The original twelve entries above are preserved. The registry now offers fourteen distinct IDs (nine Dubai, five Singapore), not fourteen executed cases. Additional candidates allow twelve distinct Analyse subjects while the separate nine-Dubai diversity requirement must still be verified across Find and Analyse.
+
+| Slot | Observed query / exact ID | Anchor lon, lat | Verified source scope |
+| --- | --- | --- | --- |
+| S13 community | `Tiong Bahru Community Centre Singapore` → [way/172242430](https://www.openstreetmap.org/way/172242430) | `103.8319218,1.2834878` | `amenity=community_centre`, `building=yes`; Polygon, one ring/seven positions. Height and levels unknown; not evidence of low-rise. Main OSM version7, source timestamp2026-05-06T02:52:41Z. |
+| S14 public museum POI | `National Gallery Singapore` → [node/4759240362](https://www.openstreetmap.org/node/4759240362) | `103.8514709,1.2902557` | `tourism=museum`, `museum=art`, `operator:type=public`; Point, not a building footprint. Main OSM version18, source timestamp2025-12-15T09:41:01Z. |
+
+All four responses HTTP200, no Overpass or paid call. S13 Nominatim received19:48:04.715Z,769bytes, rawSHA256 `fc73e9aa1efb7d38689868bbe5a08702ecdc74fe83936677a64f4d78e686089e`; exact mainOSM received19:48:56.111Z,821bytes, rawSHA256 `88d729cf6547996508cebac1b2e1a6da75e745cc22606de750220c6c40bf39e1`. S14 Nominatim received19:48:34.285Z,617bytes, rawSHA256 `25f56e240c180214b1232a2ca588872544f92c274568912b71a9caee35659008`; exact mainOSM received19:49:13.784Z,1335bytes, rawSHA256 `a14457cf1a218f52119cf3536c0b2ee5b0edbcc7a2410ee5b6f66bb1721e8f8b`. These are preparation metadata, not a product response, frozen snapshot, lease or acceptance result.
+
 ### Coverage that must not be silently closed
 
 1. D02 is a **confirmed internal OSM tag conflict**, not yet evidence of a GeoAI model error. Source height355/levels54 also must not resolve that identity dispute by inference.

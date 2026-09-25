@@ -12,6 +12,7 @@ const productSpecs = [
   "complete25-dashboard.spec.ts",
   "complete25-create-programmes.spec.ts",
   "complete25-climate.spec.ts",
+  "complete25-map-view-race.spec.ts",
   "project-hub-unified.spec.ts",
   "point-object-project-restoration-readiness.spec.ts",
   "point-to-object-find-viewport.spec.ts",
