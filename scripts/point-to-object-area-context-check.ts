@@ -223,7 +223,24 @@ try {
   const recovered = await resolvePointObjectAreaContext(request.value);
   assert.equal(recovered.mode, "empty", "A later valid zero-element response must recover as honest empty coverage.");
   assert.equal(upstreamFetchCount, 2, "The failed payload must not prevent a new provider attempt.");
-  await resolvePointObjectAreaContext(request.value);
+  const NativeDate = globalThis.Date;
+  const acquiredMs = Date.parse(recovered.source.acquiredAt);
+  try {
+    // Deterministic later consumer: cache acquisition must not become issue time.
+    globalThis.Date = new Proxy(NativeDate, {
+      construct(target, args) { return Reflect.construct(target, args.length ? args : [acquiredMs + 30_000]); },
+      get(target, property, receiver) { return property === "now" ? () => acquiredMs + 30_000 : Reflect.get(target, property, receiver); }
+    });
+    const cached = await resolvePointObjectAreaContext(request.value);
+    assert.deepEqual(cached, recovered, "A reused snapshot must retain the exact source acquisition timestamp and full binding.");
+    globalThis.Date = new Proxy(NativeDate, {
+      construct(target, args) { return Reflect.construct(target, args.length ? args : [acquiredMs + 900_000]); },
+      get(target, property, receiver) { return property === "now" ? () => acquiredMs + 900_000 : Reflect.get(target, property, receiver); }
+    });
+    await assert.rejects(resolvePointObjectAreaContext(request.value),
+      (error: unknown) => error instanceof PointObjectAreaContextError && error.httpStatus === 502 && error.retryable,
+      "Even a platform-stale cached entry cannot masquerade as a snapshot younger than fifteen minutes.");
+  } finally { globalThis.Date = NativeDate; }
   assert.equal(upstreamFetchCount, 2, "Only the later validated response may be reused from cache.");
 } finally {
   globalThis.fetch = originalFetch;

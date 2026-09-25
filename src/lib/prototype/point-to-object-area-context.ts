@@ -27,6 +27,7 @@ const OVERPASS_REVALIDATE_SECONDS = 15 * 60;
 const OVERPASS_MIN_INTERVAL_MS = 1_200;
 const USER_AGENT = "GeoAI-PointToObject-Preview/1.0 (+https://github.com/mmgolikov/geoai-mvp)";
 const REFERER = "https://github.com/mmgolikov/geoai-mvp";
+type AreaContextSnapshot = { payload: unknown; acquiredAt: string };
 
 export class PointObjectAreaContextError extends Error {
   readonly httpStatus: 429 | 502 | 504;
@@ -95,7 +96,7 @@ async function readBoundedText(response: Response, signal: AbortSignal): Promise
   return text + decoder.decode();
 }
 
-async function fetchAreaContext(query: string, routeSignal?: AbortSignal): Promise<unknown> {
+async function fetchAreaContext(query: string, routeSignal?: AbortSignal): Promise<AreaContextSnapshot> {
   const signal = pointObjectSourceOperationSignal(routeSignal, OVERPASS_TIMEOUT_MS);
   const url = new URL(OVERPASS_ENDPOINT);
   url.searchParams.set("data", query);
@@ -129,7 +130,7 @@ async function fetchAreaContext(query: string, routeSignal?: AbortSignal): Promi
     const payload = JSON.parse(await readBoundedText(response, signal)) as unknown;
     // Validate before the enclosing Next data cache can store the payload.
     assertUsablePointObjectAreaContextPayload(payload);
-    return payload;
+    return { payload, acquiredAt: new Date().toISOString() };
   } catch (error) {
     if (error instanceof PointObjectAreaContextError) throw error;
     if (routeSignal?.aborted) throw routeSignal.reason ?? error;
@@ -153,7 +154,7 @@ function mapPayloadError(error: PointObjectAreaContextPayloadError): PointObject
 
 const fetchCachedAreaContext = unstable_cache(
   fetchAreaContext,
-  ["point-object-area-context-overpass-v2"],
+  ["point-object-area-context-overpass-v3-acquisition"],
   { revalidate: OVERPASS_REVALIDATE_SECONDS }
 );
 
@@ -165,12 +166,19 @@ export async function resolvePointObjectAreaContext(
   try {
     const query = buildPointObjectAreaContextOverpassQuery(request);
     const load = loader
-      ? () => loader(query, signal)
+      ? async () => ({ payload: await loader(query, signal), acquiredAt: new Date().toISOString() })
       : pointObjectSourceCanUseSharedCache(signal)
         ? () => fetchCachedAreaContext(query)
         : () => fetchAreaContext(query, signal);
-    const payload = await load();
-    return normalizePointObjectAreaContext(payload, request);
+    const snapshot = await load();
+    const acquiredMs = Date.parse(snapshot.acquiredAt);
+    // Next may serve a stale entry while revalidating. Do not restamp that entry
+    // as freshly acquired or admit it into a new generation/evidence binding.
+    if (!Number.isFinite(acquiredMs) || acquiredMs > Date.now() + 1_000 ||
+        Date.now() - acquiredMs >= OVERPASS_REVALIDATE_SECONDS * 1_000) {
+      throw new PointObjectAreaContextError(502, "The open-map area snapshot expired. Retry to acquire current context.", true);
+    }
+    return normalizePointObjectAreaContext(snapshot.payload, request, snapshot.acquiredAt);
   } catch (error) {
     if (error instanceof PointObjectAreaContextError) throw error;
     if (error instanceof PointObjectAreaContextPayloadError) throw mapPayloadError(error);
