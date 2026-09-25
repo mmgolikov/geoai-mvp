@@ -1,0 +1,19 @@
+{
+  "date": "2026-09-25",
+  "baselineCommit": "d1c86a87074f0068093c6b9ef077f7b7ceef686b",
+  "scope": "Bounded direct public Overpass query diagnostic; no AI, authenticated data, database write or deployment",
+  "source": "https://overpass-api.de/api/interpreter",
+  "method": "GET; redirects rejected; 4500ms AbortSignal; timeout:4; maxsize:33554432; radius400m; output tags center320; >=1200ms between comparison requests",
+  "changeRequest": "Finish existing geocontext retrieval reliably within unchanged source bounds; compute the same around set once before the twelve tag selectors and retain unavailable on failures.",
+  "manualReference": "https://dev.overpass-api.de/overpass-doc/en/criteria/union.html",
+  "results": [
+    { "point": [103.8545, 1.2865], "variant": "baseline_initial", "httpStatus": 200, "elapsedMs": 3139, "responseTextLength": 99107, "elements": 292, "coordinateRecords": 292 },
+    { "point": [103.8545, 1.2865], "variant": "baseline_comparison", "failure": "TimeoutError", "elapsedMs": 4507 },
+    { "point": [103.8545, 1.2865], "variant": "named_spatial_set", "httpStatus": 200, "elapsedMs": 4338, "responseTextLength": 99107, "elements": 292, "elementsSha256": "20c0360d1ea922b99af3f39347c55646d6529a1591978442b70197cd696504b6" },
+    { "point": [55.274349, 25.197197], "variant": "baseline_comparison", "httpStatus": 200, "elapsedMs": 2335, "responseTextLength": 75514, "elements": 242, "elementsSha256": "8c543f6166843166105869a00efda5e5d184f29a8b6fcffc33e5fca52470b994" },
+    { "point": [55.274349, 25.197197], "variant": "named_spatial_set", "httpStatus": 200, "elapsedMs": 1470, "responseTextLength": 75514, "elements": 242, "elementsSha256": "8c543f6166843166105869a00efda5e5d184f29a8b6fcffc33e5fca52470b994" }
+  ],
+  "interpretation": "Current baseline timeout reproduced in Singapore. Named-set alternative returned valid records in both markets; Dubai element JSON hashes identical. Runtime varies by public provider load; these observations are not a speed benchmark, guaranteed reliability or deployed acceptance. Singapore baseline initial count/length match but exact element hash was not captured, so byte-level equivalence there is unverified.",
+  "honesty": "Source-provided OpenStreetMap records and bounded centre-distance calculations only. Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.",
+  "remaining": "Root exact-candidate browser/real-route matrix; previous three selected Find identities not recovered; no claim to have proved their historic failure code. Main and Production unchanged."
+}

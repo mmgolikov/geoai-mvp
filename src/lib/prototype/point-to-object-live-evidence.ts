@@ -702,19 +702,23 @@ export function buildOverpassUrbanFabricQuery(point: [number, number]): string {
   const around = `(around:${URBAN_FABRIC_RADIUS_M},${latitude.toFixed(6)},${longitude.toFixed(6)})`;
   return [
     `[out:json][timeout:4][maxsize:${POINT_OBJECT_OVERPASS_EXECUTION_MEMORY_MAX_BYTES}];`,
+    // Compute the spatial set once: repeating the around scan for every tag
+    // needlessly spends the short public-source execution budget. Filtering the
+    // same named set preserves the union, output order, radius and result cap.
+    `nwr${around}->.fabric;`,
     "(",
-    `nwr${around}["building"];`,
-    `nwr${around}["landuse"~"^(residential|commercial|retail|industrial|construction|brownfield|recreation_ground|forest)$"];`,
-    `nwr${around}["office"];`,
-    `nwr${around}["shop"];`,
-    `nwr${around}["tourism"];`,
-    `nwr${around}["amenity"];`,
-    `nwr${around}["leisure"];`,
-    `nwr${around}["natural"~"^(wood|water|grassland|scrub)$"];`,
-    `nwr${around}["public_transport"];`,
-    `nwr${around}["railway"~"^(station|halt|tram_stop|subway_entrance)$"];`,
-    `node${around}["highway"="bus_stop"];`,
-    `way${around}["highway"~"^(motorway|trunk|primary|secondary|tertiary)$"];`,
+    `nwr.fabric["building"];`,
+    `nwr.fabric["landuse"~"^(residential|commercial|retail|industrial|construction|brownfield|recreation_ground|forest)$"];`,
+    `nwr.fabric["office"];`,
+    `nwr.fabric["shop"];`,
+    `nwr.fabric["tourism"];`,
+    `nwr.fabric["amenity"];`,
+    `nwr.fabric["leisure"];`,
+    `nwr.fabric["natural"~"^(wood|water|grassland|scrub)$"];`,
+    `nwr.fabric["public_transport"];`,
+    `nwr.fabric["railway"~"^(station|halt|tram_stop|subway_entrance)$"];`,
+    `node.fabric["highway"="bus_stop"];`,
+    `way.fabric["highway"~"^(motorway|trunk|primary|secondary|tertiary)$"];`,
     ");",
     `out tags center ${URBAN_FABRIC_RESULT_LIMIT};`
   ].join("\n");
@@ -1364,6 +1368,7 @@ async function resolveLiveUrbanFabric(
 ): Promise<{ profile: LiveGeoContextProfile; responseHash: string | null; observedAt: string | null }> {
   try {
     const payload = await loader(buildOverpassUrbanFabricQuery(point));
+    assertUsableOverpassPayload(payload);
     const profile = normalizeOverpassUrbanFabric(payload, point);
     const observedAt = overpassObservedAt(payload);
     return { profile, responseHash: semanticHash({ observedAt, profile }), observedAt };
@@ -1467,6 +1472,7 @@ export async function resolveLiveNearbyContext(
 ): Promise<LiveNearbyContextResult> {
   try {
     const payload = await loader(buildOverpassNearbyQuery(point));
+    assertUsableOverpassPayload(payload);
     const items = normalizeOverpassNearbyContext(payload, point, selectedSourceFeatureId, locale);
     const observedAt = overpassObservedAt(payload);
     return {
