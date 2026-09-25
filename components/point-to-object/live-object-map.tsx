@@ -806,7 +806,7 @@ function createAoiData(draft: Wgs84Position[], aoi: PointObjectCreateAoi | null)
   const features: Feature[] = [];
   const ring = aoi?.coordinates[0] ?? draft;
   if (aoi && ring.length >= 4) {
-    features.push({ type: "Feature", properties: { kind: "aoi" }, geometry: { type: "Polygon", coordinates: [ring] } });
+    features.push({ type: "Feature", properties: { kind: "aoi" }, geometry: { type: "Polygon", coordinates: aoi.coordinates.map(boundary => boundary.map(([longitude, latitude]) => [longitude, latitude])) } });
   } else if (draft.length >= 3) {
     features.push({ type: "Feature", properties: { kind: "draft-fill" }, geometry: { type: "Polygon", coordinates: [[...draft, draft[0]]] } });
     features.push({ type: "Feature", properties: { kind: "draft" }, geometry: { type: "LineString", coordinates: draft } });
@@ -911,14 +911,23 @@ function setCreateLayers(
   const canShowConcept = Boolean(massing &&
     (replacementStatus === "applied" || replacementStatus === "partial") &&
     !visibleNativeConceptConflict(map, massing));
-  updateConceptEnvironment(map, aoi && massing ? buildConceptEnvironment(aoi, massing) : null, canShowConcept);
+  const environment = aoi && massing ? buildConceptEnvironment(aoi, massing) : null;
+  // Partial replacement may retain native buildings away from the new massing,
+  // but on a proposed plaza/path. Gate only decoration in that case.
+  const canShowEnvironment = Boolean(canShowConcept && environment?.featureCollection.features.length &&
+    !visibleNativeConceptConflict(map, environment, 256));
+  updateConceptEnvironment(map, environment, canShowEnvironment);
   if (map.getLayer(CONCEPT_FILL_LAYER_ID)) map.setLayoutProperty(CONCEPT_FILL_LAYER_ID, "visibility", canShowConcept && viewMode === "2d" ? "visible" : "none");
   if (map.getLayer(CONCEPT_VOLUME_LAYER_ID)) map.setLayoutProperty(CONCEPT_VOLUME_LAYER_ID, "visibility", canShowConcept && viewMode === "3d" ? "visible" : "none");
   if (map.getLayer(BUILDINGS_3D_LAYER_ID)) map.setLayoutProperty(BUILDINGS_3D_LAYER_ID, "visibility", viewMode === "3d" ? "visible" : "none");
   return replacementStatus;
 }
 
-function visibleNativeConceptConflict(map: MapLibreMap, massing: ConceptMassingResult): boolean {
+function visibleNativeConceptConflict(
+  map: MapLibreMap,
+  massing: { featureCollection: { features: Array<{ geometry: Polygon | MultiPolygon }> } },
+  maximumComparisons = Infinity
+): boolean {
   const layers = buildingLayerIds(map).filter((id) => map.getLayoutProperty(id, "visibility") !== "none");
   if (!layers.length) return false;
   const concepts: Array<Polygon | MultiPolygon> = [];
@@ -945,6 +954,7 @@ function visibleNativeConceptConflict(map: MapLibreMap, massing: ConceptMassingR
   } catch {
     return true;
   }
+  let comparisons = 0;
   for (const feature of visible) {
     const geometry = sanitizeGeometry(feature.geometry);
     if (geometry?.type !== "Polygon" && geometry?.type !== "MultiPolygon") return true;
@@ -953,6 +963,10 @@ function visibleNativeConceptConflict(map: MapLibreMap, massing: ConceptMassingR
         ? [concept]
         : concept.coordinates.map((coordinates) => ({ type: "Polygon", coordinates }));
       for (const conceptPolygon of conceptPolygons) {
+        // Decoration is optional: fail closed before adding unbounded exact
+        // intersection work to an idle/source refresh. Existing massing policy
+        // retains its original behavior (no new comparison limit).
+        if (++comparisons > maximumComparisons) return true;
         const overlap = pointObjectCompleteFootprintOverlap(geometry as Polygon | MultiPolygon, conceptPolygon);
         if (!overlap || overlap.overlapSqM > 0.05) return true;
       }
@@ -1902,7 +1916,11 @@ export function LiveObjectMap({
           );
           setPointObjectLayerVisibilityIfChanged(map, CONCEPT_FILL_LAYER_ID, conceptVisible && viewModeRef.current === "2d" ? "visible" : "none");
           setPointObjectLayerVisibilityIfChanged(map, CONCEPT_VOLUME_LAYER_ID, conceptVisible && viewModeRef.current === "3d" ? "visible" : "none");
-          setConceptEnvironmentVisibility(map, Boolean(conceptVisible));
+          const environment = conceptMassingRef.current
+            ? buildConceptEnvironment(createAoiRef.current, conceptMassingRef.current) : null;
+          const environmentVisible = Boolean(conceptVisible && environment?.featureCollection.features.length &&
+            !visibleNativeConceptConflict(map, environment, 256));
+          setConceptEnvironmentVisibility(map, environmentVisible);
         };
 
         const handleMoveEnd = (event: MapEventType["moveend"] & { geoaiNavigationRequestId?: string; geoaiNavigationCamera?: NavigationCamera }) => {
