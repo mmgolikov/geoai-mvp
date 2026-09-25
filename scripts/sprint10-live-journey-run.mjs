@@ -738,6 +738,7 @@ module.exports = defineConfig({
     if (result.error || result.signal) fail("The live child exceeded its bounded execution window; logout is not verified and operator action is required.");
     const report = parseJsonReport(result, "live journey");
     const receipts = receiptSummary(config, { failureProjection: result.status === 1 });
+    if (config.acquisition && receipts.length !== 0) fail("Nonpaid acquisition changed the paid receipt journal.");
     const classified = classifyLiveJourneyReport(report, result.status, config, receipts);
     const mapDiagnostics = comparisonMapDiagnosticsFromReport(report);
     if (mapDiagnostics.length) classified.receipt.mapDiagnostics = mapDiagnostics;

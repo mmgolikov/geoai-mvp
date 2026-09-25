@@ -69,7 +69,11 @@ import { loadQuality20Selection, quality20Hash, quality20RequestKey, quality20Cr
   validateQuality20PaidBody, validateQuality20AnalysisResult, validateQuality20Ledger,
   type Quality20Selection } from "./helpers/quality20-frozen-case";
 import { assertQuality20CreateGeometry } from "./helpers/quality20-create-geometry";
-import { loadQuality20Acquisition, writeQuality20Acquisition, type Quality20Acquisition } from "./helpers/quality20-acquisition";
+import { canonicalReceivedJson, loadQuality20Acquisition, writeQuality20Acquisition, type Quality20Acquisition, type Quality20FindAcquisition, type Quality20CreateAcquisition } from "./helpers/quality20-acquisition";
+import { complete25FindRequest, complete25ObservedFindPlan, complete25AcquiredCandidates, buildComplete25FindAcquisition, buildComplete25CreateAcquisition,
+  writeComplete25Acquisition, type Complete25ContextCapture } from "./helpers/quality20-cohort-acquisition";
+import { parsePointObjectFindRequest } from "../../src/lib/prototype/point-to-object-find-contract";
+import { validatePointObjectCreateAoiVertices } from "../../src/lib/prototype/point-to-object-create";
 import {
   DUBAI_CREATE_GOLDEN,
   DUBAI_CREATE_PROGRAMME_SCOPES,
@@ -478,6 +482,12 @@ async function installNetworkPolicy(page: Page, configuration: LiveConfiguration
     "/api/prototype/point-to-object/ai",
     "/api/prototype/point-to-object/create"
   ]);
+  if (configuration.acquisition?.schemaVersion === "geoai.complete25.nonpaid-acquisition.v2") {
+    const allowed = configuration.acquisition.kind === "find" ? ["find", "context"] : ["area-context"];
+    for (const path of allowedApplicationPosts) {
+      if (path !== "/api/auth/logout" && !allowed.some(name => path === `/api/prototype/point-to-object/${name}`)) allowedApplicationPosts.delete(path);
+    }
+  }
   const journeyRequests = new Map<string, number>();
   let blockedApplicationRequests = 0;
   let blockedSupabaseRequests = 0;
@@ -493,6 +503,12 @@ async function installNetworkPolicy(page: Page, configuration: LiveConfiguration
       journeyRequests.set(key, (journeyRequests.get(key) ?? 0) + 1);
       const allowedRead = method === "GET" || method === "HEAD";
       const allowedMutation = method === "POST" && !url.search && allowedApplicationPosts.has(url.pathname);
+      if (configuration.acquisition?.schemaVersion === "geoai.complete25.nonpaid-acquisition.v2" && method === "POST" &&
+        url.pathname.startsWith("/api/prototype/point-to-object/") &&
+        (journeyRequests.get(key) ?? 0) > (url.pathname.endsWith("/context") ? 3 : 1)) {
+        blockedApplicationRequests += 1;
+        return route.abort("blockedbyclient");
+      }
       if (!allowedRead && !allowedMutation) {
         blockedApplicationRequests += 1;
         return route.abort("blockedbyclient");
@@ -2704,6 +2720,11 @@ async function runQuality20Analysis(page: Page, configuration: LiveConfiguration
 
 async function runQuality20Acquisition(page: Page, configuration: LiveConfiguration, budget: ReturnType<typeof installBudgetGate>, progress: LiveProgress) {
   const plan = configuration.acquisition!;
+  if (plan.schemaVersion === "geoai.complete25.nonpaid-acquisition.v2") {
+    if (plan.kind === "find") await runComplete25FindAcquisition(page, plan, budget, progress);
+    else await runComplete25CreateAcquisition(page, plan, budget, progress);
+    return;
+  }
   const context = await quality20SelectSource(page, { marketKey: plan.marketKey, query: plan.query, sourceIdentity: plan.expectedSourceIdentity }, progress);
   const suppressed = await suppressOneInitialNonpaidChallenge(page);
   await page.getByRole("button", { name: "Analyze", exact: true }).click();
@@ -2713,6 +2734,130 @@ async function runQuality20Acquisition(page: Page, configuration: LiveConfigurat
   writeQuality20Acquisition(plan, context.payload, context.receivedAt);
   // Stop here. No Run, Refresh, generation, replay or paid result assertion.
   test.info().annotations.push({ type: "quality20-acquisition", description: "ACQUIRED_NOT_ANALYSED; local receivedAt is not source freshness." });
+}
+
+async function runComplete25FindAcquisition(page: Page, plan: Quality20FindAcquisition,
+  budget: ReturnType<typeof installBudgetGate>, progress: LiveProgress) {
+  guard(plan.find.boundedEnvelope.every((_, index, box) => index > 1 || coordinatesMatchPointObjectMarket(plan.marketKey, box[index * 2], box[index * 2 + 1])),
+    "Find envelope is outside the approved market.");
+  progress.start("find_source_ui");
+  await page.goto("/prototype/point-to-object");
+  await expect(page.locator('main[data-project-restoration="ready"]')).toBeVisible();
+  await page.getByTestId("point-object-city-select").selectOption(plan.marketKey);
+  await page.getByRole("tab", { name: "Find", exact: true }).click();
+  await page.getByTestId("point-object-find-role-select").selectOption(plan.role);
+  await page.getByTestId("point-object-find-scenario-select").selectOption(plan.scenario);
+  await page.getByTestId("point-object-find-group-select").selectOption(plan.find.group);
+  await page.getByLabel("Levels from", { exact: true }).fill(plan.find.mappedMinimumLevels === null ? "" : String(plan.find.mappedMinimumLevels));
+  await page.getByLabel("Levels to", { exact: true }).fill(plan.find.mappedMaximumLevels === null ? "" : String(plan.find.mappedMaximumLevels));
+  const map = page.getByTestId("live-map-canvas").first();
+  await expect.poll(async () => (await quality20MapState(map)).ready).toBe(true);
+  const viewport = await quality20MapState(map, plan.find.bounds);
+  const actualPlan = complete25ObservedFindPlan(plan, viewport.bounds.flat());
+  const expected = complete25FindRequest(actualPlan);
+  guard(parsePointObjectFindRequest(expected).ok, "Acquisition Find query exceeds product source bounds.");
+  const gate = await installFindPreDispatchGate(page, (v): v is AcceptedFindRequest => record(v) && Array.isArray(v.bounds) &&
+    canonicalReceivedJson(v) === canonicalReceivedJson(expected), plan.marketKey === "dubai" ? "Dubai" : "Singapore");
+  const responsePromise = page.waitForResponse(r => r.request().method() === "POST" && new URL(r.url()).pathname === "/api/prototype/point-to-object/find",
+    { timeout: SOURCE_REQUEST_HARNESS_TIMEOUT_MS });
+  await page.getByTestId("find-search-cta").click();
+  await gate.request;
+  const response = await responsePromise;
+  guard(response.status() === 200, "Acquisition Find did not return HTTP200.");
+  const payload: unknown = await boundedLiveJourneyResponseJson(response, 10_000);
+  const receivedAt = new Date().toISOString();
+  // The actual observed viewport, not the requested fit rectangle, is frozen.
+  const candidates = complete25AcquiredCandidates(actualPlan, payload);
+  for (const c of candidates) {
+    const item = page.locator("li").filter({ has: page.locator(`[id="find-result-${c.sourceFeatureId}"]`) });
+    await item.getByRole("button", { name: "Compare", exact: true }).click();
+  }
+  await page.getByRole("button", { name: "Compare selected", exact: true }).click();
+  await page.getByRole("button", { name: "Open full comparison dashboard", exact: true }).click();
+  const dashboard = page.getByTestId("find-full-comparison-dashboard");
+  const captures: Complete25ContextCapture[] = [];
+  let contextDispatches = 0;
+  await page.route("**/api/prototype/point-to-object/context", async route => {
+    const c = candidates[contextDispatches];
+    if (!c || route.request().method() !== "POST" || canonicalReceivedJson(route.request().postDataJSON()) !== canonicalReceivedJson({
+      caseKey: plan.marketKey, longitude: c.longitude, latitude: c.latitude, locale: "en", expectedSourceFeatureId: c.sourceFeatureId
+    })) { await route.abort("blockedbyclient"); throw new Error("Find context acquisition differs before dispatch."); }
+    contextDispatches += 1;
+    await route.fallback();
+  });
+  for (const [index, c] of candidates.entries()) {
+    await expect(dashboard).toBeVisible();
+    const contextPromise = page.waitForResponse(r => r.request().method() === "POST" && new URL(r.url()).pathname === "/api/prototype/point-to-object/context",
+      { timeout: SOURCE_REQUEST_HARNESS_TIMEOUT_MS });
+    await dashboard.getByRole("button", { name: "Open object analysis", exact: true }).nth(index).click();
+    const context = await contextPromise;
+    expect(context.request().postDataJSON()).toEqual({ caseKey: plan.marketKey, longitude: c.longitude, latitude: c.latitude,
+      locale: "en", expectedSourceFeatureId: c.sourceFeatureId });
+    guard(context.status() === 200, "Find acquisition context failed.");
+    captures.push({ payload: await boundedLiveJourneyResponseJson(context, 10_000), receivedAt: new Date().toISOString() });
+    await expect(page.getByRole("button", { name: "Analyze", exact: true })).toBeEnabled();
+    if (index < 2) {
+      await page.getByRole("tab", { name: "Find", exact: true }).click();
+      await page.getByRole("button", { name: "Open full comparison dashboard", exact: true }).click();
+    }
+  }
+  await stableLocalBarrier(page);
+  guard(budget.paidDispatchCount() === 0 && contextDispatches === 3, "Nonpaid Find acquisition attempted a paid POST or wrong context count.");
+  writeComplete25Acquisition(plan, buildComplete25FindAcquisition(actualPlan, payload, captures, receivedAt, budget.paidDispatchCount()));
+  test.info().annotations.push({ type: "quality20-acquisition", description: "ACQUIRED_NOT_ANALYSED; exact Find cohort and three UI contexts; no AI." });
+}
+
+async function runComplete25CreateAcquisition(page: Page, plan: Quality20CreateAcquisition,
+  budget: ReturnType<typeof installBudgetGate>, progress: LiveProgress) {
+  guard(validatePointObjectCreateAoiVertices(plan.coordinates as [number, number][]).ok &&
+    plan.coordinates.every(p => coordinatesMatchPointObjectMarket(plan.marketKey, p[0], p[1])), "Acquisition AOI exceeds product geometry/market limits.");
+  progress.start("create_source_context_ui");
+  await page.goto("/prototype/point-to-object");
+  await expect(page.locator('main[data-project-restoration="ready"]')).toBeVisible();
+  await page.getByTestId("point-object-city-select").selectOption(plan.marketKey);
+  await page.getByRole("tab", { name: "Create", exact: true }).click();
+  const coordinates = [[...plan.coordinates, plan.coordinates[0]]];
+  const expected = { aoiCoordinates: coordinates, locale: "en", marketKey: plan.marketKey };
+  let dispatched = 0;
+  const handler = async (route: Route) => {
+    if (route.request().method() !== "POST" || canonicalReceivedJson(route.request().postDataJSON()) !== canonicalReceivedJson(expected) || ++dispatched !== 1) {
+      await route.abort("blockedbyclient"); throw new Error("Create acquisition request differs before dispatch.");
+    }
+    await route.fallback();
+  };
+  await page.route("**/api/prototype/point-to-object/area-context", handler);
+  const responsePromise = page.waitForResponse(r => r.request().method() === "POST" && new URL(r.url()).pathname === "/api/prototype/point-to-object/area-context",
+    { timeout: SOURCE_REQUEST_HARNESS_TIMEOUT_MS });
+  await page.getByLabel("Upload GeoJSON", { exact: true }).setInputFiles({ name: `${plan.caseId}.geojson`, mimeType: "application/geo+json",
+    buffer: Buffer.from(JSON.stringify({ type: "Polygon", coordinates })) });
+  const response = await responsePromise;
+  const payload: unknown = await boundedLiveJourneyResponseJson(response, 10_000);
+  const receivedAt = new Date().toISOString();
+  guard(response.status() === 200 && isPointObjectAreaContextResult(payload), "Create acquisition did not return valid attributed context.");
+  const heading = page.getByTestId("create-area-context-heading");
+  await expect(heading).toBeVisible();
+  // Read-only mounted product props: do not synthesize the Date.now()-based AOI identity.
+  const aoi = await heading.evaluate((element, expectedCoordinates) => {
+    type Hook = { memoizedState: unknown; next: Hook | null };
+    type Fiber = { memoizedState?: Hook; return: Fiber | null };
+    const key = Object.getOwnPropertyNames(element).find(name => name.startsWith("__reactFiber$"));
+    let fiber = key ? (element as unknown as Record<string, Fiber>)[key] : null;
+    while (fiber) {
+      let hook = fiber.memoizedState;
+      while (hook) {
+        const value = hook.memoizedState as { id?: unknown; coordinates?: unknown } | null;
+        if (value && typeof value.id === "string" && value.id.startsWith("create-aoi-") &&
+          JSON.stringify(value.coordinates) === JSON.stringify(expectedCoordinates)) return value;
+        hook = hook.next ?? undefined;
+      }
+      fiber = fiber.return;
+    }
+    return null;
+  }, coordinates);
+  await stableLocalBarrier(page);
+  guard(budget.paidDispatchCount() === 0 && dispatched === 1, "Nonpaid Create acquisition attempted generation or repeated context.");
+  writeComplete25Acquisition(plan, buildComplete25CreateAcquisition(plan, payload, aoi, receivedAt, budget.paidDispatchCount()));
+  test.info().annotations.push({ type: "quality20-acquisition", description: "ACQUIRED_NOT_GENERATED; exact uploaded AOI and received area context; no AI." });
 }
 
 test("root-authorized protected Preview source-to-decision journey", async ({ page, baseURL }) => {
