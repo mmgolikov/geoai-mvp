@@ -55,7 +55,8 @@ process.env.VERCEL_DEPLOYMENT_ID = "dpl_offline_one";
 const buildFixture = async (lookup) => {
   sourceCalls += 1;
   assert.equal(lookup.deadlineAtMs, now + 12_000);
-  assert.deepEqual(Object.keys(lookup).sort(), ["deadlineAtMs", "expectedCountryCode", "latitude", "locale", "longitude", "osmFeatureId"].sort());
+  assert.deepEqual(Object.keys(lookup).sort(), ["deadlineAtMs", "expectedCountryCode", "latitude", "locale", "longitude", "osmFeatureId", "includeClimate"].sort());
+  assert.equal(lookup.includeClimate, true);
   const core = {
     protocol: "POINT_TO_OBJECT_001_AI_EVIDENCE_PACK_LIVE_V2", caseKey: "live", caseId: "live_way_123",
     coordinates: { longitude: lookup.longitude, latitude: lookup.latitude, crs: "EPSG:4326" },

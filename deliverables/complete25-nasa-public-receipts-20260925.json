@@ -1,0 +1,213 @@
+{
+  "scope": "Two public NASA POWER adapter calls; no paid AI, deployment or end-to-end product acceptance",
+  "receipts": [
+    {
+      "city": "Dubai",
+      "longitude": 55.2708,
+      "latitude": 25.2048,
+      "elapsedMs": 1335,
+      "climate": {
+        "version": "NASA_POWER_MONTHLY_V1",
+        "status": "available",
+        "year": 2025,
+        "requestedPoint": [
+          55.2708,
+          25.2048
+        ],
+        "months": [
+          {
+            "month": 1,
+            "temperatureC": 20.48,
+            "maximumTemperatureC": 25.85,
+            "relativeHumidityPct": 60.1
+          },
+          {
+            "month": 2,
+            "temperatureC": 21.69,
+            "maximumTemperatureC": 31.31,
+            "relativeHumidityPct": 62.57
+          },
+          {
+            "month": 3,
+            "temperatureC": 24.2,
+            "maximumTemperatureC": 33.52,
+            "relativeHumidityPct": 57.23
+          },
+          {
+            "month": 4,
+            "temperatureC": 28.81,
+            "maximumTemperatureC": 39.02,
+            "relativeHumidityPct": 51.76
+          },
+          {
+            "month": 5,
+            "temperatureC": 31.57,
+            "maximumTemperatureC": 41.13,
+            "relativeHumidityPct": 60.6
+          },
+          {
+            "month": 6,
+            "temperatureC": 33.13,
+            "maximumTemperatureC": 40.26,
+            "relativeHumidityPct": 63.05
+          },
+          {
+            "month": 7,
+            "temperatureC": 35.26,
+            "maximumTemperatureC": 43.88,
+            "relativeHumidityPct": 57.19
+          },
+          {
+            "month": 8,
+            "temperatureC": 36.34,
+            "maximumTemperatureC": 45.15,
+            "relativeHumidityPct": 50.46
+          },
+          {
+            "month": 9,
+            "temperatureC": 34.1,
+            "maximumTemperatureC": 41.71,
+            "relativeHumidityPct": 59.06
+          },
+          {
+            "month": 10,
+            "temperatureC": 30.97,
+            "maximumTemperatureC": 37.16,
+            "relativeHumidityPct": 57.84
+          },
+          {
+            "month": 11,
+            "temperatureC": 27.15,
+            "maximumTemperatureC": 33.29,
+            "relativeHumidityPct": 52.16
+          },
+          {
+            "month": 12,
+            "temperatureC": 23.24,
+            "maximumTemperatureC": 30.1,
+            "relativeHumidityPct": 60.91
+          }
+        ],
+        "source": {
+          "sourceId": "NASA-POWER",
+          "endpoint": "https://power.larc.nasa.gov/api/temporal/monthly/point",
+          "referenceUrl": "https://power.larc.nasa.gov/docs/referencing/",
+          "attribution": "NASA POWER Project, NASA Langley Research Center",
+          "dataset": "MERRA2",
+          "apiVersion": "v2.10.0",
+          "timeStandard": "LST",
+          "observedStart": "2025-01-01",
+          "observedEnd": "2025-12-31",
+          "acquiredAt": "2026-09-25T17:33:43.342Z",
+          "responseHash": "75be0803e198938ae24f12b18b37d4506b8095e2adb9eff49fbc1142cf6af7b9",
+          "responseBytes": 1226
+        },
+        "proofLimit": "Regional MERRA-2 grid (0.5° latitude × 0.625° longitude), 2 m air temperature; not site or surface temperature, thermal comfort, or an absolute temperature extreme."
+      }
+    },
+    {
+      "city": "Singapore",
+      "longitude": 103.8545,
+      "latitude": 1.2865,
+      "elapsedMs": 1186,
+      "climate": {
+        "version": "NASA_POWER_MONTHLY_V1",
+        "status": "available",
+        "year": 2025,
+        "requestedPoint": [
+          103.8545,
+          1.2865
+        ],
+        "months": [
+          {
+            "month": 1,
+            "temperatureC": 26,
+            "maximumTemperatureC": 29.82,
+            "relativeHumidityPct": 91.32
+          },
+          {
+            "month": 2,
+            "temperatureC": 26.37,
+            "maximumTemperatureC": 30.53,
+            "relativeHumidityPct": 87.9
+          },
+          {
+            "month": 3,
+            "temperatureC": 27.11,
+            "maximumTemperatureC": 30.67,
+            "relativeHumidityPct": 88.75
+          },
+          {
+            "month": 4,
+            "temperatureC": 27.87,
+            "maximumTemperatureC": 31.59,
+            "relativeHumidityPct": 84.34
+          },
+          {
+            "month": 5,
+            "temperatureC": 28.54,
+            "maximumTemperatureC": 32.18,
+            "relativeHumidityPct": 83.65
+          },
+          {
+            "month": 6,
+            "temperatureC": 28.16,
+            "maximumTemperatureC": 31.96,
+            "relativeHumidityPct": 84.52
+          },
+          {
+            "month": 7,
+            "temperatureC": 27.94,
+            "maximumTemperatureC": 30.9,
+            "relativeHumidityPct": 85.94
+          },
+          {
+            "month": 8,
+            "temperatureC": 27.49,
+            "maximumTemperatureC": 31.11,
+            "relativeHumidityPct": 84.93
+          },
+          {
+            "month": 9,
+            "temperatureC": 27.28,
+            "maximumTemperatureC": 31.7,
+            "relativeHumidityPct": 85.94
+          },
+          {
+            "month": 10,
+            "temperatureC": 27.71,
+            "maximumTemperatureC": 31.53,
+            "relativeHumidityPct": 84.23
+          },
+          {
+            "month": 11,
+            "temperatureC": 27.44,
+            "maximumTemperatureC": 30.9,
+            "relativeHumidityPct": 85.72
+          },
+          {
+            "month": 12,
+            "temperatureC": 26.64,
+            "maximumTemperatureC": 30.97,
+            "relativeHumidityPct": 89.15
+          }
+        ],
+        "source": {
+          "sourceId": "NASA-POWER",
+          "endpoint": "https://power.larc.nasa.gov/api/temporal/monthly/point",
+          "referenceUrl": "https://power.larc.nasa.gov/docs/referencing/",
+          "attribution": "NASA POWER Project, NASA Langley Research Center",
+          "dataset": "MERRA2",
+          "apiVersion": "v2.10.0",
+          "timeStandard": "LST",
+          "observedStart": "2025-01-01",
+          "observedEnd": "2025-12-31",
+          "acquiredAt": "2026-09-25T17:33:44.529Z",
+          "responseHash": "301f3c669c0621ed0457df6ad613101ebffaf06b2d227906c3f8a26c92eba211",
+          "responseBytes": 1225
+        },
+        "proofLimit": "Regional MERRA-2 grid (0.5° latitude × 0.625° longitude), 2 m air temperature; not site or surface temperature, thermal comfort, or an absolute temperature extreme."
+      }
+    }
+  ]
+}

@@ -1,3 +1,4 @@
+import { parsePointObjectClimate } from "@/src/lib/prototype/point-to-object-climate-contract";
 import type { GeoJsonGeometry } from "@/src/lib/point-to-object/contracts";
 import { LIVE_POINT_CAVEAT } from "@/src/lib/point-to-object/contracts";
 import { parsePublicEvidenceReceipt } from "@/src/lib/prototype/point-to-object-evidence-receipt";
@@ -256,6 +257,8 @@ function parseWikidataLinkedEntity(value: unknown): PointObjectWikidataLinkedEnt
 
 export function parseLiveResolvedObject(value: unknown): LiveResolvedObjectContext | null {
   if (!isRecord(value)) return null;
+  const climate = value.climate === undefined ? undefined : parsePointObjectClimate(value.climate);
+  if (climate === null) return null;
   const evidenceReceipt = value.evidenceReceipt === undefined ? undefined : parsePublicEvidenceReceipt(value.evidenceReceipt);
   if (evidenceReceipt === null) return null;
   const name = value.name === null ? null : nonEmptyText(value.name, 240);
@@ -321,6 +324,7 @@ export function parseLiveResolvedObject(value: unknown): LiveResolvedObjectConte
     metrics,
     geoContext,
     linkedEntity,
+    ...(climate ? { climate } : {}),
     ...(hasDisplayGeometry ? { displayGeometry: displayGeometry as LiveResolvedObjectContext["displayGeometry"] } : {}),
     ...(hasGeometryProvenance ? { geometryProvenance } : {}),
     ...(hasRenderHeight ? { renderHeightM } : {}),
@@ -928,8 +932,10 @@ export function parsePointObjectAnalysisRequestReceipt(value: unknown): PointObj
 function parseSubject(value: unknown): PointObjectAiSubject | null {
   if (!isRecord(value) || !hasExactKeys(value, [
     "name", "address", "featureClass", "sourceFeatureId", "resolutionMethod", "coordinateAssociation", "sourceLabel",
-    "geometryType", "resultCentroidDistanceM", "addressParts", "tags", "metrics", "geoContext", "linkedEntity"
+    "geometryType", "resultCentroidDistanceM", "addressParts", "tags", "metrics", "geoContext", "linkedEntity", ...(value.climate === undefined ? [] : ["climate"])
   ])) return null;
+  const climate = value.climate === undefined ? undefined : parsePointObjectClimate(value.climate);
+  if (climate === null) return null;
   const name = value.name === null ? null : nonEmptyText(value.name, 240);
   const address = value.address === null ? null : nonEmptyText(value.address, 500);
   const featureClass = nonEmptyText(value.featureClass, 160);
@@ -970,7 +976,8 @@ function parseSubject(value: unknown): PointObjectAiSubject | null {
     tags,
     metrics,
     geoContext,
-    linkedEntity
+    linkedEntity,
+    ...(climate ? { climate } : {})
   };
 }
 

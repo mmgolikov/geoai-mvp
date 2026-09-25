@@ -1240,6 +1240,7 @@ function assertStaticBoundaries(): void {
     "app/api/prototype/point-to-object/search/route.ts",
     "app/api/prototype/point-to-object/suggest/route.ts",
     "components/point-to-object/analysis-client.tsx",
+    "components/point-to-object/climate-context.tsx",
     "components/point-to-object/create-panel.tsx",
     "components/point-to-object/create-preflight.worker.ts",
     "components/point-to-object/create-result-dashboard.tsx",
@@ -1454,6 +1455,7 @@ async function assertCandidateAiSafety(): Promise<void> {
   assert.ok(deterministicRecoveryIndex > 0 && repairRequestIndex > deterministicRecoveryIndex,
     "Known context-binding failures must use safe deterministic recovery before spending a second model call.");
   const aiCore = await importErasableTypeScript(aiCorePath, [
+    [/from "\.\/point-to-object-climate-contract"/, `from ${JSON.stringify(pathToFileURL(path.join(ROOT, "src/lib/prototype/point-to-object-climate-contract.ts")).href)}`],
     [
       /import \{ LIVE_POINT_CAVEAT \} from "@\/src\/lib\/point-to-object\/contracts";\n/,
       `const LIVE_POINT_CAVEAT = ${JSON.stringify(LIVE_POINT_CAVEAT)};\n`
@@ -1471,6 +1473,7 @@ async function assertCandidateAiSafety(): Promise<void> {
     path.join(ROOT, "src/lib/prototype/point-to-object-ai-provenance.ts")
   ).href;
   const liveSession = await importErasableTypeScript(liveSessionPath, [
+    [/from "@\/src\/lib\/prototype\/point-to-object-climate-contract"/, `from ${JSON.stringify(pathToFileURL(path.join(ROOT, "src/lib/prototype/point-to-object-climate-contract.ts")).href)}`],
     [
       /from "@\/src\/lib\/prototype\/point-to-object-evidence-receipt"/,
       `from ${JSON.stringify(pathToFileURL(path.join(ROOT, "src/lib/prototype/point-to-object-evidence-receipt.ts")).href)}`
@@ -3228,6 +3231,11 @@ async function assertCandidateAiSafety(): Promise<void> {
 
 async function assertLiveOverpassContext(): Promise<void> {
   const liveEvidencePath = path.join(ROOT, "src/lib/prototype/point-to-object-live-evidence.ts");
+  const climateContractUrl = pathToFileURL(path.join(ROOT, "src/lib/prototype/point-to-object-climate-contract.ts")).href;
+  const climateAdapterSource = readFileSync(path.join(ROOT, "src/lib/prototype/point-to-object-climate.ts"), "utf8")
+    .replace(/import "server-only";\n/, "")
+    .replace(/from "\.\/point-to-object-climate-contract"/, `from ${JSON.stringify(climateContractUrl)}`);
+  const climateAdapterUrl = `data:text/javascript;base64,${Buffer.from(stripTypeScriptTypes(climateAdapterSource, { mode: "transform" })).toString("base64")}`;
   const trustedIdentityModuleUrl = pathToFileURL(
     path.join(ROOT, "src/lib/prototype/point-to-object-trusted-identity.ts")
   ).href;
@@ -3238,6 +3246,8 @@ async function assertLiveOverpassContext(): Promise<void> {
     path.join(ROOT, "src/lib/prototype/point-to-object-source-budget.ts")
   ).href;
   const liveEvidence = await importErasableTypeScript(liveEvidencePath, [
+    [/from "\.\/point-to-object-climate"/, `from ${JSON.stringify(climateAdapterUrl)}`],
+    [/from "\.\/point-to-object-climate-contract"/, `from ${JSON.stringify(climateContractUrl)}`],
     [/import "server-only";\n/, ""],
     // This lane tests pure nearby-context normalization. Exact identity executes
     // the real server modules in quality20-map-check.mjs (cold/warm/expiry/mismatch).

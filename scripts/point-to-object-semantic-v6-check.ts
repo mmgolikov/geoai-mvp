@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { stripTypeScriptTypes } from "node:module";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 const CAVEAT = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
 
@@ -21,6 +22,8 @@ function semanticHash(value: unknown): string {
 async function loadAiCore(): Promise<Record<string, any>> {
   const file = path.join(process.cwd(), "src/lib/prototype/point-to-object-ai-core.ts");
   let source = readFileSync(file, "utf8");
+  source = source.replace(/from "\.\/point-to-object-climate-contract"/,
+    `from ${JSON.stringify(pathToFileURL(path.join(process.cwd(), "src/lib/prototype/point-to-object-climate-contract.ts")).href)}`);
   source = source.replace(
     /import \{ LIVE_POINT_CAVEAT \} from "@\/src\/lib\/point-to-object\/contracts";\n/,
     `const LIVE_POINT_CAVEAT = ${JSON.stringify(CAVEAT)};\n`

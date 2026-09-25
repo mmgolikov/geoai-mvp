@@ -171,7 +171,8 @@ export async function POST(request: Request) {
         geometryProvenance: evidencePack.displayGeometry ? "confirmed_complete_footprint" : null,
         ...explicitSourceHeight(evidencePack.selectedObject.tags),
         geoContext: evidencePack.geoContext,
-        linkedEntity: evidencePack.linkedEntity
+        linkedEntity: evidencePack.linkedEntity,
+        ...(evidencePack.climate ? { climate: evidencePack.climate } : {})
       }
     }, { headers: noStoreHeaders() });
   } catch (error) {

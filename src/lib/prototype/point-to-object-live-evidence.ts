@@ -1,4 +1,6 @@
 import "server-only";
+import { acquirePointObjectClimate } from "./point-to-object-climate";
+import { CLIMATE_EVIDENCE_ID, type PointObjectClimate } from "./point-to-object-climate-contract";
 import { readExactSourceElement, exactSourcePlacePayload } from "./point-to-object-exact-source";
 import type { SharedExactSourceSnapshot } from "./point-to-object-exact-source";
 
@@ -250,6 +252,8 @@ type NearbyCandidate = Omit<LiveNearbyContextItem, "evidenceId" | "proofLimit"> 
 type NearbyClassification = Pick<NearbyCandidate, "group" | "categories" | "featureClass">;
 
 export type LivePointEvidenceRequest = {
+  /** Server-only opt-in; every product acquisition via public evidence lease enables this. */
+  includeClimate?: boolean;
   longitude: number;
   latitude: number;
   /** Exact OSM node/way/relation identity from a server-normalized search result. */
@@ -276,6 +280,7 @@ export type LivePointSearchResult = {
 };
 
 export type LivePointObjectEvidencePack = {
+  climate?: PointObjectClimate;
   protocol: "POINT_TO_OBJECT_001_AI_EVIDENCE_PACK_LIVE_V2";
   evidencePackId: string;
   evidencePackHash: string;
@@ -1964,9 +1969,10 @@ export async function buildLivePointObjectEvidencePack(
   }
   const coordinateAssociation = pointObjectLookupAssociation(matchMethod, geometryContainsAnchor);
 
-  const [nearbyPayload, fabricPayload] = await Promise.all([
+  const [nearbyPayload, fabricPayload, climate] = await Promise.all([
     acquireOptionalOverpass(buildOverpassNearbyQuery(point), deadlineAtMs),
-    acquireOptionalOverpass(buildOverpassUrbanFabricQuery(point), deadlineAtMs)
+    acquireOptionalOverpass(buildOverpassUrbanFabricQuery(point), deadlineAtMs),
+    input.includeClimate ? acquirePointObjectClimate({ longitude: point[0], latitude: point[1], deadlineAtMs }) : Promise.resolve(undefined)
   ]);
 
   const sourceFeatureId = resolvedIdentity;
@@ -2055,6 +2061,7 @@ export async function buildLivePointObjectEvidencePack(
       metrics: selectedMetrics
     },
     linkedEntity: wikidata.linkedEntity,
+    ...(climate ? { climate } : {}),
     source: {
       name: "OpenStreetMap" as const,
       service: trustedIdentity ? "Overpass API" as const : "Nominatim" as const,
@@ -2096,6 +2103,7 @@ export async function buildLivePointObjectEvidencePack(
     nearbyContext: nearby.items,
     geoContext: fabric.profile,
     evidence: [
+      ...(climate?.status === "available" ? [{ id: CLIMATE_EVIDENCE_ID, label: "NASA POWER regional monthly climate", value: JSON.stringify(climate), sourceId: "NASA-POWER", proofLimit: climate.proofLimit }] : []),
       ...evidenceFor(place, point, matchMethod, coordinateAssociation, place.geometryHash, selectedTags, selectedMetrics),
       ...evidenceForNearby(nearby.items),
       ...evidenceForGeoContext(fabric.profile),

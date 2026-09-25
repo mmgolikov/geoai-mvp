@@ -1,4 +1,5 @@
 import "server-only";
+import { parsePointObjectClimate } from "./point-to-object-climate-contract";
 import { randomUUID } from "node:crypto";
 import { readSharedExactFindSnapshot, type SharedExactSourceSnapshot } from "./point-to-object-exact-source";
 import { unstable_cache } from "next/cache";
@@ -42,7 +43,9 @@ const PACK_KEYS = ["protocol", "evidencePackId", "evidencePackHash", "caseKey", 
 function validatedPublicPack(value: LivePointObjectEvidencePack, input: Required<PublicLookup>): LivePointObjectEvidencePack {
   const serialized = JSON.stringify(value);
   if (Buffer.byteLength(serialized, "utf8") > MAX_PUBLIC_PACK_BYTES ||
-      Object.keys(value).length !== PACK_KEYS.length || Object.keys(value).some((key) => !PACK_KEYS.includes(key)) ||
+      Object.keys(value).length !== PACK_KEYS.length + (value.climate === undefined ? 0 : 1) || Object.keys(value).some((key) => !PACK_KEYS.includes(key) && key !== "climate") ||
+      (value.climate !== undefined && (!parsePointObjectClimate(value.climate) || (value.climate.status === "available" &&
+        (value.climate.requestedPoint[0] !== input.longitude || value.climate.requestedPoint[1] !== input.latitude)))) ||
       /"(?:password|authorization|apiKey|accessToken|refreshToken|userId|accountId|projectId|question|prompt|query)"\s*:/.test(serialized) ||
       value.protocol !== "POINT_TO_OBJECT_001_AI_EVIDENCE_PACK_LIVE_V2" || value.caseKey !== "live" ||
       value.coordinates.longitude !== input.longitude || value.coordinates.latitude !== input.latitude ||
@@ -60,7 +63,7 @@ async function boundedSource(input: Required<PublicLookup>, serverExactSnapshot:
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     return await Promise.race([
-      buildLivePointObjectEvidencePack({ ...input, ...(serverExactSnapshot ? { serverExactSnapshot } : {}), deadlineAtMs: Date.now() + SOURCE_BUDGET_MS }),
+      buildLivePointObjectEvidencePack({ ...input, includeClimate: true, ...(serverExactSnapshot ? { serverExactSnapshot } : {}), deadlineAtMs: Date.now() + SOURCE_BUDGET_MS }),
       new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new PublicEvidenceLeaseError()), SOURCE_BUDGET_MS); })
     ]);
   } finally { if (timer) clearTimeout(timer); }

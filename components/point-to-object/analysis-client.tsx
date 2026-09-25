@@ -8,6 +8,7 @@ import { usePointObjectLocale } from "@/components/point-to-object/locale-provid
 import { ReliableSelect } from "@/components/point-to-object/reliable-select";
 import { PointObjectHeader } from "@/components/point-to-object/prototype-header";
 import { PointObjectDecisionCards } from "@/components/point-to-object/decision-cards";
+import { PointObjectClimateContext } from "@/components/point-to-object/climate-context";
 import {
   parsePointObjectAiResponse,
   writePointObjectSelection,
@@ -690,6 +691,7 @@ export function PointToObjectAnalysis() {
                 </section>
 
                 {analysis?.mode === "openai" ? <PointObjectDecisionCards key={`${analysis.evidencePackId}:${analysis.generatedAt}`} context={geoContext} generatedAt={analysis.generatedAt} request={analysis.request} content={content} reportPerspective={localizedPerspective(analysis.request.perspective)} places={mergedLocationContext.filter((item) => item.evidenceRefs.some((ref) => /^EVD-CONTEXT-\d+$/.test(ref)))} groupLabels={contextGroupLabels} districtLabels={districtLabels} /> : null}
+                {analysis?.mode === "openai" ? <PointObjectClimateContext climate={analysis.subject?.climate} /> : null}
                 {content.depthReview ? <DepthReviewPanel review={content.depthReview} /> : null}
 
                 {geoContext ? <details className="rounded-[20px] border border-line bg-white p-5 shadow-soft sm:p-7" data-testid="analysis-geocontext">

@@ -347,7 +347,8 @@ export async function POST(request: Request) {
         tags: evidencePack.selectedObject.tags,
         metrics: evidencePack.selectedObject.metrics,
         geoContext: evidencePack.geoContext,
-        linkedEntity: evidencePack.linkedEntity
+        linkedEntity: evidencePack.linkedEntity,
+        ...(evidencePack.climate ? { climate: evidencePack.climate } : {})
       }
     }, { headers: clearChallengeHeader(request) });
   } catch (error) {

@@ -1,3 +1,4 @@
+import type { PointObjectClimate } from "@/src/lib/prototype/point-to-object-climate-contract";
 import type { GeoJsonGeometry } from "@/src/lib/point-to-object/contracts";
 import type { MultiPolygon, Polygon } from "geojson";
 import type {
@@ -98,6 +99,7 @@ export type LiveResolvedObjectContext = {
   metrics: PointObjectGeometryMetrics | null;
   geoContext: PointObjectGeoContext;
   linkedEntity: PointObjectWikidataLinkedEntity | null;
+  climate?: PointObjectClimate;
   displayGeometry?: Polygon | MultiPolygon | null;
   geometryProvenance?: "confirmed_complete_footprint" | null;
   renderHeightM?: number | null;
@@ -359,6 +361,7 @@ export type PointObjectAiSubject = {
   metrics: PointObjectGeometryMetrics | null;
   geoContext: PointObjectGeoContext;
   linkedEntity: PointObjectWikidataLinkedEntity | null;
+  climate?: PointObjectClimate;
 };
 
 export type PointObjectLiveContextResponse =

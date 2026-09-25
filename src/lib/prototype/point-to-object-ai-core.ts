@@ -1,4 +1,5 @@
 import { LIVE_POINT_CAVEAT } from "@/src/lib/point-to-object/contracts";
+import { CLIMATE_EVIDENCE_ID, parsePointObjectClimate } from "./point-to-object-climate-contract";
 import { semanticHash } from "@/src/lib/point-to-object/hash";
 import type {
   GroundablePointObjectEvidencePack,
@@ -646,6 +647,7 @@ function safeGeoContext(value: unknown): LiveGeoContextProfile | null {
 }
 
 function evidenceKind(id: string): string {
+  if (id === CLIMATE_EVIDENCE_ID) return "regional_gridded_meteorology";
   if (id === "EVD-COORDINATES") return "analysis_coordinates";
   if (id === "EVD-OBJECT" || id === "EVD-OSM-OBJECT") return "open_map_object_identity";
   if (id === "EVD-CLASSIFICATION") return "open_map_classification";
@@ -848,6 +850,7 @@ export function buildModelEvidenceProjection(evidencePack: GroundablePointObject
   const receiptCounts = new Map<string, number>();
   for (const receipt of parsedEvidenceReceipts) receiptCounts.set(receipt.id, (receiptCounts.get(receipt.id) ?? 0) + 1);
   const priorityIds = [
+    CLIMATE_EVIDENCE_ID,
     "EVD-OSM-OBJECT", "EVD-OBJECT", "EVD-CLASSIFICATION", "EVD-ADDRESS", "EVD-GEOMETRY",
     "EVD-OBJECT-METRICS", "EVD-ALLOWED-FIELDS", "EVD-SOURCE", "EVD-SNAPSHOT", "EVD-RIGHTS",
     "EVD-CONTEXT-SUMMARY", "EVD-DISTRICT-PROFILE", "EVD-WIKIDATA-ENTITY", "EVD-WIKIDATA-P31",
@@ -1073,6 +1076,12 @@ export function buildModelEvidenceProjection(evidencePack: GroundablePointObject
       : [];
   }).slice(0, 16);
   for (const item of boundNearbyContext) boundEvidenceIds.add(item.evidenceId);
+  const climate = "climate" in pack ? parsePointObjectClimate(pack.climate) : null;
+  const climateReceipt = evidenceReceiptById.get(CLIMATE_EVIDENCE_ID);
+  const boundClimate = climate?.status === "available" && coordinatesAreBound &&
+    climate.requestedPoint[0] === coordinates.longitude && climate.requestedPoint[1] === coordinates.latitude &&
+    climateReceipt?.sourceId === "NASA-POWER" && climateReceipt.value === JSON.stringify(climate) ? climate : null;
+  if (boundClimate) boundEvidenceIds.add(CLIMATE_EVIDENCE_ID);
   const evidenceIndex = evidenceReceipts
     .filter((receipt) => boundEvidenceIds.has(receipt.id) && evidenceReceiptById.get(receipt.id) === receipt)
     .map(({ id, kind }) => ({ id, kind }));
@@ -1102,6 +1111,7 @@ export function buildModelEvidenceProjection(evidencePack: GroundablePointObject
       metrics: metricsAreBound ? selectedMetrics : null
     },
     nearbyContext: boundNearbyContext,
+    ...(boundClimate ? { climate: boundClimate } : {}),
     geoContext: contextSummaryIsBound && districtIsBound ? selectedGeoContext : null,
     linkedEntity: linkedEntityIsBound && selectedLinkedEntity ? {
       qid: selectedLinkedEntity.qid,
@@ -1443,6 +1453,14 @@ function deterministicEvidenceContent(
       )).join(" "),
       evidenceRefs: uniqueRefs(attributesRef, ...crossSourceComparisons.map((item) => item.evidenceId))
     });
+  }
+  if (projection.climate && allowed.has(CLIMATE_EVIDENCE_ID)) {
+    const annualClimate = projection.climate;
+    const temperatures = annualClimate.months.map(month => month.temperatureC);
+    const humidity = annualClimate.months.map(month => month.relativeHumidityPct);
+    sourceFacts.push({ statement: localized(locale,
+      `NASA POWER ${annualClimate.year}: monthly mean 2 m air temperature ${Math.min(...temperatures)}–${Math.max(...temperatures)} °C; monthly relative humidity ${Math.min(...humidity)}–${Math.max(...humidity)}%. Regional MERRA-2 grid (0.5° × 0.625°), not a site measurement or thermal-comfort assessment.`,
+      `NASA POWER, ${annualClimate.year}: среднемесячная температура воздуха на высоте 2 м ${Math.min(...temperatures)}–${Math.max(...temperatures)} °C; месячная относительная влажность ${Math.min(...humidity)}–${Math.max(...humidity)}%. Региональная ячейка MERRA-2 (0.5° × 0.625°), не измерение на участке и не оценка теплового комфорта.`), evidenceRefs: [CLIMATE_EVIDENCE_ID] });
   }
   if (!sourceFacts.length && fallbackRef) sourceFacts.push({
     statement: localized(locale, "The analysis is bound to a server-built open-context evidence record.", "Анализ привязан к серверному набору подтверждений из открытых источников."),
