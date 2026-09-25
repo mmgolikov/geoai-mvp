@@ -1,5 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
 import { demoProjects } from "../../src/data/demo-projects";
+import { installLoopbackBrowserHarness } from "./helpers/local-webkit-csp";
+
+test.beforeEach(async ({ page, browserName }, info) => {
+  await installLoopbackBrowserHarness(page, browserName, info.project.use.baseURL);
+});
 
 async function openWorkspace(page: Page) {
   await page.goto("/login?next=%2Fworkspace&intent=demo");

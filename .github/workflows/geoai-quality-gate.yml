@@ -20,7 +20,9 @@ jobs:
   quality-gate:
     name: Static, API and data-honesty checks
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    # Expanded desktop/mobile Chromium+WebKit suites retain every prior case.
+    # Individual test deadlines and retry=0 remain unchanged.
+    timeout-minutes: 60
     env:
       CI: "true"
       NEXT_TELEMETRY_DISABLED: "1"
@@ -273,6 +275,7 @@ jobs:
           npm run test:point-to-object-create | tee artifacts/point-to-object-create-check.txt
           node --experimental-strip-types scripts/sprint20-create-geometry-check.ts | tee artifacts/sprint20-create-geometry-check.txt
           node --experimental-transform-types scripts/complete25-create-programmes-check.ts | tee artifacts/complete25-create-programmes-check.txt
+          node --experimental-strip-types scripts/complete26-create-analogues-check.ts | tee artifacts/complete26-create-analogues-check.txt
           node --experimental-strip-types scripts/complete25-create-environment-check.ts | tee artifacts/complete25-create-environment-check.txt
           node scripts/complete25-environment-safety-check.mjs | tee artifacts/complete25-environment-safety-check.txt
           node --experimental-strip-types scripts/complete25-create-camera-check.ts | tee artifacts/complete25-create-camera-check.txt
