@@ -416,8 +416,19 @@ export function quality20CaseObservations(report, caseId) {
     if (value.type === "quality20-case" && typeof value.description === "string") {
       let item;
       try { item = JSON.parse(value.description); } catch { fail("Invalid quality20 observation."); }
-      const allowed = new Set(["caseId", "entryCoverage", "sourceLatencyMs", "responseMs", "renderedMs", "evidencePackHash", "paidPostCount", "reopenPaidPostCount", "totalMs"]);
+      const captureFields = ["responseHash", "resultHash", "analysisEvidenceCaptured"];
+      const allowed = new Set(["caseId", "entryCoverage", "sourceLatencyMs", "responseMs", "renderedMs", "evidencePackHash", "paidPostCount", "reopenPaidPostCount", "totalMs", ...captureFields]);
+      // Current Analyse emits only hashes and a capture flag, never response content.
+      // Historical observations without this complete trio remain readable.
+      const hasCapture = item && captureFields.some(key => Object.hasOwn(item, key));
+      const captureValid = !hasCapture || (
+        /^A0[1-8]-[QDS]$|^A(?:09|10|11|12)$|^FA(?:0[1-9]|1[0-5])$/.test(caseId) &&
+        captureFields.every(key => Object.hasOwn(item, key)) &&
+        [item.responseHash, item.resultHash].every(hash => typeof hash === "string" && /^[a-f0-9]{64}$/.test(hash)) &&
+        typeof item.analysisEvidenceCaptured === "boolean"
+      );
       if (!item || item.caseId !== caseId || Object.keys(item).some((key) => !allowed.has(key)) ||
+          !captureValid ||
           !["ordinary_auto_entry_custom_goal", "follow_up_recovery_initial_NONPAID_challenge_aborted", "find_three_candidate_compare", "create_ui"].includes(item.entryCoverage) ||
           typeof item.evidencePackHash !== "string" || !/^[a-f0-9]{64}$/.test(item.evidencePackHash) ||
           ![0, 1].includes(item.paidPostCount) || item.reopenPaidPostCount !== 0 ||
