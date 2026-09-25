@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { lstatSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { dirname, isAbsolute, resolve } from "node:path";
+import { validateComplete25RealArtifactEnvelope } from "../tests/e2e/helpers/complete25-real-artifact.ts";
 
 const MAX_ARTIFACT_BYTES = 512 * 1024;
 const EXPORT_SCHEMA = "geoai.quality20.real-artifact.v1";
@@ -8,6 +9,8 @@ const HASH_PATTERN = /^[a-f0-9]{64}$/;
 const HOST_PATTERN = /^geoai-[a-z0-9-]+\.vercel\.app$/;
 const SOURCE_FEATURE_PATTERN = /^(?:node|way|relation)\/[1-9][0-9]{0,19}$/;
 const SAFE_ID_PATTERN = /^[a-z0-9][a-z0-9-]{1,198}[a-z0-9]$/;
+export const COMPLETE25_CLOUD_ARTIFACT_SCHEMA = "geoai.complete25.a09-browser-artifact.v1";
+const manifestEnvironmentNames = ["GEOAI_COMPLETE25_CLOUD_MANIFEST_PATH", "GEOAI_COMPLETE25_CLOUD_MANIFEST_SHA256"];
 
 export const CLOUD_LIVE_COPY_OPT_IN = "copy-existing-public-artifact-v1";
 export const CLOUD_LIVE_COPY_LABEL_MARKER = "[MARKED TEST COPY 2026-09-21]";
@@ -43,6 +46,29 @@ function requiredCopyValue(environment, name) {
   const value = environment[name];
   if (!present(value)) fail(`Marked-copy setting ${name} is required.`);
   return value;
+}
+
+/** Read-only exact frozen intent; its original source lease is not freshened. */
+export function readComplete25CloudManifest(environment) {
+  const path = environment.GEOAI_COMPLETE25_CLOUD_MANIFEST_PATH;
+  const sha256 = environment.GEOAI_COMPLETE25_CLOUD_MANIFEST_SHA256;
+  if (!present(path) || !present(sha256) || !isAbsolute(path) || resolve(path) !== path || !HASH_PATTERN.test(sha256)) {
+    fail("A09 requires the paired exact private frozen manifest path and SHA-256.");
+  }
+  try {
+    const file = lstatSync(path), parent = lstatSync(dirname(path));
+    if (realpathSync(path) !== path || realpathSync(dirname(path)) !== dirname(path) || !file.isFile() || file.isSymbolicLink() || file.nlink !== 1 ||
+        !parent.isDirectory() || parent.isSymbolicLink() || (file.mode & 0o777) !== 0o600 || (parent.mode & 0o777) !== 0o700 ||
+        typeof process.getuid === "function" && (file.uid !== process.getuid() || parent.uid !== process.getuid()) || file.size <= 0 || file.size > MAX_ARTIFACT_BYTES) {
+      fail("A09 frozen manifest must be one bounded private regular file.");
+    }
+    const raw = readFileSync(path, "utf8");
+    if (createHash("sha256").update(raw).digest("hex") !== sha256) fail("A09 frozen manifest SHA-256 changed.");
+    return { path, sha256, raw };
+  } catch (error) {
+    if (error?.code === "browser_preflight") throw error;
+    fail("A09 frozen manifest could not be read safely.");
+  }
 }
 
 export function cloudLiveCopyApproval({
@@ -139,6 +165,7 @@ function prepareMarkedCopy(environment, runtimeCommit, runtimeHost, sourceFileSh
 }
 
 export function readCloudLiveRealArtifactInput(environment, runtimeCommit, runtimeHost, { allowHistoricalSource = false } = {}) {
+  const manifestConfigured = manifestEnvironmentNames.some(name => environment[name] !== undefined);
   const configuredPath = environment.GEOAI_QUALITY20_CLOUD_ARTIFACT_PATH;
   const configuredHash = environment.GEOAI_QUALITY20_CLOUD_ARTIFACT_SHA256;
   const hasPath = typeof configuredPath === "string" && configuredPath.length > 0;
@@ -157,6 +184,7 @@ export function readCloudLiveRealArtifactInput(environment, runtimeCommit, runti
     fail("Historical artifact source identity is restricted to continuation or marked-copy mode.");
   }
   if (!hasPath) {
+    if (manifestConfigured) fail("A09 frozen manifest requires an artifact input.");
     if (hasSourceCommit || hasSourceHost || copyRequested) fail("Historical or marked-copy source identity requires an artifact input.");
     return null;
   }
@@ -190,6 +218,23 @@ export function readCloudLiveRealArtifactInput(environment, runtimeCommit, runti
   let envelope;
   try { envelope = JSON.parse(bytes.toString("utf8")); }
   catch { fail("Real artifact input is not JSON."); }
+  if (envelope?.schemaVersion === COMPLETE25_CLOUD_ARTIFACT_SCHEMA) {
+    if (allowHistoricalSource || environment.GEOAI_CLOUD_LIVE_CONTINUE_SOURCE_COMMIT_SHA !== undefined ||
+        environment.GEOAI_CLOUD_LIVE_CONTINUE_SOURCE_HOST !== undefined || copyRequested ||
+        environment.GEOAI_CLOUD_LIVE_CONTINUE_EXISTING_ARTIFACT !== undefined || environment.GEOAI_CLOUD_LIVE_CONTINUE_APPROVAL !== undefined ||
+        environment.GEOAI_CLOUD_LIVE_COPY_ACTIVE !== undefined || environment.GEOAI_CLOUD_LIVE_COPY_EXPECTED_LABEL !== undefined) {
+      fail("A09 original artifact supports new-artifact writer mode only.");
+    }
+    if (file.nlink !== 1) fail("A09 artifact must have exactly one file link.");
+    const manifest = readComplete25CloudManifest(environment);
+    try {
+      validateComplete25RealArtifactEnvelope(envelope, { candidateCommit: runtimeCommit, candidateHost: runtimeHost,
+        manifestRaw: manifest.raw, manifestSha256: manifest.sha256 });
+    } catch { fail("A09 original artifact or frozen manifest binding is invalid."); }
+    return { path: resolvedPath, sha256: configuredHash, sourceCommit: runtimeCommit, sourceHost: runtimeHost,
+      envelope, preparedEnvelope: envelope, artifact: envelope.artifact, copy: null, manifest };
+  }
+  if (manifestConfigured) fail("A09 frozen manifest settings cannot be used with a legacy artifact.");
   if (!exactKeys(envelope, ["schemaVersion", "candidateCommit", "candidateHost", "sourceFeatureId", "payloadHash", "artifact"]) ||
       envelope.schemaVersion !== EXPORT_SCHEMA || envelope.candidateCommit !== expectedCommit ||
       envelope.candidateHost !== expectedHost || !SOURCE_FEATURE_PATTERN.test(envelope.sourceFeatureId) ||

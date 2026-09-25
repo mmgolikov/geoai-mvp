@@ -287,7 +287,12 @@ function minimalEnvironment(env) {
 export function preflightCloudLiveArtifactInput(env) {
   const hasPath = typeof env.GEOAI_QUALITY20_CLOUD_ARTIFACT_PATH === "string" && env.GEOAI_QUALITY20_CLOUD_ARTIFACT_PATH.length > 0;
   const hasHash = typeof env.GEOAI_QUALITY20_CLOUD_ARTIFACT_SHA256 === "string" && env.GEOAI_QUALITY20_CLOUD_ARTIFACT_SHA256.length > 0;
-  if (!hasPath && !hasHash) return null;
+  if (!hasPath && !hasHash) {
+    if (env.GEOAI_COMPLETE25_CLOUD_MANIFEST_PATH !== undefined || env.GEOAI_COMPLETE25_CLOUD_MANIFEST_SHA256 !== undefined) {
+      fail("A09 frozen manifest settings require their exact original artifact input.", "preflight");
+    }
+    return null;
+  }
   const preview = new URL(required(env, "GEOAI_REAL_PASSWORD_AUTH_PREVIEW_URL"));
   return readCloudLiveRealArtifactInput(
     env,
@@ -376,6 +381,10 @@ export function browserEnvironment(env, config, target, personas, phase) {
     ...(["writer_outsider", "continue_existing_outsider"].includes(phase) && artifactInput ? {
       GEOAI_QUALITY20_CLOUD_ARTIFACT_PATH: artifactInput.path,
       GEOAI_QUALITY20_CLOUD_ARTIFACT_SHA256: artifactInput.sha256,
+      ...(artifactInput.manifest ? {
+        GEOAI_COMPLETE25_CLOUD_MANIFEST_PATH: artifactInput.manifest.path,
+        GEOAI_COMPLETE25_CLOUD_MANIFEST_SHA256: artifactInput.manifest.sha256
+      } : {}),
       ...((continuation || copy) && env.GEOAI_CLOUD_LIVE_CONTINUE_SOURCE_COMMIT_SHA ? {
         GEOAI_CLOUD_LIVE_CONTINUE_SOURCE_COMMIT_SHA: artifactInput.sourceCommit,
         GEOAI_CLOUD_LIVE_CONTINUE_SOURCE_HOST: artifactInput.sourceHost

@@ -2,6 +2,9 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { expect, test, type Browser, type BrowserContext, type Page, type Route } from "@playwright/test";
 import { parseQuality20RealArtifactExport } from "./helpers/quality20-real-artifact";
+import { parseComplete25RealArtifactExport } from "./helpers/complete25-real-artifact";
+// @ts-expect-error The existing root-only runner helper is an explicit ESM module.
+import { readCloudLiveRealArtifactInput, COMPLETE25_CLOUD_ARTIFACT_SCHEMA } from "../../scripts/sprint10-cloud-live-artifact-input.mjs";
 import type { SavedPointObjectArtifact } from "@/src/lib/prototype/point-object-projects-contract";
 
 test.use({ trace: "off", screenshot: "off", video: "off", serviceWorkers: "block" });
@@ -58,6 +61,18 @@ async function readConfiguredArtifact(): Promise<SavedPointObjectArtifact | null
   let value: unknown;
   try { value = JSON.parse(bytes.toString("utf8")); }
   catch { throw new Error("Real artifact export is not JSON."); }
+  if (value && typeof value === "object" && "schemaVersion" in value && value.schemaVersion === COMPLETE25_CLOUD_ARTIFACT_SCHEMA) {
+    guard(phase === "writer_outsider" && !copyActive && !artifactSourceCommit && !artifactSourceHost,
+      "A09 original artifact is restricted to its new writer phase.");
+    const expected = { candidateCommit: process.env.GEOAI_CLOUD_LIVE_EXPECTED_COMMIT_SHA || "", candidateHost: new URL(previewUrl).hostname };
+    const input = readCloudLiveRealArtifactInput(process.env, expected.candidateCommit, expected.candidateHost);
+    guard(input?.manifest && canonical(input.envelope) === canonical(value), "A09 input changed during browser preflight.");
+    const parsed = await parseComplete25RealArtifactExport(value, { ...expected,
+      manifestRaw: input.manifest.raw, manifestSha256: input.manifest.sha256 });
+    return parsed.artifact as SavedPointObjectArtifact;
+  }
+  guard(process.env.GEOAI_COMPLETE25_CLOUD_MANIFEST_PATH === undefined && process.env.GEOAI_COMPLETE25_CLOUD_MANIFEST_SHA256 === undefined,
+    "A09 manifest settings cannot accompany a legacy browser artifact.");
   const parsed = await parseQuality20RealArtifactExport(value, {
     candidateCommit: artifactSourceCommit || process.env.GEOAI_CLOUD_LIVE_EXPECTED_COMMIT_SHA || "",
     candidateHost: artifactSourceHost || new URL(previewUrl).hostname
