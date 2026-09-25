@@ -8,6 +8,7 @@ import type { ConceptMassingResult, PointObjectCreateAoi } from "@/src/lib/proto
 import { buildPointObjectCreatePreviewModel } from "@/src/lib/prototype/point-to-object-create-preview";
 import { conceptMaterialColor, conceptSurfacePattern, installConceptSurfaceImages } from "@/src/lib/prototype/point-to-object-create-appearance";
 import { CONCEPT_ENVIRONMENT_SOURCE, ensureConceptEnvironmentLayers, updateConceptEnvironment } from "@/src/lib/prototype/point-to-object-create-environment-renderer";
+import { fitConceptCamera } from "@/src/lib/prototype/point-to-object-create-camera";
 
 type Props = {
   locale: "en" | "ru";
@@ -58,24 +59,26 @@ export function CreateResultPreview3D({ locale, aoi, massing, fallback, dimensio
   const [renderedScene, setRenderedScene] = useState<"map" | "model" | "none">("none");
   const [renderedMassingCount, setRenderedMassingCount] = useState(0);
   const [cameraPitch, setCameraPitch] = useState(0);
+  const userOrientationRef = useRef({ bearing: -24, pitch: 50 });
   const dimensionRef = useRef(dimension);
   dimensionRef.current = dimension;
 
-  const resetCamera = useCallback((duration = 0) => {
+  const resetCamera = useCallback((duration = 0, preserveOrientation = false) => {
     const map = mapRef.current;
     const current = modelRef.current;
     if (!map || !current) return;
-    const camera = map.cameraForBounds(current.bounds, {
-      bearing: -24,
-      padding: { top: 36, right: 28, bottom: 66, left: 28 },
-      maxZoom: 18
-    });
+    const orientation = { bearing: preserveOrientation ? map.getBearing() : -24,
+      pitch: dimensionRef.current === "3d" ? (preserveOrientation ? Math.min(userOrientationRef.current.pitch, 60) : 50) : 0 };
+    const fitted = fitConceptCamera(current, { width: map.getContainer().clientWidth, height: map.getContainer().clientHeight,
+      fieldOfView: map.getVerticalFieldOfView() }, orientation, map.getMaxZoom());
+    const camera = fitted ?? map.cameraForBounds(current.bounds, { bearing: orientation.bearing,
+      padding: { top: 36, right: 28, bottom: 66, left: 28 }, maxZoom: 18 });
     if (!camera?.center || camera.zoom === undefined) return;
     map.easeTo({
       center: camera.center,
-      zoom: Math.max(camera.zoom - (dimensionRef.current === "3d" ? current.cameraZoomOutLevels : 0), 0),
-      pitch: dimensionRef.current === "3d" ? 50 : 0,
-      bearing: -24,
+      zoom: fitted ? camera.zoom : Math.max(camera.zoom - (dimensionRef.current === "3d" ? current.cameraZoomOutLevels : 0), 0),
+      pitch: orientation.pitch,
+      bearing: orientation.bearing,
       duration
     });
   }, []);
@@ -133,8 +136,8 @@ export function CreateResultPreview3D({ locale, aoi, massing, fallback, dimensio
           style: scene === "map" ? BASEMAP_STYLE : BLANK_STYLE,
           center: current.center,
           zoom: 16,
-          pitch: 55,
-          bearing: -24,
+          pitch: dimensionRef.current === "3d" ? userOrientationRef.current.pitch : 0,
+          bearing: userOrientationRef.current.bearing,
           attributionControl: { compact: true },
           cooperativeGestures: true,
           scrollZoom: false,
@@ -152,6 +155,8 @@ export function CreateResultPreview3D({ locale, aoi, massing, fallback, dimensio
           setRenderedMassingCount(visible.filter(feature => feature.source === MASSING_SOURCE_ID).length);
           map.getContainer().dataset.conceptEnvironmentRenderedCount = String(visible.filter(feature => feature.source === CONCEPT_ENVIRONMENT_SOURCE).length);
           setCameraPitch(Math.round(map.getPitch()));
+          userOrientationRef.current = { bearing: map.getBearing(),
+            pitch: dimensionRef.current === "3d" && map.getPitch() > 0 ? map.getPitch() : userOrientationRef.current.pitch };
           setRenderedScene(scene);
         });
 
@@ -202,7 +207,7 @@ export function CreateResultPreview3D({ locale, aoi, massing, fallback, dimensio
               }
             });
             appliedGeometryKeyRef.current = loaded.geometryKey;
-            resetCamera();
+            resetCamera(0, true);
             setStatus("ready");
             animationFrame = window.requestAnimationFrame(() => {
               if (!disposed && mapRef.current === map) map?.resize();
@@ -214,7 +219,7 @@ export function CreateResultPreview3D({ locale, aoi, massing, fallback, dimensio
         resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => {
           if (!disposed && mapRef.current === map) {
             map?.resize();
-            resetCamera();
+            resetCamera(0, true);
           }
         });
         resizeObserver?.observe(containerRef.current);
@@ -234,7 +239,7 @@ export function CreateResultPreview3D({ locale, aoi, massing, fallback, dimensio
   }, [hasModel, resetCamera, scene]);
 
   useEffect(() => {
-    if (status === "ready") resetCamera(180);
+    if (status === "ready") resetCamera(180, true);
   }, [dimension, resetCamera, status]);
 
   useEffect(() => {
@@ -244,7 +249,7 @@ export function CreateResultPreview3D({ locale, aoi, massing, fallback, dimensio
     (mapRef.current?.getSource(MASSING_SOURCE_ID) as GeoJSONSource | undefined)?.setData(model.massingFeatureCollection);
     if (mapRef.current) updateConceptEnvironment(mapRef.current, model.environment);
     appliedGeometryKeyRef.current = model.geometryKey;
-    resetCamera(180);
+    resetCamera(180, true);
   }, [model, resetCamera, status]);
 
   const renderedStatus = model && status === "invalid" ? "initializing" : status;

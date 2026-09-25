@@ -37,7 +37,7 @@ Inspected screenshots (relative to this worktree):
 
 This is deliberately a small open-space framework, not a complete landscape, traffic or pedestrian-access design. It does not infer doors, public access, connection to existing streets, vegetation, gradients or actual surfaces. It may omit feasible candidates outside its bounded grid and rejects sites outside its supported geometry bounds.
 
-The standard MapLibre `fill-extrusion-pattern` repeats the procedural finish on roofs as well as walls; it is not a physical façade/window/floor model, BIM or photorealism. No custom mesh was introduced. Low-rise examples retain the existing height-aware camera framing and can appear small; zoom/reset remain available. Root accepted this bounded renderer limitation before integration.
+The standard MapLibre `fill-extrusion-pattern` repeats the procedural finish on roofs as well as walls; it is not a physical façade/window/floor model, BIM or photorealism. No custom mesh was introduced. Root accepted this bounded renderer limitation before integration. The initially conservative/small result framing was subsequently replaced by the height-aware perspective fit documented in [the camera follow-up](COMPLETE25_CREATE_CAMERA_20260925.md); zoom/reset remain available.
 
 Primary renderer references: [MapLibre fill-extrusion-pattern](https://maplibre.org/maplibre-style-spec/layers/#fill-extrusion-pattern), [Map.addImage](https://maplibre.org/maplibre-gl-js/docs/API/classes/Map/#addimage).
 

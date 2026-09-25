@@ -3,6 +3,7 @@ import { conceptTemplate, CONCEPT_TEMPLATE_IDS, generateConceptMassingAlternativ
 import { POINT_OBJECT_CREATE_RESULT_CAVEAT } from "../../src/lib/prototype/point-to-object-create-result";
 import { externalHttpUrlPattern, installLoopbackBrowserHarness } from "./helpers/local-webkit-csp";
 import { sessionMissingFixture } from "./helpers/auth-persona";
+import { inspectSavedConceptCamera } from "./helpers/complete25-create-camera";
 
 const coordinates: [number, number][][] = [[[55.278, 25.216], [55.281, 25.216], [55.281, 25.219], [55.278, 25.219], [55.278, 25.216]]];
 
@@ -139,6 +140,31 @@ for (const { locale, width } of [{ locale: "en", width: 1440 }, { locale: "ru", 
     await page.getByTestId("create-dashboard-alternative-b").click();
     await expect(preview).toHaveAttribute("data-environment-key", hospitalityBKey!);
     await expect.poll(async () => Number(await resultMap.getAttribute("data-concept-environment-rendered-count"))).toBeGreaterThan(0);
+    await expect.poll(async () => (await inspectSavedConceptCamera(page))?.occupancy ?? 0).toBeGreaterThan(0.65);
+    const fittedCamera = await inspectSavedConceptCamera(page);
+    expect(fittedCamera).not.toBeNull();
+    expect(fittedCamera!.occupancy).toBeLessThan(0.76);
+    expect(fittedCamera!.top).toBeGreaterThan(10);
+    expect(fittedCamera!.bottom).toBeLessThan(fittedCamera!.height - 65);
+    // Real pointer rotation remains possible; local view changes preserve it.
+    await resultMap.scrollIntoViewIfNeeded();
+    const canvasBox = await resultMap.boundingBox();
+    expect(canvasBox).not.toBeNull();
+    const dragX = canvasBox!.x + canvasBox!.width * 0.5, dragY = canvasBox!.y + canvasBox!.height * 0.45;
+    await page.mouse.move(dragX, dragY);
+    await page.mouse.down({ button: "right" });
+    await page.mouse.move(dragX + 45, dragY, { steps: 8 });
+    await page.mouse.up({ button: "right" });
+    await expect.poll(async () => Math.abs(((await inspectSavedConceptCamera(page))?.bearing ?? -24) + 24)).toBeGreaterThan(5);
+    const rotatedCamera = await inspectSavedConceptCamera(page);
+    await page.getByTestId("create-preview-mode-2d").click();
+    await expect.poll(async () => (await inspectSavedConceptCamera(page))?.pitch).toBe(0);
+    await page.getByTestId("create-preview-mode-3d").click();
+    await expect.poll(async () => (await inspectSavedConceptCamera(page))?.pitch).toBeGreaterThan(0);
+    expect((await inspectSavedConceptCamera(page))!.bearing).toBeCloseTo(rotatedCamera!.bearing, 1);
+    await preview.getByRole("button", { name: locale === "ru" ? "Сбросить вид" : "Reset view", exact: true }).click();
+    await expect.poll(async () => (await inspectSavedConceptCamera(page))?.bearing).toBe(-24);
+    await expect.poll(async () => (await inspectSavedConceptCamera(page))?.occupancy ?? 0).toBeGreaterThan(0.65);
     await page.screenshot({ path: testInfo.outputPath(`hospitality-${locale}-${width}.png`) });
     await preview.screenshot({ path: testInfo.outputPath(`hospitality-scene-${locale}-${width}.png`) });
     await page.goto("/projects?view=spatial");
