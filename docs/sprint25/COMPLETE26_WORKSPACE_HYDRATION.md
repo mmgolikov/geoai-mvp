@@ -74,3 +74,12 @@ preserved (1 FAIL / 1 PASS). Root WebKit before-check: remote UUID resolution
 fails while explicit project switching is preserved (1 FAIL / 1 PASS). Browser
 sandbox launch failures and the first helper's incorrect Map-first setup
 assertion are retained separately, not counted as product failures.
+
+Follow-up independent WebKit check on optimized6f6cce2 found one remaining
+action: the fallback project already defaults to Criteria-first, so Search can
+run without a preceding mode/filter change. The late remote response switched
+the project, changed the mode and erased all three shortlist entries. Mark an
+accepted search itself as user intent. The new test deliberately does not touch
+mode, filters, query, project or candidates before Search, and checks all three
+states after proving metadata was consumed. The other15 new browser cases
+passed on6f6cce2; this newly exposed failure is preserved separately.

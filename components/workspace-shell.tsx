@@ -1771,6 +1771,7 @@ export function WorkspaceShell({
       return;
     }
 
+    workspaceSelectionRevisionRef.current += 1;
     const nextCandidates = generatedExploreCandidates.slice(0, 6);
 
     setSearchedExploreCandidates(nextCandidates);
