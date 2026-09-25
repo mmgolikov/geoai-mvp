@@ -5,6 +5,8 @@ import { isAbsolute } from "node:path";
 import { parseSprint10SpendLedger, hasSprint10UnresolvedCharge, sprint10LedgerReceiptCount, SPRINT10_MAX_RECEIPTS, type Sprint10SpendLedger } from "./sprint10-live-budget.ts";
 
 export const QUALITY20_AMENDMENT = "quality20-dubai-a01-a06-singapore-a07-a08-v1";
+// COMPLETE25 appends four Create rows; the original 54 records stay unchanged.
+export const QUALITY20_ORIGINAL_CASE_COUNT = 54;
 export const QUALITY20_SCOPES = ["quality20-analyse", "quality20-find", "quality20-create"] as const;
 export type Quality20Scope = typeof QUALITY20_SCOPES[number];
 export type Quality20Case = {
@@ -36,13 +38,37 @@ export const QUALITY20_CASES: readonly Quality20Case[] = Object.freeze([
     marketKey: i < 12 ? "dubai" as const : "singapore" as const,
     goal: null, depth: "standard" as const, programme: null, aoiSlot: null
   })),
-  ...([ ["RM", "residential_mixed_use"], ["CH", "commercial_hub"], ["CG", "civic_green"] ] as const)
+  ...([ ["RM", "residential_mixed_use"], ["CH", "commercial_hub"], ["CG", "civic_green"],
+    ["RQ", "residential_quarter"], ["HR", "hospitality_recreation"] ] as const)
     .flatMap(([code, programme]) => [1, 2].map((index) => ({
       id: `C-${code}-0${index}`, scope: "quality20-create" as const,
       marketKey: "dubai" as const, goal: null, depth: "standard" as const,
       programme, aoiSlot: index === 1 ? "rectangle" : "concave"
     })))
 ].map((item) => Object.freeze(item)));
+
+export function quality20CreateProgrammeTestId(programme = "commercial_hub"): string {
+  if (!QUALITY20_CASES.some(item => item.scope === "quality20-create" && item.programme === programme)) {
+    throw new Error("QUALITY20_BLOCKED: unregistered Create programme; no fallback selection.");
+  }
+  return `create-programme-${programme}`;
+}
+
+// Preregistered numeric inputs, reviewed against the five delivered templates.
+// Freeze these in the request; AI wording/use-mix are assessed separately.
+const COMPLETE25_CREATE_CONTROLS = {
+  residential_mixed_use: [5, 6, 12, 38, 35, 8],
+  commercial_hub: [4, 14, 32, 42, 25, 10],
+  civic_green: [6, 3, 8, 28, 50, 12],
+  residential_quarter: [8, 4, 8, 32, 45, 8],
+  hospitality_recreation: [7, 2, 5, 22, 60, 14]
+} as const;
+export function quality20CreateControls(programme: string) {
+  const values = COMPLETE25_CREATE_CONTROLS[programme as keyof typeof COMPLETE25_CREATE_CONTROLS];
+  if (!values) throw new Error("QUALITY20_BLOCKED: Create numeric controls are not preregistered.");
+  const [blockCount, levelsMin, levelsMax, targetSiteCoveragePct, openSpacePct, setbackM] = values;
+  return { blockCount, levelsMin, levelsMax, targetSiteCoveragePct, openSpacePct, setbackM };
+}
 
 export type Quality20Subject = {
   sourceIdentity: string; geometryHash: string; sourceResponseHash: string;
@@ -146,7 +172,8 @@ export function validateQuality20Manifest(bytes: string, expectedSha256: string,
     typeof raw.execution.commit === "string" && /^[a-f0-9]{40}$/.test(raw.execution.commit) && raw.execution.commit === execution.commit &&
     raw.execution.origin === execution.origin && typeof raw.execution.deploymentId === "string" && /^dpl_[A-Za-z0-9]+$/.test(raw.execution.deploymentId) &&
     (!execution.deploymentId || raw.execution.deploymentId === execution.deploymentId), "Execution commit/origin/deployment binding differs.");
-  requireCondition(Array.isArray(raw.cases) && raw.cases.length === QUALITY20_CASES.length, "The complete 54-case denominator must be preserved (49 paid +5 Find).");
+  requireCondition(Array.isArray(raw.cases) && raw.cases.length === QUALITY20_CASES.length,
+    "Preserve all original 54 cases and append the four COMPLETE25 Create cases (58 total: 53 paid +5 Find).");
   const seen = new Set<string>();
   for (const item of raw.cases) {
     requireCondition(keys(item, ["id", "binding"]) && typeof item.id === "string" && !seen.has(item.id), "Duplicate or malformed case.");
@@ -238,6 +265,12 @@ export function validateQuality20PaidBody(selection: Quality20Selection, route: 
       body.customPrompt === b.create.prompt && Array.isArray(body.aoiCoordinates) && body.aoiCoordinates.length === 1 &&
       quality20Hash((body.aoiCoordinates[0] as unknown[]).slice(0, -1)) === b.create.geometryHash,
     "Submitted Create programme/prompt/geometry differs; blocked before reservation.");
+    const controls = quality20CreateControls(d.programme!);
+    requireCondition(keys(body.controls, Object.keys(controls)) &&
+      Object.entries(controls).every(([name, expected]) => (body.controls as Record<string, unknown>)[name] === expected) &&
+      Array.isArray(body.lockedControlKeys) && body.lockedControlKeys.every(item => typeof item === "string") &&
+      [...body.lockedControlKeys].sort().join("|") === Object.keys(controls).sort().join("|"),
+      "Create numeric controls and all six explicit locks must match the preregistered programme before reservation.");
   }
 }
 

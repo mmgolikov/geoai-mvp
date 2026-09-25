@@ -24,8 +24,9 @@ function validate(value = manifest, id = "A01-Q", scope = "quality20-analyse") {
   return validateQuality20Manifest(bytes, createHash("sha256").update(bytes).digest("hex"), id, scope, execution, Date.parse("2026-09-21T00:00:00Z"));
 }
 const selected = validate();
-assert.equal(QUALITY20_CASES.length, 54);
-assert.equal(QUALITY20_CASES.filter((c) => c.scope !== "quality20-find").length + 13, 62);
+assert.equal(QUALITY20_CASES.length, 58);
+assert.equal(QUALITY20_CASES.slice(0, 54).filter((c) => c.scope !== "quality20-find").length + 13, 62);
+assert.equal(QUALITY20_CASES.filter((c) => c.scope !== "quality20-find").length, 53);
 assert.equal(QUALITY20_CASES.filter((c) => /^A0[78]-/.test(c.id) && c.marketKey === "singapore").length, 6);
 assert.equal(QUALITY20_CASES.filter((c) => /^A0[1-6]-/.test(c.id) && c.marketKey === "dubai").length, 18);
 assert.equal(QUALITY20_CASES.filter((c) => /^A(09|10|11|12)$/.test(c.id)).length, 4);
@@ -120,4 +121,4 @@ assert.throws(() => validateQuality20AnalysisResult(selected, { ...result, reque
 assert.throws(() => validateQuality20AnalysisResult(selected, { ...result, subject: { ...result.subject, sourceFeatureId: "way/9999" } }));
 assert.equal(sprint10PaidPostDecision("quality20-acquire", "ai", 1).ok, false);
 assert.equal(sprint10PaidPostDecision("quality20-acquire", "create", 1).ok, false);
-console.log("PASS: offline frozen-case contract, 54 registered cases / original 62 planned receipts; NIGHT21 bounded journal160 with history retained; NO live outcomes.");
+console.log("PASS: offline frozen-case contract, original54 plus4 COMPLETE25 Create cases; 58total/53paid, bounded journal160 with history retained; NO live outcomes.");

@@ -65,9 +65,10 @@ import {
 // @ts-expect-error The diagnostics module is an operator-only JavaScript contract checked by its offline suite.
 import { LIVE_JOURNEY_CLEANUP_STAGES, LIVE_JOURNEY_STEPS, analyseContextFailureStage, analyseSuggestionCorrelationChecks, boundedLiveJourneyResponseJson, canonicalLiveJourneyCompletedSteps, encodeLiveJourneyDiagnostic, primaryAfterFinalizeFailure } from "../../scripts/sprint10-live-journey-diagnostics.mjs";
 import { POINT_OBJECT_SOURCE_HARNESS_RESPONSE_TIMEOUT_MS as SOURCE_REQUEST_HARNESS_TIMEOUT_MS } from "../../src/lib/prototype/source-request-deadline";
-import { loadQuality20Selection, quality20Hash, quality20RequestKey, validateQuality20Context,
+import { loadQuality20Selection, quality20Hash, quality20RequestKey, quality20CreateProgrammeTestId, quality20CreateControls, validateQuality20Context,
   validateQuality20PaidBody, validateQuality20AnalysisResult, validateQuality20Ledger,
   type Quality20Selection } from "./helpers/quality20-frozen-case";
+import { assertQuality20CreateGeometry } from "./helpers/quality20-create-geometry";
 import { loadQuality20Acquisition, writeQuality20Acquisition, type Quality20Acquisition } from "./helpers/quality20-acquisition";
 import {
   DUBAI_CREATE_GOLDEN,
@@ -2275,9 +2276,7 @@ async function runMarketCreate(
   await expect(areaContextSection.getByText("Mapped objects", { exact: true })).toBeVisible();
   await expect(areaContextSection.locator("strong").first()).toHaveText(String(contextPayload.summary.sampleSize));
   progress.complete("create_source_context_ui_acceptance");
-  const programmeLabel = input.programme === "residential_mixed_use" ? /^Residential courtyard/
-    : input.programme === "civic_green" ? /^Public campus/ : /^Business towers/;
-  await page.getByRole("button", { name: programmeLabel }).click();
+  await page.getByTestId(quality20CreateProgrammeTestId(input.programme)).click();
   if (input.prompt) await page.getByLabel("Custom direction", { exact: true }).fill(input.prompt);
   if (input.controls) {
     await page.getByText("Concept parameters", { exact: true }).click();
@@ -2753,7 +2752,8 @@ test("root-authorized protected Preview source-to-decision journey", async ({ pa
         const coordinates = b.create!.coordinates;
         await runMarketCreate(page, configuration, policy, budget, { marketKey: d.marketKey,
           coordinates: [[...coordinates, coordinates[0]]], fileName: `${d.id}.geojson`, label: d.id,
-          programme: d.programme!, prompt: b.create!.prompt }, progress);
+          programme: d.programme!, prompt: b.create!.prompt, controls: quality20CreateControls(d.programme!),
+          assertGeometry: payload => assertQuality20CreateGeometry(configuration.quality20!, payload) }, progress);
       }
     }
     if (configuration.scope === "journey" || configuration.scope === "dubai-analyse") {

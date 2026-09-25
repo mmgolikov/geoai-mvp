@@ -38,7 +38,7 @@ function fixture(definition) {
   return { selection, input };
 }
 try {
-  assert.equal(QUALITY20_CASES.length, 54);
+  assert.equal(QUALITY20_CASES.length, 58);
   const cases = QUALITY20_CASES.filter(item => item.scope === "quality20-analyse");
   assert.equal(cases.length, 43);
   for (const definition of cases) {
