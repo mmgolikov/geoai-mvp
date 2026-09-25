@@ -1145,6 +1145,7 @@ export function WorkspaceShell({
     setActiveProject(localProject);
     if (explicitContext) applyExploreDefaultsForProject(localProject);
     else applyExploreDefaultsForAudience(preferredAudience, preferredRole);
+    writeActiveProjectKey(localProject.projectKey);
 
     fetch("/api/projects")
       .then((response) => (response.ok ? response.json() : null))
@@ -1154,24 +1155,17 @@ export function WorkspaceShell({
         }
 
         const nextProjects = mergeProjectsWithLocal(payload.items);
-        const urlProjectKey = readProjectKeyFromUrl(nextProjects);
-        const nextActiveProject =
-          nextProjects.find((project) => project.projectKey === (urlProjectKey ?? storedProjectKey)) ?? localProject;
-
         setProjects(nextProjects);
         setProjectsMode(payload.mode);
-        setActiveProject(nextActiveProject);
-        if (explicitContext) applyExploreDefaultsForProject(nextActiveProject);
-        else applyExploreDefaultsForAudience(preferredAudience, preferredRole);
-        writeActiveProjectKey(nextActiveProject.projectKey);
+        // This is a metadata refresh, not a new user selection. A delayed
+        // response must not reset a completed search or restore an old project.
+        setActiveProject((current) =>
+          nextProjects.find((project) => project.projectKey === current.projectKey) ?? current
+        );
       })
       .catch(() => {
         if (isMounted) {
-          setProjects(localProjects);
           setProjectsMode("demo_seed");
-          setActiveProject(localProject);
-          if (explicitContext) applyExploreDefaultsForProject(localProject);
-          else applyExploreDefaultsForAudience(preferredAudience, preferredRole);
         }
       });
 
