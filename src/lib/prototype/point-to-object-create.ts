@@ -1382,6 +1382,7 @@ function planSiteCells(
   if (program.massingStyle === "courtyard" && program.blockCount < 4) return null;
   if (program.massingStyle === "towers_on_podium" && program.levelsMin < 2) return null;
   const baseAngle = dominantEdgeAngle(rings[0]);
+  const partitions: Array<{ cells: OrientedRectangle[]; gap: number }> = [];
   for (const angle of [baseAngle + (variantId === "B" ? Math.PI / 2 : 0), baseAngle + (variantId === "A" ? Math.PI / 2 : 0)]) {
     const local = rings[0].map(p => localToWorld({ x: 0, y: 0 }, -angle, p));
     const yCuts = [...new Set(local.map(p => Math.round(p.y * 1000) / 1000))].sort((a, b) => a - b);
@@ -1418,46 +1419,60 @@ function planSiteCells(
         if (Math.min(safe.width, safe.height) > MIN_BUILDING_DIMENSION_M) cells.push(safe);
       }
     }
-    if (!cells.length || cells.length > program.blockCount) continue;
-    // Subdivide the largest cells, retaining all spatial components and equalising capacity.
-    while (cells.length < program.blockCount) {
-      cells.sort((a, b) => b.width * b.height - a.width * a.height);
-      const cell = cells.shift()!;
-      const splitX = cell.width >= cell.height;
-      const span = splitX ? cell.width : cell.height;
-      if ((span - gap) / 2 < MIN_BUILDING_DIMENSION_M) break;
-      for (const direction of [-1, 1]) {
-        const center = localToWorld(cell.center, cell.angle, { x: splitX ? direction * (span + gap) / 4 : 0, y: splitX ? 0 : direction * (span + gap) / 4 });
-        cells.push(orientedRectangle(center, splitX ? (span - gap) / 2 : cell.width, splitX ? cell.height : (span - gap) / 2, cell.angle));
+    partitions.push({ cells, gap });
+  }
+  // Keep previously successful layouts first. Boundary-vertex strips can include
+  // residual slivers: occupying every strip is not a programme requirement.
+  // On failure, omit the thinnest residual strips and repartition the remaining
+  // capacity. At most blockCount omissions per orientation; never reduce target
+  // area/count or bypass the footprint, tower-quality, gap or AOI validators.
+  for (let omitted = 0; omitted <= program.blockCount; omitted += 1) {
+    for (const partition of partitions) {
+      const gap = partition.gap;
+      const cells = omitted === 0 ? [...partition.cells] : [...partition.cells]
+        .sort((a, b) => Math.min(a.width, a.height) - Math.min(b.width, b.height))
+        .slice(omitted);
+      if (!cells.length || cells.length > program.blockCount) continue;
+      // Subdivide the largest cells, retaining the selected spatial cells and equalising capacity.
+      while (cells.length < program.blockCount) {
+        cells.sort((a, b) => b.width * b.height - a.width * a.height);
+        const cell = cells.shift()!;
+        const splitX = cell.width >= cell.height;
+        const span = splitX ? cell.width : cell.height;
+        if ((span - gap) / 2 < MIN_BUILDING_DIMENSION_M) break;
+        for (const direction of [-1, 1]) {
+          const center = localToWorld(cell.center, cell.angle, { x: splitX ? direction * (span + gap) / 4 : 0, y: splitX ? 0 : direction * (span + gap) / 4 });
+          cells.push(orientedRectangle(center, splitX ? (span - gap) / 2 : cell.width, splitX ? cell.height : (span - gap) / 2, cell.angle));
+        }
       }
+      if (cells.length !== program.blockCount) continue;
+      cells.sort((a, b) => variantId === "A" ? a.center.y - b.center.y || a.center.x - b.center.x : b.center.x - a.center.x || a.center.y - b.center.y);
+      const towerStyle = program.massingStyle === "towers_on_podium";
+      const forms = cells.map((_, i) => towerStyle ? "rectangle" as const : preferredFootprintForm(variantId, i));
+      const capacity = cells.reduce((sum, c, i) => sum + c.width * c.height * footprintFormFillRatio(forms[i]), 0);
+      if (capacity < desiredArea) continue;
+      const scale = Math.sqrt(desiredArea / capacity);
+      const envelopes = cells.map(c => scaleRectangle(c, scale));
+      if (towerStyle) {
+        const towers = planTowersForPodiums(envelopes, program, variantId, seed);
+        if (towers) return towers;
+        continue;
+      }
+      const shaped = envelopes.map((c, i) => applyFootprintGrammar(c, forms[i], variantId, seed, i));
+      if (shaped.some((s, i) => s.footprintForm !== forms[i] || !polygonInsideAoi(s.footprint, rings, program.setbackM))) continue;
+      if (shaped.some((s, i) => shaped.slice(i + 1).some(other => polygonGap(s.footprint, other.footprint) < gap))) continue;
+      const courtyard = program.massingStyle === "courtyard";
+      if (courtyard && shaped.some(s => pointInRing(centroidOfPoints(rings[0]), s.footprint, true))) continue;
+      return shaped.map((s, i) => ({
+        footprint: s.footprint,
+        footprintForm: s.footprintForm,
+        role: courtyard ? "courtyard_wing" : program.massingStyle === "perimeter" ? "perimeter_wing" : "campus_block",
+        primaryBlock: true,
+        levels: levelForPrimary(program, seed, i, shaped.length),
+        baseLevels: 0,
+        use: useForPrimary(program, i)
+      }));
     }
-    if (cells.length !== program.blockCount) continue;
-    cells.sort((a, b) => variantId === "A" ? a.center.y - b.center.y || a.center.x - b.center.x : b.center.x - a.center.x || a.center.y - b.center.y);
-    const towerStyle = program.massingStyle === "towers_on_podium";
-    const forms = cells.map((_, i) => towerStyle ? "rectangle" as const : preferredFootprintForm(variantId, i));
-    const capacity = cells.reduce((sum, c, i) => sum + c.width * c.height * footprintFormFillRatio(forms[i]), 0);
-    if (capacity < desiredArea) continue;
-    const scale = Math.sqrt(desiredArea / capacity);
-    const envelopes = cells.map(c => scaleRectangle(c, scale));
-    if (towerStyle) {
-      const towers = planTowersForPodiums(envelopes, program, variantId, seed);
-      if (towers) return towers;
-      continue;
-    }
-    const shaped = envelopes.map((c, i) => applyFootprintGrammar(c, forms[i], variantId, seed, i));
-    if (shaped.some((s, i) => s.footprintForm !== forms[i] || !polygonInsideAoi(s.footprint, rings, program.setbackM))) continue;
-    if (shaped.some((s, i) => shaped.slice(i + 1).some(other => polygonGap(s.footprint, other.footprint) < gap))) continue;
-    const courtyard = program.massingStyle === "courtyard";
-    if (courtyard && shaped.some(s => pointInRing(centroidOfPoints(rings[0]), s.footprint, true))) continue;
-    return shaped.map((s, i) => ({
-      footprint: s.footprint,
-      footprintForm: s.footprintForm,
-      role: courtyard ? "courtyard_wing" : program.massingStyle === "perimeter" ? "perimeter_wing" : "campus_block",
-      primaryBlock: true,
-      levels: levelForPrimary(program, seed, i, shaped.length),
-      baseLevels: 0,
-      use: useForPrimary(program, i)
-    }));
   }
   return null;
 }
