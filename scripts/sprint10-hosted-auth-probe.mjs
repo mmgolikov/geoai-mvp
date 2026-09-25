@@ -41,6 +41,7 @@ import { parseComparisonMapDiagnostic } from "../tests/e2e/helpers/sprint10-map-
 import { loadQuality20Selection, quality20ApprovalSuffix, validateQuality20Ledger } from "../tests/e2e/helpers/quality20-frozen-case.ts";
 import { loadQuality20Acquisition } from "../tests/e2e/helpers/quality20-acquisition.ts";
 import { DUBAI_CREATE_PROGRAMME_SCOPES } from "../tests/e2e/helpers/sprint10-live-journey-gate.ts";
+import { loadComplete25Batch, claimComplete25Batch, runComplete25Batch } from "./complete25-batch.mjs";
 
 const exactProjectRef = "pphdqkurxneyagvnnjdt";
 const exactSupabaseOrigin = `https://${exactProjectRef}.supabase.co`;
@@ -361,6 +362,14 @@ export function validateRuntimeConfig(
       visualEvidenceEnvironment
     };
   }
+  const batch = loadComplete25Batch(env, { commit: expectedCommitSha,
+    origin: canonicalOrigin(env.GEOAI_REAL_PASSWORD_AUTH_PREVIEW_URL) }, ledgerPreflight);
+  if (batch) {
+    if (previewSeam !== exactPreviewSeamOptIn || liveJourney || !batch.previewHost.endsWith(".vercel.app") ||
+        forbiddenProductionHosts.has(batch.previewHost)) fail("Batch requires one protected non-Production Preview and no single-case seam.");
+    liveJourney = { ...batch, checkpointPath: validateActiveCheckpointPath(
+      required(env, "GEOAI_HOSTED_AUTH_PROBE_ACTIVE_PERSONA_RECEIPT_PATH"), false) };
+  }
   return {
     projectRef,
     supabaseUrl,
@@ -369,7 +378,8 @@ export function validateRuntimeConfig(
     expectedCommitSha,
     previewSeam,
     liveJourneySeam,
-    liveJourney
+    liveJourney,
+    batch
   };
 }
 
@@ -1150,6 +1160,30 @@ export function runReviewedLiveJourney(
   }
 }
 
+/** A distinct, once-only lifecycle entry; the legacy one-child guard is unchanged. */
+export async function runReviewedComplete25Batch(config, personas, runId,
+  { env = process.env, spawn = spawnSync, invocationState = { invoked: false }, coordinator = runComplete25Batch } = {}) {
+  if (!config.batch) fail("Batch seam is disabled.", "batch_disabled");
+  assertActiveCurrentPersona(personas, runId, invocationState);
+  invocationState.invoked = true;
+  const identities = personas.map(p => `${p.userId}:${p.profileId}`);
+  return coordinator(config.batch, async descriptor => {
+    // Check the same two still-active personas before each sequential child, never provision replacements.
+    assertActiveCurrentPersona(personas, runId, { invoked: false });
+    if (personas.some((p,i)=>`${p.userId}:${p.profileId}`!==identities[i])) fail("Batch persona changed.", "batch_persona_drift");
+    const liveJourney = { ...config.liveJourney, ...descriptor };
+    liveJourney.liveApproval = `paid-live-journey:${liveJourney.ledgerId}:${liveJourney.previewHost}:${config.expectedCommitSha}:${descriptor.scope}${quality20ApprovalSuffix(descriptor.quality20)}${descriptor.acquisition ? `:${descriptor.acquisition.caseId}:${descriptor.acquisition.planSha256}` : ""}`;
+    const result = spawn(process.execPath, [resolve(repositoryRoot, "scripts/sprint10-live-journey-run.mjs")], {
+      cwd: repositoryRoot, env: buildLiveJourneyChildEnvironment({ ...config, liveJourney }, personas, env),
+      encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 810_000, killSignal: "SIGTERM", maxBuffer: 256 * 1024
+    });
+    if (result.error || result.signal) return { status: "FAIL", stage: "batch_child_unconfirmed" };
+    try { return parseLiveJourneyChildReceipt(result, { scope: descriptor.scope, previewHost: liveJourney.previewHost,
+      commit: config.expectedCommitSha, quality20: descriptor.quality20, acquisition: descriptor.acquisition }); }
+    catch { return { status: "FAIL", stage: "batch_child_invalid_receipt" }; }
+  });
+}
+
 export async function runBestEffortStages(stages, failureIdentity, onStage = () => {}) {
   const failures = [];
   for (const [stage, operation] of stages) {
@@ -1363,6 +1397,8 @@ export async function runHostedProbe(options = {}) {
     verifyAnonymousDenial: options.operations?.verifyAnonymousDenial ?? verifyAnonymousDenial,
     runExistingPreviewHarness: options.operations?.runExistingPreviewHarness ?? runExistingPreviewHarness,
     runReviewedLiveJourney: options.operations?.runReviewedLiveJourney ?? runReviewedLiveJourney,
+    runReviewedComplete25Batch: options.operations?.runReviewedComplete25Batch ?? runReviewedComplete25Batch,
+    claimComplete25Batch: options.operations?.claimComplete25Batch ?? claimComplete25Batch,
     retirePersona: options.operations?.retirePersona ?? retirePersona,
     writeCheckpoint: options.operations?.writeCheckpoint ?? writeActivePersonaCheckpoint,
     onEvent: options.operations?.onEvent ?? (() => {})
@@ -1389,6 +1425,7 @@ export async function runHostedProbe(options = {}) {
       checkpointWritten = true;
       operations.onEvent("checkpoint_initialized", { personas, config });
     }
+    if (config.batch) operations.claimComplete25Batch(config.batch);
     for (const persona of personas) {
       if (config.liveJourney) {
         persona.createAttempted = true;
@@ -1451,7 +1488,9 @@ export async function runHostedProbe(options = {}) {
     }
     operations.onEvent("preview_child_complete", { personas, config });
     if (config.liveJourney) {
-      liveJourney = operations.runReviewedLiveJourney(config, personas, runId, { invocationState: liveInvocationState });
+      liveJourney = config.batch
+        ? await operations.runReviewedComplete25Batch(config, personas, runId, { invocationState: liveInvocationState })
+        : operations.runReviewedLiveJourney(config, personas, runId, { invocationState: liveInvocationState });
       operations.onEvent("live_child_complete", { personas, config });
     }
   } catch (error) {
@@ -1524,7 +1563,7 @@ export async function runHostedProbe(options = {}) {
       ? sanitizedLiveJourney.status
       : null;
     const baseReceipt = {
-      schemaVersion: "geoai.sprint10.hosted-auth-live-journey-receipt.v1",
+      schemaVersion: config.batch ? "geoai.complete25.hosted-batch-receipt.v1" : "geoai.sprint10.hosted-auth-live-journey-receipt.v1",
       projectRef: exactProjectRef,
       gitHead: config.expectedCommitSha,
       previewHost: config.liveJourney.previewHost,
