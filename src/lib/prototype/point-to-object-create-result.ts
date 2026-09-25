@@ -3,6 +3,7 @@ import type { PointObjectAreaContextGroup, PointObjectAreaContextResult } from "
 import { isPointObjectLocale, isPointObjectMarketKey } from "./point-to-object-markets";
 
 import {
+  isConceptTemplateId,
   validatePointObjectCreateAoiVertices,
   validateRedevelopmentProgram,
   type ConceptMassingAlternative,
@@ -148,7 +149,7 @@ function isFeature(value: unknown): value is Feature<Polygon, ConceptMassingProp
     ring.every((point) => Array.isArray(point) && point.length === 2 && finite(point[0], -180, 180) && finite(point[1], -90, 90)) &&
     samePoint(ring[0], ring[ring.length - 1]) && typeof value.id === "string" && value.id === properties.id && typeof properties.id === "string" &&
     properties.kind === "concept_massing" &&
-    (properties.templateId === "residential_mixed_use" || properties.templateId === "commercial_hub" || properties.templateId === "civic_green") &&
+    isConceptTemplateId(properties.templateId) &&
     (properties.massingStyle === "perimeter" || properties.massingStyle === "courtyard" || properties.massingStyle === "towers_on_podium" || properties.massingStyle === "campus") &&
     (properties.variantId === "A" || properties.variantId === "B") &&
     (properties.volumeRole === "perimeter_wing" || properties.volumeRole === "courtyard_wing" || properties.volumeRole === "podium" || properties.volumeRole === "tower" || properties.volumeRole === "campus_block") &&

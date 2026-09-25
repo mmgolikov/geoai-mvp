@@ -128,9 +128,11 @@ function controlsFrom(program: RedevelopmentProgramInput): Controls {
 
 function templateLabel(templateId: ConceptTemplateId, locale: "en" | "ru"): string {
   const labels: Record<ConceptTemplateId, Record<"en" | "ru", string>> = {
-    residential_mixed_use: { en: "Residential courtyard", ru: "Жилой квартал с двором" },
+    residential_mixed_use: { en: "Mixed-use quarter", ru: "Многофункциональный квартал" },
     commercial_hub: { en: "Business towers", ru: "Деловой комплекс" },
-    civic_green: { en: "Public campus", ru: "Общественный кампус" }
+    civic_green: { en: "Public campus", ru: "Общественный кампус" },
+    residential_quarter: { en: "Residential quarter", ru: "Жилой квартал" },
+    hospitality_recreation: { en: "Hospitality and recreation", ru: "Гостиницы и отдых" }
   };
   return labels[templateId][locale];
 }
@@ -472,6 +474,7 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
           <button
             key={template.templateId}
             type="button"
+            data-testid={`create-programme-${template.templateId}`}
             onClick={() => selectTemplate(template.templateId)}
             aria-pressed={templateId === template.templateId}
             className={`rounded-xl border p-3 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] ${templateId === template.templateId ? "border-[#48a99a] bg-white text-[#164b42] shadow-sm" : "border-[#d7e0dd] bg-white/70 text-[#475467] hover:border-[#8ebdb4]"}`}

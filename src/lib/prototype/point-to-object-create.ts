@@ -3,7 +3,12 @@ import type { Feature, FeatureCollection, Polygon } from "geojson";
 import { calculatePolygonMeasurements, validatePolygonVertices } from "../polygon-aoi";
 
 export type ConceptLocale = "en" | "ru";
-export type ConceptTemplateId = "residential_mixed_use" | "commercial_hub" | "civic_green";
+export const CONCEPT_TEMPLATE_IDS = ["residential_mixed_use", "commercial_hub", "civic_green", "residential_quarter", "hospitality_recreation"] as const;
+export type ConceptTemplateId = typeof CONCEPT_TEMPLATE_IDS[number];
+
+export function isConceptTemplateId(value: unknown): value is ConceptTemplateId {
+  return typeof value === "string" && (CONCEPT_TEMPLATE_IDS as readonly string[]).includes(value);
+}
 export type ConceptMassingStyle = "perimeter" | "courtyard" | "towers_on_podium" | "campus";
 export type ConceptUse = "residential" | "office" | "retail" | "hospitality" | "civic" | "open_space";
 export type ConceptAlternativeId = "A" | "B";
@@ -216,6 +221,42 @@ const TEMPLATE_COPY: Record<ConceptLocale, Record<ConceptTemplateId, Redevelopme
         { use: "open_space", sharePct: 26 }
       ],
       rationale: ["Tests a public-serving programme.", "Prioritizes a connected landscape structure."]
+    },
+    residential_quarter: {
+      templateId: "residential_quarter",
+      title: "Residential quarter concept",
+      summary: "Medium-rise homes in a permeable residential quarter, with shared open areas and a small neighbourhood service component.",
+      massingStyle: "perimeter",
+      blockCount: 8,
+      levelsMin: 4,
+      levelsMax: 8,
+      targetSiteCoveragePct: 32,
+      openSpacePct: 45,
+      setbackM: 8,
+      useMix: [
+        { use: "residential", sharePct: 70 },
+        { use: "retail", sharePct: 10 },
+        { use: "open_space", sharePct: 20 }
+      ],
+      rationale: ["Tests a predominantly residential quarter at moderate height.", "Reserves a larger open-space allowance than the mixed-use programme; no landscape layout is implied."]
+    },
+    hospitality_recreation: {
+      templateId: "hospitality_recreation",
+      title: "Hospitality and recreation concept",
+      summary: "Low-rise guest accommodation distributed as a pavilion campus, with a generous allowance for outdoor recreation.",
+      massingStyle: "campus",
+      blockCount: 7,
+      levelsMin: 2,
+      levelsMax: 5,
+      targetSiteCoveragePct: 22,
+      openSpacePct: 60,
+      setbackM: 14,
+      useMix: [
+        { use: "hospitality", sharePct: 62 },
+        { use: "retail", sharePct: 8 },
+        { use: "open_space", sharePct: 30 }
+      ],
+      rationale: ["Tests low-rise hospitality pavilions rather than an office-led tower cluster.", "Outdoor recreation is a programme allowance, not a modelled park, amenity or environmental finding."]
     }
   },
   ru: {
@@ -273,6 +314,42 @@ const TEMPLATE_COPY: Record<ConceptLocale, Record<ConceptTemplateId, Redevelopme
         { use: "open_space", sharePct: 26 }
       ],
       rationale: ["Проверяет общественно ориентированную программу.", "Отдаёт приоритет связному озеленённому каркасу."]
+    },
+    residential_quarter: {
+      templateId: "residential_quarter",
+      title: "Концепция жилого квартала",
+      summary: "Среднеэтажные жилые корпуса с общими открытыми пространствами и небольшой долей повседневных сервисов.",
+      massingStyle: "perimeter",
+      blockCount: 8,
+      levelsMin: 4,
+      levelsMax: 8,
+      targetSiteCoveragePct: 32,
+      openSpacePct: 45,
+      setbackM: 8,
+      useMix: [
+        { use: "residential", sharePct: 70 },
+        { use: "retail", sharePct: 10 },
+        { use: "open_space", sharePct: 20 }
+      ],
+      rationale: ["Проверяет преимущественно жилой квартал умеренной этажности.", "Закладывает больше открытого пространства, чем смешанная программа; это не план благоустройства."]
+    },
+    hospitality_recreation: {
+      templateId: "hospitality_recreation",
+      title: "Гостинично-рекреационная концепция",
+      summary: "Невысокие гостиничные корпуса в виде распределённого павильонного кампуса с большой долей пространства для отдыха на открытом воздухе.",
+      massingStyle: "campus",
+      blockCount: 7,
+      levelsMin: 2,
+      levelsMax: 5,
+      targetSiteCoveragePct: 22,
+      openSpacePct: 60,
+      setbackM: 14,
+      useMix: [
+        { use: "hospitality", sharePct: 62 },
+        { use: "retail", sharePct: 8 },
+        { use: "open_space", sharePct: 30 }
+      ],
+      rationale: ["Проверяет невысокие гостиничные павильоны вместо офисного башенного кластера.", "Открытые зоны отдыха заданы программой; парк, удобства и экологические характеристики не моделируются."]
     }
   }
 };
@@ -316,7 +393,6 @@ function numberInRange(value: unknown, minimum: number, maximum: number): value 
   return typeof value === "number" && Number.isFinite(value) && value >= minimum && value <= maximum;
 }
 
-const TEMPLATE_IDS = new Set<ConceptTemplateId>(["residential_mixed_use", "commercial_hub", "civic_green"]);
 const MASSING_STYLES = new Set<ConceptMassingStyle>(["perimeter", "courtyard", "towers_on_podium", "campus"]);
 const USES = new Set<ConceptUse>(["residential", "office", "retail", "hospitality", "civic", "open_space"]);
 const PROGRAM_KEYS = new Set([
@@ -354,7 +430,7 @@ export function validateRedevelopmentProgram(value: unknown): RedevelopmentProgr
   const input = value as Partial<RedevelopmentProgramInput>;
   const errors: string[] = [];
   if (unexpectedKeys(value, PROGRAM_KEYS).length > 0) errors.push("Program contains unsupported fields.");
-  if (!TEMPLATE_IDS.has(input.templateId as ConceptTemplateId)) errors.push("Unsupported template.");
+  if (!isConceptTemplateId(input.templateId)) errors.push("Unsupported template.");
   const title = safeText(input.title, 120);
   const summary = safeText(input.summary, MAX_INPUT_TEXT);
   if (!title) errors.push("Title must be non-empty, bounded and free of unsafe controls.");
@@ -1309,7 +1385,10 @@ function planSiteCells(
   for (const angle of [baseAngle + (variantId === "B" ? Math.PI / 2 : 0), baseAngle + (variantId === "A" ? Math.PI / 2 : 0)]) {
     const local = rings[0].map(p => localToWorld({ x: 0, y: 0 }, -angle, p));
     const yCuts = [...new Set(local.map(p => Math.round(p.y * 1000) / 1000))].sort((a, b) => a - b);
-    const gap = Math.max(4, Math.min(12, Math.sqrt(desiredArea / program.blockCount) * 0.06));
+    const distributedProgramme = program.templateId === "residential_quarter" || program.templateId === "hospitality_recreation";
+    const gap = distributedProgramme
+      ? Math.max(4, Math.min(24, Math.sqrt(desiredArea / program.blockCount) * program.openSpacePct / 100 * 0.3))
+      : Math.max(4, Math.min(12, Math.sqrt(desiredArea / program.blockCount) * 0.06));
     const inset = Math.max(program.setbackM, gap / 2) + 0.05;
     const cells: OrientedRectangle[] = [];
     for (let band = 0; band < yCuts.length - 1; band += 1) {
@@ -2061,7 +2140,11 @@ export function generateConceptMassing(
     useMix: program.useMix
   });
   const variantSeed = `${geometrySeed}:${variantId}`;
-  const allocated = validation.measurements.areaSqM >= 150_000
+  // The new quarter/pavilion programmes use distributed articulated site cells
+  // at neighbourhood scale too. Keep the three original programme paths stable
+  // for saved-result compatibility; every candidate still passes exact validation.
+  const distributedProgramme = program.templateId === "residential_quarter" || program.templateId === "hospitality_recreation";
+  const allocated = validation.measurements.areaSqM >= 150_000 || distributedProgramme
     ? planSiteCells(rings, program, variantId, variantSeed, desiredTotalArea) : null;
   const volumes = allocated ?? (program.massingStyle === "perimeter" || program.massingStyle === "courtyard"
     ? planPerimeterOrCourtyard(rings, program, variantId, variantSeed, desiredTotalArea)

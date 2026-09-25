@@ -1,4 +1,4 @@
-import type { ConceptTemplateId, RedevelopmentProgramInput } from "./point-to-object-create";
+import { isConceptTemplateId, type ConceptTemplateId, type RedevelopmentProgramInput } from "./point-to-object-create";
 
 export type PointObjectCreateEditorControls = Pick<RedevelopmentProgramInput,
   "blockCount" | "levelsMin" | "levelsMax" | "targetSiteCoveragePct" | "openSpacePct" | "setbackM">;
@@ -70,7 +70,7 @@ export function restorePointObjectCreateEditorSnapshot(
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const snapshot = value as Partial<PointObjectCreateEditorSnapshot>;
   if (snapshot.version !== 1 || snapshot.scopeKey !== expectedScopeKey ||
-      (snapshot.templateId !== "residential_mixed_use" && snapshot.templateId !== "commercial_hub" && snapshot.templateId !== "civic_green") ||
+      !isConceptTemplateId(snapshot.templateId) ||
       !validControls(snapshot.controls) || typeof snapshot.customPrompt !== "string" || snapshot.customPrompt.length > 600 ||
       (snapshot.committedDraftKey !== null && typeof snapshot.committedDraftKey !== "string") ||
       (typeof snapshot.committedDraftKey === "string" && snapshot.committedDraftKey.length > 2_000) ||

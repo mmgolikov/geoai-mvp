@@ -1,5 +1,6 @@
 import {
   conceptTemplate,
+  CONCEPT_TEMPLATE_IDS,
   validateRedevelopmentProgram,
   type ConceptLocale,
   type ConceptMassingStyle,
@@ -137,7 +138,7 @@ const CREATE_PROGRAM_SCHEMA = {
     "rationale"
   ],
   properties: {
-    templateId: { type: "string", enum: ["residential_mixed_use", "commercial_hub", "civic_green"] },
+    templateId: { type: "string", enum: CONCEPT_TEMPLATE_IDS },
     title: { type: "string", minLength: 1, maxLength: 120 },
     summary: { type: "string", minLength: 1, maxLength: 600 },
     massingStyle: { type: "string", enum: ["perimeter", "courtyard", "towers_on_podium", "campus"] },

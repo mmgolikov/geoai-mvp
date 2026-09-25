@@ -30,6 +30,7 @@ import {
 } from "@/src/lib/prototype/point-to-object-create-orchestration";
 import {
   ConceptMassingError,
+  isConceptTemplateId,
   generateConceptMassingAlternatives,
   type ConceptLocale,
   type ConceptTemplateId,
@@ -186,7 +187,7 @@ function validBody(value: unknown): value is CreateRequest {
   return validLocks && isPointObjectMarketKey(value.marketKey) &&
     (value.locale === "en" || value.locale === "ru") &&
     (value.depth === "quick" || value.depth === "standard" || value.depth === "deep") &&
-    (value.templateId === "residential_mixed_use" || value.templateId === "commercial_hub" || value.templateId === "civic_green") &&
+    isConceptTemplateId(value.templateId) &&
     (value.customPrompt === null || (typeof value.customPrompt === "string" && value.customPrompt.trim().length <= 600)) &&
     typeof controls.blockCount === "number" && Number.isInteger(controls.blockCount) && controls.blockCount >= 1 && controls.blockCount <= 12 &&
     typeof controls.levelsMin === "number" && Number.isInteger(controls.levelsMin) && controls.levelsMin >= 1 && controls.levelsMin <= 80 &&
