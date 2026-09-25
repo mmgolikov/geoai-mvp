@@ -52,6 +52,11 @@ const pointToObjectPrototypeExcludedFiles = [
 ];
 
 const nextConfig: NextConfig = {
+  // Only the opt-in local E2E server hides the route badge that overlaps map controls.
+  // Next.js compile/runtime error reporting remains enabled.
+  ...(process.env.NODE_ENV === "development" && process.env.GEOAI_E2E_DEV_INDICATOR === "off"
+    ? { devIndicators: false as const }
+    : {}),
   ...(process.env.GEOAI_BUILD_TARGET === "self_hosted_candidate" ? { output: "standalone" as const } : {}),
   poweredByHeader: false,
   reactStrictMode: true,

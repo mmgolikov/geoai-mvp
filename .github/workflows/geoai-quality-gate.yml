@@ -482,6 +482,7 @@ jobs:
           GEOAI_ACCESS_ENFORCEMENT_MODE: soft
           GEOAI_ALLOW_DEMO_PUBLIC: "true"
           GEOAI_E2E_BASE_URL: http://127.0.0.1:3100
+          GEOAI_E2E_DEV_INDICATOR: "off"
         run: |
           set -euo pipefail
           npm run dev -- -p 3100 > /tmp/geoai-e2e-next.log 2>&1 &
