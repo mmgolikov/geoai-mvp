@@ -7,6 +7,8 @@ import { PointObjectIcon } from "@/components/point-to-object/point-object-icons
 import { useModalShell } from "@/components/point-to-object/use-modal-shell";
 import type { PointObjectCreateAoi } from "@/src/lib/prototype/point-to-object-create";
 import type { PointObjectGeneratedConcept } from "@/src/lib/prototype/point-to-object-create-result";
+import { buildConceptEnvironment } from "@/src/lib/prototype/point-to-object-create-environment";
+import { conceptWallColor } from "@/src/lib/prototype/point-to-object-create-appearance";
 
 const CreateResultPreview3D = dynamic(
   () => import("@/components/point-to-object/create-result-preview-3d").then((module) => module.CreateResultPreview3D),
@@ -29,6 +31,7 @@ type Props = {
 
 function ConceptPlanPreview({ aoi, generated, activeAlternativeId, locale }: Pick<Props, "aoi" | "generated" | "activeAlternativeId" | "locale">) {
   const massing = generated.alternatives?.find((alternative) => alternative.id === activeAlternativeId)?.massing ?? generated.massing;
+  const environment = useMemo(() => buildConceptEnvironment(aoi, massing), [aoi, massing]);
   const aoiRings = aoi.coordinates;
   const allPoints = [
     ...aoiRings.flat(),
@@ -56,18 +59,19 @@ function ConceptPlanPreview({ aoi, generated, activeAlternativeId, locale }: Pic
     .map((ring) => `M${ring.map(point).join("L")}Z`)
     .join(" ");
   return (
-    <figure className="rounded-[24px] border border-[#bdd8d1] bg-[#eaf5f1] p-4" data-testid="create-result-preview">
+    <figure className="rounded-[24px] border border-[#bdd8d1] bg-[#eaf5f1] p-4" data-testid="create-result-preview" data-environment-key={environment.key}>
       <figcaption className="mb-3 flex items-center justify-between gap-3"><span className="flex items-center gap-2 text-sm font-bold text-[#173b35]"><PointObjectIcon name="map" className="h-5 w-5 text-[#087f8c]" />{locale === "ru" ? "2D-план объёмной модели" : "2D massing plan"}</span><span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-bold text-[#087f8c]">{locale === "ru" ? "Вариант" : "Option"} {activeAlternativeId}</span></figcaption>
       <svg viewBox="0 0 100 100" className="aspect-[4/3] w-full rounded-2xl bg-white" role="img" aria-label={locale === "ru" ? `Пропорциональный 2D-план сгенерированной объёмной модели, вариант ${activeAlternativeId}` : `Proportional 2D plan of generated massing, option ${activeAlternativeId}`}>
         <defs><pattern id="create-result-grid" width="8" height="8" patternUnits="userSpaceOnUse"><path d="M8 0H0V8" fill="none" stroke="#e2ece9" strokeWidth=".4" /></pattern></defs>
         <rect x="2" y="2" width="96" height="96" rx="6" fill="url(#create-result-grid)" />
         <path data-testid="create-preview-aoi" d={polygonPath(aoiRings)} fill="#dff0ea" fillRule="evenodd" stroke="#087f8c" strokeWidth="1.2" strokeDasharray="2 1.5" />
+        {environment.featureCollection.features.map(feature => <path key={String(feature.id)} data-testid="create-preview-environment" d={polygonPath(feature.geometry.coordinates)} fill={feature.properties.material === "permeable_surface" ? "#d5d3c7" : "#b9c5c1"} />)}
         {massing.featureCollection.features.map((feature) => {
           const primary = feature.properties.primaryBlock;
-          return <path key={feature.properties.id} data-testid="create-preview-building" d={polygonPath(feature.geometry.coordinates)} fill={primary ? "#087f8c" : "#6ab8a9"} fillRule="evenodd" stroke={primary ? "#087f8c" : "#408f80"} strokeWidth=".8" fillOpacity={primary ? .82 : .58}><title>{feature.properties.label} · {feature.properties.levels} {locale === "ru" ? "эт." : "levels"}</title></path>;
+          return <path key={feature.properties.id} data-testid="create-preview-building" d={polygonPath(feature.geometry.coordinates)} fill={conceptWallColor(feature.properties.templateId)} fillRule="evenodd" stroke="#087f8c" strokeWidth={primary ? .8 : .4}><title>{feature.properties.label} · {feature.properties.levels} {locale === "ru" ? "эт." : "levels"}</title></path>;
         })}
       </svg>
-      <div className="mt-3 flex flex-wrap gap-3 text-[11px] text-[#536963]"><span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-[#087f8c]" />{locale === "ru" ? "Основные корпуса" : "Primary blocks"}</span><span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-[#6ab8a9]" />{locale === "ru" ? "Подиумы / вспомогательные объёмы" : "Podiums / supporting volumes"}</span></div>
+      <p className="mt-3 text-[11px] leading-5 text-[#62716d]">{locale === "ru" ? "Площадки и пешеходные связи — концепция, не фактическая инфраструктура. Показатели зданий не изменены." : "Open areas and pedestrian links are conceptual, not existing infrastructure. Building metrics are unchanged."}{environment.status !== "ready" ? (locale === "ru" ? " Не поместившиеся элементы среды пропущены." : "Environment elements without valid placement were omitted.") : ""}</p>
       <p className="mt-3 text-[11px] leading-5 text-[#62716d]">{locale === "ru" ? "Пропорциональная локальная 2D-проекция сохранённой GeoJSON-геометрии. Переключатель выше открывает локальный 3D-вид без новой генерации." : "Aspect-preserving local 2D projection of the saved GeoJSON geometry. The control above opens a local 3D view without generating again."}</p>
     </figure>
   );

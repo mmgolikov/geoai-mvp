@@ -6,6 +6,8 @@ import type { GeoJSONSource, Map as MapLibreMap, StyleSpecification } from "mapl
 import { PointObjectIcon } from "@/components/point-to-object/point-object-icons";
 import type { ConceptMassingResult, PointObjectCreateAoi } from "@/src/lib/prototype/point-to-object-create";
 import { buildPointObjectCreatePreviewModel } from "@/src/lib/prototype/point-to-object-create-preview";
+import { conceptMaterialColor, conceptSurfacePattern, installConceptSurfaceImages } from "@/src/lib/prototype/point-to-object-create-appearance";
+import { CONCEPT_ENVIRONMENT_SOURCE, ensureConceptEnvironmentLayers, updateConceptEnvironment } from "@/src/lib/prototype/point-to-object-create-environment-renderer";
 
 type Props = {
   locale: "en" | "ru";
@@ -145,9 +147,10 @@ export function CreateResultPreview3D({ locale, aoi, massing, fallback, dimensio
           if (disposed || !map) return;
           const visible = map.queryRenderedFeatures();
           const renderedContext = visible.filter(feature =>
-            feature.source !== AOI_SOURCE_ID && feature.source !== MASSING_SOURCE_ID);
+            feature.source !== AOI_SOURCE_ID && feature.source !== MASSING_SOURCE_ID && feature.source !== CONCEPT_ENVIRONMENT_SOURCE);
           setBasemapFeatureCount(renderedContext.length);
           setRenderedMassingCount(visible.filter(feature => feature.source === MASSING_SOURCE_ID).length);
+          map.getContainer().dataset.conceptEnvironmentRenderedCount = String(visible.filter(feature => feature.source === CONCEPT_ENVIRONMENT_SOURCE).length);
           setCameraPitch(Math.round(map.getPitch()));
           setRenderedScene(scene);
         });
@@ -182,20 +185,16 @@ export function CreateResultPreview3D({ locale, aoi, massing, fallback, dimensio
               paint: { "line-color": "#087f8c", "line-width": 2.5, "line-dasharray": [2, 1.5] }
             });
             map.addSource(MASSING_SOURCE_ID, { type: "geojson", data: loaded.massingFeatureCollection });
+            ensureConceptEnvironmentLayers(map);
+            updateConceptEnvironment(map, loaded.environment);
+            installConceptSurfaceImages(map);
             map.addLayer({
               id: "create-result-preview-volumes",
               type: "fill-extrusion",
               source: MASSING_SOURCE_ID,
               paint: {
-                "fill-extrusion-color": [
-                  "match", ["get", "volumeRole"],
-                  "podium", "#6ab8a9",
-                  "tower", "#087f8c",
-                  "perimeter_wing", "#277f78",
-                  "courtyard_wing", "#378f83",
-                  "campus_block", "#4f8fa3",
-                  "#087f8c"
-                ],
+                "fill-extrusion-color": conceptMaterialColor,
+                "fill-extrusion-pattern": conceptSurfacePattern,
                 "fill-extrusion-height": ["get", "heightM"],
                 "fill-extrusion-base": ["get", "baseM"],
                 "fill-extrusion-opacity": 0.9,
@@ -243,6 +242,7 @@ export function CreateResultPreview3D({ locale, aoi, massing, fallback, dimensio
     if (appliedGeometryKeyRef.current === model.geometryKey) return;
     (mapRef.current?.getSource(AOI_SOURCE_ID) as GeoJSONSource | undefined)?.setData(model.aoiFeature);
     (mapRef.current?.getSource(MASSING_SOURCE_ID) as GeoJSONSource | undefined)?.setData(model.massingFeatureCollection);
+    if (mapRef.current) updateConceptEnvironment(mapRef.current, model.environment);
     appliedGeometryKeyRef.current = model.geometryKey;
     resetCamera(180);
   }, [model, resetCamera, status]);
@@ -276,6 +276,10 @@ export function CreateResultPreview3D({ locale, aoi, massing, fallback, dimensio
     data-preview-horizontal-span-m={model?.horizontalSpanM ?? "unknown"}
     data-preview-camera-zoom-out={model?.cameraZoomOutLevels ?? "unknown"}
     data-preview-geometry-key={model?.geometryKey ?? "invalid"}
+    data-environment-key={model?.environment.key}
+    data-environment-status={model?.environment.status}
+    data-environment-feature-count={model?.environment.featureCollection.features.length ?? 0}
+    data-environment-connected={model?.environment.connected ?? false}
   >
     <figcaption className="mb-3 flex flex-wrap items-center justify-between gap-3">
       <span className="flex items-center gap-2 text-sm font-bold text-[#173b35]"><PointObjectIcon name="map" className="h-5 w-5 text-[#087f8c]" />{ru ? "Сохранённая концепция" : "Saved concept"} · {dimension.toUpperCase()}</span>
@@ -298,6 +302,7 @@ export function CreateResultPreview3D({ locale, aoi, massing, fallback, dimensio
         <button type="button" disabled={renderedStatus !== "ready"} onClick={() => resetCamera(250)} className="min-h-11 rounded-lg border border-[#b8cbc6] bg-white px-3 text-xs font-bold text-[#087f8c] disabled:opacity-50">{ru ? "Сбросить вид" : "Reset view"}</button>
       </div>
     </div>
-    <p className="mt-3 text-[11px] leading-5 text-[#62716d]">{ru ? "Геометрия и высоты взяты из сохранённого результата. Подложка OpenFreeMap / © OpenStreetMap contributors — справочное окружение; режим «Модель» работает без тайлов. Переключение видов не вызывает AI." : "Geometry and heights come from the saved result. OpenFreeMap / © OpenStreetMap contributors supplies reference context; Model mode uses no tiles. View changes do not call AI."}</p>
+    <p className="mt-3 text-[11px] leading-5 text-[#62716d]" data-testid="create-environment-caption">{ru ? "Площадки, пешеходные связи и отделка — концептуальные предложения; показатели зданий не изменены." : "Open areas, pedestrian links and finishes are conceptual proposals; building metrics are unchanged."}{model.environment.status !== "ready" ? (ru ? " Часть элементов среды не размещена: не найдено свободное место без пересечений." : "Some environment elements were omitted: no collision-free placement was found.") : ""}</p>
+    <p className="mt-2 text-[11px] leading-5 text-[#62716d]">{ru ? "Геометрия и высоты взяты из сохранённого результата. Подложка OpenFreeMap / © OpenStreetMap contributors — справочное окружение; режим «Модель» работает без тайлов. Переключение видов не вызывает AI." : "Geometry and heights come from the saved result. OpenFreeMap / © OpenStreetMap contributors supplies reference context; Model mode uses no tiles. View changes do not call AI."}</p>
   </figure>;
 }

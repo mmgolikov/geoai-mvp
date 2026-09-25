@@ -16,6 +16,9 @@ import type {
 import { usePointObjectLocale } from "@/components/point-to-object/locale-provider";
 import type { GeoJsonGeometry } from "@/src/lib/point-to-object/contracts";
 import type { ConceptMassingResult, PointObjectCreateAoi } from "@/src/lib/prototype/point-to-object-create";
+import { buildConceptEnvironment } from "@/src/lib/prototype/point-to-object-create-environment";
+import { ensureConceptEnvironmentLayers, setConceptEnvironmentVisibility, updateConceptEnvironment } from "@/src/lib/prototype/point-to-object-create-environment-renderer";
+import { conceptMaterialColor, conceptSurfacePattern, installConceptSurfaceImages } from "@/src/lib/prototype/point-to-object-create-appearance";
 import type { PointObjectFindBounds, PointObjectFindCandidate } from "@/src/lib/prototype/point-to-object-find-contract";
 import { separateMapMarkerControls } from "@/src/lib/prototype/point-to-object-selection-context";
 import { projectResultCoordinateBounds, isCompletedNavigationCamera, type NavigationCamera } from "@/src/lib/prototype/point-to-object-find-viewport";
@@ -906,6 +909,7 @@ function setCreateLayers(
   const canShowConcept = Boolean(massing &&
     (replacementStatus === "applied" || replacementStatus === "partial") &&
     !visibleNativeConceptConflict(map, massing));
+  updateConceptEnvironment(map, aoi && massing ? buildConceptEnvironment(aoi, massing) : null, canShowConcept);
   if (map.getLayer(CONCEPT_FILL_LAYER_ID)) map.setLayoutProperty(CONCEPT_FILL_LAYER_ID, "visibility", canShowConcept && viewMode === "2d" ? "visible" : "none");
   if (map.getLayer(CONCEPT_VOLUME_LAYER_ID)) map.setLayoutProperty(CONCEPT_VOLUME_LAYER_ID, "visibility", canShowConcept && viewMode === "3d" ? "visible" : "none");
   if (map.getLayer(BUILDINGS_3D_LAYER_ID)) map.setLayoutProperty(BUILDINGS_3D_LAYER_ID, "visibility", viewMode === "3d" ? "visible" : "none");
@@ -1084,14 +1088,16 @@ function installGeoAiLayers(map: MapLibreMap, viewMode: MapViewMode) {
     paint: { "circle-color": "#ffffff", "circle-radius": 5, "circle-stroke-color": "#087f70", "circle-stroke-width": 2 }
   }, labelLayer);
   if (!map.getSource(CONCEPT_SOURCE_ID)) map.addSource(CONCEPT_SOURCE_ID, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
-  const conceptColor: ExpressionSpecification = ["match", ["get", "use"], "residential", "#77b7a7", "office", "#4f8fa3", "retail", "#d5a54b", "hospitality", "#9c78b5", "civic", "#6f9b68", "#87a7a1"];
+  ensureConceptEnvironmentLayers(map, labelLayer);
+  installConceptSurfaceImages(map);
+  const conceptColor: ExpressionSpecification = conceptMaterialColor;
   if (!map.getLayer(CONCEPT_FILL_LAYER_ID)) map.addLayer({
     id: CONCEPT_FILL_LAYER_ID,
     type: "fill",
     source: CONCEPT_SOURCE_ID,
     minzoom: pointObjectReplacementMinimumReliableZoom,
     layout: { visibility: "none" },
-    paint: { "fill-color": conceptColor, "fill-opacity": 0.68, "fill-outline-color": "#285951" }
+    paint: { "fill-color": conceptColor, "fill-pattern": conceptSurfacePattern, "fill-opacity": 0.95, "fill-outline-color": "#087f8c" }
   }, labelLayer);
   if (!map.getLayer(CONCEPT_VOLUME_LAYER_ID)) map.addLayer({
     id: CONCEPT_VOLUME_LAYER_ID,
@@ -1101,6 +1107,7 @@ function installGeoAiLayers(map: MapLibreMap, viewMode: MapViewMode) {
     layout: { visibility: "none" },
     paint: {
       "fill-extrusion-color": conceptColor,
+      "fill-extrusion-pattern": conceptSurfacePattern,
       "fill-extrusion-height": ["get", "heightM"],
       "fill-extrusion-base": ["get", "baseM"],
       "fill-extrusion-opacity": 0.88,
@@ -1893,6 +1900,7 @@ export function LiveObjectMap({
           );
           setPointObjectLayerVisibilityIfChanged(map, CONCEPT_FILL_LAYER_ID, conceptVisible && viewModeRef.current === "2d" ? "visible" : "none");
           setPointObjectLayerVisibilityIfChanged(map, CONCEPT_VOLUME_LAYER_ID, conceptVisible && viewModeRef.current === "3d" ? "visible" : "none");
+          setConceptEnvironmentVisibility(map, Boolean(conceptVisible));
         };
 
         const handleMoveEnd = (event: MapEventType["moveend"] & { geoaiNavigationRequestId?: string; geoaiNavigationCamera?: NavigationCamera }) => {
@@ -1943,6 +1951,7 @@ export function LiveObjectMap({
           if (!createAreaClearedRef.current || !createAoiRef.current) return;
           if (map.getLayer(CONCEPT_FILL_LAYER_ID)) map.setLayoutProperty(CONCEPT_FILL_LAYER_ID, "visibility", "none");
           if (map.getLayer(CONCEPT_VOLUME_LAYER_ID)) map.setLayoutProperty(CONCEPT_VOLUME_LAYER_ID, "visibility", "none");
+          setConceptEnvironmentVisibility(map, false);
           if (map.getZoom() < pointObjectReplacementMinimumReliableZoom) {
             // Low zoom deliberately restores the native source. Later tile
             // loading events must not overwrite that terminal UI state with

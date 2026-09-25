@@ -1,4 +1,5 @@
 import type { Feature, FeatureCollection, Polygon } from "geojson";
+import { buildConceptEnvironment, type ConceptEnvironment } from "./point-to-object-create-environment";
 
 import type {
   ConceptMassingProperties,
@@ -19,6 +20,7 @@ export type PointObjectCreatePreviewModel = {
   horizontalSpanM: number;
   cameraZoomOutLevels: number;
   geometryKey: string;
+  environment: ConceptEnvironment;
 };
 
 function finiteCoordinate(point: readonly number[]): point is readonly [number, number] {
@@ -92,6 +94,7 @@ export function buildPointObjectCreatePreviewModel(
     }))
   };
 
+  const environment = buildConceptEnvironment(aoi, massing);
   return {
     aoiFeature: {
       type: "Feature",
@@ -106,6 +109,7 @@ export function buildPointObjectCreatePreviewModel(
     minBaseM: Math.min(...features.map((feature) => feature.properties.baseM)),
     horizontalSpanM,
     cameraZoomOutLevels,
-    geometryKey: geometryKey(massing)
+    geometryKey: `${geometryKey(massing)}:${environment.key}`,
+    environment
   };
 }
