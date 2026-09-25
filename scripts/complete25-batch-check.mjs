@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { chmodSync, mkdtempSync, realpathSync, rmSync, readFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, realpathSync, rmSync, readFileSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
@@ -66,6 +66,8 @@ async function simulation(fault=null){
   const result=await runComplete25Batch(config,async descriptor=>{
     calls++;clock+=1000;
     if(descriptor.scope==="quality20-acquire"){
+      if(fault==="external_error")throw new Error("untrusted exception sk-OFFLINE_SECRET_SENTINEL_123456");
+      if(fault==="lookalike_error")throw new Error("COMPLETE25_BATCH_SECRET_SENTINEL");
       acquired++;if(fault==="acquisition")return {status:"FAIL",stage:"429",receipts:[]};
       if(fault==="source")clock+=900000;
       return {status:"ACQUIRED_NOT_ANALYSED",receipts:[]};
@@ -93,7 +95,21 @@ async function simulation(fault=null){
   },readJson:()=>({value:{}}),bindAcquisition:(group)=>{
     const bound=fixtureBinding(group,clock);if(fault==="source")bound.deadlineAtMs=clock;return bound;
   }});
-  if(fault){assert.equal(result.status,"FAIL",fault);assert.equal(result.completedCaseIds.length,0,fault);assert(calls<=2,fault);}
+  if(fault){assert.equal(result.status,"FAIL",fault);assert.equal(result.stage,"batch_stopped");assert.equal(result.completedCaseIds.length,0,fault);assert(calls<=2,fault);
+    const expected={acquisition:"ACQUISITION_FAILED",source:"SOURCE_WINDOW_EXPIRED",case:"CASE_FAILED",unknown:"CASE_FAILED",drift:"UNCLASSIFIED_FAILURE",
+      external_error:"UNCLASSIFIED_FAILURE",lookalike_error:"UNCLASSIFIED_FAILURE"};
+    assert.equal(result.reason,`COMPLETE25_BATCH_${expected[fault]}`);
+    assert.deepEqual(readComplete25PrivateJson(join(dir,"batch-result.json")).value,result);
+    if(fault==="acquisition"){
+      const output=join(dir,"01-acquisition-child-receipt.json");
+      assert.deepEqual(readComplete25PrivateJson(output).value,{status:"FAIL",stage:"429",receipts:[]});
+      assert.throws(()=>writeComplete25PrivateJson(output,{status:"PASS"}));
+    }
+    if(["external_error","lookalike_error"].includes(fault)){
+      for(const file of readdirSync(dir))assert(!readFileSync(join(dir,file),"utf8").includes("SENTINEL"),"Raw exception text must never persist");
+      assert(!JSON.stringify(result).includes("SENTINEL"));
+    }
+  }
   else{
     assert.equal(result.status,"PASS",JSON.stringify(result));assert.equal(acquired,27);assert.equal(calls,85);assert.equal(dispatches.length,53);assert.equal(result.completedCaseIds.length,58);
     assert.equal(ledger.receipts.length,53);assert.equal(ledger.receipts[0].id,91);assert.equal(ledger.receipts.at(-1).id,143);
@@ -105,7 +121,7 @@ async function simulation(fault=null){
   return {result,config};
 }
 try{
-  const {config}=await simulation();for(const fault of ["acquisition","source","case","unknown","drift"])await simulation(fault);
+  const {config}=await simulation();for(const fault of ["acquisition","source","case","unknown","drift","external_error","lookalike_error"])await simulation(fault);
   const planPath=join(root,"approved-plan.json"),planSha=writeComplete25PrivateJson(planPath,plan);
   const env={GEOAI_HOSTED_AUTH_PROBE_EXPLICIT_RUN:"create-two-synthetic-password-personas",GEOAI_HOSTED_AUTH_PROBE_PROJECT_REF:"pphdqkurxneyagvnnjdt",
     GEOAI_HOSTED_AUTH_PROBE_SUPABASE_URL:"https://pphdqkurxneyagvnnjdt.supabase.co",GEOAI_HOSTED_AUTH_PROBE_PUBLISHABLE_KEY:"sb_publishable_OFFLINE_"+"x".repeat(32),
@@ -138,5 +154,5 @@ try{
     const bad=structuredClone(receipt);mutate(bad);assert.throws(()=>bindComplete25Acquisition(group,bad,receipt.planSha256,now));negatives++;
   }
   assert.throws(()=>bindComplete25Acquisition(group,receipt,receipt.planSha256,initialTime+900000));
-  console.log(JSON.stringify({status:"PASS",scope:"offline batch coordinator",fullCases:58,nonpaidAcquisitions:27,simulatedPaidReceipts:53,firstNewId:91,lastNewId:143,stopFaults:5,shapeNegatives:negatives}));
+  console.log(JSON.stringify({status:"PASS",scope:"offline batch coordinator",fullCases:58,nonpaidAcquisitions:27,simulatedPaidReceipts:53,firstNewId:91,lastNewId:143,stopFaults:7,shapeNegatives:negatives,rawExceptionDisclosure:false}));
 }finally{rmSync(root,{recursive:true,force:true});}

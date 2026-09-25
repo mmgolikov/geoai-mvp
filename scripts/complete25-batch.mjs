@@ -18,7 +18,12 @@ const MAX_BATCH_MS = 6 * 60 * 60_000;
 const HASH = /^[a-f0-9]{64}$/;
 const record = value => value !== null && typeof value === "object" && !Array.isArray(value);
 const exact = (value, keys) => record(value) && Object.keys(value).sort().join("|") === [...keys].sort().join("|");
-const guard = (condition, code) => { if (!condition) throw new Error(`COMPLETE25_BATCH_${code}`); };
+// Only locally constructed fixed guard failures can become persisted reasons.
+// External exception text, even a lookalike prefix, is never copied to evidence.
+class Complete25BatchGuard extends Error {}
+const guard = (condition, code) => { if (!condition) throw new Complete25BatchGuard(`COMPLETE25_BATCH_${code}`); };
+const safeFailureReason = error => error instanceof Complete25BatchGuard && error.message.length <= 96 &&
+  /^COMPLETE25_BATCH_[A-Z_]+$/.test(error.message) ? error.message : "COMPLETE25_BATCH_UNCLASSIFIED_FAILURE";
 const publicText = (value, max=2000) => typeof value === "string" && value.length > 0 && value.length <= max &&
   !/[\u0000-\u001f]/.test(value) && !/\b(?:Bearer\s|sk-[A-Za-z0-9_-]{12,}|sb_secret_|eyJ[A-Za-z0-9_-]{10,}\.)/.test(value);
 const hashBytes = value => createHash("sha256").update(value).digest("hex");
@@ -145,6 +150,9 @@ export async function runComplete25Batch(config,runChild,{now=Date.now,sleep=ms=
       const acquisitionEnvironment={GEOAI_QUALITY20_ACQUISITION_PLAN_PATH:planPath,GEOAI_QUALITY20_ACQUISITION_PLAN_SHA256:planHash,GEOAI_QUALITY20_ACQUISITION_OUTPUT_PATH:outputPath};
       const acquisition=loadQuality20Acquisition(acquisitionEnvironment,config.plan.execution);
       const acquired=await runChild({scope:"quality20-acquire",quality20:null,acquisition,quality20Environment:acquisitionEnvironment});
+      // runChild has already applied the existing strict child-receipt parser.
+      // Preserve a parsed FAIL before the guard stops all subsequent work.
+      writeJson(join(config.outputDir,`${prefix}-acquisition-child-receipt.json`),acquired);
       guard(acquired.status==="ACQUIRED_NOT_ANALYSED"&&Array.isArray(acquired.receipts)&&acquired.receipts.length===0,"ACQUISITION_FAILED");
       unchanged(ledgerPreflight(config.ledgerRoot,config.ledgerPath,"quality20-acquire"));
       const source=readJson(outputPath,2_048_000);const bound=bindAcquisition(group,source.value,planHash,now());
@@ -173,7 +181,7 @@ export async function runComplete25Batch(config,runChild,{now=Date.now,sleep=ms=
       }
     }
     guard(completed.length===58,"DENOMINATOR");const result=summary("PASS","complete");writeJson(join(config.outputDir,"batch-result.json"),result);return result;
-  }catch {const result=summary("FAIL","batch_stopped");try{writeJson(join(config.outputDir,"batch-result.json"),result);}catch{/* Outer retirement must not depend on reporting. */}return result;}
+  }catch(error) {const result={...summary("FAIL","batch_stopped"),reason:safeFailureReason(error)};try{writeJson(join(config.outputDir,"batch-result.json"),result);}catch{/* Outer retirement must not depend on reporting. */}return result;}
 }
 
 // Filled only from validated nonpaid acquisition receipts; never synthesize source hashes.
