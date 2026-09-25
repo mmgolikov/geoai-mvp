@@ -1454,7 +1454,18 @@ function planSiteCells(
       const scale = Math.sqrt(desiredArea / capacity);
       const envelopes = cells.map(c => scaleRectangle(c, scale));
       if (towerStyle) {
-        const towers = planTowersForPodiums(envelopes, program, variantId, seed);
+        let towers = planTowersForPodiums(envelopes, program, variantId, seed);
+        if (towers && omitted > 0) {
+          let spread = primaryFootprintHullArea(towers);
+          for (const phase of [-1, 1] as const) {
+            const candidate = planTowersForPodiums(envelopes, program, variantId, seed, phase);
+            const candidateSpread = candidate ? primaryFootprintHullArea(candidate) : 0;
+            if (candidate && candidateSpread > spread + GEOMETRY_EPSILON_M ** 2) {
+              towers = candidate;
+              spread = candidateSpread;
+            }
+          }
+        }
         if (towers) return towers;
         continue;
       }
@@ -1697,11 +1708,31 @@ function distributeTowerCounts(podiums: OrientedRectangle[], towerCount: number)
   return counts;
 }
 
+/** Rotation-invariant spatial-envelope proxy, not a planning/urban-quality
+ * score. Only primary footprints count: wide podiums cannot mask tower clustering. */
+function primaryFootprintHullArea(volumes: PlannedVolume[]): number {
+  const points = volumes.filter(volume => volume.primaryBlock)
+    .flatMap(volume => openRing(volume.footprint))
+    .sort((a, b) => a.x - b.x || a.y - b.y);
+  const turn = (a: MetricPoint, b: MetricPoint, c: MetricPoint) =>
+    (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+  const half = (ordered: MetricPoint[]) => {
+    const hull: MetricPoint[] = [];
+    for (const point of ordered) {
+      while (hull.length >= 2 && turn(hull[hull.length - 2], hull[hull.length - 1], point) <= 0) hull.pop();
+      hull.push(point);
+    }
+    return hull.slice(0, -1);
+  };
+  return metricPolygonArea([...half(points), ...half([...points].reverse())]);
+}
+
 function planTowersForPodiums(
   podiums: OrientedRectangle[],
   program: ValidatedRedevelopmentProgram,
   variantId: ConceptAlternativeId,
-  seed: string
+  seed: string,
+  staggerPhase: -1 | 0 | 1 = 0
 ): PlannedVolume[] | null {
   if (podiums.length === 0 || podiums.length > program.blockCount) return null;
   const podiumLevels = Math.max(1, Math.min(4, program.levelsMin - 1));
@@ -1733,6 +1764,16 @@ function planTowersForPodiums(
     const minimumDimension = Math.min(podium.width, podium.height);
     const internalSetback = Math.max(2, Math.min(5, minimumDimension * 0.055));
     const gapM = Math.max(2.5, Math.min(5, minimumDimension * 0.06));
+    const targetBounds = metricBounds(podium.points);
+    // Residual strips can be hundreds of metres long while each carries one
+    // tower. Reusing the first target for every strip pins them to the same side.
+    // Alternate along the actual podium axis, then let the unchanged fit/quality
+    // search enforce containment. Both phases are bounded and ranked by footprint hull.
+    const stagger = (podiumIndex % 2 === 0 ? -1 : 1) * 0.3 * staggerPhase;
+    const staggerTarget = localToWorld(podium.center, podium.angle, {
+      x: podium.width >= podium.height ? podium.width * stagger : 0,
+      y: podium.width >= podium.height ? 0 : podium.height * stagger
+    });
     let placed: OrientedRectangle[] | null = null;
     for (const areaShare of areaShares) {
       for (let profileIndex = 0; profileIndex < aspectProfiles.length && !placed; profileIndex += 1) {
@@ -1749,6 +1790,10 @@ function planTowersForPodiums(
             {
               aspectRatios: aspectProfiles[profileIndex],
               areaFactors: qualityAreaFactors,
+              targetFractions: staggerPhase !== 0 && count === 1
+                ? [[(staggerTarget.x - targetBounds.minX) / (targetBounds.maxX - targetBounds.minX),
+                  (staggerTarget.y - targetBounds.minY) / (targetBounds.maxY - targetBounds.minY)]]
+                : undefined,
               gridDivisions: 24
             }
           );
