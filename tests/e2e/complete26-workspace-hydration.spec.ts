@@ -6,13 +6,16 @@ test.beforeEach(async ({ page, browserName }, info) => {
   await installLoopbackBrowserHarness(page, browserName, info.project.use.baseURL);
 });
 
-async function openWorkspace(page: Page) {
-  await page.goto("/login?next=%2Fworkspace&intent=demo");
+async function openWorkspace(page: Page, next = "/workspace") {
+  await page.goto(`/login?next=${encodeURIComponent(next)}&intent=demo`);
   if (!(await page.waitForURL((url) => url.pathname === "/workspace", { timeout: 20000 }).then(() => true, () => false))) {
     await page.getByRole("button", { name: "Open demo access" }).click();
     await page.getByRole("button", { name: "Open demo", exact: true }).click();
   }
-  await expect(page.getByRole("button", { name: "Map-first", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("#active-project")).toBeVisible();
+  if (next === "/workspace") {
+    await expect(page.getByRole("button", { name: "Map-first", exact: true })).toHaveAttribute("aria-pressed", "true");
+  }
 }
 
 for (const responseKind of ["success", "invalid-json"] as const) {
@@ -77,3 +80,24 @@ test("late project metadata refresh cannot switch back from a user-selected proj
   await expect(page.locator("#active-project")).toHaveValue("developer-land-pipeline-demo");
   await expect(criteriaFirst).toHaveAttribute("aria-pressed", "true");
 });
+
+for (const changeProject of [false, true]) {
+  test(`remote projectId deep link resolves once; explicit project choice=${changeProject}`, async ({ page }) => {
+    const remote = { ...demoProjects[1], id: "00000000-0000-4000-8000-000000000026", projectKey: "remote-hydration-fixture", name: "Remote metadata fixture" };
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    await page.route("**/api/projects", async (route) => {
+      await gate;
+      await route.fulfill({ json: { items: [...demoProjects, remote], mode: "demo_seed" } });
+    });
+    await openWorkspace(page, `/workspace?projectId=${remote.id}`);
+    if (changeProject) {
+      await page.locator("#active-project").selectOption("developer-land-pipeline-demo");
+      await page.getByRole("button", { name: "Criteria-first", exact: true }).click();
+    }
+    release();
+    await expect(page.locator(`#active-project option[value="${remote.projectKey}"]`)).toHaveCount(1);
+    await expect(page.locator("#active-project")).toHaveValue(changeProject ? "developer-land-pipeline-demo" : remote.projectKey);
+    if (changeProject) await expect(page.getByRole("button", { name: "Criteria-first", exact: true })).toHaveAttribute("aria-pressed", "true");
+  });
+}

@@ -45,3 +45,32 @@ project names, so the test does not pass by suppressing metadata hydration.
 Final verification results and exact integrated commit are recorded in the
 COMPLETE25 execution state and fresh CI. Main/Production are unchanged by this
 local correction; release remains acceptance-gated.
+
+## Independent review correction: project-only links
+
+The first correction did not resolve a `projectId`-only cloud link when the
+identifier was absent from the initial local list. The exact optimized build
+50a5115 reproduced this: after server metadata arrived, the selected project
+remained Dubai Investment Screening instead of the requested synthetic remote
+project. An explicit intervening project selection was correctly preserved.
+CI36191628554 was cancelled rather than accepting that known defect.
+
+Resolve the initial identifier against local projects, then once against server
+metadata if still unresolved. Track intervening explicit user choices so this
+one-time resolution never overwrites a user-selected project, target, scenario,
+mode, filter, query or guided demo. The existing history callback also receives
+a defensive guard, but it currently has no rendered UI caller: no runtime
+history-reopen defect is claimed. Access checks and project memberships are
+unchanged; this is client selection, not permission to read a remote project.
+
+Two new remote-link tests cover default resolution and an intervening project
+change. A separate independent spec covers a local project-key-only link with
+a different saved active project, and an intervening mode change while a remote
+identifier is pending. All are explicitly synthetic local browser regressions.
+
+Independent Chromium before-check on optimized50a5115: local identity fails both
+before and after the delayed metadata response; explicit Criteria-first is
+preserved (1 FAIL / 1 PASS). Root WebKit before-check: remote UUID resolution
+fails while explicit project switching is preserved (1 FAIL / 1 PASS). Browser
+sandbox launch failures and the first helper's incorrect Map-first setup
+assertion are retained separately, not counted as product failures.

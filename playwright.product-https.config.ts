@@ -14,6 +14,7 @@ const productSpecs = [
   "complete25-climate.spec.ts",
   "complete25-map-view-race.spec.ts",
   "complete26-workspace-hydration.spec.ts",
+  "complete26-workspace-project-links.spec.ts",
   "complete26-create-analogues.spec.ts",
   "project-hub-unified.spec.ts",
   "point-object-project-restoration-readiness.spec.ts",

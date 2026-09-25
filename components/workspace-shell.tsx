@@ -766,6 +766,7 @@ export function WorkspaceShell({
   spatialSourceRequest
 }: WorkspaceShellProps) {
   const { user } = useAuth();
+  const workspaceSelectionRevisionRef = useRef(0);
   const mapSectionRef = useRef<HTMLDivElement | null>(null);
   const workflowPanelRef = useRef<HTMLDivElement | null>(null);
   const mobileMapDialogRef = useRef<HTMLElement | null>(null);
@@ -941,6 +942,7 @@ export function WorkspaceShell({
   }
 
   function loadGuidedDemo(presetId: string, includeComparisonSites = false) {
+    workspaceSelectionRevisionRef.current += 1;
     const preset = getGuidedDemoPreset(presetId);
     const narrative = getDemoNarrativeForGuidedDemo(preset.id);
     const demoDatasets = createGuidedDemoDatasets(preset.projectKey);
@@ -1122,8 +1124,11 @@ export function WorkspaceShell({
   }, []);
 
   useEffect(() => {
-    const requestedProjectKey = readProjectKeyFromUrl(demoProjects);
     const localProjects = mergeProjectsWithLocal(demoProjects);
+    const requestedProjectKey = readProjectKeyFromUrl(localProjects);
+    const params = new URLSearchParams(window.location.search);
+    const unresolvedProjectId = !params.has("projectKey") && !readProjectKeyFromUrl(localProjects)
+      ? params.get("projectId") : null;
     const explicitContext = hasExplicitWorkspaceContext();
     const preferredAudience = user?.profile.defaultAudience ?? "b2b";
     const preferredRole = user?.profile.defaultRole ?? getDefaultRoleForAudience(preferredAudience);
@@ -1157,6 +1162,18 @@ export function WorkspaceShell({
         const nextProjects = mergeProjectsWithLocal(payload.items);
         setProjects(nextProjects);
         setProjectsMode(payload.mode);
+        // A projectId-only deep link may not resolve in the local demo list.
+        // Resolve it once from server metadata, but never supersede a choice
+        // the user already made while that request was in flight.
+        const initialRemoteProject = unresolvedProjectId && workspaceSelectionRevisionRef.current === 0
+          ? nextProjects.find((project) => project.id === unresolvedProjectId || project.projectKey === unresolvedProjectId)
+          : null;
+        if (initialRemoteProject) {
+          setActiveProject(initialRemoteProject);
+          applyExploreDefaultsForProject(initialRemoteProject);
+          writeActiveProjectKey(initialRemoteProject.projectKey);
+          return;
+        }
         // This is a metadata refresh, not a new user selection. A delayed
         // response must not reset a completed search or restore an old project.
         setActiveProject((current) =>
@@ -1349,6 +1366,7 @@ export function WorkspaceShell({
   }, [selectedPoint, selectedObject, selectedAoi, selectedScenario]);
 
   function handlePointSelect(point: SelectedPoint) {
+    workspaceSelectionRevisionRef.current += 1;
     setMapSnapshot(null);
     setSelectedPoint(point);
     setSelectedObject(null);
@@ -1367,6 +1385,7 @@ export function WorkspaceShell({
   }
 
   function handleObjectSelect(object: SelectedDemoObject) {
+    workspaceSelectionRevisionRef.current += 1;
     setMapSnapshot(null);
     setSelectedObject(object);
     setSelectedAoi(null);
@@ -1400,6 +1419,7 @@ export function WorkspaceShell({
   }
 
   function handleAoiSelect(aoi: UserDrawnAoi) {
+    workspaceSelectionRevisionRef.current += 1;
     setMapSnapshot(null);
     setSelectedAoi(aoi);
     setSelectedObject(null);
@@ -1466,6 +1486,7 @@ export function WorkspaceShell({
   }
 
   function changeExploreAudience(audience: ExploreAudience) {
+    workspaceSelectionRevisionRef.current += 1;
     const currentProjectMatchesAudience = getProjectSegment(activeProject) === audience;
     const nextProject = currentProjectMatchesAudience ? activeProject : getDefaultProjectForAudience(projects, audience);
 
@@ -1478,6 +1499,7 @@ export function WorkspaceShell({
   }
 
   function changeExploreRole(role: ExploreRole) {
+    workspaceSelectionRevisionRef.current += 1;
     const nextRole = isExploreRoleForAudience(selectedExploreAudience, role)
       ? role
       : getDefaultRoleForAudience(selectedExploreAudience);
@@ -1514,6 +1536,7 @@ export function WorkspaceShell({
   }
 
   function changeExploreScenario(scenarioId: ExploreScenarioId) {
+    workspaceSelectionRevisionRef.current += 1;
     const nextScenarioId = isExploreScenarioForRole(selectedExploreAudience, selectedExploreRole, scenarioId)
       ? scenarioId
       : getDefaultScenarioForRole(selectedExploreAudience, selectedExploreRole);
@@ -1548,6 +1571,7 @@ export function WorkspaceShell({
   }
 
   function changeExploreInteractionMode(mode: InteractionMode) {
+    workspaceSelectionRevisionRef.current += 1;
     setExploreInteractionMode(mode);
     resetCandidateSearchForCriteriaChange(mode);
     setAnalysisError(null);
@@ -1555,6 +1579,7 @@ export function WorkspaceShell({
   }
 
   function updateExploreFilter(id: string, value: ExploreFilters[string]) {
+    workspaceSelectionRevisionRef.current += 1;
     setExploreFilters((current) => ({
       ...current,
       [id]: value
@@ -1565,6 +1590,7 @@ export function WorkspaceShell({
   }
 
   function selectExploreCandidate(candidateId: string) {
+    workspaceSelectionRevisionRef.current += 1;
     const candidate = visibleExploreCandidates.find((item) => item.id === candidateId);
     if (!candidate) {
       return;
@@ -2234,6 +2260,7 @@ export function WorkspaceShell({
   }
 
   function changeActiveProject(projectKey: string) {
+    workspaceSelectionRevisionRef.current += 1;
     const nextProject = projects.find((project) => project.projectKey === projectKey) ?? getDemoProject(projectKey);
     if (!nextProject) {
       setAnalysisError(`Project '${projectKey}' is unavailable; the active project was not changed.`);
@@ -2247,6 +2274,7 @@ export function WorkspaceShell({
   }
 
   function activateProject(project: GeoAIProject) {
+    workspaceSelectionRevisionRef.current += 1;
     setProjects((currentProjects) => {
       const byKey = new Map(currentProjects.map((item) => [item.projectKey, item]));
       byKey.set(project.projectKey, project);
@@ -2328,6 +2356,7 @@ export function WorkspaceShell({
   }
 
   function openHistoryItem(item: AnalysisHistoryItem) {
+    workspaceSelectionRevisionRef.current += 1;
     restoreAnalysisDashboard(item);
   }
 
@@ -2735,6 +2764,7 @@ export function WorkspaceShell({
             onCreateProject={createProject}
             onProjectChange={changeActiveProject}
             onCustomQueryChange={(query) => {
+              workspaceSelectionRevisionRef.current += 1;
               setCustomQuery(query);
               setAnalysisError(null);
             }}
