@@ -1355,8 +1355,38 @@ function assertStaticBoundaries(): void {
     "Basemap style loads must restore active 2D/3D handlers and layers without overwriting the live camera.");
   assert.match(liveMapSource, /viewport: \{ \.\.\.current\.viewport, \.\.\.CAMERA\[nextMode\], viewMode: nextMode \}/,
     "A 2D/3D toggle must persist camera and mode as one consistent viewport state.");
-  assert.match(liveMapSource, /if \(!map\) return;[\s\S]*applyViewMode\(map, nextMode,[\s\S]{0,100}\);[\s\S]*if \(!map\.isStyleLoaded\(\)\) return;/,
-    "A 2D/3D camera change must apply immediately, including while the basemap style is loading.");
+  const modeChangeStart = liveMapSource.indexOf("function changeViewMode(");
+  const modeChangeEnd = liveMapSource.indexOf("function changeBasemap(", modeChangeStart);
+  assert.ok(modeChangeStart >= 0 && modeChangeEnd > modeChangeStart, "Inspect the actual view-mode handler, not another map callback.");
+  const modeChangeSource = liveMapSource.slice(modeChangeStart, modeChangeEnd);
+  const assertModeLoadingBoundary = (source: string) => {
+    const cameraIndex = source.indexOf("applyViewMode(map, nextMode);");
+    const loadingIndex = source.indexOf("if (!map.isStyleLoaded()) {");
+    assert.ok(cameraIndex >= 0 && loadingIndex > cameraIndex,
+      "A 2D/3D camera change must apply immediately, before the style/source readiness guard.");
+    assert.match(source.slice(0, cameraIndex), /pendingViewModeLayersRef\.current = true;/,
+      "A mode change must retain pending layer reconciliation before applying its camera.");
+    const readyIndex = source.indexOf("pendingViewModeLayersRef.current = false;", loadingIndex);
+    assert.ok(readyIndex > loadingIndex, "Only the ready branch may clear pending mode reconciliation.");
+    const loadingBranch = source.slice(loadingIndex, readyIndex);
+    for (const layer of ["CONCEPT_FILL_LAYER_ID", "CONCEPT_VOLUME_LAYER_ID"]) {
+      assert.match(loadingBranch, new RegExp(`setPointObjectLayerVisibilityIfChanged\\(map, ${layer}, "none"\\);[\\s\\S]*return;`),
+        `${layer} must fail closed before returning while sources are loading.`);
+    }
+    assert.match(loadingBranch, /setConceptEnvironmentVisibility\(map, false\);\s*return;\s*\}\s*$/,
+      "Conceptual environment must also be hidden before the pending-mode return.");
+  };
+  assertModeLoadingBoundary(modeChangeSource);
+  // Prove the updated check still rejects the regressions it is intended to guard.
+  assert.throws(() => assertModeLoadingBoundary(modeChangeSource.replace("applyViewMode(map, nextMode);", "")
+    .replace("if (!map.isStyleLoaded()) {", "if (!map.isStyleLoaded()) {\n      applyViewMode(map, nextMode);")), /camera change/);
+  assert.throws(() => assertModeLoadingBoundary(modeChangeSource.replace("setConceptEnvironmentVisibility(map, false);", "")), /environment/);
+  assert.throws(() => assertModeLoadingBoundary(modeChangeSource.replace("pendingViewModeLayersRef.current = true;", "")), /pending layer/);
+  const idleModeStart = liveMapSource.indexOf('map.on("idle", () => {');
+  const idlePublishIndex = liveMapSource.indexOf("publishReadyBuildingReplacement();", idleModeStart);
+  assert.ok(idleModeStart >= 0 && idlePublishIndex > idleModeStart, "The actual idle callback must publish collision-checked replacement.");
+  assert.match(liveMapSource.slice(idleModeStart, idlePublishIndex), /if \(pendingViewModeLayersRef\.current\) \{[\s\S]*pendingViewModeLayersRef\.current = false;[\s\S]*applyViewMode\(map, viewModeRef\.current, false, false\);[\s\S]*setCreateLayers\([\s\S]*return;/,
+    "Pending mode layers must reconcile once at real idle without resetting the live camera, before normal collision publication.");
   assert.match(liveMapSource, /applyViewMode\(map, initialViewMode,[\s\S]{0,100}false, false\)/,
     "Restoring a session must preserve its saved custom 3D camera rather than reset to the canonical angle.");
   assert.match(liveMapSource, /viewport:[\s\S]*viewMode: viewModeRef\.current/,
