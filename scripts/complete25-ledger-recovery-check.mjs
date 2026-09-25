@@ -124,8 +124,8 @@ let registered = start;
 const manifest = "c".repeat(64);
 for (const definition of QUALITY20_CASES) registered = recordComplete25CaseAttempt(registered,
   definition.id, manifest, at, candidate).ledger;
-assert.equal(registered.acceptanceEpoch.attempts.length, 54);
-assert.equal(registered.acceptanceEpoch.acceptanceRevision, 54);
+assert.equal(registered.acceptanceEpoch.attempts.length, 58);
+assert.equal(registered.acceptanceEpoch.acceptanceRevision, 58);
 assert.equal(registered.generation, 185);
 assert.equal(registered.receipts.length, 0);
 assert.throws(() => recordComplete25CaseAttempt(registered, "F01", "d".repeat(64), at, candidate), /already attempted/);
@@ -210,4 +210,4 @@ try {
   assert.throws(() => createComplete25RecoveryLedgerFile(root, missingPath, at, candidate, approval,
     { checkpoint: path, state: path, handoff: path, confluence: path }), /already initialized or interrupted/);
 } finally { rmSync(root, { recursive: true, force: true }); }
-console.log("PASS COMPLETE25 loss recovery: immutable checkpoint, global cap/count, 54-case epoch, no retries, baseline projection, unknown/crash and six-process atomic reservation. Synthetic offline only; no live ledger initialized.");
+console.log("PASS COMPLETE25 loss recovery: immutable checkpoint, global cap/count, 58-case epoch retaining original54, no retries, baseline projection, unknown/crash and six-process atomic reservation. Synthetic offline only; no live ledger initialized.");

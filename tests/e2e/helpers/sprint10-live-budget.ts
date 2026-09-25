@@ -172,7 +172,7 @@ function complete25CheckpointHash(value: unknown): string {
 }
 
 function complete25CaseId(value: unknown): value is string {
-  return typeof value === "string" && /^(?:A0[1-8]-[QSD]|A09|A1[0-2]|F0[1-5]|FA(?:0[1-9]|1[0-5])|C-(?:RM|CH|CG)-0[12])$/.test(value);
+  return typeof value === "string" && /^(?:A0[1-8]-[QSD]|A09|A1[0-2]|F0[1-5]|FA(?:0[1-9]|1[0-5])|C-(?:RM|CH|CG|RQ|HR)-0[12])$/.test(value);
 }
 
 export type Sprint10ConservativeCharge = {
@@ -569,7 +569,7 @@ export function parseSprint10SpendLedger(value: unknown): Sprint10SpendLedger | 
         epoch.id !== COMPLETE25_EPOCH_ID || epoch.approvalReference !== COMPLETE25_RECOVERY_APPROVAL ||
         typeof epoch.candidateCommit !== "string" || !COMMIT_PATTERN.test(epoch.candidateCommit) ||
         typeof epoch.candidateHost !== "string" || !safeCandidateHost(epoch.candidateHost) ||
-        !Array.isArray(epoch.attempts) || epoch.attempts.length > 54 || epoch.acceptanceRevision !== epoch.attempts.length) return null;
+        !Array.isArray(epoch.attempts) || epoch.attempts.length > 58 || epoch.acceptanceRevision !== epoch.attempts.length) return null;
     const seenCases = new Set<string>();
     const seenAttempts = new Set<string>();
     for (const attempt of epoch.attempts) {

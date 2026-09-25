@@ -183,8 +183,8 @@ type ResultMarkerPresentation = {
   shortlistedFindResultIds: Set<string>;
 };
 
-const RESULT_MARKER_BASE_CLASS = "flex h-11 min-w-11 items-center justify-center rounded-full border-[3px] border-white px-2 text-sm font-bold text-white shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087f8c]";
-const RESULT_MARKER_BACKGROUND_CLASSES = ["bg-[#07515a]", "bg-[#0b6d78]", "bg-[#087f70]", "bg-[#087f8c]"] as const;
+const RESULT_MARKER_BASE_CLASS = "flex h-11 min-w-11 items-center justify-center rounded-full border-[3px] border-white px-2 text-sm font-bold shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087f8c]";
+const RESULT_MARKER_BACKGROUND_CLASSES = ["bg-[#087f8c]", "bg-[#e5fafa]", "bg-[#f4fbfb]", "text-white", "text-[#087f8c]", "text-[#344054]"] as const;
 
 function applyResultMarkerPresentation(marker: ResultMarkerButton, presentation: ResultMarkerPresentation) {
   const activeId = marker.isProjectOverview ? presentation.activeProjectMarkerId : presentation.activeFindResultId;
@@ -201,7 +201,9 @@ function applyResultMarkerPresentation(marker: ResultMarkerButton, presentation:
     marker.button.dataset.shortlisted = String(shortlisted);
   }
   marker.button.classList.remove(...RESULT_MARKER_BACKGROUND_CLASSES);
-  marker.button.classList.add(active ? "bg-[#07515a]" : hovered ? "bg-[#0b6d78]" : shortlisted ? "bg-[#087f70]" : "bg-[#087f8c]");
+  marker.button.classList.add(active ? "bg-[#087f8c]" : hovered || shortlisted ? "bg-[#e5fafa]" : "bg-[#f4fbfb]", active ? "text-white" : hovered || shortlisted ? "text-[#344054]" : "text-[#087f8c]");
+  marker.button.classList.toggle("ring-2", active || shortlisted);
+  marker.button.classList.toggle("ring-[#087f8c]", active || shortlisted);
   marker.button.style.zIndex = active ? "2" : "1";
 }
 
@@ -985,7 +987,7 @@ function installGeoAiLayers(map: MapLibreMap, viewMode: MapViewMode) {
       }
     }, labelLayer);
   }
-  const findColor: ExpressionSpecification = ["match", ["get", "presentationState"], "active", "#07515a", "hover", "#0b6d78", "shortlist", "#087f70", "#5e8f88"];
+  const findColor = "#087f8c";
   if (!map.getSource(FIND_FOOTPRINT_SOURCE_ID)) map.addSource(FIND_FOOTPRINT_SOURCE_ID, {
     type: "geojson",
     data: { type: "FeatureCollection", features: [] }
@@ -1030,7 +1032,7 @@ function installGeoAiLayers(map: MapLibreMap, viewMode: MapViewMode) {
     source: HIGHLIGHT_SOURCE_ID,
     filter: ["==", ["geometry-type"], "Polygon"],
     paint: {
-      "fill-color": "#116b78",
+      "fill-color": "#087f8c",
       "fill-opacity": 0.28
     }
   }, labelLayer);
@@ -1041,7 +1043,7 @@ function installGeoAiLayers(map: MapLibreMap, viewMode: MapViewMode) {
     source: "openmaptiles",
     "source-layer": "building",
     filter: ["==", 1, 0],
-    paint: { "fill-color": "#116b78", "fill-opacity": 0.28, "fill-outline-color": "#0b5261" }
+    paint: { "fill-color": "#087f8c", "fill-opacity": 0.28, "fill-outline-color": "#087f8c" }
   }, labelLayer);
   if (!map.getLayer(HIGHLIGHT_LINE_LAYER_ID)) map.addLayer({
     id: HIGHLIGHT_LINE_LAYER_ID,
@@ -1049,7 +1051,7 @@ function installGeoAiLayers(map: MapLibreMap, viewMode: MapViewMode) {
     source: HIGHLIGHT_SOURCE_ID,
     filter: ["in", ["geometry-type"], ["literal", ["LineString", "Polygon"]]],
     paint: {
-      "line-color": "#0b5261",
+      "line-color": "#087f8c",
       "line-width": 3.5
     }
   }, labelLayer);
@@ -1061,7 +1063,7 @@ function installGeoAiLayers(map: MapLibreMap, viewMode: MapViewMode) {
     paint: {
       "circle-color": "#ffffff",
       "circle-radius": 7,
-      "circle-stroke-color": "#0b5261",
+      "circle-stroke-color": "#087f8c",
       "circle-stroke-width": 3
     }
   }, labelLayer);
@@ -1078,14 +1080,14 @@ function installGeoAiLayers(map: MapLibreMap, viewMode: MapViewMode) {
     type: "line",
     source: CREATE_AOI_SOURCE_ID,
     filter: ["in", ["geometry-type"], ["literal", ["LineString", "Polygon"]]],
-    paint: { "line-color": "#087f70", "line-width": 3, "line-dasharray": [2, 1] }
+    paint: { "line-color": "#087f8c", "line-width": 3, "line-dasharray": [2, 1] }
   }, labelLayer);
   if (!map.getLayer(CREATE_AOI_VERTEX_LAYER_ID)) map.addLayer({
     id: CREATE_AOI_VERTEX_LAYER_ID,
     type: "circle",
     source: CREATE_AOI_SOURCE_ID,
     filter: ["==", ["geometry-type"], "Point"],
-    paint: { "circle-color": "#ffffff", "circle-radius": 5, "circle-stroke-color": "#087f70", "circle-stroke-width": 2 }
+    paint: { "circle-color": "#ffffff", "circle-radius": 5, "circle-stroke-color": "#087f8c", "circle-stroke-width": 2 }
   }, labelLayer);
   if (!map.getSource(CONCEPT_SOURCE_ID)) map.addSource(CONCEPT_SOURCE_ID, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
   ensureConceptEnvironmentLayers(map, labelLayer);
@@ -2190,24 +2192,24 @@ export function LiveObjectMap({
         {t(instructionKey)}
       </p>
       {openProjectGroup ? (
-        <div ref={projectGroupDialogRef} role="dialog" aria-label={locale === "ru" ? "Сохранённые результаты в этой точке" : "Saved results at this location"} data-testid="project-location-picker" className="absolute left-3 right-3 top-40 z-20 max-h-[60%] max-w-sm overflow-y-auto rounded-xl border border-[#cbdad7] bg-white p-3 shadow-xl">
+        <div ref={projectGroupDialogRef} role="dialog" aria-label={locale === "ru" ? "Сохранённые результаты в этой точке" : "Saved results at this location"} data-testid="project-location-picker" className="absolute left-3 right-3 top-40 z-20 max-h-[60%] max-w-sm overflow-y-auto rounded-xl border border-[#d7dee4] bg-white p-3 shadow-xl">
           <div className="mb-2 flex items-center justify-between gap-3">
-            <p className="text-sm font-bold text-[#07515a]">{locale === "ru" ? "Выберите результат" : "Choose a saved result"}</p>
-            <button type="button" className="min-h-11 min-w-11 rounded-lg border border-[#cbdad7] px-3 text-sm focus-visible:outline-2" onClick={() => { setOpenProjectGroup(null); projectGroupTriggerRef.current?.focus(); }}>{locale === "ru" ? "Закрыть" : "Close"}</button>
+            <p className="text-sm font-bold text-[#087f8c]">{locale === "ru" ? "Выберите результат" : "Choose a saved result"}</p>
+            <button type="button" className="min-h-11 min-w-11 rounded-lg border border-[#d7dee4] px-3 text-sm focus-visible:outline-2" onClick={() => { setOpenProjectGroup(null); projectGroupTriggerRef.current?.focus(); }}>{locale === "ru" ? "Закрыть" : "Close"}</button>
           </div>
           <div className="grid gap-2">
-            {openProjectGroup.map(result => <button key={result.id} type="button" disabled={projectResultOpening} data-project-location-result={result.id} className="min-h-11 rounded-lg border border-[#cbdad7] px-3 py-2 text-left text-sm font-semibold text-[#07515a] focus-visible:outline-2" onClick={() => openProjectResult(result.id)}>{result.label}</button>)}
+            {openProjectGroup.map(result => <button key={result.id} type="button" disabled={projectResultOpening} data-project-location-result={result.id} className="min-h-11 rounded-lg border border-[#d7dee4] px-3 py-2 text-left text-sm font-semibold text-[#087f8c] focus-visible:outline-2" onClick={() => openProjectResult(result.id)}>{result.label}</button>)}
           </div>
         </div>
       ) : null}
-      {projectResultOpenError ? <p role="alert" className="absolute left-3 top-28 z-20 rounded-lg border border-[#cbdad7] bg-white p-3 text-sm">{locale === "ru" ? "Не удалось открыть результат. Попробуйте ещё раз." : "Could not open this result. Please try again."}</p> : null}
+      {projectResultOpenError ? <p role="alert" className="absolute left-3 top-28 z-20 rounded-lg border border-[#d7dee4] bg-white p-3 text-sm">{locale === "ru" ? "Не удалось открыть результат. Попробуйте ещё раз." : "Could not open this result. Please try again."}</p> : null}
       {(projectMarkers.length || interactionMode === "find") && (projectMarkers.length ? projectResultCoordinateBounds(projectMarkers) : liveFindResultBounds(findResults)) ? (
-        <button type="button" data-testid={projectMarkers.length ? "project-fit-results" : "find-fit-results"} onClick={fitFindResults} className="absolute right-3 top-28 z-10 min-h-11 rounded-xl border border-[#cbdad7] bg-white px-3 text-xs font-bold text-[#07515a] shadow-sm focus-visible:outline-2 focus-visible:outline-[#087f8c]">
+        <button type="button" data-testid={projectMarkers.length ? "project-fit-results" : "find-fit-results"} onClick={fitFindResults} className="absolute right-3 top-28 z-10 min-h-11 rounded-xl border border-[#d7dee4] bg-white px-3 text-xs font-bold text-[#087f8c] shadow-sm focus-visible:outline-2 focus-visible:outline-[#087f8c]">
           {locale === "ru" ? "Все результаты" : "Fit results"}
         </button>
       ) : null}
       <div ref={cameraControlsRef} data-map-bottom-controls data-camera-open={cameraOpen} className="absolute bottom-8 left-3 z-10 flex max-w-[calc(100%-6rem)] flex-wrap items-center gap-2 sm:bottom-3">
-        <button type="button" data-camera-toggle aria-expanded={cameraOpen} aria-controls="mobile-camera-actions" onClick={() => setCameraOpen((open) => !open)} className="min-h-11 rounded-xl border border-line bg-white px-3 text-xs font-bold text-[#176548] focus-visible:outline-2 focus-visible:outline-[#087f8c] lg:hidden">{locale === "ru" ? "Камера" : "Camera"}</button>
+        <button type="button" data-camera-toggle aria-expanded={cameraOpen} aria-controls="mobile-camera-actions" onClick={() => setCameraOpen((open) => !open)} className="min-h-11 rounded-xl border border-line bg-white px-3 text-xs font-bold text-[#087f8c] focus-visible:outline-2 focus-visible:outline-[#087f8c] lg:hidden">{locale === "ru" ? "Камера" : "Camera"}</button>
         <div className="inline-flex rounded-xl border border-white/80 bg-white/95 p-1 shadow-sm backdrop-blur" role="group" aria-label={t("map.dimension")} data-testid="map-dimension-control">
           {(["2d", "3d"] as MapViewMode[]).map((mode) => (
             <button

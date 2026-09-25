@@ -23,6 +23,9 @@ for(const locale of ["en","ru"] as const) for(const width of [390,834,1440]) tes
   await page.goto("/prototype/point-to-object/analysis"); const card=page.getByTestId("climate-context"); await expect(card).toBeVisible();
   if(locale==="ru")await page.getByRole("button",{name:"ru",exact:true}).click();
   await expect(card).toHaveAttribute("data-year","2025"); await expect(card.locator("svg polyline")).toHaveCount(2);
+  await expect(card.locator('button[aria-pressed="true"]')).toHaveCSS("background-color", "rgb(229, 250, 250)");
+  await expect(card.locator('button[aria-pressed="true"]')).toHaveCSS("color", "rgb(52, 64, 84)");
+  for (const button of await card.getByRole("button").all()) expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   await card.screenshot({path:info.outputPath(`climate-${locale}-${width}.png`)});
   const bounds=await card.evaluate(el=>({scroll:el.scrollWidth,client:el.clientWidth,page:document.documentElement.scrollWidth,viewport:innerWidth})); expect(bounds.scroll).toBeLessThanOrEqual(bounds.client+1);expect(bounds.page).toBeLessThanOrEqual(bounds.viewport+1);
   const humidity=card.getByRole("button",{name:locale==="ru"?"Влажность":"Humidity",exact:true}); await humidity.focus();await page.keyboard.press("Enter");await expect(humidity).toHaveAttribute("aria-pressed","true");await expect(card.locator("svg polyline")).toHaveCount(1);

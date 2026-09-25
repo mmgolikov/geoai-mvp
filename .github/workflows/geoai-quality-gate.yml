@@ -111,6 +111,8 @@ jobs:
           node scripts/night21-auth-session-generation-check.mjs | tee artifacts/auth-session-generation-check.txt
           node scripts/point-to-object-source-budget-check.mjs | tee artifacts/source-budget-check.txt
           node scripts/point-to-object-context-retrieval-check.mjs | tee artifacts/context-retrieval-check.txt
+          node scripts/point-to-object-climate-check.mjs | tee artifacts/climate-check.txt
+          node scripts/complete25-palette-check.mjs | tee artifacts/complete25-palette-check.txt
 
       - name: Supabase exact-target checks
         shell: bash
@@ -270,6 +272,10 @@ jobs:
           npm run test:point-to-object-create | tee artifacts/point-to-object-create-check.txt
           node --experimental-strip-types scripts/sprint20-create-geometry-check.ts | tee artifacts/sprint20-create-geometry-check.txt
           node --experimental-transform-types scripts/complete25-create-programmes-check.ts | tee artifacts/complete25-create-programmes-check.txt
+          node --experimental-strip-types scripts/complete25-create-environment-check.ts | tee artifacts/complete25-create-environment-check.txt
+          node scripts/complete25-create-catalog-check.mjs | tee artifacts/complete25-create-catalog-check.txt
+          node --experimental-strip-types scripts/complete25-create-geometry-check.ts | tee artifacts/complete25-create-geometry-check.txt
+          node scripts/complete25-create-runtime-check.mjs | tee artifacts/complete25-create-runtime-check.txt
           node --experimental-strip-types scripts/sprint20-create-preflight-parity-check.ts | tee artifacts/sprint20-create-preflight-parity-check.txt
 
       - name: Point-to-object runtime gates

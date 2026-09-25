@@ -29,7 +29,7 @@ export function PointObjectClimateContext({ climate }: { climate?: PointObjectCl
       <text x="8" y="13">{humidity ? "%" : "°C"}</text>
       {[0, 1, 2, 3, 4].map(t => { const value = low + (high - low) * t / 4; return <g key={t}><line x1="38" x2="324" y1={y(value)} y2={y(value)} className={styles.grid} /><text x="30" y={y(value) + 3} textAnchor="end">{Number(value.toFixed(1))}</text></g>; })}
       <polyline points={line(values)} fill="none" stroke="#087F8C" strokeWidth="2.5" />
-      {!humidity ? <polyline points={line(months.map(m => m.maximumTemperatureC))} fill="none" stroke="#36545A" strokeWidth="2" strokeDasharray="5 4" /> : null}
+      {!humidity ? <polyline points={line(months.map(m => m.maximumTemperatureC))} fill="none" stroke="#344054" strokeWidth="2" strokeDasharray="5 4" /> : null}
       {months.map((m, i) => <g key={m.month}><circle cx={x(i)} cy={y(values[i])} r="3" fill="#087F8C"><title>{labels[i]}: {values[i]} {humidity ? "%" : "°C"}</title></circle><text x={x(i)} y="169" textAnchor="middle">{labels[i]}</text></g>)}
     </svg>
     <p className={styles.legend}>{humidity ? (ru ? "Относительная влажность на высоте 2 м · RH2M" : "Relative humidity at 2 m · RH2M") : (ru ? "━ Средняя T2M   ┄ Максимальная серия T2M_MAX · °C" : "━ Mean T2M   ┄ Maximum series T2M_MAX · °C")}</p>

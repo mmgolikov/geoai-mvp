@@ -7,7 +7,7 @@
 .sheet { position: absolute; z-index: 20; inset: auto 0 0; height: var(--sheet-height); border-radius: 20px 20px 0 0; box-shadow: 0 -8px 32px #183b2920; }
 .drawer { display: flex; height: 100%; min-height: 0; flex-direction: column; padding: 8px 12px max(8px, env(safe-area-inset-bottom)); }
 .controls { display: flex; flex-shrink: 0; align-items: center; gap: 8px; margin-bottom: 4px; }
-.controls button { min-height: 44px; padding: 8px 12px; border: 1px solid #b8cbc6; border-radius: 10px; font-size: 12px; font-weight: 700; color: #176548; background: white; }
+.controls button { min-height: 44px; padding: 8px 12px; border: 1px solid #d7dee4; border-radius: 10px; font-size: 12px; font-weight: 700; color: #087f8c; background: white; }
 .controls button:focus-visible { outline: 2px solid #087f8c; outline-offset: 2px; }
 .summary { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 600; }
 .content { min-height: 0; flex: 1; display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; scroll-padding-bottom: 80px; }

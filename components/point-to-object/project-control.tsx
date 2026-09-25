@@ -101,8 +101,8 @@ export function PointObjectProjectActions() {
           {store.projects.map((project) => <option key={project.projectId} value={project.projectId}>{project.name}</option>)}
         </ReliableSelect>
       ) : null}
-      {identityKey ? <button type="button" onClick={() => void createProject()} aria-label={locale === "ru" ? "Новый локальный проект" : "New local project"} title={locale === "ru" ? "Новый локальный проект" : "New local project"} className="hidden h-11 min-w-11 items-center justify-center rounded-lg px-2 text-xl font-black leading-none text-[#176548] hover:bg-[#eefaf8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] sm:inline-flex">+</button> : null}
-      {statusLabel ? <span className={receipt?.status === "saved" ? "sr-only" : `hidden max-w-28 text-[10px] font-semibold xl:inline ${receipt?.status === "failed" || receipt?.status === "conflict" ? "text-[#b54708]" : "text-[#176548]"}`} role="status" title={receipt?.message}>{statusLabel}</span> : null}
+      {identityKey ? <button type="button" onClick={() => void createProject()} aria-label={locale === "ru" ? "Новый локальный проект" : "New local project"} title={locale === "ru" ? "Новый локальный проект" : "New local project"} className="hidden h-11 min-w-11 items-center justify-center rounded-lg px-2 text-xl font-black leading-none text-[#087f8c] hover:bg-[#e5fafa] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] sm:inline-flex">+</button> : null}
+      {statusLabel ? <span className={receipt?.status === "saved" ? "sr-only" : `hidden max-w-28 text-[10px] font-semibold xl:inline ${receipt?.status === "failed" || receipt?.status === "conflict" ? "text-[#b54708]" : "text-[#087f8c]"}`} role="status" title={receipt?.message}>{statusLabel}</span> : null}
       {identityKey && (receipt?.status === "failed" || receipt?.status === "capacity" || receipt?.status === "conflict" || receipt?.status === "damaged") ? <button
         type="button"
         data-testid="point-object-project-recovery"

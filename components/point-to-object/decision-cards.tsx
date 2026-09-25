@@ -99,7 +99,7 @@ export function PointObjectDecisionCards({ context, generatedAt, reportPerspecti
   function body(id: DecisionCardId) {
     switch (id) {
       case "district": return <>
-        <p className="mt-3 text-xl font-bold leading-7 text-[#173b35]">{data.available && context ? districtLabels[context.districtCharacter.code] ?? empty : empty}</p>
+        <p className="mt-3 text-xl font-bold leading-7 text-[#344054]">{data.available && context ? districtLabels[context.districtCharacter.code] ?? empty : empty}</p>
         <p className="mt-3 text-sm leading-6 text-muted">{context && data.available ? context.districtCharacter.driverGroups.map((group) => groupLabels[group] ?? group).join(" · ") || (ru ? "Недостаточный сигнал" : "Insufficient signal") : (ru ? "Нет основания определять тип района." : "No evidence for assigning a district type.")}</p>
         <p className="mt-3 text-xs text-muted">{ru ? "Расчёт по составу объектов, не официальная классификация." : "Derived from mapped feature mix, not an official classification."}</p>
         {data.available && context ? <p className="mt-2 text-xs font-semibold text-muted">{ru ? "Уверенность" : "Confidence"}: {context.districtCharacter.confidence === "medium" ? (ru ? "средняя" : "medium") : (ru ? "низкая — нужна проверка" : "low — needs validation")}</p> : null}
@@ -134,7 +134,7 @@ export function PointObjectDecisionCards({ context, generatedAt, reportPerspecti
       </>;
       case "places": return places.length ? <ul className="mt-3 space-y-3">{places.slice(0, 2).map((place, index) => <li key={index} className="text-sm leading-6 text-[#344054]">{place.statement}<details className="mt-1 text-[11px] text-muted"><summary className="cursor-pointer">{ru ? "Основание" : "Evidence"}</summary>{place.evidenceRefs.join(" · ")}</details></li>)}</ul> : <p className="mt-4 text-sm leading-6 text-muted">{ru ? "Проверенные именованные ориентиры не возвращены. Не подменяем их случайными подписями карты." : "No evidence-backed named landmarks were returned. Map labels are not substituted as verified facts."}</p>;
       case "next_check": return <>
-        <p className="mt-3 text-base font-semibold leading-7 text-[#173b35]">{preset.next[locale]}</p>
+        <p className="mt-3 text-base font-semibold leading-7 text-[#344054]">{preset.next[locale]}</p>
         <p className="mt-4 text-xs leading-5 text-muted">{ru ? "Рекомендация для сценария, не подтверждённый вывод об объекте." : "Scenario guidance, not a verified conclusion about the asset."}</p>
       </>;
     }

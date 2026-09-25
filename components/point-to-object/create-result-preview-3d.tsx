@@ -27,7 +27,7 @@ const BLANK_STYLE: StyleSpecification = {
   version: 8,
   name: "GeoAI saved concept preview",
   sources: {},
-  layers: [{ id: "background", type: "background", paint: { "background-color": "#edf4f2" } }]
+  layers: [{ id: "background", type: "background", paint: { "background-color": "#f4fbfb" } }]
 };
 
 function webGlAvailable(): boolean {
@@ -260,7 +260,7 @@ export function CreateResultPreview3D({ locale, aoi, massing, fallback, dimensio
   }
 
   return <figure
-    className="min-w-0 rounded-[24px] border border-[#bdd8d1] bg-[#eaf5f1] p-4"
+    className="min-w-0 rounded-[24px] border border-[#d7dee4] bg-[#f4fbfb] p-4"
     data-testid="create-result-preview-3d"
     data-preview-status={renderedStatus}
     data-preview-scene={scene}
@@ -282,11 +282,11 @@ export function CreateResultPreview3D({ locale, aoi, massing, fallback, dimensio
     data-environment-connected={model?.environment.connected ?? false}
   >
     <figcaption className="mb-3 flex flex-wrap items-center justify-between gap-3">
-      <span className="flex items-center gap-2 text-sm font-bold text-[#173b35]"><PointObjectIcon name="map" className="h-5 w-5 text-[#087f8c]" />{ru ? "Сохранённая концепция" : "Saved concept"} · {dimension.toUpperCase()}</span>
-      <div role="group" aria-label={ru ? "Окружение модели" : "Scene context"} className="flex gap-1">{(["map", "model"] as const).map(mode => <button key={mode} type="button" aria-pressed={scene === mode} data-testid={`create-scene-${mode}`} onClick={() => setScene(mode)} className={`min-h-11 rounded-lg border px-3 text-xs font-bold ${scene === mode ? "bg-[#087f8c] text-white" : "bg-white text-[#173b35]"}`}>{mode === "map" ? (ru ? "На карте" : "On map") : (ru ? "Модель" : "Model")}</button>)}</div>
+      <span className="flex items-center gap-2 text-sm font-bold text-[#344054]"><PointObjectIcon name="map" className="h-5 w-5 text-[#087f8c]" />{ru ? "Сохранённая концепция" : "Saved concept"} · {dimension.toUpperCase()}</span>
+      <div role="group" aria-label={ru ? "Окружение модели" : "Scene context"} className="flex gap-1">{(["map", "model"] as const).map(mode => <button key={mode} type="button" aria-pressed={scene === mode} data-testid={`create-scene-${mode}`} onClick={() => setScene(mode)} className={`min-h-11 rounded-lg border px-3 text-xs font-bold ${scene === mode ? "bg-[#087f8c] text-white" : "bg-white text-[#344054]"}`}>{mode === "map" ? (ru ? "На карте" : "On map") : (ru ? "Модель" : "Model")}</button>)}</div>
       <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-bold text-[#087f8c]">{ru ? "Вариант" : "Option"} {massing.variantId}</span>
     </figcaption>
-    <div className="relative min-h-[360px] overflow-hidden rounded-2xl bg-[#edf4f2] sm:min-h-[520px]" aria-label={ru ? `Просмотр сохранённой геометрии, вариант ${massing.variantId}` : `Preview of saved geometry, option ${massing.variantId}`} role="region">
+    <div className="relative min-h-[360px] overflow-hidden rounded-2xl bg-[#f4fbfb] sm:min-h-[520px]" aria-label={ru ? `Просмотр сохранённой геометрии, вариант ${massing.variantId}` : `Preview of saved geometry, option ${massing.variantId}`} role="region">
       {/* MapLibre adds `position: relative` at runtime; pin geometry across CSS import orders. */}
       <div
         ref={containerRef}
@@ -294,15 +294,15 @@ export function CreateResultPreview3D({ locale, aoi, massing, fallback, dimensio
         className="absolute inset-0"
         style={{ position: "absolute", inset: 0, width: "100%", height: "100%", touchAction: "pan-y" }}
       />
-      {renderedStatus === "initializing" && !basemapError ? <div className="pointer-events-none absolute inset-0 grid place-items-center bg-[#edf4f2]/90 px-5 text-center text-sm font-semibold text-[#52606a]" role="status">{ru ? "Подготовка сцены…" : "Preparing scene…"}</div> : null}
+      {renderedStatus === "initializing" && !basemapError ? <div className="pointer-events-none absolute inset-0 grid place-items-center bg-[#f4fbfb]/90 px-5 text-center text-sm font-semibold text-[#52606a]" role="status">{ru ? "Подготовка сцены…" : "Preparing scene…"}</div> : null}
       {basemapError ? <div className="absolute left-3 right-3 top-3 rounded-xl bg-white/95 p-3 text-xs" role="status">{ru ? "Подложка недоступна или загружена частично. Доступен локальный режим «Модель»." : "The basemap is unavailable or partial. The local Model mode remains available."}<button type="button" onClick={() => setScene("model")} className="ml-2 min-h-11 underline">{ru ? "Открыть модель" : "Open model"}</button></div> : null}
       <div className="absolute bottom-3 left-3 flex flex-wrap gap-2 rounded-xl bg-white/95 p-2 shadow-soft" aria-label={ru ? "Управление камерой" : "Camera controls"}>
-        <button type="button" disabled={renderedStatus !== "ready"} onClick={() => mapRef.current?.zoomIn({ duration: 180 })} className="min-h-11 min-w-11 rounded-lg border border-[#b8cbc6] bg-white px-3 text-sm font-bold text-[#087f8c] disabled:opacity-50" aria-label={ru ? "Приблизить" : "Zoom in"}>+</button>
-        <button type="button" disabled={renderedStatus !== "ready"} onClick={() => mapRef.current?.zoomOut({ duration: 180 })} className="min-h-11 min-w-11 rounded-lg border border-[#b8cbc6] bg-white px-3 text-sm font-bold text-[#087f8c] disabled:opacity-50" aria-label={ru ? "Отдалить" : "Zoom out"}>−</button>
-        <button type="button" disabled={renderedStatus !== "ready"} onClick={() => resetCamera(250)} className="min-h-11 rounded-lg border border-[#b8cbc6] bg-white px-3 text-xs font-bold text-[#087f8c] disabled:opacity-50">{ru ? "Сбросить вид" : "Reset view"}</button>
+        <button type="button" disabled={renderedStatus !== "ready"} onClick={() => mapRef.current?.zoomIn({ duration: 180 })} className="min-h-11 min-w-11 rounded-lg border border-[#d7dee4] bg-white px-3 text-sm font-bold text-[#087f8c] disabled:opacity-50" aria-label={ru ? "Приблизить" : "Zoom in"}>+</button>
+        <button type="button" disabled={renderedStatus !== "ready"} onClick={() => mapRef.current?.zoomOut({ duration: 180 })} className="min-h-11 min-w-11 rounded-lg border border-[#d7dee4] bg-white px-3 text-sm font-bold text-[#087f8c] disabled:opacity-50" aria-label={ru ? "Отдалить" : "Zoom out"}>−</button>
+        <button type="button" disabled={renderedStatus !== "ready"} onClick={() => resetCamera(250)} className="min-h-11 rounded-lg border border-[#d7dee4] bg-white px-3 text-xs font-bold text-[#087f8c] disabled:opacity-50">{ru ? "Сбросить вид" : "Reset view"}</button>
       </div>
     </div>
-    <p className="mt-3 text-[11px] leading-5 text-[#62716d]" data-testid="create-environment-caption">{ru ? "Площадки, пешеходные связи и отделка — концептуальные предложения; показатели зданий не изменены." : "Open areas, pedestrian links and finishes are conceptual proposals; building metrics are unchanged."}{model.environment.status !== "ready" ? (ru ? " Часть элементов среды не размещена: не найдено свободное место без пересечений." : "Some environment elements were omitted: no collision-free placement was found.") : ""}</p>
-    <p className="mt-2 text-[11px] leading-5 text-[#62716d]">{ru ? "Геометрия и высоты взяты из сохранённого результата. Подложка OpenFreeMap / © OpenStreetMap contributors — справочное окружение; режим «Модель» работает без тайлов. Переключение видов не вызывает AI." : "Geometry and heights come from the saved result. OpenFreeMap / © OpenStreetMap contributors supplies reference context; Model mode uses no tiles. View changes do not call AI."}</p>
+    <p className="mt-3 text-[11px] leading-5 text-[#667085]" data-testid="create-environment-caption">{ru ? "Площадки, пешеходные связи и отделка — концептуальные предложения; показатели зданий не изменены." : "Open areas, pedestrian links and finishes are conceptual proposals; building metrics are unchanged."}{model.environment.status !== "ready" ? (ru ? " Часть элементов среды не размещена: не найдено свободное место без пересечений." : "Some environment elements were omitted: no collision-free placement was found.") : ""}</p>
+    <p className="mt-2 text-[11px] leading-5 text-[#667085]">{ru ? "Геометрия и высоты взяты из сохранённого результата. Подложка OpenFreeMap / © OpenStreetMap contributors — справочное окружение; режим «Модель» работает без тайлов. Переключение видов не вызывает AI." : "Geometry and heights come from the saved result. OpenFreeMap / © OpenStreetMap contributors supplies reference context; Model mode uses no tiles. View changes do not call AI."}</p>
   </figure>;
 }
