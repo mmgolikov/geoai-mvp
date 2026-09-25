@@ -1203,7 +1203,7 @@ export async function runBestEffortStages(stages, failureIdentity, onStage = () 
 }
 
 async function rawServerGlobalRevoke(config, persona) {
-  const primary = persona.sessions[0];
+  const primary = persona.batchRetirementIdentityVerified ? persona.batchRetirementSession : persona.sessions[0];
   if (!primary?.accessToken) fail("Primary access token is unavailable for server-global revoke.", "session_unavailable");
   const fetcher = createBoundedFetch("user");
   const response = await fetcher(`${config.supabaseUrl}/auth/v1/logout?scope=global`, {
@@ -1226,7 +1226,41 @@ async function assertRefreshRejected(createClient, config, persona, session) {
     allowedCodes: ["refresh_token_not_found", "refresh_token_already_used", "session_not_found", "session_expired"],
     allowedStatuses: [400, 401, 403]
   });
-  persona.cleanup.refreshTokensRejected += 1;
+  if (session === persona.batchRetirementSession) persona.batchRetirementRefreshRejected = true;
+  else persona.cleanup.refreshTokensRejected += 1;
+}
+
+// Batch can outlast the original JWT lifetime. Reauthenticate this exact user
+// once for retirement only; do not replace either original refresh-token proof.
+async function prepareBatchRetirementSession(createClient, config, persona) {
+  const client = createUserClient(createClient, config);
+  const { data, error } = await client.auth.signInWithPassword({ email: persona.email, password: persona.password });
+  assertNoError(error, `retirement password sign-in ${persona.lane}`);
+  assert.equal(data?.user?.id, persona.userId);
+  assert.equal(data?.session?.user?.id, persona.userId);
+  assert.equal(data?.user?.email?.toLowerCase(), persona.email.toLowerCase());
+  assert(typeof data?.session?.access_token === "string" && data.session.access_token.length > 0);
+  assert(typeof data?.session?.refresh_token === "string" && data.session.refresh_token.length > 0);
+  // Retain the candidate only in memory. It is never usable for cleanup until
+  // getUser independently confirms this exact synthetic user's identity.
+  persona.batchRetirementSession = { label: "batch_retirement", accessToken: data.session.access_token,
+    refreshToken: data.session.refresh_token, client };
+  const verified = await client.auth.getUser(data.session.access_token);
+  if (verified.data?.user?.id && verified.data.user.id !== persona.userId) {
+    // A positively identified different user is outside the retirement authority.
+    persona.batchRetirementSession = null;
+    fail("Retirement access-token user differs from the exact synthetic persona.", "retirement_identity_mismatch");
+  }
+  assertNoError(verified.error, `retirement getUser ${persona.lane}`);
+  assert.equal(verified.data?.user?.id, persona.userId);
+  persona.batchRetirementIdentityVerified = true;
+  // An identified own-user session remains eligible for best-effort cleanup
+  // even when its lifetime or independent-token contract fails.
+  assert(Number.isSafeInteger(data.session.expires_at) && data.session.expires_at >= Math.floor(Date.now() / 1000) + 300,
+    "A fresh retirement access token must cover all bounded cleanup stages");
+  assert(persona.sessions.every(session => session.refreshToken !== data.session.refresh_token),
+    "Retirement session needs its own independent refresh-token proof");
+  persona.batchRetirementSessionVerified = true;
 }
 
 async function applyAdminBan(admin, persona) {
@@ -1250,7 +1284,7 @@ async function assertPasswordRejected(createClient, config, persona) {
 }
 
 async function assertStaleJwtProfileEmpty(createClient, config, persona) {
-  const primary = persona.sessions[0];
+  const primary = persona.batchRetirementIdentityVerified ? persona.batchRetirementSession : persona.sessions[0];
   if (!primary?.accessToken) fail("Primary access token is unavailable for stale-JWT proof.", "session_unavailable");
   const client = createUserClient(createClient, config, { Authorization: `Bearer ${primary.accessToken}` });
   const response = await client.schema("api").rpc("current_profile");
@@ -1273,6 +1307,12 @@ function clearPersonaCredentials(persona) {
     session.client = null;
   }
   persona.sessions = [];
+  if (persona.batchRetirementSession) {
+    persona.batchRetirementSession.accessToken = null;
+    persona.batchRetirementSession.refreshToken = null;
+    persona.batchRetirementSession.client = null;
+    persona.batchRetirementSession = null;
+  }
   persona.credentialsCleared = true;
 }
 
@@ -1286,10 +1326,21 @@ export async function retirePersona(createClient, admin, adminFetch, config, per
     return failures;
   }
 
+  if (config?.batch) {
+    persona.batchRetirementRequired = true;
+    persona.batchRetirementIdentityVerified = false;
+    persona.batchRetirementSessionVerified = false;
+    persona.batchRetirementRefreshRejected = false;
+  }
   failures.push(...await runBestEffortStages([
+    ...(config?.batch ? [["batch_retirement_same_user_reauth", () => prepareBatchRetirementSession(createClient, config, persona)]] : []),
     ["server_global_revoke", () => rawServerGlobalRevoke(config, persona)],
     ["primary_refresh_rejected", () => assertRefreshRejected(createClient, config, persona, persona.sessions[0])],
     ["secondary_refresh_rejected", () => assertRefreshRejected(createClient, config, persona, persona.sessions[1])],
+    ...(config?.batch ? [["batch_retirement_refresh_rejected", () => {
+      if (!persona.batchRetirementIdentityVerified) fail("Retirement session identity was not confirmed.", "retirement_identity_unproven");
+      return assertRefreshRejected(createClient, config, persona, persona.batchRetirementSession);
+    }]] : []),
     ["admin_ban", () => applyAdminBan(admin, persona)],
     ["password_rejected_after_ban", () => assertPasswordRejected(createClient, config, persona)],
     ["stale_jwt_current_profile_empty", () => assertStaleJwtProfileEmpty(createClient, config, persona)],
@@ -1301,7 +1352,8 @@ export async function retirePersona(createClient, admin, adminFetch, config, per
 
 function personaRetirementProven(persona) {
   if (!persona.userId) return (!persona.createAttempted || persona.createAbsenceProven) && persona.credentialsCleared;
-  return persona.cleanup.serverGlobalRevokeConfirmed === true && persona.cleanup.refreshTokensRejected === 2 &&
+  return (!persona.batchRetirementRequired || (persona.batchRetirementSessionVerified === true && persona.batchRetirementRefreshRejected === true)) &&
+    persona.cleanup.serverGlobalRevokeConfirmed === true && persona.cleanup.refreshTokensRejected === 2 &&
     persona.cleanup.banned === true && persona.cleanup.passwordRejected === true &&
     persona.cleanup.currentProfileEmpty === true && persona.cleanup.finalBanReadback === true &&
     persona.credentialsCleared === true;
@@ -1353,7 +1405,9 @@ function terminalPersonaEvidence(persona) {
     currentProfileEmpty: persona.cleanup.currentProfileEmpty,
     finalBanReadback: persona.cleanup.finalBanReadback,
     credentialsCleared: persona.credentialsCleared,
-    retirementProven: personaRetirementProven(persona)
+    retirementProven: personaRetirementProven(persona),
+    ...(persona.batchRetirementRequired ? { batchRetirementSameUserSessionVerified: persona.batchRetirementSessionVerified === true,
+      batchRetirementRefreshRejected: persona.batchRetirementRefreshRejected === true } : {})
   };
 }
 
@@ -1380,7 +1434,11 @@ function successfulRetirement(personas) {
     staleJwtCurrentProfileSuccessfulEmptyResult: personas.filter((persona) => persona.cleanup.currentProfileEmpty).length,
     finalFutureBanReadback: personas.filter((persona) => persona.cleanup.finalBanReadback).length,
     hardDeletedUsers: 0,
-    profileRowsPreservedByDesignNotBroadReadBack: personas.filter((persona) => uuidPattern.test(persona.profileId ?? "")).length
+    profileRowsPreservedByDesignNotBroadReadBack: personas.filter((persona) => uuidPattern.test(persona.profileId ?? "")).length,
+    ...(personas.some(p=>p.batchRetirementRequired) ? {
+      batchRetirementSameUserSessionsVerified: personas.filter(p=>p.batchRetirementSessionVerified === true).length,
+      batchRetirementRefreshTokensRejected: personas.filter(p=>p.batchRetirementRefreshRejected === true).length
+    } : {})
   };
 }
 
