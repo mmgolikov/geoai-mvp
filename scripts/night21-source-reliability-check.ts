@@ -33,6 +33,10 @@ const { semanticHash } = await import("../src/lib/point-to-object/hash");
 const { parsePublicEvidenceReceipt, PUBLIC_EVIDENCE_LEASE_MS } = await import("../src/lib/prototype/point-to-object-evidence-receipt");
 const originalFetch = globalThis.fetch;
 const queries: string[] = [];
+const climateQueries: string[] = [];
+// Adapters intentionally sanitize fetch errors. Keep mock-contract violations
+// outside that catch boundary so an assertion cannot masquerade as an outage.
+const fetchContractErrors: unknown[] = [];
 let nextId = 810001;
 function element(id: number, longitude = 55.27) {
   return { type: "way", id, tags: { name: "Synthetic exact-source test building", building: "yes", height: "42" },
@@ -44,13 +48,27 @@ function element(id: number, longitude = 55.27) {
 function request(id: number) {
   return { longitude: 55.2701, latitude: 25.2001, locale: "en", osmFeatureId: `way/${id}`, expectedCountryCode: "ae" as const, deadlineAtMs: Date.now() + 12_000 };
 }
-function mockFetch(handler: (query: string) => Response | Promise<Response>) {
+function mockFetch(handler: (query: string) => Response | Promise<Response>, includeClimate = false) {
   queries.length = 0;
+  climateQueries.length = 0;
   globalThis.fetch = async (input, init) => {
     const url = new URL(String(input));
-    assert.equal(url.hostname, "overpass-api.de", "Exact source must never fall back to reverse/nearest search or another provider.");
-    assert.equal(init?.redirect, "error");
-    assert.ok(init?.signal, "Queue, fetch and body retain a bounded deadline.");
+    try {
+      assert.equal(init?.redirect, "error");
+      assert.ok(init?.signal, "Queue, fetch and body retain a bounded deadline.");
+      if (includeClimate && url.origin === "https://power.larc.nasa.gov") {
+        assert.equal(url.pathname, "/api/temporal/monthly/point");
+        assert.equal(url.searchParams.get("parameters"), "T2M,T2M_MAX,RH2M");
+        assert.equal(url.searchParams.get("longitude"), "55.2701");
+        assert.equal(url.searchParams.get("latitude"), "25.2001");
+        climateQueries.push(url.href);
+        return new Response("Synthetic optional climate outage", { status: 503 });
+      }
+      assert.equal(url.origin, "https://overpass-api.de", "Exact source must never fall back to reverse/nearest search or another provider.");
+    } catch (error) {
+      fetchContractErrors.push(error);
+      throw error;
+    }
     const query = url.searchParams.get("data") ?? "";
     queries.push(query);
     return handler(query);
@@ -72,6 +90,8 @@ try {
   assert.equal(pack.source.contextResponseHash, null);
   assert.equal(pack.source.fabricResponseHash, null);
   assert.equal(pack.geoContext.coverage, "unavailable", "An outage must not become a measured zero.");
+  assert.equal(pack.climate, undefined, "Legacy direct requests do not implicitly opt into climate.");
+  assert.equal(climateQueries.length, 0);
   checks++;
 
   const cases: Array<{ name: string; response: (id: number) => Response | Promise<Response>; status: number; code: string; retry?: number }> = [
@@ -103,14 +123,20 @@ try {
       return true;
     });
     assert.equal(queries.length, 1, `${scenario.name}: no retries, optional requests or nearest-object substitution after mandatory failure.`);
+    assert.equal(climateQueries.length, 0);
     checks++;
   }
 
   const warmId = nextId++;
   const acquiredAt = new Date(Date.now() - 1000).toISOString();
   rememberExactFindElements({ elements: [element(warmId)] }, acquiredAt);
-  mockFetch(() => new Response("unavailable", { status: 503 }));
-  const warm = await buildLivePointObjectEvidencePack(request(warmId));
+  mockFetch(() => new Response("unavailable", { status: 503 }), true);
+  // Match the public lease's production acquisition options. An unavailable
+  // climate result is still evidence and must participate in the full hash.
+  const warm = await buildLivePointObjectEvidencePack({ ...request(warmId), includeClimate: true });
+  assert.equal(climateQueries.length, 1, "Exactly one explicit optional climate request; no retry or fallback.");
+  assert.equal(warm.climate?.status, "unavailable");
+  assert.equal(warm.climate?.status === "unavailable" && warm.climate.reason, "http_error");
   assert.equal(queries.length, 2, "A valid server-owned Find snapshot needs only optional context requests.");
   assert.ok(queries.every((query) => !query.includes(`way(${warmId});`)));
   assert.equal(warm.source.acquiredAt, acquiredAt);
@@ -118,6 +144,13 @@ try {
   assert.equal(warm.selectedObject.tags["tag.height"], "42");
   assert.deepEqual(warm.displayGeometry, pack.displayGeometry);
   checks++;
+  const warmCore = Object.fromEntries(Object.entries(warm).filter(([key]) => !["evidencePackHash", "evidencePackId", "displayGeometry"].includes(key)));
+  assert.equal(semanticHash(warmCore), warm.evidencePackHash, "No source or climate field is exempted from the pack hash.");
+  const withoutClimate = { ...warmCore };
+  delete withoutClimate.climate;
+  assert.notEqual(semanticHash(withoutClimate), warm.evidencePackHash, "Omitting optional climate is not the same evidence snapshot.");
+  assert.notEqual(semanticHash({ ...warmCore, climate: { ...warm.climate, reason: "network_error" } }), warm.evidencePackHash, "Changing the climate outage evidence must change the pack hash.");
+  checks += 2;
 
   // Actual route + source module. Only framework/runtime/identity adapters are
   // isolated: no credentials, hosted auth or network. This is not auth acceptance.
@@ -138,6 +171,7 @@ try {
     assert.equal((await route.POST(routeRequest(nextId++, { evidencePackHash: "client-forged" }))).status, 400);
     assert.equal((await route.POST(routeRequest(nextId++, { displayGeometry: pack.displayGeometry }))).status, 400);
     assert.equal(queries.length, 0, "Denied auth/origin or client-supplied evidence cannot acquire sources.");
+    assert.equal(climateQueries.length, 0);
     checks += 4;
     for (const scenario of cases.slice(0, 8)) {
       const id = nextId++;
@@ -152,9 +186,10 @@ try {
       assert.equal(response.headers.get("Vary"), "Cookie");
       assert.doesNotMatch(JSON.stringify(body), /PRIVATE_PROVIDER_DIAGNOSTIC|https?:|elements/);
       assert.equal(queries.length, 1);
+      assert.equal(climateQueries.length, 0, "Mandatory source failure prevents optional climate acquisition.");
       checks++;
     }
-    mockFetch(() => new Response("unavailable", { status: 503 }));
+    mockFetch(() => new Response("unavailable", { status: 503 }), true);
     const response = await route.POST(routeRequest(warmId));
     const body = await response.json();
     assert.equal(response.status, 200);
@@ -166,6 +201,9 @@ try {
     const receipt = parsePublicEvidenceReceipt(body.evidenceReceipt);
     assert.ok(receipt, "Context must return an exact, well-formed public evidence lease.");
     assert.deepEqual(body.subject.evidenceReceipt, receipt, "Subject and response must expose the same source receipt.");
+    assert.equal(queries.length, 2, "The route also reuses the original exact Find snapshot.");
+    assert.equal(climateQueries.length, 1);
+    assert.deepEqual(body.subject.climate, warm.climate, "Direct and route packs use the same explicit optional-source fixture.");
     assert.equal(receipt.evidencePackHash, warm.evidencePackHash);
     assert.equal(receipt.sourceResponseHash, warm.source.sourceResponseHash);
     assert.equal(receipt.acquiredAt, acquiredAt, "The lease must preserve the original source acquisition time.");
@@ -177,6 +215,7 @@ try {
   } finally {
     delete harness.__night21Authorized;
   }
+  assert.deepEqual(fetchContractErrors, [], "Provider sanitization must not hide a violated offline fetch contract.");
 } finally {
   globalThis.fetch = originalFetch;
 }
