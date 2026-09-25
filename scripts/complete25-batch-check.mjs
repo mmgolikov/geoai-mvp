@@ -66,6 +66,8 @@ async function simulation(fault=null){
   const result=await runComplete25Batch(config,async descriptor=>{
     calls++;clock+=1000;
     if(descriptor.scope==="quality20-acquire"){
+      assert.equal(descriptor.complete25ArtifactCaptureEnvironment,undefined,"Acquisition must never export a saved AI artifact");
+      assert.equal(descriptor.visualEvidenceEnvironment,undefined,"Acquisition has no visual export scope");
       if(fault==="external_error")throw new Error("untrusted exception sk-OFFLINE_SECRET_SENTINEL_123456");
       if(fault==="lookalike_error")throw new Error("COMPLETE25_BATCH_SECRET_SENTINEL");
       acquired++;if(fault==="acquisition")return {status:"FAIL",stage:"429",receipts:[]};
@@ -73,6 +75,13 @@ async function simulation(fault=null){
       return {status:"ACQUIRED_NOT_ANALYSED",receipts:[]};
     }
     const selection=descriptor.quality20,caseId=selection.definition.id;manifests.push(structuredClone(selection.manifest));
+    assert.deepEqual(descriptor.visualEvidenceEnvironment,{
+      GEOAI_SPRINT10_VISUAL_EVIDENCE_CAPTURE:"write-public-map-png-evidence-v1",
+      GEOAI_SPRINT10_VISUAL_EVIDENCE_DIR:join(dir,`${caseId}-visual`)});
+    assert.deepEqual(readdirSync(descriptor.visualEvidenceEnvironment.GEOAI_SPRINT10_VISUAL_EVIDENCE_DIR),[],"Every visual case starts with a new empty directory");
+    assert.deepEqual(descriptor.complete25ArtifactCaptureEnvironment,caseId==="A09"?{
+      GEOAI_COMPLETE25_A09_ARTIFACT_CAPTURE:"export-one-frozen-a09-browser-artifact-v1",
+      GEOAI_COMPLETE25_A09_ARTIFACT_PATH:join(dir,"A09-browser-artifact.json")}: {},"Only frozen A09 exports one exact artifact to the batch directory");
     ledger=recordComplete25CaseAttempt(ledger,caseId,selection.manifestSha256,new Date(clock).toISOString(),candidate).ledger;
     if(fault==="case")return {status:"FAIL",receipts:[]};
     if(descriptor.scope==="quality20-find")return {status:"PASS",receipts:[]};

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { closeSync, constants, fstatSync, fsyncSync, lstatSync, openSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { closeSync, constants, fstatSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join } from "node:path";
 import { QUALITY20_AMENDMENT, QUALITY20_CASES, quality20Hash, validateQuality20Manifest, validateQuality20Ledger } from "../tests/e2e/helpers/quality20-frozen-case.ts";
 import { loadQuality20Acquisition, canonicalReceivedJson, validateComplete25AcquisitionPlan } from "../tests/e2e/helpers/quality20-acquisition.ts";
@@ -166,7 +166,14 @@ export async function runComplete25Batch(config,runChild,{now=Date.now,sleep=ms=
         const ledger=ledgerPreflight(config.ledgerRoot,config.ledgerPath,definition.scope);unchanged(ledger);assertBatchLedger(config,ledger,completed);validateQuality20Ledger(selection,ledger,null);
         if(paid){guard(routeTimes[route].filter(t=>now()-t<RATE_MS).length<4,"RATE_CHANGED");routeTimes[route].push(now());}
         const quality20Environment={GEOAI_QUALITY20_MANIFEST_PATH:manifestPath,GEOAI_QUALITY20_MANIFEST_SHA256:manifestHash,GEOAI_QUALITY20_CASE_ID:caseId};
+        const visualDirectory=join(config.outputDir,`${caseId}-visual`);
+        mkdirSync(visualDirectory,{mode:0o700});
+        privateDirectory(visualDirectory);
         const result=await runChild({scope:definition.scope,quality20:selection,acquisition:null,quality20Environment,
+          visualEvidenceEnvironment:{GEOAI_SPRINT10_VISUAL_EVIDENCE_CAPTURE:"write-public-map-png-evidence-v1",GEOAI_SPRINT10_VISUAL_EVIDENCE_DIR:visualDirectory},
+          complete25ArtifactCaptureEnvironment:caseId==="A09"?{
+            GEOAI_COMPLETE25_A09_ARTIFACT_CAPTURE:"export-one-frozen-a09-browser-artifact-v1",
+            GEOAI_COMPLETE25_A09_ARTIFACT_PATH:join(config.outputDir,"A09-browser-artifact.json")}: {},
           quality20AnalysisEvidenceEnvironment:definition.scope==="quality20-analyse"?{GEOAI_QUALITY20_ANALYSIS_EVIDENCE_CAPTURE:"write-one-synthetic-public-analysis-response",GEOAI_QUALITY20_ANALYSIS_EVIDENCE_PATH:join(config.outputDir,`${caseId}-analysis.json`)}:{}});
         writeJson(join(config.outputDir,`${caseId}-receipt.json`),result);
         guard(result.status==="PASS"&&Array.isArray(result.receipts)&&result.receipts.length===(paid?1:0)&&result.receipts.every(r=>r.state==="settled"),"CASE_FAILED");

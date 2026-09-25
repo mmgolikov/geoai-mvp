@@ -25,11 +25,14 @@ for(const fault of [null,"claim","A_create","B_create","A_auth","B_auth","anonym
       let spawned=0;const acquisition={caseId:"A01-Q",planSha256:"b".repeat(64)};
       const descriptor={scope:"quality20-acquire",quality20:null,acquisition,quality20Environment:{GEOAI_QUALITY20_ACQUISITION_PLAN_PATH:"OFFLINE_PLAN"}};
       const seamOptions={invocationState,env:{PATH:"/offline",NODE_OPTIONS:"DANGEROUS",GEOAI_HOSTED_AUTH_PROBE_ADMIN_SECRET_KEY:"OFFLINE_ADMIN_SENTINEL",
-        GEOAI_HOSTED_AUTH_PROBE_PUBLISHABLE_KEY:"OFFLINE_PUBLIC_SENTINEL",UNRELATED_SECRET:"OFFLINE_SECRET",GEOAI_E2E_BASE_URL:`https://${host}`},
+        GEOAI_HOSTED_AUTH_PROBE_PUBLISHABLE_KEY:"OFFLINE_PUBLIC_SENTINEL",UNRELATED_SECRET:"OFFLINE_SECRET",GEOAI_E2E_BASE_URL:`https://${host}`,
+        GEOAI_COMPLETE25_A09_ARTIFACT_CAPTURE:"UNSCOPED_PARENT_CAPTURE",GEOAI_COMPLETE25_A09_ARTIFACT_PATH:"UNSCOPED_PARENT_PATH"},
         coordinator:async(_b,child)=>{for(let i=0;i<85;i++)assert.equal((await child(descriptor)).status,"ACQUIRED_NOT_ANALYSED");return {status:"PASS",caseCount:58,cloudPersistenceAccepted:false};},
         spawn(executable,args,options){spawned++;assert.equal(args.length,1);assert(args[0].endsWith("/scripts/sprint10-live-journey-run.mjs"));
           assert.equal(options.env.GEOAI_SPRINT10_LIVE_USER_ID,ids[0]);assert.equal(options.env.GEOAI_SPRINT10_LIVE_EMAIL,personas[0].email);
           for(const name of ["NODE_OPTIONS","GEOAI_HOSTED_AUTH_PROBE_ADMIN_SECRET_KEY","GEOAI_HOSTED_AUTH_PROBE_PUBLISHABLE_KEY","UNRELATED_SECRET"])assert.equal(options.env[name],undefined);
+          assert.equal(options.env.GEOAI_COMPLETE25_A09_ARTIFACT_CAPTURE,undefined);
+          assert.equal(options.env.GEOAI_COMPLETE25_A09_ARTIFACT_PATH,undefined);
           assert(!JSON.stringify(options.env).includes("OFFLINE_ADMIN_SENTINEL"));childChecks++;
           return {status:0,stdout:JSON.stringify({status:"ACQUIRED_NOT_ANALYSED",scope:descriptor.scope,previewHost:host,commit,browserLocalPersistenceOnly:true,receipts:[],quality20:{caseId:acquisition.caseId,manifestSha256:acquisition.planSha256,depth:null,observations:[]}})};
         }};

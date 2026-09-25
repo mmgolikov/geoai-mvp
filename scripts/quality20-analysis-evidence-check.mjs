@@ -63,6 +63,11 @@ try {
   const env = { GEOAI_QUALITY20_ANALYSIS_EVIDENCE_CAPTURE: SPRINT10_ANALYSIS_EVIDENCE_CAPTURE_OPT_IN, GEOAI_QUALITY20_ANALYSIS_EVIDENCE_PATH: path };
   assert.deepEqual(validateQuality20AnalysisCaptureEnvironment({}, "quality20-analyse"), {});
   assert.deepEqual(validateQuality20AnalysisCaptureEnvironment(env, "quality20-analyse"), env);
+  const visualDir = join(root, "visual"); mkdirSync(visualDir, { mode: 0o700 });
+  const visual = { GEOAI_SPRINT10_VISUAL_EVIDENCE_CAPTURE: "write-public-map-png-evidence-v1", GEOAI_SPRINT10_VISUAL_EVIDENCE_DIR: visualDir };
+  assert.deepEqual(validateQuality20AnalysisCaptureEnvironment({ ...env, ...visual }, "quality20-analyse"), env);
+  assert.throws(() => validateQuality20AnalysisCaptureEnvironment({ ...env, ...visual, GEOAI_SPRINT10_VISUAL_EVIDENCE_CAPTURE: "unscoped" }, "quality20-analyse"));
+  assert.throws(() => validateQuality20AnalysisCaptureEnvironment({ ...env, GEOAI_SPRINT10_VISUAL_EVIDENCE_CAPTURE: visual.GEOAI_SPRINT10_VISUAL_EVIDENCE_CAPTURE }, "quality20-analyse"));
   for (const scope of [undefined, "dubai-analyse", "quality20-find", "quality20-create", "quality20-acquire"]) assert.throws(() => validateQuality20AnalysisCaptureEnvironment(env, scope));
   for (const bad of [{ ...env, GEOAI_QUALITY20_ANALYSIS_EVIDENCE_CAPTURE: "yes" },
     { GEOAI_QUALITY20_ANALYSIS_EVIDENCE_CAPTURE: SPRINT10_ANALYSIS_EVIDENCE_CAPTURE_OPT_IN },

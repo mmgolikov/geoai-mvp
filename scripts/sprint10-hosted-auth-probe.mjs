@@ -949,6 +949,7 @@ export function buildLiveJourneyChildEnvironment(config, personas, env = process
     ...config.liveJourney.goalDepthEvidenceEnvironment,
     ...config.liveJourney.findAnalysisEvidenceEnvironment,
     ...config.liveJourney.realArtifactExportEnvironment,
+    ...config.liveJourney.complete25ArtifactCaptureEnvironment,
     ...config.liveJourney.quality20AnalysisEvidenceEnvironment,
     ...config.liveJourney.visualEvidenceEnvironment,
     ...config.liveJourney.quality20Environment,

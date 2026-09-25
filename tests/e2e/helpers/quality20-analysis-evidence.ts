@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { closeSync, constants, fchmodSync, fstatSync, fsyncSync, linkSync, lstatSync, openSync, readFileSync, realpathSync, unlinkSync, writeFileSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
+// @ts-expect-error Node offline runner requires the explicit extension.
+import { validateVisualEvidenceEnvironment } from "./night21-visual-evidence.ts";
 import { SPRINT10_ANALYSIS_EVIDENCE_CAPTURE_OPT_IN, SPRINT10_PUBLIC_ANALYSIS_QUESTION,
   buildSprint10AnalysisResultEvidence, validateSprint10AnalysisEvidencePath, type Sprint10AnalysisEvidenceInput
 // @ts-expect-error Node offline runner requires the explicit extension.
@@ -22,9 +24,12 @@ export function validateQuality20AnalysisCaptureEnvironment(source: Record<strin
     throw new Error("Quality20 analysis capture requires its exact public-response opt-in and frozen Analyse scope.");
   }
   if (Object.keys(source).some(key => source[key] !== undefined &&
-      (/^GEOAI_SPRINT10_.*EVIDENCE_(?:CAPTURE|PATH|PREFIX)$/.test(key) || /^GEOAI_QUALITY20_ARTIFACT_EXPORT/.test(key)))) {
+      ((key !== "GEOAI_SPRINT10_VISUAL_EVIDENCE_CAPTURE" && /^GEOAI_SPRINT10_.*EVIDENCE_(?:CAPTURE|PATH|PREFIX)$/.test(key)) || /^GEOAI_QUALITY20_ARTIFACT_EXPORT/.test(key)))) {
     throw new Error("Quality20 analysis capture cannot be combined with another capture or artifact export.");
   }
+  // A separately guarded public screenshot is complementary evidence, not a
+  // second response export. Keep every other legacy capture combination denied.
+  validateVisualEvidenceEnvironment(source, scope);
   return { GEOAI_QUALITY20_ANALYSIS_EVIDENCE_CAPTURE: capture,
     GEOAI_QUALITY20_ANALYSIS_EVIDENCE_PATH: validateSprint10AnalysisEvidencePath(path) };
 }

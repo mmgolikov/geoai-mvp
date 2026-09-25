@@ -44,6 +44,7 @@ import { validateFindAnalysisCaptureEnvironment } from "../tests/e2e/helpers/spr
 import { validateQuality20AnalysisCaptureEnvironment } from "../tests/e2e/helpers/quality20-analysis-evidence.ts";
 import { validateVisualEvidenceEnvironment } from "../tests/e2e/helpers/night21-visual-evidence.ts";
 import { validateQuality20ArtifactExportEnvironment } from "../tests/e2e/helpers/quality20-real-artifact.ts";
+import { validateComplete25ArtifactCaptureEnvironment } from "../tests/e2e/helpers/complete25-real-artifact.ts";
 import { comparisonMapDiagnosticsFromReport } from "../tests/e2e/helpers/sprint10-map-diagnostics.ts";
 import { DUBAI_CREATE_PROGRAMME_SCOPES } from "../tests/e2e/helpers/sprint10-live-journey-gate.ts";
 
@@ -351,6 +352,7 @@ function preflight(repositoryRoot) {
   if (!/^[0-9a-f]{40}$/.test(commit)) fail("The expected Preview release identity must be one exact Git SHA.");
   validateLocalCheckout(repositoryRoot, commit);
   const quality20 = loadQuality20Selection(process.env, scope, { commit, origin: previewUrl });
+  const complete25ArtifactCaptureEnvironment = validateComplete25ArtifactCaptureEnvironment(process.env, scope, quality20);
   // Phase 2 has explicit UI dispatch plus tested body/source/snapshot/receipt gates.
   // A missing server snapshot receipt still blocks Analyse BEFORE reservation.
   const acquisition = scope === "quality20-acquire" ? loadQuality20Acquisition(process.env, { commit, origin: previewUrl }) : null;
@@ -400,7 +402,8 @@ function preflight(repositoryRoot) {
     findAnalysisEvidenceEnvironment,
     quality20AnalysisEvidenceEnvironment,
     visualEvidenceEnvironment,
-    realArtifactExportEnvironment
+    realArtifactExportEnvironment,
+    complete25ArtifactCaptureEnvironment
   };
 }
 
@@ -686,6 +689,7 @@ module.exports = defineConfig({
     ...config.quality20AnalysisEvidenceEnvironment,
     ...config.visualEvidenceEnvironment,
     ...config.realArtifactExportEnvironment,
+    ...config.complete25ArtifactCaptureEnvironment,
     ...config.quality20Environment,
     GEOAI_SPRINT10_LIVE_RUNNER_ACTIVE: "1"
   };
