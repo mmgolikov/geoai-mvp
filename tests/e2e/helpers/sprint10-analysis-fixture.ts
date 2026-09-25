@@ -2,7 +2,8 @@ export const SPRINT10_CAVEAT = "Screening hypothesis; official validation requir
 export const SPRINT10_FIXTURE_EVIDENCE_PACK_HASH = String(1).padStart(64, "a").slice(-64);
 
 export function sprint10PublicEvidenceReceipt(lookupSourceFeatureId: string | null, locale: "en" | "ru" = "en") {
-  const created = Math.floor(Date.now() / 900_000) * 900_000;
+  // Match the production lease: only the cache key is bucketed, not its age.
+  const created = Date.now();
   return { version: "PUBLIC_EVIDENCE_LEASE_V1" as const, evidencePackHash: SPRINT10_FIXTURE_EVIDENCE_PACK_HASH,
     sourceResponseHash: "b".repeat(64), acquiredAt: new Date(created).toISOString(),
     createdAt: new Date(created).toISOString(), expiresAt: new Date(created + 900_000).toISOString(),
