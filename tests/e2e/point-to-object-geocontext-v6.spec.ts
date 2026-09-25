@@ -734,7 +734,7 @@ test("V6 renders useful GeoContext and linked-source facts in EN/RU and restores
   await expect(dashboard).toBeVisible();
   await expect(dashboard).toHaveAttribute("data-goal", "development_screening");
   await expect(dashboard).toHaveAttribute("data-depth", "standard");
-  const completedModules = ["surroundings", "buildings", "access", "risks", "coverage", "validation"];
+  const completedModules = ["buildings", "access", "surroundings", "risks", "coverage", "validation"];
   await expect.poll(() => dashboard.locator("[data-module]").evaluateAll(nodes => nodes.map(node => node.getAttribute("data-module")))).toEqual(completedModules);
   await page.getByTestId("infrastructure-cards").locator("summary").first().click();
   await expect(page.getByTestId("infrastructure-cards").locator("[data-infrastructure]")).toHaveCount(7);
