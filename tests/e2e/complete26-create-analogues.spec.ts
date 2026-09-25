@@ -13,22 +13,31 @@ import { quality20Hash } from "./helpers/quality20-frozen-case";
 
 // Exact analogues from COMPLETE26's independent offline matrix. Not the
 // unavailable founder polygon, provider evidence, or live Create acceptance.
+const radialStar = (vertices: number) => Array.from({ length: vertices }, (_, i) => {
+  const theta = i * 2 * Math.PI / vertices + 0.17, radius = i % 2 === 0 ? 1 : 0.62;
+  return [Math.cos(theta) * radius * 1.12, Math.sin(theta) * radius * 0.91];
+});
 const shapes = {
   oblique: [[0,0],[1020,45],[1100,540],[850,780],[650,690],[640,420],[370,440],[300,1060],[40,970],[-90,570]],
-  twin: [[0,0],[1120,0],[1120,930],[820,1000],[780,640],[620,610],[570,950],[310,1040],[280,700],[100,680],[0,1000]]
+  twin: [[0,0],[1120,0],[1120,930],[820,1000],[780,640],[620,610],[570,950],[310,1040],[280,700],[100,680],[0,1000]],
+  radial24: radialStar(24),
+  radial25: radialStar(25)
 };
-const controls = { blockCount: 9, levelsMin: 6, levelsMax: 53, targetSiteCoveragePct: 38, openSpacePct: 35, setbackM: 8 };
+const baseControls = { blockCount: 9, levelsMin: 6, levelsMax: 53, targetSiteCoveragePct: 38, openSpacePct: 35, setbackM: 8 };
 const families = [
   { shape: "oblique", programme: "residential_mixed_use", variants: ["B"] },
   { shape: "oblique", programme: "civic_green", variants: ["B"] },
   { shape: "oblique", programme: "commercial_hub", variants: ["A", "B"] },
-  { shape: "twin", programme: "commercial_hub", variants: ["A", "B"] }
+  { shape: "twin", programme: "commercial_hub", variants: ["A", "B"] },
+  { shape: "radial24", programme: "commercial_hub", variants: ["A", "B"] },
+  { shape: "radial25", programme: "commercial_hub", variants: ["A", "B"] }
 ] as const;
 
 function coordinates(shape: keyof typeof shapes): ConceptPosition[][] {
   const toGeo = (scale: number) => shapes[shape].map(([x, y]) =>
     [55.28 + x * scale / (111320 * Math.cos(25.2 * Math.PI / 180)), 25.2 + y * scale / 110540] as ConceptPosition);
-  let scale = 1;
+  // Match the exact six-step maximum-bound fixture, including its initial scale.
+  let scale = shape.startsWith("radial") ? 500 : 1;
   for (let i = 0; i < 6; i++) scale *= Math.sqrt(749860 / calculatePolygonMeasurements(toGeo(scale)).areaSqM);
   const ring = toGeo(scale);
   return [[...ring, ring[0]]];
@@ -45,6 +54,7 @@ async function savedCreate(page: Page): Promise<PointObjectCreateProjectPayload 
 
 for (const { locale, width } of [{ locale: "en", width: 1440 }, { locale: "ru", width: 390 }] as const) {
   for (const family of families) {
+    const controls = { ...baseControls, blockCount: family.shape.startsWith("radial") ? 12 : 9 };
     test(`COMPLETE26 ${family.shape}/${family.programme} rendered A/B and reopen ${locale}/${width}`, async ({ page, browserName }, info) => {
       await installLoopbackBrowserHarness(page, browserName, info.project.use.baseURL);
       await page.setViewportSize({ width, height: 1000 });
@@ -71,6 +81,10 @@ for (const { locale, width } of [{ locale: "en", width: 1440 }, { locale: "ru", 
         json: { mode: "unavailable", error: "Synthetic offline source fixture; no acquired context" }
       }));
       const aoiCoordinates = coordinates(family.shape);
+      if (family.shape === "radial24" || family.shape === "radial25") {
+        expect(aoiCoordinates[0].length - 1).toBe(family.shape === "radial24" ? 24 : 25);
+        expect(Math.abs(calculatePolygonMeasurements(aoiCoordinates[0].slice(0, -1)).areaSqM - 749860)).toBeLessThan(0.1);
+      }
       let posts = 0;
       let expectedAlternatives: ReturnType<typeof generateConceptMassingAlternatives> = [];
       await page.route("**/api/prototype/point-to-object/create", async route => {
@@ -91,7 +105,7 @@ for (const { locale, width } of [{ locale: "en", width: 1440 }, { locale: "ru", 
         expect(expectedAlternatives.map(item => item.id)).toEqual(["A", "B"]);
         for (const alternative of expectedAlternatives) {
           // The oracle parameter type contains older fixture literals; runtime
-          // numeric controls are passed unchanged, including nine blocks/53 levels.
+          // numeric controls are passed unchanged, including 9/12 blocks and 53 levels.
           assertIndependentQuality20CreateMassing(aoiCoordinates,
             controls as unknown as Parameters<typeof assertIndependentQuality20CreateMassing>[1], alternative.massing);
         }
@@ -114,7 +128,7 @@ for (const { locale, width } of [{ locale: "en", width: 1440 }, { locale: "ru", 
       const labels = locale === "ru"
         ? ["Корпуса", "Минимум этажей", "Максимум этажей", "Плотность застройки", "Открытые пространства", "Отступ"]
         : ["Blocks", "Minimum levels", "Maximum levels", "Site coverage", "Open space", "Setback"];
-      for (const [index, value] of [9, 6, 53, 38, 35, 8].entries()) {
+      for (const [index, value] of [controls.blockCount, 6, 53, 38, 35, 8].entries()) {
         await page.getByRole("slider", { name: new RegExp(`^${labels[index]}`) }).fill(String(value));
       }
       await expect(page.getByTestId("create-local-preflight")).toHaveAttribute("data-preflight-kind", "ready");
