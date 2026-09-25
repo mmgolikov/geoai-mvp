@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { validateQuality20ArtifactExportEnvironment, writeQuality20RealArtifact } from "./helpers/quality20-real-artifact";
+import { validateComplete25ArtifactCaptureEnvironment, writeComplete25RealArtifact } from "./helpers/complete25-real-artifact";
 
 import {
   expect,
@@ -45,7 +46,7 @@ import { CONSTRUCTION_FIND_CASE, acceptedConstructionFindRequest, assertConstruc
 import { validateFindAnalysisCaptureEnvironment } from "./helpers/sprint10-find-analysis-evidence";
 import { createScreenMetrics, readCreateScreen } from "./helpers/night21-create-screen";
 import { buildQuality20AnalysisEvidence, validateQuality20AnalysisCaptureEnvironment, writeQuality20AnalysisEvidence } from "./helpers/quality20-analysis-evidence";
-import { capturePublicMapView, createVisualEvidenceWriter, validateVisualEvidenceEnvironment } from "./helpers/night21-visual-evidence";
+import { captureNight21AnalysisDashboard, capturePublicMapView, createVisualEvidenceWriter, validateVisualEvidenceEnvironment } from "./helpers/night21-visual-evidence";
 import { observeComparisonMapNetwork, readComparisonMapDiagnostic, withComparisonGeometryDeadline, ComparisonGeometryProbeTimeout } from "./helpers/sprint10-map-diagnostics";
 import {
   SPRINT10_ANALYSIS_EVIDENCE_CAPTURE_OPT_IN,
@@ -136,6 +137,7 @@ type LiveConfiguration = {
   visualEvidence: ReturnType<typeof createVisualEvidenceWriter> | null;
   findAnalysisEvidencePrefix: string | null;
   realArtifactExportPath: string | null;
+  complete25ArtifactCapturePath: string | null;
   quality20: Quality20Selection | null;
   acquisition: Quality20Acquisition | null;
 };
@@ -418,6 +420,8 @@ function loadConfiguration(baseURL: string | undefined): LiveConfiguration {
   const findCapture = validateFindAnalysisCaptureEnvironment(process.env, selectedScope);
   const artifactExport = validateQuality20ArtifactExportEnvironment(process.env, selectedScope);
   const quality20Capture = validateQuality20AnalysisCaptureEnvironment(process.env, selectedScope);
+  const quality20 = loadQuality20Selection(process.env, selectedScope, { commit, origin: preview.origin });
+  const complete25Capture = validateComplete25ArtifactCaptureEnvironment(process.env, selectedScope, quality20);
   const visualCapture = validateVisualEvidenceEnvironment(process.env, selectedScope);
   return {
     scope: selectedScope,
@@ -439,7 +443,8 @@ function loadConfiguration(baseURL: string | undefined): LiveConfiguration {
       ? createVisualEvidenceWriter(visualCapture.GEOAI_SPRINT10_VISUAL_EVIDENCE_DIR, commit, selectedScope) : null,
     findAnalysisEvidencePrefix: findCapture.GEOAI_SPRINT10_FIND_ANALYSIS_EVIDENCE_PREFIX ?? null,
     realArtifactExportPath: artifactExport.GEOAI_QUALITY20_ARTIFACT_EXPORT_PATH ?? null,
-    quality20: loadQuality20Selection(process.env, selectedScope, { commit, origin: preview.origin }),
+    complete25ArtifactCapturePath: complete25Capture.GEOAI_COMPLETE25_A09_ARTIFACT_PATH ?? null,
+    quality20,
     acquisition: selectedScope === "quality20-acquire" ? loadQuality20Acquisition(process.env, { commit, origin: preview.origin }) : null
   };
 }
@@ -2632,7 +2637,7 @@ async function runQuality20Find(page: Page, configuration: LiveConfiguration, po
   }
   await expect(dashboard.locator("[data-find-result-marker]")).toHaveCount(3);
   for (const id of f.candidateIds) await expect(dashboard.locator(`[data-find-result-marker="${id}"]`)).toBeVisible();
-  await capturePublicMapView(page, configuration.visualEvidence, "find-comparison-map");
+  if (d.scope === "quality20-find") await capturePublicMapView(page, configuration.visualEvidence, "find-comparison-map");
   const saved = await requireLocalArtifactState(page, configuration.userId, "find");
   expect(saved.shortlistCount).toBe(3);
   expect(saved.comparisonView).toBe("dashboard");
@@ -2703,6 +2708,7 @@ async function runQuality20Analysis(page: Page, configuration: LiveConfiguration
   await expect(page.getByTestId("ai-success")).toBeVisible();
   await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", d.depth!);
   const renderedMs = Date.now() - startedAt;
+  await captureNight21AnalysisDashboard(page, configuration.visualEvidence);
   const saved = await requireLocalArtifactState(page, configuration.userId, "analyse");
   expect(saved.role).toBe(b.role); expect(saved.scenario).toBe(b.scenario);
   const before = budget.paidDispatchCount();
@@ -2711,6 +2717,20 @@ async function runQuality20Analysis(page: Page, configuration: LiveConfiguration
     await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", d.depth!);
   });
   expect(budget.paidDispatchCount()).toBe(before);
+  if (configuration.complete25ArtifactCapturePath) {
+    const artifact: unknown = await page.evaluate(({ userId, artifactId }) => {
+      const key = `geoai:point-to-object:projects:v1:${encodeURIComponent(`user:${userId}`)}`;
+      const store = JSON.parse(localStorage.getItem(key) ?? "null");
+      const matches = (store?.projects ?? []).flatMap((project: { artifacts: Array<{ artifactId: string }> }) => project.artifacts)
+        .filter((candidate: { artifactId: string }) => candidate.artifactId === artifactId);
+      if (matches.length !== 1) throw new Error("The A09 browser artifact is missing or ambiguous.");
+      return matches[0];
+    }, { userId: configuration.userId, artifactId: saved.artifactId });
+    await writeComplete25RealArtifact(configuration.complete25ArtifactCapturePath, selection, {
+      artifact, payloadHash: saved.payloadHash, evidence: evidenceInput
+    });
+    expect(budget.paidDispatchCount()).toBe(before);
+  }
   test.info().annotations.push({ type: "quality20-case", description: JSON.stringify({ caseId: d.id,
     entryCoverage: baseline ? "ordinary_auto_entry_custom_goal" : "follow_up_recovery_initial_NONPAID_challenge_aborted",
     sourceLatencyMs, responseMs, renderedMs, evidencePackHash: captured.result.evidencePackHash,
