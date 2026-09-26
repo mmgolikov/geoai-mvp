@@ -2771,18 +2771,90 @@ const FOCUSED_ANSWER_FORBIDDEN = /(?:https?:\/\/|www\.|<[^>]*>|```|system\s+prom
 // for them, including when they are appended to an otherwise valid answer.
 const UNMAPPED_PHYSICAL_LANGUAGE = /\b(?:roof|rooftop|facade|façade|exterior|cladding)\b|(?:крыш|фасад|облицовк|внешн(?:ий|яя|ее|ие)?\s+вид)/i;
 
-function novelNumberInStatement(statement: string, support: PointObjectEvidenceSupport): boolean {
-  const evidenceText = JSON.stringify({
+// Compare exact decimal values, not their display spelling. Do not use Number:
+// rounding a long decimal here could turn an unsupported value into evidence.
+function canonicalEvidenceNumber(raw: string, locale: PointObjectLocale): string | null {
+  const value = raw.normalize("NFKC").replace(/\u2212/g, "-");
+  const sign = value.startsWith("-") ? "-" : "";
+  const unsigned = value.replace(/^[+-]/, "");
+  const pattern = locale === "ru"
+    ? /^(?:\d+|[1-9]\d{0,2}(?: \d{3})+)(?:[.,]\d+)?$/
+    : /^(?:\d+|[1-9]\d{0,2}(?:,\d{3})+|[1-9]\d{0,2}(?: \d{3})+)(?:\.\d+)?$/;
+  if (!pattern.test(unsigned)) return null;
+  const normalized = unsigned.replace(/ /g, "").replace(/,/g, locale === "ru" ? "." : "");
+  const [integer, fraction = ""] = normalized.split(".");
+  const whole = integer.replace(/^0+(?=\d)/, "");
+  const decimal = fraction.replace(/0+$/, "");
+  return `${whole === "0" && !decimal ? "" : sign}${whole}${decimal ? `.${decimal}` : ""}`;
+}
+
+function evidenceNumberTokens(text: string, locale: PointObjectLocale): string[] | null {
+  // stringValue has already NFKC-normalized superscripts. A dimension suffix is
+  // notation, not a second measured quantity (2029 m² becomes 2029 m2).
+  const value = text.normalize("NFKC")
+    .replace(/(?<![\p{L}])(?:km|cm|mm|ft|m|км|см|мм|м)\^?[23](?![\p{L}\p{N}])/giu, " ");
+  const tokens: string[] = [];
+  for (const match of value.matchAll(/[+\-\u2212]?\d+(?:[.,]\d+)*(?: \d+(?:[.,]\d+)*)*/g)) {
+    const start = match.index!;
+    const end = start + match[0].length;
+    const before = value.slice(0, start);
+    const after = value.slice(end);
+    // Never take numeric substrings out of exponents, identifiers or malformed
+    // punctuation. Attached conventional measurement units remain legal.
+    if (/[\p{L}\p{N}_.+\-\u2212]$/u.test(before) || /^[.,]+\d/.test(after) ||
+        (/^\p{L}/u.test(after) && !/^(?:km|cm|mm|ft|m|км|см|мм|м|°?C)(?![\p{L}\p{N}])/iu.test(after))) return null;
+    const token = canonicalEvidenceNumber(match[0], locale);
+    if (token === null) return null;
+    tokens.push(token);
+  }
+  return tokens;
+}
+
+function novelNumberInStatement(statement: string, support: PointObjectEvidenceSupport, locale: PointObjectLocale): boolean {
+  const evidenceValues = {
     analysisPoint: support.projection.analysisPoint,
     selectedObject: support.projection.selectedObject,
     nearbyContext: support.projection.nearbyContext,
     geoContext: support.projection.geoContext
-  });
-  const allowed = new Set(evidenceText.match(/\d+(?:[.,]\d+)?/g) ?? []);
+  };
+  const allowed = new Set<string>();
+  const dates = new Set<string>();
+  const numericNames = new Set<string>();
+  const visit = (value: unknown, key = "") => {
+    // IDs/hash digits and schema/version metadata do not establish quantities.
+    if (["sourceFeatureId", "geometryHash", "crs", "method", "ruleVersion", "evidenceId", "tag.wikidata"].includes(key)) return;
+    if (typeof value === "number" && Number.isFinite(value)) {
+      const canonical = canonicalEvidenceNumber(String(value), "en");
+      if (canonical !== null) allowed.add(canonical);
+    } else if (typeof value === "string") {
+      if (key === "name" && /\d/.test(value)) numericNames.add(value);
+      if (/^\d{4}-\d{2}(?:-\d{2})?$/.test(value)) {
+        dates.add(value); allowed.add(value.slice(0, 4));
+      } else {
+        for (const token of evidenceNumberTokens(value, "en") ?? []) allowed.add(token);
+      }
+    } else if (Array.isArray(value)) value.forEach(item => visit(item));
+    else if (isRecord(value)) Object.entries(value).forEach(([childKey, child]) => visit(child, childKey));
+  };
+  visit(evidenceValues);
   // Horizon labels may legitimately frame the analysis without becoming a fact.
   allowed.add("1");
   allowed.add("3");
-  return (statement.match(/\d+(?:[.,]\d+)?/g) ?? []).some((number) => !allowed.has(number));
+  let numericStatement = statement;
+  for (const name of numericNames) {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    numericStatement = numericStatement.replace(new RegExp(`(?<![\\p{L}\\p{N}])${escaped}(?![\\p{L}\\p{N}])`, "gu"), "mapped name");
+  }
+  for (const date of dates) {
+    numericStatement = numericStatement.replace(new RegExp(`(?<![\\p{L}\\p{N}])${date}(?![\\p{L}\\p{N}-])`, "gu"), "mapped date");
+  }
+  // Two separately known endpoints do not establish a measured range. Keep the
+  // existing planning-horizon exception, but not arbitrary range arithmetic.
+  numericStatement = numericStatement.replace(/(?<![\p{L}\p{N}])1\s*[-–]\s*3\s+(?:years?|лет|года?)(?![\p{L}\p{N}])/giu, "planning horizon");
+  if (/[+\-\u2212]\s+\d/.test(numericStatement)) return true;
+  if (/\d\s*[-–—]\s*[+\-\u2212]?\d/.test(numericStatement)) return true;
+  const tokens = evidenceNumberTokens(numericStatement, locale);
+  return tokens === null || tokens.some(number => !allowed.has(number));
 }
 
 function statementIncludesExactValue(statement: string, value: string): boolean {
@@ -3162,7 +3234,7 @@ function validateFocusedAnswer(
     }
     if (FOCUSED_ANSWER_FORBIDDEN.test(statement)) return { ok: false, detail: "focused_answer_forbidden_claim" };
     if (UNMAPPED_PHYSICAL_LANGUAGE.test(statement)) return { ok: false, detail: "focused_answer_unmapped_physical_claim" };
-    if (novelNumberInStatement(statement, support)) return { ok: false, detail: "focused_answer_novel_number" };
+    if (novelNumberInStatement(statement, support, request.locale)) return { ok: false, detail: "focused_answer_novel_number" };
     const labels: Record<string, { en: string; ru: string }> = {
       "tag.height": { en: "height", ru: "высота" },
       "tag.building:levels": { en: "building levels", ru: "этажность" },
@@ -3237,13 +3309,13 @@ function validateFocusedAnswer(
   if (unsupportedReason !== null) return { ok: false, detail: "focused_answer_supported_with_unsupported_reason" };
   if (FOCUSED_ANSWER_FORBIDDEN.test(statement)) return { ok: false, detail: "focused_answer_forbidden_claim" };
   if (UNMAPPED_PHYSICAL_LANGUAGE.test(statement)) return { ok: false, detail: "focused_answer_unmapped_physical_claim" };
-  if (novelNumberInStatement(statement, support)) return { ok: false, detail: "focused_answer_novel_number" };
+  if (novelNumberInStatement(statement, support, request.locale)) return { ok: false, detail: "focused_answer_novel_number" };
   if (!deepScenarioAnswerIsMeaningful(statement, request)) return { ok: false, detail: "focused_answer_scenario_depth" };
   const contextRefs = refs.filter((ref) => support.contextRefs.includes(ref));
   if (scope === "nearby_context" && contextRefs.length === 0) {
     return { ok: false, detail: "focused_answer_nearby_scope_without_context_receipt" };
   }
-  const nearbyLanguage = /\b(?:nearby|surround|school|hospital|clinic|pharmacy|metro|station|transport|road|park|retail|shop)\b|(?:рядом|вокруг|окружен|школ|больниц|клиник|аптек|метро|станци|транспорт|дорог|парк|магазин|ретейл)/i;
+  const nearbyLanguage = /\b(?:nearby|surround|school|hospital|clinic|pharmacy|metro|station|transport|road|park|retail|shop)\b|(?:рядом|вокруг|окружен|школ|больниц|клиник|аптек|(?<![\p{L}\p{N}])(?:метро(?![\p{L}\p{N}])|метрополитен\p{L}*|метростанци\p{L}*)|станци|транспорт|дорог|парк|магазин|ретейл)/iu;
   if ((nearbyLanguage.test(question) || nearbyLanguage.test(statement)) && contextRefs.length === 0) {
     return { ok: false, detail: "focused_answer_context_without_context_receipt" };
   }
