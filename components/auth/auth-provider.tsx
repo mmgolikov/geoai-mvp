@@ -101,6 +101,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const authEpochRef = useRef(0);
   const refreshSequenceRef = useRef(0);
   const logoutPendingRef = useRef(false);
+  const passwordIdentityRef = useRef<{ epoch: number; userId: string | null } | null>(null);
+  const sessionRefreshRef = useRef<{ epoch: number; promise: Promise<boolean> } | null>(null);
   const signOutSingleFlightRef = useRef<ReturnType<typeof createSingleFlight<{ ok: boolean; message: string }>> | null>(null);
   if (!signOutSingleFlightRef.current) {
     signOutSingleFlightRef.current = createSingleFlight<{ ok: boolean; message: string }>();
@@ -110,61 +112,84 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return epoch === authEpochRef.current && sequence === refreshSequenceRef.current;
   }
 
-  async function applyAuthenticatedServerSession(user: NonNullable<GeoAIAuthSession["user"]>, epoch: number, sequence: number) {
+  function applyAuthenticatedServerSession(user: NonNullable<GeoAIAuthSession["user"]>, epoch: number, sequence: number) {
     if (!isCurrentSessionRead(epoch, sequence)) return;
-    let browserUser = user;
-    try {
-      browserUser = await loadBrowserUserProfile(user);
-    } catch {
-      // The server identity is authoritative even if optional browser profile
-      // enrichment is unavailable.
-    }
-    if (!isCurrentSessionRead(epoch, sequence)) return;
+    // The server has already checked claims, permanent user and active profile.
+    // Optional browser metadata must not delay publishing that verified identity.
     setSession({
-      user: mergeLocalProfileIntoUser(browserUser),
+      user: mergeLocalProfileIntoUser(user),
       organization: null,
       projectRole: null,
       membership: null,
       isAuthenticated: true,
       isDemo: false
     });
+    void (async () => {
+      const browserUser = await loadBrowserUserProfile(user);
+      if (!isCurrentSessionRead(epoch, sequence) || browserUser.id !== user.id || browserUser === user) return;
+      setSession({
+        user: mergeLocalProfileIntoUser(browserUser),
+        organization: null,
+        projectRole: null,
+        membership: null,
+        isAuthenticated: true,
+        isDemo: false
+      });
+    })().catch(() => {
+      // Optional metadata failure cannot replace the verified server identity.
+    });
   }
 
-  async function refreshSession() {
-    if (logoutPendingRef.current) return;
+  async function refreshSession(): Promise<boolean> {
+    if (logoutPendingRef.current) return false;
     const epoch = authEpochRef.current;
+    // SIGNED_IN can fire before signInWithPassword returns its expected UUID.
+    // The explicit post-exchange read will verify it; do not start a rival read.
+    const expectedIdentity = passwordIdentityRef.current?.epoch === epoch ? passwordIdentityRef.current : null;
+    if (expectedIdentity && !expectedIdentity.userId) return false;
+    const active = sessionRefreshRef.current;
+    if (expectedIdentity && active?.epoch === epoch) return active.promise;
     const sequence = ++refreshSequenceRef.current;
-    try {
-      if (authStatus.effectiveMode === "demo_public") {
-        setSession(createDemoSession());
-        return;
+    const operation = (async () => {
+      try {
+        if (authStatus.effectiveMode === "demo_public") {
+          setSession(createDemoSession());
+          return true;
+        }
+        if (isMockDemoSessionActive()) {
+          // A browser marker is never identity. Remove obsolete guided-demo state
+          // before reading the request-scoped server session.
+          clearMockDemoSession();
+          clearLocalUserProfile(demoUser.id);
+        }
+        if (authStatus.effectiveMode !== "supabase_auth") {
+          setSession(createAnonymousSession());
+          return false;
+        }
+        const summary = await readBrowserServerSession();
+        if (!isCurrentSessionRead(epoch, sequence)) return false;
+        if (summary.status === "anonymous") {
+          setSession(createAnonymousSession());
+          return false;
+        }
+        if (summary.status === "authenticated") {
+          if (expectedIdentity && summary.user.id !== expectedIdentity.userId) return false;
+          applyAuthenticatedServerSession(summary.user, epoch, sequence);
+          return true;
+        }
+        return false;
+      } catch {
+        // A transport or dependency failure is not proof that the server session
+        // ended. Preserve the last confirmed client state until a readable server
+        // response reconciles it.
+        return false;
+      } finally {
+        if (isCurrentSessionRead(epoch, sequence)) setIsSessionResolved(true);
       }
-      if (isMockDemoSessionActive()) {
-        // A browser marker is never identity. Remove obsolete guided-demo state
-        // before reading the request-scoped server session.
-        clearMockDemoSession();
-        clearLocalUserProfile(demoUser.id);
-      }
-      if (authStatus.effectiveMode !== "supabase_auth") {
-        setSession(createAnonymousSession());
-        return;
-      }
-      const summary = await readBrowserServerSession();
-      if (!isCurrentSessionRead(epoch, sequence)) return;
-      if (summary.status === "anonymous") {
-        setSession(createAnonymousSession());
-        return;
-      }
-      if (summary.status === "authenticated") {
-        await applyAuthenticatedServerSession(summary.user, epoch, sequence);
-      }
-    } catch {
-      // A transport or dependency failure is not proof that the server session
-      // ended. Preserve the last confirmed client state until a readable server
-      // response reconciles it.
-    } finally {
-      if (isCurrentSessionRead(epoch, sequence)) setIsSessionResolved(true);
-    }
+    })();
+    sessionRefreshRef.current = { epoch, promise: operation };
+    try { return await operation; }
+    finally { if (sessionRefreshRef.current?.promise === operation) sessionRefreshRef.current = null; }
   }
 
   useEffect(() => {
@@ -290,23 +315,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { ok: false, message: "Use a password with at least 8 characters." };
     }
     const epoch = ++authEpochRef.current;
-    const supabase = await loadSupabaseBrowserClient();
-    if (epoch !== authEpochRef.current) return { ok: false, message: "The sign-in attempt was superseded. Try again." };
-    if (!supabase) return { ok: false, message: authStatus.caveat };
-    clearMockDemoSession();
-    const { error } = await supabase.auth.signInWithPassword({
-      email: normalizedEmail,
-      password
-    });
-    if (epoch !== authEpochRef.current) return { ok: false, message: "The sign-in attempt was superseded. Try again." };
-    if (error) {
-      return { ok: false, message: isPasswordOnlyAuthEnabled()
-        ? "The email or password is incorrect. Contact the project owner if account access is unavailable."
-        : "The email or password is incorrect, or this account still uses an email sign-in link." };
+    passwordIdentityRef.current = { epoch, userId: null };
+    try {
+      const supabase = await loadSupabaseBrowserClient();
+      if (epoch !== authEpochRef.current) return { ok: false, message: "The sign-in attempt was superseded. Try again." };
+      if (!supabase) return { ok: false, message: authStatus.caveat };
+      clearMockDemoSession();
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password
+      });
+      if (epoch !== authEpochRef.current) return { ok: false, message: "The sign-in attempt was superseded. Try again." };
+      if (error) {
+        return { ok: false, message: isPasswordOnlyAuthEnabled()
+          ? "The email or password is incorrect. Contact the project owner if account access is unavailable."
+          : "The email or password is incorrect, or this account still uses an email sign-in link." };
+      }
+      const expectedUserId = data?.user?.id;
+      if (typeof expectedUserId !== "string" || !expectedUserId) {
+        return { ok: false, message: "Sign-in could not be confirmed. Check the connection and reload the page to verify the existing session." };
+      }
+      passwordIdentityRef.current = { epoch, userId: expectedUserId };
+      const confirmed = await refreshSession();
+      if (epoch !== authEpochRef.current) return { ok: false, message: "The sign-in attempt was superseded. Try again." };
+      if (!confirmed) return { ok: false, message: "Sign-in could not be confirmed. Check the connection and reload the page to verify the existing session." };
+      return { ok: true, message: "Signed in." };
+    } finally {
+      if (passwordIdentityRef.current?.epoch === epoch) passwordIdentityRef.current = null;
     }
-    await refreshSession();
-    if (epoch !== authEpochRef.current) return { ok: false, message: "The sign-in attempt was superseded. Try again." };
-    return { ok: true, message: "Signed in." };
   }
 
   async function signInWithPhone(phone: string) {
@@ -496,7 +532,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     changePassword,
     register,
     signOut,
-    refreshSession
+    refreshSession: async () => { await refreshSession(); }
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

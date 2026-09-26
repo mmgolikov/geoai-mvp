@@ -39,10 +39,11 @@ function harness({ obsoleteGuard = false } = {}) {
     return Response.json(captured ? { isAuthenticated: true, user: { id: captured } } :
       { isAuthenticated: false, sessionStatus: "session_missing" });
   };
-  const signIn = async () => { state.server = "B"; await state.onSignIn(); return { error: null }; };
+  const signIn = async () => { state.server = "B"; await state.onSignIn(); return { data: { user: { id: "B" } }, error: null }; };
   const deps = {
     authStatus: { effectiveMode: "supabase_auth" }, authEpochRef: { current: 0 },
     refreshSequenceRef: { current: 0 }, logoutPendingRef: { current: false },
+    passwordIdentityRef: { current: null }, sessionRefreshRef: { current: null },
     setSession: (value) => { state.client = value.user?.id ?? null; state.writes.push(state.client); },
     setIsSessionResolved: () => {}, loadBrowserUserProfile: (user) => state.profile(user),
     mergeLocalProfileIntoUser: (user) => user, isMockDemoSessionActive: () => false,
@@ -73,13 +74,15 @@ for (const obsoleteGuard of [true, false]) {
     const { state, api } = harness({ obsoleteGuard });
     const gate = deferred(), entered = deferred();
     if (delayed === "session") state.read = async () => { entered.resolve(); await gate.promise; };
-    else state.profile = async (user) => { entered.resolve(); await gate.promise; return user; };
+    else state.profile = async (user) => { entered.resolve(); await gate.promise; return { ...user, name: "optional metadata" }; };
     const refresh = api.refreshSession(); await entered.promise;
     assert.equal((await api.signOut()).ok, true);
     assert.equal(state.client, null);
     if (delayed === "profile_failure") gate.reject(new Error("synthetic profile failure")); else gate.resolve();
-    await refresh;
-    assert.equal(state.client, obsoleteGuard ? "A" : null);
+    await refresh; await new Promise(resolve => setImmediate(resolve));
+    // A failed optional enrichment no longer writes at all. The two successful
+    // late-completion mutants still prove the epoch/sequence guard is necessary.
+    assert.equal(state.client, obsoleteGuard && delayed !== "profile_failure" ? "A" : null);
     assert.equal(state.server, null, "Client completion must never mutate the server fixture.");
     cases += 1;
   }
@@ -90,7 +93,7 @@ for (const delayed of ["profile", "anonymous_read"]) {
   else { state.server = null; state.read = async (identity) => { if (!identity) { entered.resolve(); await gate.promise; } }; }
   const old = api.refreshSession(); await entered.promise;
   state.server = "B"; await api.refreshSession(); assert.equal(state.client, "B");
-  gate.resolve(); await old; assert.equal(state.client, "B"); cases += 1;
+  gate.resolve(); await old; await new Promise(resolve => setImmediate(resolve)); assert.equal(state.client, "B"); cases += 1;
 }
 for (const method of ["signInWithPassword", "verifyPhoneCode"]) {
   const { state, api } = harness(); const gate = deferred(), entered = deferred();
@@ -101,7 +104,7 @@ for (const method of ["signInWithPassword", "verifyPhoneCode"]) {
   const result = await api[method](method === "verifyPhoneCode" ? "+971501234567" : "offline@example.invalid",
     method === "verifyPhoneCode" ? "123456" : "offline-password");
   assert.equal(result.ok, true); assert.equal(state.client, "B");
-  gate.resolve(); await old; assert.equal(state.client, "B"); cases += 1;
+  gate.resolve(); await old; await new Promise(resolve => setImmediate(resolve)); assert.equal(state.client, "B"); cases += 1;
 }
 for (const method of ["signInWithPassword", "verifyPhoneCode"]) {
   for (const delayed of ["sdk_completion", "profile_completion"]) {
@@ -111,8 +114,16 @@ for (const method of ["signInWithPassword", "verifyPhoneCode"]) {
     else state.profile = async (user) => { await wait(); return user; };
     const signingIn = api[method](method === "verifyPhoneCode" ? "+971501234567" : "offline@example.invalid",
       method === "verifyPhoneCode" ? "123456" : "offline-password");
-    await entered.promise; assert.equal((await api.signOut()).ok, true);
-    gate.resolve(); assert.equal((await signingIn).ok, false);
+    await entered.promise;
+    // Optional metadata no longer holds a verified sign-in open. Its late
+    // completion still cannot resurrect identity after a subsequent logout.
+    if (delayed === "profile_completion") assert.equal((await signingIn).ok, true);
+    assert.equal((await api.signOut()).ok, true);
+    const writesAfterLogout = [...state.writes];
+    gate.resolve();
+    if (delayed === "sdk_completion") assert.equal((await signingIn).ok, false);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(state.writes, writesAfterLogout, "No late write after logout, including optional metadata.");
     assert.equal(state.client, null, "A superseded sign-in must not restore client identity or report success.");
     assert.equal(state.server, null); cases += 1;
   }
@@ -120,8 +131,10 @@ for (const method of ["signInWithPassword", "verifyPhoneCode"]) {
 {
   const { state, api, cleanup } = harness(); const gate = deferred(), entered = deferred();
   state.profile = async (user) => { entered.resolve(); await gate.promise; return user; };
-  const old = api.refreshSession(); await entered.promise; cleanup(); gate.resolve(); await old;
-  assert.deepEqual(state.writes, []); cases += 1;
+  const old = api.refreshSession(); await entered.promise;
+  assert.deepEqual(state.writes, ["A"], "Verified identity is published before optional profile metadata.");
+  cleanup(); gate.resolve(); await old; await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(state.writes, ["A"], "Unmount forbids every later identity write."); cases += 1;
 }
 {
   const { state, api } = harness(); const gate = deferred(); state.logout = () => gate.promise;
@@ -137,5 +150,5 @@ for (const unavailable of [false, true]) {
   const { state, api } = harness(); await api.refreshSession(); await api.signOut();
   assert.deepEqual(state.writes, ["A", null]); cases += 1;
 }
-console.log(JSON.stringify({ status: "PASS", cases, originalRaceMutationCases: 3, networkCalls: 0,
+console.log(JSON.stringify({ status: "PASS", cases, originalRaceMutationCases: 3, lateCompletionGuardMutationCases: 2, networkCalls: 0,
   note: "Real provider lifecycle functions and transport, injected offline responses; no browser/server acceptance claim." }));
