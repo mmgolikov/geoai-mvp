@@ -20,15 +20,16 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "nod
 
 export const SPRINT10_CYCLE_ID = "GEOAI_FOUR_SPRINTS_2026_09_18" as const;
 export const SPRINT10_LIVE_CEILING_USD = 15 as const;
-export const SPRINT10_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V12_2026_09_21" as const;
+export const SPRINT10_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V13_2026_09_26" as const;
+export const SPRINT10_V12_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V12_2026_09_21" as const;
 // Exact immutable read-back compatibility only; never a new dispatch version.
 export const SPRINT10_LEGACY_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V10_2026_09_18" as const;
 export const SPRINT10_PRE_COMMITMENT_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V11_2026_09_20" as const;
 export const SPRINT10_CREATE_PROMPT_VERSION = "POINT_OBJECT_CREATE_PROGRAM_V1_2026_09_04" as const;
-type Sprint10StoredPromptVersion = typeof SPRINT10_ANALYSIS_PROMPT_VERSION | typeof SPRINT10_LEGACY_ANALYSIS_PROMPT_VERSION | typeof SPRINT10_PRE_COMMITMENT_ANALYSIS_PROMPT_VERSION | typeof SPRINT10_CREATE_PROMPT_VERSION;
+type Sprint10StoredPromptVersion = typeof SPRINT10_ANALYSIS_PROMPT_VERSION | typeof SPRINT10_V12_ANALYSIS_PROMPT_VERSION | typeof SPRINT10_LEGACY_ANALYSIS_PROMPT_VERSION | typeof SPRINT10_PRE_COMMITMENT_ANALYSIS_PROMPT_VERSION | typeof SPRINT10_CREATE_PROMPT_VERSION;
 
 function isHistoricalAnalysisPrompt(value: unknown): boolean {
-  return value === SPRINT10_LEGACY_ANALYSIS_PROMPT_VERSION || value === SPRINT10_PRE_COMMITMENT_ANALYSIS_PROMPT_VERSION;
+  return value === SPRINT10_LEGACY_ANALYSIS_PROMPT_VERSION || value === SPRINT10_PRE_COMMITMENT_ANALYSIS_PROMPT_VERSION || value === SPRINT10_V12_ANALYSIS_PROMPT_VERSION;
 }
 
 export type Sprint10Phase = "S1" | "S2" | "S3" | "S4";
@@ -114,7 +115,7 @@ type Sprint10LedgerCommon = {
   receipts: Sprint10Receipt[];
   estimatedOrReservedUsd: number;
   // Append-only founder-authorized accounting; original unknown receipts stay unchanged.
-  conservativeCharges?: Sprint10ConservativeCharge[];
+  conservativeCharges?: (Sprint10ConservativeCharge | Complete26StandingCharge)[];
 };
 
 export const COMPLETE25_RECOVERY_APPROVAL = "founder:complete25_20260925_recover_and_repeat_within_usd15" as const;
@@ -180,6 +181,34 @@ export type Sprint10ConservativeCharge = {
   receiptHash: string;
   approvedAt: string;
   approvalReference: string;
+  chargedUsd: number;
+  actualCostKnown: false;
+};
+
+// Existing authority, not a new approval or an increase to the cycle ceiling.
+// Immutable source: COMPLETE25_STATE.json#overnightAuthority.recordedAtUtc.
+export const COMPLETE26_STANDING_AUTHORITY = Object.freeze({
+  kind: "geoai.complete26.standing-full-reserve-authority.v1",
+  reference: "founder:complete25_20260925_204244_standing_full_reserve",
+  recordedAt: "2026-09-25T20:42:44Z",
+  source: "COMPLETE25_STATE.json#overnightAuthority",
+  ledgerId: COMPLETE25_OPENING_CHECKPOINT.ledgerId,
+  ceilingUsd: 15,
+  scope: "interrupted-request-full-prior-reservation-after-cause-review-no-blind-retry"
+} as const);
+
+export type Complete26StandingApplication = {
+  receiptHash: string;
+  authority: typeof COMPLETE26_STANDING_AUTHORITY;
+  appliedBy: "root";
+  appliedAt: string;
+  causeReviewReference: string;
+  causeReviewed: true;
+  noKnownCostAboveReserve: true;
+};
+export type Complete26StandingCharge = Complete26StandingApplication & {
+  receiptId: number;
+  receiptIdentity: Sprint10RequestIdentity;
   chargedUsd: number;
   actualCostKnown: false;
 };
@@ -371,22 +400,30 @@ function parseAttempt(
 
 export function parseSprint10ProviderTelemetry(
   identityValue: Sprint10RequestIdentity,
-  payload: unknown
+  payload: unknown,
+  responseStatus?: number
 ): Sprint10SpendTelemetry | null {
-  return parseProviderTelemetry(identityValue, payload, false);
+  return parseProviderTelemetry(identityValue, payload, false, responseStatus);
 }
 
 // Only immutable stored telemetry may opt into the exact historical identity.
 function parseProviderTelemetry(
   identityValue: Sprint10RequestIdentity,
   payload: unknown,
-  allowHistorical: boolean
+  allowHistorical: boolean,
+  responseStatus?: number
 ): Sprint10SpendTelemetry | null {
   const identity = parseIdentity(identityValue, allowHistorical);
   if (!identity || !record(payload) || !record(payload.telemetry)) return null;
   const telemetry = payload.telemetry;
   if (identity.route === "ai") {
-    if (payload.mode !== "openai" || payload.schemaVersion !== 6 || telemetry.provider !== "openai" ||
+    // Cost accounting only: a failed output still consumed the complete traced
+    // usage. Do not extend result acceptance, Create errors or historical dispatch.
+    const accountedOutputError = !allowHistorical && responseStatus === 502 &&
+      exactKeys(payload, ["mode", "code", "error", "retryable", "telemetry"]) &&
+      payload.mode === "unavailable" && payload.code === "AI_OUTPUT_INVALID" && payload.retryable === true &&
+      typeof payload.error === "string" && payload.error.length > 0 && payload.error.length <= 1024;
+    if ((!accountedOutputError && (payload.mode !== "openai" || payload.schemaVersion !== 6)) || telemetry.provider !== "openai" ||
         telemetry.schemaVersion !== 6 || telemetry.depth !== identity.depth ||
         telemetry.promptVersion !== identity.promptVersion) return null;
   } else if (payload.mode !== "openai_concept" || payload.promptVersion !== identity.promptVersion) return null;
@@ -609,15 +646,28 @@ export function parseSprint10SpendLedger(value: unknown): Sprint10SpendLedger | 
   if (!Array.isArray(charges) || charges.length > typedReceipts.length) return null;
   const reconciledIds = new Set<number>();
   for (const charge of charges) {
-    if (!record(charge) || !exactKeys(charge, ["receiptId", "receiptHash", "approvedAt", "approvalReference", "chargedUsd", "actualCostKnown"]) ||
-        !integer(charge.receiptId, 1) || reconciledIds.has(charge.receiptId) ||
-        typeof charge.approvalReference !== "string" || !/^founder:[a-zA-Z0-9:_-]{10,120}$/.test(charge.approvalReference) ||
-        (recovery && charge.approvalReference === COMPLETE25_RECOVERY_APPROVAL) ||
-        !validIso(charge.approvedAt) || charge.actualCostKnown !== false) return null;
+    if (!record(charge) || !integer(charge.receiptId, 1) || reconciledIds.has(charge.receiptId) || charge.actualCostKnown !== false) return null;
     const receipt = typedReceipts.find(item => item.id === charge.receiptId);
     if (!receipt || receipt.state !== "unknown" || receipt.settledAt === null ||
-        Date.parse(charge.approvedAt) < Date.parse(receipt.settledAt) || charge.receiptHash !== sprint10ReceiptHash(receipt) ||
+        charge.receiptHash !== sprint10ReceiptHash(receipt) ||
         charge.chargedUsd !== receipt.reserveUsd) return null;
+    if ("authority" in charge) {
+      const authority = charge.authority;
+      if (!exactKeys(charge, ["receiptId", "receiptHash", "receiptIdentity", "chargedUsd", "actualCostKnown", "authority", "appliedBy", "appliedAt", "causeReviewReference", "causeReviewed", "noKnownCostAboveReserve"]) ||
+          !record(authority) || !exactKeys(authority, Object.keys(COMPLETE26_STANDING_AUTHORITY)) ||
+          !Object.entries(COMPLETE26_STANDING_AUTHORITY).every(([key, expected]) => authority[key] === expected) ||
+          !recovery || value.ledgerId !== COMPLETE26_STANDING_AUTHORITY.ledgerId ||
+          charge.appliedBy !== "root" || !validIso(charge.appliedAt) ||
+          Date.parse(charge.appliedAt) < Math.max(Date.parse(receipt.settledAt), Date.parse(COMPLETE26_STANDING_AUTHORITY.recordedAt)) ||
+          Date.parse(receipt.createdAt) < Date.parse(COMPLETE26_STANDING_AUTHORITY.recordedAt) ||
+          charge.causeReviewed !== true || charge.noKnownCostAboveReserve !== true ||
+          typeof charge.causeReviewReference !== "string" || !/^root:[a-zA-Z0-9:_-]{10,160}$/.test(charge.causeReviewReference)) return null;
+      const receiptIdentity = parseIdentity(charge.receiptIdentity, true);
+      if (!receiptIdentity || !sameIdentity(receipt.identity, receiptIdentity)) return null;
+    } else if (!exactKeys(charge, ["receiptId", "receiptHash", "approvedAt", "approvalReference", "chargedUsd", "actualCostKnown"]) ||
+        typeof charge.approvalReference !== "string" || !/^founder:[a-zA-Z0-9:_-]{10,120}$/.test(charge.approvalReference) ||
+        (recovery && charge.approvalReference === COMPLETE25_RECOVERY_APPROVAL) || !validIso(charge.approvedAt) ||
+        Date.parse(charge.approvedAt) < Date.parse(receipt.settledAt)) return null;
     reconciledIds.add(charge.receiptId);
   }
   const expectedGeneration = (recovery ? COMPLETE25_OPENING_CHECKPOINT.generation : 0) +
@@ -709,6 +759,26 @@ export function accountSprint10UnknownAtFullReserve(
     }]
   };
   if (!parseSprint10SpendLedger(next)) throw new Error("Invalid conservative accounting approval or receipt hash.");
+  return next;
+}
+
+// Explicit root action after cause review. Never called by failure/dispatch paths.
+export function accountSprint10UnknownUnderStandingAuthority(
+  ledgerValue: Sprint10SpendLedger, receiptId: number, expectedIdentity: Sprint10RequestIdentity,
+  application: Complete26StandingApplication
+): Sprint10SpendLedger {
+  const ledger = parseSprint10SpendLedger(ledgerValue);
+  if (!ledger) throw new Error("The cycle-root ledger is malformed or corrupt.");
+  const receipt = ledger.receipts.find(item => item.id === receiptId);
+  if (!receipt || receipt.state !== "unknown" || !sameIdentity(receipt.identity, expectedIdentity) ||
+      ledger.conservativeCharges?.some(charge => charge.receiptId === receiptId)) {
+    throw new Error("Standing accounting requires one exact unreconciled unknown receipt.");
+  }
+  const next = { ...ledger, generation: ledger.generation + 1,
+    conservativeCharges: [...(ledger.conservativeCharges ?? []), {
+      ...application, receiptId, receiptIdentity: { ...receipt.identity }, chargedUsd: receipt.reserveUsd, actualCostKnown: false as const
+    }] };
+  if (!parseSprint10SpendLedger(next)) throw new Error("Invalid standing authority, root application or receipt binding.");
   return next;
 }
 
@@ -1043,6 +1113,19 @@ export function accountSprint10UnknownAtFullReserveFile(
   try {
     const ledger = readSprint10SpendLedgerFile(privateRoot, ledgerPath);
     const next = accountSprint10UnknownAtFullReserve(ledger, receiptId, expectedIdentity, approval);
+    writeLedgerAtomic(privateRoot, ledgerPath, next);
+    return next;
+  } finally { lock.release(); }
+}
+
+export function accountSprint10UnknownUnderStandingAuthorityFile(
+  privateRoot: string, ledgerPath: string, receiptId: number, expectedIdentity: Sprint10RequestIdentity,
+  application: Complete26StandingApplication
+): Sprint10SpendLedger {
+  const lock = acquireSprint10LedgerLock(privateRoot, ledgerPath);
+  try {
+    const ledger = readSprint10SpendLedgerFile(privateRoot, ledgerPath);
+    const next = accountSprint10UnknownUnderStandingAuthority(ledger, receiptId, expectedIdentity, application);
     writeLedgerAtomic(privateRoot, ledgerPath, next);
     return next;
   } finally { lock.release(); }
