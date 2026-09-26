@@ -1118,6 +1118,12 @@
       "successor": "docs/DOCUMENTATION_INDEX.md",
       "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
     },
+    "docs/complete26-point-validation-copy.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
     "docs/complete26-real-review-copy-corrections.md": {
       "lifecycle": "historical_or_scoped_reference",
       "currentAuthority": false,

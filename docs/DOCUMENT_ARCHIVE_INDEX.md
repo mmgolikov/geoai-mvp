@@ -198,6 +198,7 @@ Counts: **277 total · 12 active authorities · 265 non-active/generated records
 | [`docs/complete26-missing-attribute-review.md`](complete26-missing-attribute-review.md) | `historical_or_scoped_reference` | no | [DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md) |
 | [`docs/complete26-password-confirmation-budget.md`](complete26-password-confirmation-budget.md) | `historical_or_scoped_reference` | no | [DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md) |
 | [`docs/complete26-password-session-confirmation.md`](complete26-password-session-confirmation.md) | `historical_or_scoped_reference` | no | [DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md) |
+| [`docs/complete26-point-validation-copy.md`](complete26-point-validation-copy.md) | `historical_or_scoped_reference` | no | [DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md) |
 | [`docs/complete26-real-review-copy-corrections.md`](complete26-real-review-copy-corrections.md) | `historical_or_scoped_reference` | no | [DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md) |
 | [`docs/complete26-reviewed-continuation-ledger.md`](complete26-reviewed-continuation-ledger.md) | `historical_or_scoped_reference` | no | [DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md) |
 | [`docs/complete26-screening-depth-change.md`](complete26-screening-depth-change.md) | `historical_or_scoped_reference` | no | [DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md) |

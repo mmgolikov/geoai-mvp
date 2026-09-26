@@ -28,3 +28,7 @@ The checker runs the actual focused recovery/full validator and initial no-quest
 - `git diff --check`: PASS.
 
 These are offline synthetic checks, not hosted/browser/source/provider acceptance or completion of the live 58-case matrix. No operational evidence, credentials or ledger were read or written; no API calls, build, server, deployment or paid generation was performed. Main owns independent review, integration and final runtime verification. Previously saved artifacts retain their original generated copy unless separately regenerated; this patch does not rewrite history.
+
+## Main review and CI wiring
+
+Main independently reviewed the complete four-line product diff and checker, reran all481checks with zero network calls and ran TypeScript successfully. The checker is now included in the existing CI quality section; no existing check is removed or made optional. Documentation navigation is regenerated for this new scoped note. These local changes remain separate from the active frozen batch and are not final-head hosted evidence.
