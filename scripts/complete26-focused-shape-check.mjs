@@ -41,9 +41,9 @@ const schema = (r=request, p=pack) => core.buildPointObjectResponsesRequest(p,r,
 let checks=0;
 const pass = (label, operation) => { operation(); checks++; console.log(`PASS ${label}`); };
 const reject = (mutate, detail) => { const v=structuredClone(answer);mutate(v);assert.deepEqual(validate(v),{ok:false,detail}); };
-pass('V13 request, explicit bounds/uniqueness/status prompt and supported pattern (no unsupported uniqueItems)',()=>{
+pass('V14 request, explicit bounds/uniqueness/status prompt and supported pattern (no unsupported uniqueItems)',()=>{
   const body=core.buildPointObjectResponsesRequest(pack,request,profile);
-  assert.equal(core.POINT_OBJECT_AI_PROMPT_VERSION,'POINT_OBJECT_AI_PROMPT_V13_2026_09_26');
+  assert.equal(core.POINT_OBJECT_AI_PROMPT_VERSION,'POINT_OBJECT_AI_PROMPT_V14_2026_09_26');
   assert.match(body.input[0].content[0].text,/40-900 UTF-16/);assert.match(body.input[0].content[0].text,/must each be unique/);
   assert.equal(schema().properties.statement.anyOf[0].pattern,'^[\\s\\S]{40,900}$');
   assert.doesNotMatch(JSON.stringify(body.text.format.schema),/uniqueItems/);

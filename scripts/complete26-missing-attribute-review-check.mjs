@@ -225,7 +225,7 @@ for(const unit of ['метр','метра','метру','метром','метр
 const profile={model:'offline',verbosity:'low',maxOutputTokens:1000,reasoningEffort:'low'};
 for(const locale of ['en','ru']){
   const body=core.buildPointObjectResponsesRequest(pack(),request(locale),profile),payload=JSON.parse(body.input[1].content[0].text);
-  assert.equal(payload.promptVersion,'POINT_OBJECT_AI_PROMPT_V13_2026_09_26');
+  assert.equal(payload.promptVersion,'POINT_OBJECT_AI_PROMPT_V14_2026_09_26');
   assert.equal(payload.analysisRequest.focusedQuestion,question[locale],'Do not replace the approved question');
   assert.equal(payload.validationPolicy.mixedPhysicalEvidenceReview.revision,'MIXED_PHYSICAL_REVIEW_V1_2026_09_26');
   assert.deepEqual(payload.validationPolicy.mixedPhysicalEvidenceReview.keys,['tag.height','tag.building:levels']);

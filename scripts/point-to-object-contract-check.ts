@@ -2328,11 +2328,11 @@ async function assertCandidateAiSafety(): Promise<void> {
   const currentClientResponse = {
     ...fullClientResponse,
     content: currentValidation.ok ? currentValidation.content : fullClientResponse.content,
-    telemetry: { ...fullClientResponse.telemetry, promptVersion: "POINT_OBJECT_AI_PROMPT_V13_2026_09_26" }
+    telemetry: { ...fullClientResponse.telemetry, promptVersion: aiCore.POINT_OBJECT_AI_PROMPT_VERSION }
   };
   const parsedCurrentResponse = parseClientResponse(currentClientResponse) as JsonObject;
-  assert.ok(parsedCurrentResponse, "The client must accept a current V13 review that matches the request depth.");
-  for (const preservedVersion of ["POINT_OBJECT_AI_PROMPT_V12_2026_09_21", "POINT_OBJECT_AI_PROMPT_V11_2026_09_20", "POINT_OBJECT_AI_PROMPT_V10_2026_09_18", "POINT_OBJECT_AI_PROMPT_V9_2026_09_12"]) {
+  assert.ok(parsedCurrentResponse, "The client must accept the current review that matches the request depth.");
+  for (const preservedVersion of ["POINT_OBJECT_AI_PROMPT_V13_2026_09_26", "POINT_OBJECT_AI_PROMPT_V12_2026_09_21", "POINT_OBJECT_AI_PROMPT_V11_2026_09_20", "POINT_OBJECT_AI_PROMPT_V10_2026_09_18", "POINT_OBJECT_AI_PROMPT_V9_2026_09_12"]) {
     const restored = parseClientResponse({ ...currentClientResponse, telemetry: { ...currentClientResponse.telemetry, promptVersion: preservedVersion } }) as JsonObject;
     assert.ok(restored, `Stored ${preservedVersion} must remain restorable.`);
     assert.equal((restored.telemetry as JsonObject).promptVersion, preservedVersion, "Restoration must preserve the historical version.");
