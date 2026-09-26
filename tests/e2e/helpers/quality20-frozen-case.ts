@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { closeSync, constants, fstatSync, openSync, readFileSync, realpathSync } from "node:fs";
 import { isAbsolute } from "node:path";
 // @ts-expect-error The offline Node strip-types runner needs an explicit extension.
-import { parseSprint10SpendLedger, hasSprint10UnresolvedCharge, sprint10LedgerReceiptCount, SPRINT10_MAX_RECEIPTS, type Sprint10SpendLedger } from "./sprint10-live-budget.ts";
+import { parseSprint10SpendLedger, hasSprint10UnresolvedCharge, sprint10LedgerReceiptCount, complete26SuccessorOpening, SPRINT10_MAX_RECEIPTS, type Sprint10SpendLedger } from "./sprint10-live-budget.ts";
 
 export const QUALITY20_AMENDMENT = "quality20-dubai-a01-a06-singapore-a07-a08-v1";
 // COMPLETE25 appends four Create rows; the original 54 records stay unchanged.
@@ -250,7 +250,13 @@ export function validateQuality20Ledger(selection: Quality20Selection, input: Sp
       "COMPLETE25 case already attempted; only its current registered browser execution may proceed.");
   }
   requireCondition(parsed ? !hasSprint10UnresolvedCharge(parsed, true) : !receipts.some((receipt) => receipt.state === "reserved" || receipt.state === "unknown"), "Unsettled/unknown receipts block the next case.");
-  requireCondition(!receipts.some((receipt) => receipt.identity?.requestKey?.startsWith(`Q20:${selection.definition.id}:`)), "Case already attempted; no automatic retry even under a revised manifest.");
+  // Only the independently validated archived epoch permits historical cases
+  // from the predecessor candidate. Global cost/unknown gates above still apply.
+  const successor = parsed ? complete26SuccessorOpening(parsed) : null;
+  const caseReceipts = successor && parsed ? parsed.receipts.filter(receipt =>
+    receipt.identity.candidateCommit === successor.currentCandidateCommit &&
+    receipt.identity.candidateHost === successor.currentCandidateHost) : receipts;
+  requireCondition(!caseReceipts.some((receipt) => receipt.identity?.requestKey?.startsWith(`Q20:${selection.definition.id}:`)), "Case already attempted; no automatic retry even under a revised manifest.");
 }
 
 export function validateQuality20PaidBody(selection: Quality20Selection, route: "ai" | "create", body: unknown) {
