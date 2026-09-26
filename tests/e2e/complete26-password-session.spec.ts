@@ -15,6 +15,7 @@ const serverUser = {
   profile: { fullName: "Synthetic session user", region: "UAE", defaultAudience: "b2b", defaultRole: "developer", contactPhone: "", avatarUrl: null }
 };
 let fakeServer: Server | null = null;
+let refreshPosts = 0;
 
 function tokenResponse() {
   const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64url");
@@ -25,11 +26,23 @@ function tokenResponse() {
   };
 }
 
+function expiredSsrCookie() {
+  const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64url");
+  const now = Math.floor(Date.now() / 1_000);
+  const accessToken = `${encode({ alg: "HS256", typ: "JWT" })}.${encode({ sub: userId, aud: "authenticated", role: "authenticated", is_anonymous: false, session_id: userId, iat: now - 3_600, exp: now - 60 })}.synthetic-signature`;
+  return `base64-${Buffer.from(JSON.stringify({ access_token: accessToken, refresh_token: "synthetic-expired-refresh-token", token_type: "bearer", expires_in: 0, expires_at: now - 60, user })).toString("base64url")}`;
+}
+
 test.beforeAll(async () => {
   // Only the product's loopback SSR dependency. No hosted backend or real user.
   fakeServer = createServer((request, response) => {
     const url = new URL(request.url ?? "/", fakeOrigin);
     response.setHeader("Content-Type", "application/json");
+    if (request.method === "POST" && url.pathname === "/auth/v1/token" && url.searchParams.get("grant_type") === "refresh_token") {
+      refreshPosts++;
+      response.end(JSON.stringify(tokenResponse()));
+      return;
+    }
     let subject: string | null = null;
     try { subject = JSON.parse(Buffer.from(String(request.headers.authorization).split(".")[1], "base64url").toString()).sub; } catch { /* deny */ }
     if (subject !== userId) { response.statusCode = 401; response.end("{}"); return; }
@@ -50,6 +63,32 @@ test.afterAll(async () => {
 // Local SDK endpoint is intercepted, not on the hosted production CSP allowlist.
 // This is a synthetic transport exception only, never a hosted protection bypass.
 test.use({ bypassCSP: true });
+
+test("real session Route Handler refreshes an expired SSR cookie and preserves identity", async ({ browser, baseURL }) => {
+  const origin = String(baseURL);
+  requireLoopbackTestOrigin(origin);
+  const context = await browser.newContext({ baseURL: origin });
+  const before = refreshPosts;
+  try {
+    const originalCookie = expiredSsrCookie();
+    await context.addCookies([{ name: "sb-127-auth-token", value: originalCookie, url: origin, sameSite: "Lax" }]);
+    const first = await context.request.get("/api/auth/session", { timeout: 20_000 });
+    expect(first.status()).toBe(200);
+    expect(first.headers()["cache-control"]).toContain("no-store");
+    expect(first.headers()["vary"]).toContain("Cookie");
+    expect(first.headers()["vary"]).toContain("Authorization");
+    const firstBody = await first.json();
+    expect(firstBody).toMatchObject({ isAuthenticated: true, supabaseAuthenticated: true, sessionStatus: "supabase_user_with_profile", user: { id: userId }, supabaseUser: { id: userId } });
+    expect(first.headers()["set-cookie"]).toContain("sb-127-auth-token");
+    expect(refreshPosts - before).toBe(1);
+    const browserCookies = await context.cookies(origin);
+    expect(browserCookies.some(cookie => cookie.name.startsWith("sb-127-auth-token") && cookie.value !== originalCookie)).toBe(true);
+    const second = await context.request.get("/api/auth/session", { timeout: 20_000 });
+    expect(second.status()).toBe(200);
+    expect(await second.json()).toMatchObject({ isAuthenticated: true, supabaseAuthenticated: true, sessionStatus: "supabase_user_with_profile", user: { id: userId }, supabaseUser: { id: userId } });
+    expect(refreshPosts - before).toBe(1);
+  } finally { await context.close(); }
+});
 
 async function fixture(page: Page, browserName: string, baseURL: string, unavailable: boolean, hydrationProbe = false) {
   requireLoopbackTestOrigin(baseURL);

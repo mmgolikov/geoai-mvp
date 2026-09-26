@@ -35,5 +35,6 @@ assert.equal(events.at(-1).elapsedMs,5000);
 const context = readFileSync(new URL('../src/lib/auth/request-context.ts',import.meta.url),'utf8');
 const middleware = readFileSync(new URL('../src/lib/supabase/update-session.ts',import.meta.url),'utf8');
 for(const stage of ['claims','user','profile']) assert(context.includes(`measureSessionStage("${stage}"`));
-assert(middleware.includes('measureSessionStage("middleware_claims"'));
+assert(middleware.includes('request.method === "GET" && request.nextUrl.pathname === "/api/auth/session"'));
+assert(!middleware.includes('measureSessionStage("middleware_claims"'));
 console.log('PASS session timing: stage duration, original result/error, privacy, disabled paths, logging failure and wiring; no network.');
