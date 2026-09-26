@@ -47,12 +47,18 @@ export const LIVE_JOURNEY_STEPS = Object.freeze([
   "analyse_budget_contract_denied",
   "analyse_budget_reservation_denied",
   "analyse_paid_response",
+  "analyse_paid_body",
+  "analyse_paid_http",
+  "analyse_paid_output_invalid",
+  "analyse_paid_rate_limited",
+  "analyse_paid_evidence_expired",
   "analyse_paid_aborted",
   "analyse_paid_network_failed",
   "analyse_paid_response_timeout",
   "analyse_paid_terminal",
   "analyse_result_contract",
   "analyse_evidence_capture",
+  "analyse_rendered_result",
   "analyse_local_save",
   "analyse_local_reopen",
   // Retained for strict parsing of already-issued v1 receipts. New runs use the fixed substages below.
@@ -259,6 +265,16 @@ export function analyseContextFailureStage(httpStatus, payload) {
   return typeof code === "string" && Object.hasOwn(stages, code)
     ? stages[code]
     : "analyse_source_context_http";
+}
+
+// Fixed classifications only: never copy provider messages or unknown codes.
+export function analysePaidFailureStage(httpStatus, payload) {
+  if (httpStatus === 200) return null;
+  const code = payload && typeof payload === "object" && !Array.isArray(payload) ? payload.code : null;
+  if (httpStatus === 502 && code === "AI_OUTPUT_INVALID") return "analyse_paid_output_invalid";
+  if (httpStatus === 429 && code === "AI_RATE_LIMITED") return "analyse_paid_rate_limited";
+  if (httpStatus === 409 && code === "AI_EVIDENCE_REFRESH_REQUIRED") return "analyse_paid_evidence_expired";
+  return "analyse_paid_http";
 }
 
 export async function boundedLiveJourneyResponseJson(response, timeoutMs) {

@@ -71,7 +71,7 @@ async function prepare(page: Page, initialReceiptAgeMs = 0) {
         question: body.question as string | null,
         locale: body.locale as "en" | "ru"
       }, sequence, (body.evidenceReceipt as { evidencePackHash?: string } | undefined)?.evidencePackHash,
-      "POINT_OBJECT_AI_PROMPT_V12_2026_09_21"));
+      "POINT_OBJECT_AI_PROMPT_V13_2026_09_26"));
     } finally { settledPosts += 1; }
   });
   return {

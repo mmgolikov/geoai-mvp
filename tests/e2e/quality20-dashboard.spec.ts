@@ -22,7 +22,7 @@ async function prepare(page: Page, variant: "available" | "unavailable" | "parti
     posts++;
     const { role, scenario, depth, goal, perspective, horizon, question, locale, evidenceReceipt } = route.request().postDataJSON();
     const response = sprint10AnalysisResponse({ role, scenario, depth, goal, perspective, horizon, question, locale }, posts,
-      evidenceReceipt?.evidencePackHash, "POINT_OBJECT_AI_PROMPT_V12_2026_09_21");
+      evidenceReceipt?.evidencePackHash, "POINT_OBJECT_AI_PROMPT_V13_2026_09_26");
     const evidence = variant === "unavailable" ? { ...context, coverage:"unavailable", sampleSize:0, groups:[], mappedBuildingCount:0, mappedLevelsKnownCount:0, medianMappedLevels:null, nearestTransitM:null, nearestMajorRoadM:null } : { ...context, capReached:variant === "partial" };
     // The response parser, not a new product source, owns runtime validation.
     return route.fulfill({ json:{...response, content:{...response.content, geoContext:evidence}, subject:{...response.subject, geoContext:evidence}} });

@@ -300,16 +300,21 @@ jobs:
           node scripts/point-to-object-evidence-lease-check.mjs | tee artifacts/point-to-object-evidence-lease-check.txt
           node scripts/point-to-object-shared-exact-source-check.mjs | tee artifacts/point-to-object-shared-exact-source-check.txt
           node --experimental-transform-types scripts/quality20-ai-failure-check.ts | tee artifacts/quality20-ai-failure-check.txt
+          node --experimental-transform-types scripts/complete26-focused-shape-check.mjs | tee artifacts/complete26-focused-shape-check.txt
           node --experimental-transform-types scripts/sprint10-map-diagnostics-check.ts | tee artifacts/sprint10-map-diagnostics-check.txt
           node scripts/quality20-review-fixes-check.mjs | tee artifacts/quality20-review-fixes-check.txt
           node scripts/quality20-evidence-receipt-check.mjs | tee artifacts/quality20-evidence-receipt-check.txt
           node --experimental-transform-types scripts/night21-source-reliability-check.ts | tee artifacts/night21-source-reliability-check.txt
           node scripts/quality20-frozen-case-check.mjs | tee artifacts/quality20-frozen-case-check.txt
           node --experimental-transform-types scripts/complete25-ledger-recovery-check.mjs | tee artifacts/complete25-ledger-recovery-check.txt
+          node --experimental-transform-types scripts/complete26-error-telemetry-check.mjs | tee artifacts/complete26-error-telemetry-check.txt
+          node --experimental-transform-types scripts/complete26-standing-approval-check.mjs | tee artifacts/complete26-standing-approval-check.txt
+          node --experimental-transform-types scripts/complete26-successor-ledger-check.mjs | tee artifacts/complete26-successor-ledger-check.txt
           node scripts/complete25-observation-check.mjs | tee artifacts/complete25-observation-check.txt
           node --experimental-strip-types scripts/complete25-fixture-receipt-check.ts | tee artifacts/complete25-fixture-receipt-check.txt
           node scripts/complete25-acquisition-check.mjs | tee artifacts/complete25-acquisition-check.txt
           node scripts/complete25-batch-check.mjs | tee artifacts/complete25-batch-check.txt
+          node --experimental-transform-types scripts/complete26-successor-batch-check.mjs | tee artifacts/complete26-successor-batch-check.txt
           node scripts/complete25-batch-lifecycle-check.mjs | tee artifacts/complete25-batch-lifecycle-check.txt
           node scripts/complete25-batch-retirement-check.mjs | tee artifacts/complete25-batch-retirement-check.txt
           node --experimental-transform-types scripts/complete25-artifact-capture-check.mjs | tee artifacts/complete25-artifact-capture-check.txt
@@ -458,6 +463,7 @@ jobs:
           node --experimental-transform-types scripts/sprint10-live-journey-offline-check.ts | tee artifacts/sprint10-live-journey-contract.txt
           node --experimental-transform-types scripts/sprint10-live-journey-runner-offline-check.mjs | tee artifacts/sprint10-live-runner-contract.txt
           node --experimental-transform-types scripts/sprint10-live-journey-diagnostics-check.mjs | tee artifacts/sprint10-live-diagnostics-contract.txt
+          node scripts/complete26-paid-diagnostic-check.mjs | tee artifacts/complete26-paid-diagnostic-check.txt
           node scripts/night21-find-completeness-check.mjs | tee artifacts/night21-find-completeness-contract.txt
           node --experimental-transform-types scripts/night21-create-screen-check.mjs | tee artifacts/night21-create-screen-contract.txt
           node --experimental-transform-types scripts/quality20-analysis-evidence-check.mjs | tee artifacts/quality20-analysis-evidence-contract.txt

@@ -479,7 +479,7 @@ function syntheticCurrentResponse(request: Record<string, unknown>) {
       focused: Boolean(request.question)
     },
     content: { ...response.content, depthReview },
-    telemetry: { ...response.telemetry, promptVersion: "POINT_OBJECT_AI_PROMPT_V12_2026_09_21" }
+    telemetry: { ...response.telemetry, promptVersion: "POINT_OBJECT_AI_PROMPT_V13_2026_09_26" }
   };
 }
 

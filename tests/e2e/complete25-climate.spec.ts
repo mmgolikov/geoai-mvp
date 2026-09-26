@@ -17,7 +17,7 @@ for(const locale of ["en","ru"] as const) for(const width of [390,834,1440]) tes
   await page.route("**/api/prototype/point-to-object/context",route=>{sourceCalls++;return route.abort();});
   await page.route("**/api/prototype/point-to-object/ai",route=>{
     if(route.request().method()==="GET")return route.fulfill({json:{mode:"ready",challenge:"A".repeat(43)}});
-    posts++; const {role,scenario,depth,goal,perspective,horizon,question,locale,evidenceReceipt}=route.request().postDataJSON(); const response=sprint10AnalysisResponse({role,scenario,depth,goal,perspective,horizon,question,locale},posts,evidenceReceipt?.evidencePackHash,"POINT_OBJECT_AI_PROMPT_V12_2026_09_21");
+    posts++; const {role,scenario,depth,goal,perspective,horizon,question,locale,evidenceReceipt}=route.request().postDataJSON(); const response=sprint10AnalysisResponse({role,scenario,depth,goal,perspective,horizon,question,locale},posts,evidenceReceipt?.evidencePackHash,"POINT_OBJECT_AI_PROMPT_V13_2026_09_26");
     return route.fulfill({json:{...response,subject:{...response.subject,climate}}});
   });
   await page.goto("/prototype/point-to-object/analysis"); const card=page.getByTestId("climate-context"); await expect(card).toBeVisible();

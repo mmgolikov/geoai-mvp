@@ -64,7 +64,7 @@ import {
   type Sprint10DepthCycleEvidenceInput
 } from "./helpers/sprint10-depth-cycle-evidence";
 // @ts-expect-error The diagnostics module is an operator-only JavaScript contract checked by its offline suite.
-import { LIVE_JOURNEY_CLEANUP_STAGES, LIVE_JOURNEY_STEPS, analyseContextFailureStage, analyseSuggestionCorrelationChecks, boundedLiveJourneyResponseJson, canonicalLiveJourneyCompletedSteps, encodeLiveJourneyDiagnostic, primaryAfterFinalizeFailure } from "../../scripts/sprint10-live-journey-diagnostics.mjs";
+import { LIVE_JOURNEY_CLEANUP_STAGES, LIVE_JOURNEY_STEPS, analyseContextFailureStage, analysePaidFailureStage, analyseSuggestionCorrelationChecks, boundedLiveJourneyResponseJson, canonicalLiveJourneyCompletedSteps, encodeLiveJourneyDiagnostic, primaryAfterFinalizeFailure } from "../../scripts/sprint10-live-journey-diagnostics.mjs";
 import { POINT_OBJECT_SOURCE_HARNESS_RESPONSE_TIMEOUT_MS as SOURCE_REQUEST_HARNESS_TIMEOUT_MS } from "../../src/lib/prototype/source-request-deadline";
 import { loadQuality20Selection, quality20Hash, quality20RequestKey, quality20CreateProgrammeTestId, quality20CreateControls, validateQuality20Context,
   validateQuality20PaidBody, validateQuality20AnalysisResult, validateQuality20Ledger,
@@ -689,7 +689,7 @@ function installBudgetGate(page: Page, configuration: LiveConfiguration) {
       try {
         const bytes = await response.body();
         const payload: unknown = JSON.parse(bytes.toString("utf8"));
-        const telemetry = parseSprint10ProviderTelemetry(item.identity, payload);
+        const telemetry = parseSprint10ProviderTelemetry(item.identity, payload, response.status());
         const ledger = settleSprint10SpendFile(configuration.ledgerRoot, configuration.ledgerPath, item.receipt.id, item.identity, {
           settledAt: new Date().toISOString(),
           status: response.status(),
@@ -2692,22 +2692,34 @@ async function runQuality20Analysis(page: Page, configuration: LiveConfiguration
   if (baseline) await page.getByRole("button", { name: "Analyze", exact: true }).click();
   else await page.locator("form").filter({ has: page.locator("#analysis-follow-up") }).locator('button[type="submit"]').click();
   const response = await responsePromise;
+  progress.complete("analyse_paid_response");
+  progress.start("analyse_paid_body");
   const payload: unknown = await boundedLiveJourneyResponseJson(response, 10_000);
+  progress.complete("analyse_paid_body");
   const responseMs = Date.now() - startedAt;
+  const paidFailure = analysePaidFailureStage(response.status(), payload);
+  progress.start(paidFailure ?? "analyse_paid_terminal");
   await budget.waitForTerminalReceipts();
   guard(response.status() === 200, "Analysis HTTP response was not successful.");
+  progress.complete("analyse_paid_terminal");
+  progress.start("analyse_result_contract");
   validateQuality20PaidBody(selection, "ai", response.request().postDataJSON());
   validateQuality20AnalysisResult(selection, payload);
+  progress.complete("analyse_result_contract");
   const evidenceInput = { response: payload, submittedRequest: response.request().postDataJSON(),
     expectedSourceFeatureId: b.subject!.sourceIdentity, telemetryIdentity: { requestKey: quality20RequestKey(selection, "ai"),
       phase: "S4" as const, candidateHost: configuration.host, candidateCommit: configuration.commit, route: "ai" as const, depth: d.depth!,
       promptVersion: SPRINT10_ANALYSIS_PROMPT_VERSION, schemaVersion: 6 as const } };
+  progress.start("analyse_evidence_capture");
   const captured = configuration.quality20AnalysisEvidencePath
     ? writeQuality20AnalysisEvidence(configuration.quality20AnalysisEvidencePath, selection, evidenceInput)
     : buildQuality20AnalysisEvidence(selection, evidenceInput);
+  progress.complete("analyse_evidence_capture");
+  progress.start("analyse_rendered_result");
   await expect(page.getByTestId("ai-success")).toBeVisible();
   await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", d.depth!);
   const renderedMs = Date.now() - startedAt;
+  progress.complete("analyse_rendered_result");
   await captureNight21AnalysisDashboard(page, configuration.visualEvidence);
   const saved = await requireLocalArtifactState(page, configuration.userId, "analyse");
   expect(saved.role).toBe(b.role); expect(saved.scenario).toBe(b.scenario);

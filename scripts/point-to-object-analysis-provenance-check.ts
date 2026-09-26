@@ -371,6 +371,6 @@ assert.match(clientSource, /latestRoleScenario\.scenario !== requestSnapshot\.sc
 const serviceSource = readFileSync(path.join(process.cwd(), "src/lib/prototype/point-to-object-ai.ts"), "utf8");
 assert.match(serviceSource, /role: roleScenario\.role/);
 assert.match(serviceSource, /scenario: roleScenario\.scenario/);
-assert.equal(core.POINT_OBJECT_AI_PROMPT_VERSION, "POINT_OBJECT_AI_PROMPT_V12_2026_09_21");
+assert.equal(core.POINT_OBJECT_AI_PROMPT_VERSION, "POINT_OBJECT_AI_PROMPT_V13_2026_09_26");
 
 console.log("point-to-object-analysis-provenance-check: PASS (registry validation, provider lens, exact receipt, legacy unspecified restore and pre-provider rejection)");

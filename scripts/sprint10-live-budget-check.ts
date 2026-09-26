@@ -193,7 +193,7 @@ assert.equal(JSON.stringify(parsedHistorical), immutableHistory, "Historical ver
 const currentIdentity = identity({ requestKey: "S4.CURRENT.V12.NEW" });
 const currentReservation = reserveSprint10Spend(parsedHistorical, currentIdentity, reserveAt);
 assert.ok(currentReservation.ok, "A settled V10 history must allow an exact current V12 reservation.");
-assert.equal(currentReservation.receipt.identity.promptVersion, "POINT_OBJECT_AI_PROMPT_V12_2026_09_21");
+assert.equal(currentReservation.receipt.identity.promptVersion, "POINT_OBJECT_AI_PROMPT_V13_2026_09_26");
 assert.deepEqual(currentReservation.ledger.receipts.slice(0, 23), historical.receipts);
 assert.equal(currentReservation.ledger.estimatedOrReservedUsd, Number((historical.estimatedOrReservedUsd + 1.2).toFixed(8)));
 const currentTelemetry = parseSprint10ProviderTelemetry(currentIdentity, payloadFor(currentIdentity));

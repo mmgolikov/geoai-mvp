@@ -25,7 +25,7 @@ async function prepare(page: Page) {
     posts++;
     const { role, scenario, depth, goal, perspective, horizon, question, locale, evidenceReceipt } = route.request().postDataJSON();
     const response = sprint10AnalysisResponse({ role, scenario, depth, goal, perspective, horizon, question, locale }, posts,
-      evidenceReceipt?.evidencePackHash, "POINT_OBJECT_AI_PROMPT_V12_2026_09_21");
+      evidenceReceipt?.evidencePackHash, "POINT_OBJECT_AI_PROMPT_V13_2026_09_26");
     return route.fulfill({ json: { ...response, content: { ...response.content, geoContext: context }, subject: { ...response.subject, geoContext: context } } });
   });
   return () => posts;

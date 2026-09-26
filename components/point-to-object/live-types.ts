@@ -153,7 +153,8 @@ export type PointObjectReasoningEffort = "low" | "medium" | "high" | "xhigh";
 export type PointObjectEvidenceClass = "observed" | "derived" | "hypothesis";
 export type PointObjectConfidence = "low" | "medium";
 
-export const POINT_OBJECT_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V12_2026_09_21" as const;
+export const POINT_OBJECT_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V13_2026_09_26" as const;
+export const POINT_OBJECT_ANALYSIS_PRE_SHAPE_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V12_2026_09_21" as const;
 export const POINT_OBJECT_ANALYSIS_PRE_COMMITMENT_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V11_2026_09_20" as const;
 export const POINT_OBJECT_ANALYSIS_PRE_PROFILE_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V10_2026_09_18" as const;
 export const POINT_OBJECT_ANALYSIS_PREVIOUS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V9_2026_09_12" as const;
@@ -327,7 +328,7 @@ export type PointObjectAiTelemetry = {
   model: string;
   reasoningEffort: PointObjectReasoningEffort;
   depth: PointObjectAnalysisDepth;
-  promptVersion: typeof POINT_OBJECT_ANALYSIS_PROMPT_VERSION | typeof POINT_OBJECT_ANALYSIS_PRE_COMMITMENT_PROMPT_VERSION | typeof POINT_OBJECT_ANALYSIS_PRE_PROFILE_PROMPT_VERSION | typeof POINT_OBJECT_ANALYSIS_PREVIOUS_PROMPT_VERSION |
+  promptVersion: typeof POINT_OBJECT_ANALYSIS_PROMPT_VERSION | typeof POINT_OBJECT_ANALYSIS_PRE_SHAPE_PROMPT_VERSION | typeof POINT_OBJECT_ANALYSIS_PRE_COMMITMENT_PROMPT_VERSION | typeof POINT_OBJECT_ANALYSIS_PRE_PROFILE_PROMPT_VERSION | typeof POINT_OBJECT_ANALYSIS_PREVIOUS_PROMPT_VERSION |
     "POINT_OBJECT_AI_PROMPT_V8_2026_09_06";
   requestId: string | null;
   latencyMs: number;
