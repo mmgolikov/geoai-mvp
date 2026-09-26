@@ -28,7 +28,7 @@ import type {
 export type { PointObjectAnalysisDepth, PointObjectDepthReview } from "./point-to-object-analysis-depth-contract";
 
 export const POINT_OBJECT_AI_SCHEMA_NAME = "geoai_point_object_decision_plan_v6";
-export const POINT_OBJECT_AI_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V13_2026_09_26";
+export const POINT_OBJECT_AI_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V14_2026_09_26";
 export const POINT_OBJECT_AI_RESULT_SCHEMA_VERSION = 6 as const;
 const POINT_OBJECT_ANALYSIS_ROLE_POLICY = "decision_lens_only_not_permission_or_evidence" as const;
 
@@ -3910,6 +3910,8 @@ export function buildPointObjectResponsesRequest(
         validationPolicy: {
           exactCaveat: LIVE_POINT_CAVEAT,
           canonicalDirectAttribute,
+          requiredMissingEvidenceCodes: boundedQuestion ? requiredMissingEvidence(boundedQuestion, support, request.goal) : [],
+          requiredMissingEvidenceRule: "When a focused answer is required, include every code in requiredMissingEvidenceCodes in focusedAnswer.missingEvidenceCodes. If the list is nonempty, do not use answered: use partial for a useful evidence-bound answer, or unsupported when the requested conclusion cannot be supported. These are missing-source gates, not supported facts; preserve the useful source-bound custom answer and do not infer excluded topics.",
           ...(mixedPhysicalKeys.length ? { mixedPhysicalEvidenceReview: {
             revision: "MIXED_PHYSICAL_REVIEW_V1_2026_09_26",
             keys: mixedPhysicalKeys,
