@@ -3345,7 +3345,7 @@ function recoveredFocusedAnswerPlan(
       isMappedBuildingPart(selected)
         ? localized(locale, `Selected part, not whole building/complex: ${selected.name ?? "unnamed object"} — ${display.label}.`, `Выбранная часть, не всё здание/комплекс: ${selected.name ?? "без названия"} — ${display.label}.`)
         : localized(locale, `Mapped object: ${selected.name ?? "unnamed object"} — ${display.label}.`, `Объект по карте: ${selected.name ?? "без названия"} — ${display.label}.`),
-      form ? `${form}.` : localized(locale, "Physical attributes were not returned.", "Физические характеристики не получены."),
+      form ? `${form}.` : localized(locale, "Mapped height, floor-count and start-date fields were not returned.", "Не получены поля карты: высота, этажность и дата начала."),
       contextStatement, implications[request.depth],
       localized(locale, "Market and cost evidence is missing; no feasibility conclusion.", "Данных о рынке и затратах нет; реализуемость не установлена.")
     ].join(" ");
