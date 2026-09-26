@@ -133,7 +133,8 @@ for (const locale of ["en", "ru"] as const) {
   unboundForm.evidence.find((item: any) => item.id === "EVD-ALLOWED-FIELDS").sourceId = "way/999";
   const noForm = core.recoverPointObjectAiFocusedContentDetailed(plan(), unboundForm, request(locale, "object_profile", questions[locale].object_profile));
   assert.equal(noForm.ok, true, noForm.detail);
-  assert.match(noForm.content.answerToQuestion.statement, locale === "en" ? /Physical attributes were not returned/ : /Физические характеристики не получены/);
+  assert.match(noForm.content.answerToQuestion.statement, locale === "en" ? /Mapped height, floor-count and start-date fields were not returned\./ : /Не получены поля карты: высота, этажность и дата начала\./);
+  assert.doesNotMatch(noForm.content.answerToQuestion.statement, /Physical attributes were not returned|Физические характеристики не получены/);
   assert.doesNotMatch(noForm.content.answerToQuestion.statement, /30|200/);
   checks += 1;
   checks += 2;
@@ -263,7 +264,8 @@ for (const locale of ["en", "ru"] as const) {
     syncTags(absent);
     const noAttributes = core.recoverPointObjectAiFocusedContentDetailed(plan(), absent, req);
     assert.equal(noAttributes.ok, true, noAttributes.detail);
-    assert.match(noAttributes.content.answerToQuestion.statement, locale === "en" ? /Physical attributes were not returned/ : /Физические характеристики не получены/);
+    assert.match(noAttributes.content.answerToQuestion.statement, locale === "en" ? /Mapped height, floor-count and start-date fields were not returned\./ : /Не получены поля карты: высота, этажность и дата начала\./);
+    assert.doesNotMatch(noAttributes.content.answerToQuestion.statement, /Physical attributes were not returned|Физические характеристики не получены/);
     assert.doesNotMatch(noAttributes.content.answerToQuestion.statement, /30|200|— hotel\.|— отель\./);
     const narrowReq = { ...req, question: locale === "en" ? "What is the mapped object name?" : "Как называется объект на карте?" };
     const narrowName = core.recoverPointObjectAiFocusedContentDetailed(plan(), pack, narrowReq);
