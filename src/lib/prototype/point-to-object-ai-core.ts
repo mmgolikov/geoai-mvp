@@ -2875,13 +2875,67 @@ function isBroadObjectProfile(question: string, goal?: PointObjectAnalysisGoal):
   return goal === "object_profile" && /(?:decision-oriented profile|profile of (?:this |the )?object|составь[^.?!]*профиль объекта)/i.test(question.normalize("NFKC"));
 }
 
+const REVIEW_HEIGHT = /\b(?:height|heights|tall)\b|высот[\p{L}]*/iu;
+const REVIEW_LEVELS = /\b(?:floors?(?!\s+area)|levels?|storeys?|stories)\b|(?:этаж[\p{L}]*|уровн[\p{L}]*)/iu;
+
+// A mixed review is not a request to supply an absent scalar. Keep this narrow:
+// only an explicit evidence overview + an instruction to report missing physical
+// fields as unknown, never dates, visual attributes or other unmapped fields.
+function requestsMixedMissingReview(question: string, goal?: PointObjectAnalysisGoal): boolean {
+  if (goal !== "custom") return false;
+  const text = question.normalize("NFKC");
+  const overview = /what (?:does|do) (?:the )?mapped evidence establish|what evidence|prioriti[sz]e evidence|что устанавливают картографические данные|какие данные|приоритет[\p{L}]* проверки данных/iu.test(text);
+  const explicitUnknown = /(?:report|mark|treat|state)[^.!?]{0,80}\bmissing\b[^.!?]{0,80}\bunknown\b|(?:укажи|отметь|обозначь)[^.!?]{0,80}отсутствующ[^.!?]{0,80}неизвестн/iu.test(text);
+  return overview && explicitUnknown;
+}
+
+function mixedPhysicalEvidenceReview(question: string, goal?: PointObjectAnalysisGoal): string[] {
+  if (!requestsMixedMissingReview(question, goal)) return [];
+  const text = question.normalize("NFKC");
+  const instructions = text.match(/\b(?:report|mark|treat|state)[^.!?]{0,80}\bmissing\b[^.!?]{0,80}\bunknown\b|(?:укажи|отметь|обозначь)[^.!?]{0,80}отсутствующ[^.!?]{0,80}неизвестн[\p{L}]*/giu) ?? [];
+  const physicalInstruction = /^(?:(?:report|mark|treat|state) missing (?:height|levels|floors|storeys)(?: (?:and|or) (?:height|levels|floors|storeys))? as unknown|(?:укажи|отметь|обозначь) отсутствующ(?:ую|ие) (?:высоту|этажность|число этажей)(?: (?:и|или) (?:высоту|этажность|число этажей))? как неизвестн(?:ую|ые|ое))$/iu;
+  if (!instructions.length || instructions.some(instruction => !physicalInstruction.test(instruction))) return [];
+  if (UNMAPPED_PHYSICAL_LANGUAGE.test(text)) return [];
+  if (/\b(?:date|year|built|opened|age|style|wheelchair|surface|material|colour|color|width|length|volume|diameter)\b|(?:дат[ауы]|год|постро|возраст|стил|коляс|материал|покрыти|цвет|ширин|длин|объ[её]м|диаметр)/iu.test(text)) return [];
+  return [REVIEW_HEIGHT.test(text) ? "tag.height" : null, REVIEW_LEVELS.test(text) ? "tag.building:levels" : null]
+    .filter((key): key is string => key !== null);
+}
+
+function mixedPhysicalStatementIsBound(statement: string, keys: string[], support: PointObjectEvidenceSupport): boolean {
+  const tags = support.projection.selectedObject.structuredAttributes;
+  const seen = new Set<string>();
+  // Only these complete scalar clauses are admitted. In particular, a number
+  // copied from area/perimeter/context is NOT evidence of height or level count.
+  const clauses = statement.normalize("NFKC").split(/(?<!\d)[.!?]|[.!?](?!\d)|[;\n]/u).map(clause => clause.trim()).filter(Boolean);
+  for (const clause of clauses) {
+    const mentioned = [REVIEW_HEIGHT.test(clause) ? "tag.height" : null, REVIEW_LEVELS.test(clause) ? "tag.building:levels" : null]
+      .filter((key): key is string => key !== null);
+    if (!mentioned.length) continue;
+    if (mentioned.some(key => !keys.includes(key))) return false;
+    const unknown = /^(?:height|levels|building levels|floors|storeys)(?: and (?:height|levels|building levels|floors|storeys))? (?:is|are) (?:unknown|unavailable|not recorded|not available|not mapped)(?: (?:in|from) the (?:mapped evidence|source|open-map record))?$/i.test(clause) ||
+      /^(?:высота|этажность|число этажей)(?: и (?:высота|этажность|число этажей))? (?:неизвестн[аоы]|не указан[аоы]|не установлен[аоы])(?: (?:в источнике|по данным карты))?$/iu.test(clause);
+    if (unknown) {
+      if (mentioned.some(key => stringValue(tags[key], 120))) return false;
+    } else {
+      if (mentioned.length !== 1) return false;
+      const key = mentioned[0];
+      const value = stringValue(tags[key], 120);
+      if (!value) return false;
+      const prefixes = key === "tag.height" ? ["Mapped height: ", "Высота по карте: "] : ["Mapped building levels: ", "Этажность по карте: "];
+      if (!prefixes.some(prefix => clause === `${prefix}${value}`)) return false;
+    }
+    mentioned.forEach(key => seen.add(key));
+  }
+  return keys.every(key => seen.has(key));
+}
+
 function isBroadCustomDevelopmentReview(question: string, goal?: PointObjectAnalysisGoal): boolean {
   if (goal !== "custom") return false;
   const normalized = question.normalize("NFKC").toLocaleLowerCase("en-US");
   const developmentTopic = /\b(?:screening|redevelopment|repositioning|development decision)\b|(?:скрининг|редевелопмент|репозиционирован|решени[^.?!]*развити)/.test(normalized);
   const evidenceReview = /\b(?:what evidence|what (?:must|should|needs to) be (?:validated|verified|checked)|assess whether)\b|(?:какие (?:данные|доказательства)|что (?:нужно|необходимо|следует) (?:проверить|подтвердить)|оцени[^.?!]*(?:возможност|целесообразност))/.test(normalized);
   // A development-related name/height question alone is still a narrow fact.
-  return developmentTopic && evidenceReview;
+  return developmentTopic && (evidenceReview || mixedPhysicalEvidenceReview(question, goal).length > 0);
 }
 
 function isBroadPresetReview(question: string): boolean {
@@ -2953,6 +3007,7 @@ function requiredMissingEvidence(
   if (/\b(?:all nearby|complete nearby|every nearby|absence|none nearby)\b|(?:все рядом|полный список|ничего рядом)/.test(normalized)) add("complete_nearby_inventory");
   const directAttribute = directAttributeRequirement(question, support);
   if (directAttribute && (!directAttribute.value || !directAttribute.evidenceRef)) add(directAttribute.missingCode);
+  if (mixedPhysicalEvidenceReview(question, goal).some(key => !stringValue(support.projection.selectedObject.structuredAttributes[key], 120) || !support.attributesRef)) add("physical_baseline");
   return required;
 }
 
@@ -3041,8 +3096,10 @@ function validateFocusedAnswer(
     : enumValue(value.unsupportedReasonCode, POINT_OBJECT_UNSUPPORTED_REASON_CODES);
   const requiredMissing = requiredMissingEvidence(question, support, request.goal);
   const directAttribute = directAttributeRequirement(question, support);
+  const mixedMissingReview = requestsMixedMissingReview(question, request.goal);
+  const mixedPhysicalKeys = mixedPhysicalEvidenceReview(question, request.goal);
   const canonicalDirectAttribute = Boolean(
-    directAttribute?.value && directAttribute.evidenceRef && requiredMissing.length === 0
+    !mixedMissingReview && directAttribute?.value && directAttribute.evidenceRef && requiredMissing.length === 0
   );
   // Fixed field codes only: neither provider text nor identifiers enter logs or
   // repair diagnostics. Keep the former shape rejection predicates unchanged.
@@ -3126,7 +3183,16 @@ function validateFocusedAnswer(
     };
   }
 
-  if (directAttribute && (!directAttribute.value || !directAttribute.evidenceRef)) {
+  if (mixedMissingReview && !mixedPhysicalKeys.length) return { ok: false, detail: "focused_answer_mixed_physical_scope_unavailable" };
+  if (mixedPhysicalKeys.length) {
+    if (status !== "partial" || !missingCodes.includes("physical_baseline") || !support.objectRef || !support.attributesRef ||
+        !refs.includes(support.objectRef) || !refs.includes(support.attributesRef)) {
+      return { ok: false, detail: "focused_answer_mixed_physical_source_gate" };
+    }
+    if (!statement || !mixedPhysicalStatementIsBound(statement, mixedPhysicalKeys, support)) {
+      return { ok: false, detail: "focused_answer_mixed_physical_value_unbound" };
+    }
+  } else if (directAttribute && (!directAttribute.value || !directAttribute.evidenceRef)) {
     return { ok: false, detail: `focused_answer_unavailable_attribute_${directAttribute.key}` };
   }
 
@@ -3614,7 +3680,8 @@ export function buildPointObjectResponsesRequest(
   const support = evidenceSupport(evidencePack);
   const depthContract = pointObjectAnalysisDepthContract(request.depth);
   const directAttribute = boundedQuestion ? directAttributeRequirement(boundedQuestion, support) : null;
-  const canonicalDirectAttribute = Boolean(directAttribute?.value && directAttribute.evidenceRef &&
+  const mixedPhysicalKeys = boundedQuestion ? mixedPhysicalEvidenceReview(boundedQuestion, request.goal) : [];
+  const canonicalDirectAttribute = Boolean(!requestsMixedMissingReview(boundedQuestion ?? "", request.goal) && directAttribute?.value && directAttribute.evidenceRef &&
     requiredMissingEvidence(boundedQuestion ?? "", support, request.goal).length === 0);
   const repairTask = repairCode
     ? `Regenerate the strict decision plan and correct validation failure ${repairCode}${repairDetail ? ` (${repairDetail})` : ""}. Use exact keys, depth-specific counts, eligible depthPlan codes, distinct alternative paths, eligible evidence refs, known enum codes and the mandatory caveat. For a focused answer, cite only scope-compatible eligible refs; when using nearby context, name the cited feature exactly and cite its EVD-CONTEXT record; do not introduce any number absent from evidenceProjection. If the requested answer cannot pass those gates, return unsupported instead of rephrasing the claim.`
@@ -3668,6 +3735,11 @@ export function buildPointObjectResponsesRequest(
         validationPolicy: {
           exactCaveat: LIVE_POINT_CAVEAT,
           canonicalDirectAttribute,
+          ...(mixedPhysicalKeys.length ? { mixedPhysicalEvidenceReview: {
+            revision: "MIXED_PHYSICAL_REVIEW_V1_2026_09_26",
+            keys: mixedPhysicalKeys,
+            rule: "This is a mixed evidence review, not a narrow request for an absent scalar. Use partial with physical_baseline and bound object + attributes refs. For each requested physical field, use a separate exact clause: absent height 'Height is unknown.' / 'Высота неизвестна.'; absent levels 'Levels are unknown.' / 'Этажность неизвестна.'. Present fields: 'Mapped height: <exact source value>.' / 'Высота по карте: <exact source value>.' and 'Mapped building levels: <exact source value>.' / 'Этажность по карте: <exact source value>.'. Do not infer, convert, restate or append physical values elsewhere. Continue evidence-bound synthesis, context citations and missing-source gates. Never use this exception for dates or visual attributes."
+          } } : {}),
           regionalClimateContractVersion: "REGIONAL_CLIMATE_ANSWER_V1",
           regionalClimateRule: "Only when regionalClimateSelection is non-null, use regional_climate, answered, low confidence, the sole EVD-NASA-POWER-CLIMATE ref, empty missingEvidenceCodes and null unsupportedReasonCode. Return that exact typed selector object as statement, never prose or numbers; the server renders the frozen source values and units. Otherwise never cite NASA in a focused answer or use its numbers in other scopes. Climate does not support forecasts, site measurements, thermal comfort, absolute extremes, conversions or comparisons. The saved answer remains server-rendered text.",
           commitmentBoundary: broadCommitmentReview(request)
