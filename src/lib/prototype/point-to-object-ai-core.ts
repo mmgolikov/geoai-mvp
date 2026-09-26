@@ -2788,11 +2788,13 @@ function canonicalEvidenceNumber(raw: string, locale: PointObjectLocale): string
   return `${whole === "0" && !decimal ? "" : sign}${whole}${decimal ? `.${decimal}` : ""}`;
 }
 
-function evidenceNumberTokens(text: string, locale: PointObjectLocale): string[] | null {
-  // stringValue has already NFKC-normalized superscripts. A dimension suffix is
-  // notation, not a second measured quantity (2029 m² becomes 2029 m2).
+function evidenceNumberTokens(text: string, locale: PointObjectLocale, squareMetreValue: string | null = null): string[] | null {
+  // stringValue NFKC-normalizes m² to m2. Only the exact bound footprint area
+  // permits that suffix: no scale changes, area/volume swaps or borrowed values.
   const value = text.normalize("NFKC")
-    .replace(/(?<![\p{L}])(?:km|cm|mm|ft|m|км|см|мм|м)\^?[23](?![\p{L}\p{N}])/giu, " ");
+    .replace(/([+\-\u2212]?\d+(?:[.,]\d+)*(?: \d+(?:[.,]\d+)*)*)\s*(?:m|м)\^?2(?![\p{L}\p{N}])/giu,
+      (whole, number: string) => squareMetreValue !== null && canonicalEvidenceNumber(number, locale) === squareMetreValue ? `${number} ` : whole);
+  if (/\^\d/.test(value)) return null; // no unsupported dimensional exponent may borrow a known count
   const tokens: string[] = [];
   for (const match of value.matchAll(/[+\-\u2212]?\d+(?:[.,]\d+)*(?: \d+(?:[.,]\d+)*)*/g)) {
     const start = match.index!;
@@ -2810,7 +2812,7 @@ function evidenceNumberTokens(text: string, locale: PointObjectLocale): string[]
   return tokens;
 }
 
-function novelNumberInStatement(statement: string, support: PointObjectEvidenceSupport, locale: PointObjectLocale): boolean {
+function novelNumberInStatement(statement: string, support: PointObjectEvidenceSupport, locale: PointObjectLocale, refs: readonly string[] = []): boolean {
   const evidenceValues = {
     analysisPoint: support.projection.analysisPoint,
     selectedObject: support.projection.selectedObject,
@@ -2853,7 +2855,9 @@ function novelNumberInStatement(statement: string, support: PointObjectEvidenceS
   numericStatement = numericStatement.replace(/(?<![\p{L}\p{N}])1\s*[-–]\s*3\s+(?:years?|лет|года?)(?![\p{L}\p{N}])/giu, "planning horizon");
   if (/[+\-\u2212]\s+\d/.test(numericStatement)) return true;
   if (/\d\s*[-–—]\s*[+\-\u2212]?\d/.test(numericStatement)) return true;
-  const tokens = evidenceNumberTokens(numericStatement, locale);
+  const area = support.metricsRef && refs.includes(support.metricsRef) ? support.projection.selectedObject.metrics?.footprintAreaSqM : null;
+  const tokens = evidenceNumberTokens(numericStatement, locale,
+    typeof area === "number" ? canonicalEvidenceNumber(String(area), "en") : null);
   return tokens === null || tokens.some(number => !allowed.has(number));
 }
 
@@ -3234,7 +3238,7 @@ function validateFocusedAnswer(
     }
     if (FOCUSED_ANSWER_FORBIDDEN.test(statement)) return { ok: false, detail: "focused_answer_forbidden_claim" };
     if (UNMAPPED_PHYSICAL_LANGUAGE.test(statement)) return { ok: false, detail: "focused_answer_unmapped_physical_claim" };
-    if (novelNumberInStatement(statement, support, request.locale)) return { ok: false, detail: "focused_answer_novel_number" };
+    if (novelNumberInStatement(statement, support, request.locale, refs)) return { ok: false, detail: "focused_answer_novel_number" };
     const labels: Record<string, { en: string; ru: string }> = {
       "tag.height": { en: "height", ru: "высота" },
       "tag.building:levels": { en: "building levels", ru: "этажность" },
@@ -3309,7 +3313,7 @@ function validateFocusedAnswer(
   if (unsupportedReason !== null) return { ok: false, detail: "focused_answer_supported_with_unsupported_reason" };
   if (FOCUSED_ANSWER_FORBIDDEN.test(statement)) return { ok: false, detail: "focused_answer_forbidden_claim" };
   if (UNMAPPED_PHYSICAL_LANGUAGE.test(statement)) return { ok: false, detail: "focused_answer_unmapped_physical_claim" };
-  if (novelNumberInStatement(statement, support, request.locale)) return { ok: false, detail: "focused_answer_novel_number" };
+  if (novelNumberInStatement(statement, support, request.locale, refs)) return { ok: false, detail: "focused_answer_novel_number" };
   if (!deepScenarioAnswerIsMeaningful(statement, request)) return { ok: false, detail: "focused_answer_scenario_depth" };
   const contextRefs = refs.filter((ref) => support.contextRefs.includes(ref));
   if (scope === "nearby_context" && contextRefs.length === 0) {

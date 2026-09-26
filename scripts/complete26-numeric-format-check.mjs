@@ -16,6 +16,7 @@ registerHooks({
     if (url.startsWith('file:') && url.endsWith('.ts')) {
       let source = readFileSync(fileURLToPath(url), 'utf8');
       if (process.argv.includes('--before') && url.endsWith('/point-to-object-ai-core.ts')) source = execFileSync('git', ['show', '61d333ed210e3b6ffb8ed5448a67ebe78bfab0f9:src/lib/prototype/point-to-object-ai-core.ts'], { encoding: 'utf8' });
+      if (process.argv.includes('--before-units') && url.endsWith('/point-to-object-ai-core.ts')) source = execFileSync('git', ['show', 'b9f704289aefaf0b981ff3c294231c97cd0e9bb9:src/lib/prototype/point-to-object-ai-core.ts'], { encoding: 'utf8' });
       if (url.endsWith('/point-to-object-ai-core.ts')) source += '\nexport { evidenceSupport, validateFocusedAnswer };';
       // Only reuse the existing fixture factory, not its unrelated top-level suite.
       if (url.endsWith('/point-to-object-semantic-v6-check.ts')) source = source.slice(0, source.indexOf('\nconst requests ='));
@@ -85,6 +86,12 @@ for (const locale of ['en', 'ru']) for (const depth of ['quick', 'standard', 'de
   for (const n of ['2029', '2 029', '2\u00a0029', '2\u202f029', '2029.0', '+2029', ...(locale === 'en' ? ['2,029', '2,029.00'] : ['2029,0', '2 029,00'])]) check(text(n, locale), locale, depth, true);
   for (const unit of ['m²', 'm2', 'm^2', 'м²']) check(text('2029', locale, unit), locale, depth, true);
   check(text('2029', locale, 'm²').replace('2029 m²', '2029m²'), locale, depth, true);
+  for (const unit of ['cm²', 'km²', 'ft²', 'см²', 'км²', 'фут²', 'm³', 'м³', 'm3', 'м3', 'm^3', 'ft^2']) check(text('2029', locale, unit), locale, depth, false);
+  check(text('223', locale, 'm²'), locale, depth, false); // known perimeter is not footprint area
+  check(text('2029', locale, 'm²'), locale, depth, false, pack(), undefined, ['EVD-OSM-OBJECT', 'EVD-ALLOWED-FIELDS']);
+  const noMetrics = pack();
+  noMetrics.evidence = noMetrics.evidence.filter(e => e.id !== 'EVD-OBJECT-METRICS');
+  check(text('2029', locale, 'm²'), locale, depth, false, noMetrics, undefined, ['EVD-OSM-OBJECT', 'EVD-ALLOWED-FIELDS']);
   for (const n of ['2030', '202.9', '-2029', '−2029', '- 2029', '− 2029', '20,29', '2,02,9', '2 02 9', '2.029.0', '2029e0', '2e3', '2029–2030', '2029-2030', '200–223', '200-223', '2029/2030', '2', '101', ...(locale === 'ru' ? ['2,029'] : ['2029,0'])]) check(text(n, locale), locale, depth, false);
   check(text('2029.01', locale), locale, depth, false);
   check(text('2029', locale), locale, depth, false, pack(20291)); // no substring acceptance

@@ -10,7 +10,7 @@ The guard now compares canonical decimal strings (not floating-point rounded val
 
 - EN accepts conventional comma/space grouping and a decimal point. RU accepts space grouping and decimal comma or point. NBSP/narrow NBSP are normalized consistently with the existing NFKC statement parser. RU `2,029` is 2.029, **not** 2029.
 - Group widths are validated before separators are removed. Malformed grouping, exponent fragments, unsupported precision, changed signs, values embedded in identifiers and actual novel values fail closed. No epsilon, approximate rounding or unit conversion is added.
-- Squared/cubed metric notation such as `m²`, normalized `m2`, and `m^2` does not contribute a new measured number. A standalone `2` is not made permissible by this rule.
+- Only square-metre notation `m²`/`м²`, normalized `m2`/`м2`, and `m^2`/`м^2` can omit its exponent as notation, and only when the number equals the bound footprint area and the answer cites its metrics receipt. Other scales (`cm²`, `km²`, `ft²`, Russian equivalents), cubic units and a perimeter borrowed as area are rejected. A standalone `2` is not made permissible by this rule.
 - Numeric evidence comes from bound projection values, excluding source IDs, hashes and schema/version metadata. Exact source names such as `25hours Hotel` remain usable as names, not as arbitrary numeric substrings. Exact mapped dates and their source year remain usable; changing the date does not pass by borrowing its components.
 - Separately known endpoints do not authorize a new measured range. The existing 1–3-year planning-horizon allowance is retained.
 
@@ -25,6 +25,7 @@ Use Node 24 from the repository root:
 ```sh
 node scripts/complete26-numeric-format-check.mjs --before
 node scripts/complete26-numeric-format-check.mjs --before --metro-repro
+node scripts/complete26-numeric-format-check.mjs --before-units
 node scripts/complete26-numeric-format-check.mjs
 ```
 
@@ -33,7 +34,9 @@ node scripts/complete26-numeric-format-check.mjs
 - numeric case: `en/quick … 2 029 square metres … focused_answer_novel_number`, expected true / actual false;
 - metre case: `ru/quick … 2029 квадратных метров … focused_answer_context_without_context_receipt`, expected true / actual false.
 
-After correction: **536 PASS**, `networkCalls: 0`. The script uses a synthetic source-bound pack carrying the observed public A01 numbers, not private batch files or a reconstructed acceptance lease. It invokes the real focused validator and full content validator, including valid depthPlan selection and rendered depth Q/S/D. It asserts immutable input evidence and unchanged authored statements after the existing normalization. Separate direct-attribute checks preserve canonical source rendering.
+Independent review of the initial correction `b9f7042` caught an over-broad dimensional suffix rule before publication: source 2029 m² incorrectly allowed 2029 cm²/km²/ft². `--before-units` loads that exact commit and fails on the new negative assertion (actual true, expected false). The follow-up limits notation normalization to the cited exact square-metre footprint value; it is not a general unit reasoner.
+
+After correction: **716 PASS**, `networkCalls: 0`. The script uses a synthetic source-bound pack carrying the observed public A01 numbers, not private batch files or a reconstructed acceptance lease. It invokes the real focused validator and full content validator, including valid depthPlan selection and rendered depth Q/S/D. It asserts immutable input evidence and unchanged authored statements after the existing normalization. Separate direct-attribute checks preserve canonical source rendering. Unsupported caret forms (`m^3`, `ft^2`) are also negative controls so their exponents cannot borrow a known count.
 
 Covered negatives include changed 2030/202.9; signed and separated-sign changes; malformed groups; exponents; 200–223 despite separately known endpoints; scalar substring/precision changes; arbitrary source-ID digits; wrong date; unsupported number-bearing name; real RU metro without context. Positive controls include both locales, three depths, decimal trailing zeros, negative source value retaining its sign, exact dates/names, square-metre notation and genuinely cited transit context.
 
