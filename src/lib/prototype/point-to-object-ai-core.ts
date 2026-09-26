@@ -2885,8 +2885,12 @@ function requestsMixedMissingReview(question: string, goal?: PointObjectAnalysis
   if (goal !== "custom") return false;
   const text = question.normalize("NFKC");
   const overview = /what (?:does|do) (?:the )?mapped evidence establish|what evidence|prioriti[sz]e evidence|что устанавливают картографические данные|какие данные|приоритет[\p{L}]* проверки данных/iu.test(text);
-  const explicitUnknown = /(?:report|mark|treat|state)[^.!?]{0,80}\bmissing\b[^.!?]{0,80}\bunknown\b|(?:укажи|отметь|обозначь)[^.!?]{0,80}отсутствующ[^.!?]{0,80}неизвестн/iu.test(text);
-  return overview && explicitUnknown;
+  const instructions = text.match(/\b(?:report|mark|treat|state)[^.!?]{0,80}\bmissing\b[^.!?]{0,80}\bunknown\b|(?:укажи|отметь|обозначь)[^.!?]{0,80}отсутствующ[^.!?]{0,80}неизвестн[\p{L}]*/giu) ?? [];
+  const review = instructions.reduce((remaining, instruction) => remaining.replace(instruction, ""), text);
+  const broadSubject = /mapped evidence establish about|картографические данные об объекте|\b(?:screening|redevelopment|repositioning|development|nearby|surroundings|context|access)\b|(?:скрининг|редевелопмент|репозиционирован|окружени|контекст)/iu.test(review);
+  // Generic "what evidence establishes the height?" remains a narrow scalar
+  // request even when followed by an instruction to call it unknown.
+  return overview && instructions.length > 0 && broadSubject && !REVIEW_HEIGHT.test(review) && !REVIEW_LEVELS.test(review);
 }
 
 function mixedPhysicalEvidenceReview(question: string, goal?: PointObjectAnalysisGoal): string[] {
@@ -2901,16 +2905,34 @@ function mixedPhysicalEvidenceReview(question: string, goal?: PointObjectAnalysi
     .filter((key): key is string => key !== null);
 }
 
-function mixedPhysicalStatementIsBound(statement: string, keys: string[], support: PointObjectEvidenceSupport): boolean {
+function mixedPhysicalStatementIsBound(statement: string, keys: string[], support: PointObjectEvidenceSupport, refs: string[]): boolean {
   const tags = support.projection.selectedObject.structuredAttributes;
   const seen = new Set<string>();
+  const measurements = new Set<string>();
+  const allowMeasurement = (...clauses: string[]) => clauses.forEach(clause => measurements.add(clause.normalize("NFKC")));
+  const metrics = support.projection.selectedObject.metrics;
+  if (support.metricsRef && refs.includes(support.metricsRef) && metrics) {
+    if (typeof metrics.footprintAreaSqM === "number") allowMeasurement(`Mapped footprint area: ${metrics.footprintAreaSqM} m²`, `Площадь контура по карте: ${metrics.footprintAreaSqM} м²`, `Mapped footprint area: ${metrics.footprintAreaSqM} square metres`, `Площадь контура по карте: ${metrics.footprintAreaSqM} квадратных метров`);
+    if (typeof metrics.footprintPerimeterM === "number") allowMeasurement(`Mapped footprint perimeter: ${metrics.footprintPerimeterM} m`, `Периметр контура по карте: ${metrics.footprintPerimeterM} м`);
+  }
+  for (const item of support.projection.nearbyContext.filter(item => refs.includes(item.evidenceId))) {
+    if (typeof item.distanceM === "number") allowMeasurement(`${item.name} is ${item.distanceM} m away by straight line`, `${item.name} — ${item.distanceM} m by straight line`, `${item.name} — ${item.distanceM} м по прямой`);
+  }
+  // Number allowlists alone cannot distinguish a borrowed perimeter from a
+  // fabricated height. Unit-bearing or vertical/pro-noun scalar clauses must
+  // match an exact cited measurement, not merely contain its number or name.
+  const dimensionalUnit = /(?:^|[^\p{L}])(?:m[23]?|km|cm|mm|ft|feet|foot|met(?:er|re)s?|centimet(?:er|re)s?|millimet(?:er|re)s?|inches|м[23]?|км|см|мм|метр[\p{L}]*|фут[\p{L}]*|дюйм[\p{L}]*)(?=$|[^\p{L}])|\d\s*[′″]/iu;
+  const physicalScalar = /\b(?:ris(?:e|es|ing)|reaches|vertical(?:ly)?|elevation|above[ -]ground|tiers?)\b|(?:возвыш|достига|вертикал|над\s+земл|надземн|ярус)|\b(?:it|building|tower|structure)\b[^.!?]{0,50}\b(?:is|has|measures?|stands?)\b[^.!?]*\d|(?:здани[ея]|башн[яи]|сооружени[ея]|оно|он|она)[^.!?]{0,50}(?:составля|имеет|равн|:)[^.!?]*\d/iu;
   // Only these complete scalar clauses are admitted. In particular, a number
   // copied from area/perimeter/context is NOT evidence of height or level count.
   const clauses = statement.normalize("NFKC").split(/(?<!\d)[.!?]|[.!?](?!\d)|[;\n]/u).map(clause => clause.trim()).filter(Boolean);
   for (const clause of clauses) {
     const mentioned = [REVIEW_HEIGHT.test(clause) ? "tag.height" : null, REVIEW_LEVELS.test(clause) ? "tag.building:levels" : null]
       .filter((key): key is string => key !== null);
-    if (!mentioned.length) continue;
+    if (!mentioned.length) {
+      if ((dimensionalUnit.test(clause) || physicalScalar.test(clause)) && !measurements.has(clause)) return false;
+      continue;
+    }
     if (mentioned.some(key => !keys.includes(key))) return false;
     const unknown = /^(?:height|levels|building levels|floors|storeys)(?: and (?:height|levels|building levels|floors|storeys))? (?:is|are) (?:unknown|unavailable|not recorded|not available|not mapped)(?: (?:in|from) the (?:mapped evidence|source|open-map record))?$/i.test(clause) ||
       /^(?:высота|этажность|число этажей)(?: и (?:высота|этажность|число этажей))? (?:неизвестн[аоы]|не указан[аоы]|не установлен[аоы])(?: (?:в источнике|по данным карты))?$/iu.test(clause);
@@ -3189,7 +3211,7 @@ function validateFocusedAnswer(
         !refs.includes(support.objectRef) || !refs.includes(support.attributesRef)) {
       return { ok: false, detail: "focused_answer_mixed_physical_source_gate" };
     }
-    if (!statement || !mixedPhysicalStatementIsBound(statement, mixedPhysicalKeys, support)) {
+    if (!statement || !mixedPhysicalStatementIsBound(statement, mixedPhysicalKeys, support, refs)) {
       return { ok: false, detail: "focused_answer_mixed_physical_value_unbound" };
     }
   } else if (directAttribute && (!directAttribute.value || !directAttribute.evidenceRef)) {
@@ -3738,7 +3760,7 @@ export function buildPointObjectResponsesRequest(
           ...(mixedPhysicalKeys.length ? { mixedPhysicalEvidenceReview: {
             revision: "MIXED_PHYSICAL_REVIEW_V1_2026_09_26",
             keys: mixedPhysicalKeys,
-            rule: "This is a mixed evidence review, not a narrow request for an absent scalar. Use partial with physical_baseline and bound object + attributes refs. For each requested physical field, use a separate exact clause: absent height 'Height is unknown.' / 'Высота неизвестна.'; absent levels 'Levels are unknown.' / 'Этажность неизвестна.'. Present fields: 'Mapped height: <exact source value>.' / 'Высота по карте: <exact source value>.' and 'Mapped building levels: <exact source value>.' / 'Этажность по карте: <exact source value>.'. Do not infer, convert, restate or append physical values elsewhere. Continue evidence-bound synthesis, context citations and missing-source gates. Never use this exception for dates or visual attributes."
+            rule: "This is a mixed evidence review, not a narrow request for an absent scalar. Use partial with physical_baseline and bound object + attributes refs. For each requested physical field, use a separate exact clause: absent height 'Height is unknown.' / 'Высота неизвестна.'; absent levels 'Levels are unknown.' / 'Этажность неизвестна.'. Present fields: 'Mapped height: <exact source value>.' / 'Высота по карте: <exact source value>.' and 'Mapped building levels: <exact source value>.' / 'Этажность по карте: <exact source value>.'. Do not infer, convert, restate or append physical values elsewhere. Other dimensional numbers require exact separately cited clauses: 'Mapped footprint area: <footprintAreaSqM> square metres.' / 'Площадь контура по карте: <footprintAreaSqM> квадратных метров.'; 'Mapped footprint perimeter: <footprintPerimeterM> m.' / 'Периметр контура по карте: <footprintPerimeterM> м.' with the metrics ref; '<exact nearby name> — <distanceM> m by straight line.' / '<exact nearby name> — <distanceM> м по прямой.' with that nearby ref. Otherwise omit dimensional claims, not source evidence. Continue evidence-bound synthesis, context citations and missing-source gates. Never use this exception for dates or visual attributes."
           } } : {}),
           regionalClimateContractVersion: "REGIONAL_CLIMATE_ANSWER_V1",
           regionalClimateRule: "Only when regionalClimateSelection is non-null, use regional_climate, answered, low confidence, the sole EVD-NASA-POWER-CLIMATE ref, empty missingEvidenceCodes and null unsupportedReasonCode. Return that exact typed selector object as statement, never prose or numbers; the server renders the frozen source values and units. Otherwise never cite NASA in a focused answer or use its numbers in other scopes. Climate does not support forecasts, site measurements, thermal comfort, absolute extremes, conversions or comparisons. The saved answer remains server-rendered text.",

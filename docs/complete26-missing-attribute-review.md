@@ -49,7 +49,7 @@ Run with Node 24:
 node --experimental-transform-types scripts/complete26-missing-attribute-review-check.mjs
 ```
 
-126 assertions: unchanged A09 question and RU analogue, Q/S/D, full validator and
+195 assertions: unchanged A09 question and RU analogue, Q/S/D, full validator and
 focused gate, independent missing/present height/levels, exact narrow canonical
 copy, decimal source values, borrowed numbers, word-number/contradictory clauses,
 missing source/code/ref, identity/tag receipt mismatch, malformed receipt, unknown
@@ -57,6 +57,19 @@ dates/visual attributes, existing context/numeric/access guards, unsupported,
 conditional policy revision and no new recovery dispatch. Synthetic source/context
 fixtures are not live observations or a reconstruction of the missing A09 prose.
 Network calls: zero.
+
+Independent review of the first, unreleased `2d51b06` found a P2: an honest unknown
+clause followed by `The building rises 280 m above ground.` was admitted because
+280 was a known perimeter and the clause had no literal height/levels token.
+The added regression failed before this correction. Unit-bearing, vertical and
+pronoun scalar claims now require exact separately cited metric/context clauses
+or fail closed. Positive EN/RU tests retain source-bound footprint area/perimeter
+and nearby straight-line distance; wrong values, borrowed numbers, appended
+claims and missing refs fail through both the focused and full validators.
+Generic `what evidence establishes the height?` / RU height-only and levels-only
+requests remain narrow even with an unknown instruction; available narrow values
+retain canonical answers. The conditional policy revision remains V1 because
+neither implementation has been deployed; the corrected commit binds its content.
 
 Adjacent PASS: main point-to-object contract/provenance, quality20 AI failure,
 114 content cases, depth contract, focused-shape 9 groups, screening-depth 42,

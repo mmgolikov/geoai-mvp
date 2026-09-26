@@ -77,6 +77,9 @@ for(const locale of ['en','ru']){
     'Height is unknown but approximately 280 m. Levels are unknown.',
     'Height is unknown. Levels are unknown. It is 280 metres tall.',
     'Height and levels are unknown. Height is 280.',
+    'Height and levels are unknown. The building rises 280 m above ground.',
+    'Height and levels are unknown. It measures 280 m vertically.',
+    'Height and levels are unknown. The tower reaches 120 m.',
     'Height is unknown.', 'Levels are unknown.',
     'Height and levels are unknown. The roof is metal.',
     'Height and levels are unknown. Market ROI is guaranteed.'
@@ -140,6 +143,41 @@ rejected({...answer(),statement:text.en+' Planning approval exists.'},pack(),req
 const unsupported=validate({...answer(),status:'unsupported',statement:null,unsupportedReasonCode:'requires_client_asset_source'});
 assert.equal(unsupported.ok,true);assert.equal(unsupported.answer.status,'unsupported');checks++;
 const plan={decision:{path:'existing_asset_screen',disposition:'continue_screening',confidence:'low',reasonCodes:['object_identity_available','use_classification_available','source_is_non_official']},signalCodes:['object_identity','use_classification','building_form','source_limit'],opportunityCodes:['existing_asset_repositioning','technical_reuse_test'],risks:['non_official_source','identity_uncertainty','geometry_not_parcel'].map(code=>({code,severity:'high',confidence:'low'})),answerCode:'source_evidence_only',caveat:'Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.'};
+for(const locale of ['en','ru']){
+  const r=request(locale),p=pack();
+  for(const [q,value] of locale==='en'?[
+    ['What evidence establishes the height? Report missing height as unknown.','200'],
+    ['What evidence establishes the levels? Report missing levels as unknown.','30']
+  ]:[
+    ['Какие данные устанавливают высоту? Укажи отсутствующую высоту как неизвестную.','200'],
+    ['Какие данные устанавливают этажность? Укажи отсутствующую этажность как неизвестную.','30']
+  ]){
+    const a={...answer(locale),status:'answered',scope:'mapped_form',statement:value,missingEvidenceCodes:[],evidenceRefs:['EVD-ALLOWED-FIELDS']};
+    const result=validate(a,pack('200','30'),{...r,question:q});
+    assert.equal(result.ok,true,result.detail);assert.equal(result.answer.status,'answered');assert.ok(result.answer.statement.includes(value));checks++;
+  }
+  for(const clause of locale==='en'?['The building rises 280 m above ground.','It measures 280 m vertically.','The tower reaches 120 m.','It is 280 m.','It measures 280.','The building rises thirty metres above ground.','Metro Gate — 120 m by straight line and the building rises 280 m.','Mapped footprint area: 280 m².','Metro Gate — 280 m by straight line.']:
+    ['Здание поднимается на 280 м над землей.','По вертикали оно достигает 120 м.','Оно составляет 280 м.','Оно достигает тридцати метров.','Metro Gate — 120 м по прямой, здание достигает 280 м.','Площадь контура по карте: 280 м².','Metro Gate — 280 м по прямой.']){
+    const a={...answer(locale),statement:text[locale]+' '+clause,evidenceRefs:[...answer(locale).evidenceRefs,'EVD-OBJECT-METRICS']};
+    rejected(a,p,r);
+    const result=core.validatePointObjectAiContentDetailed({...plan,focusedAnswer:a},p,r);
+    assert.equal(result.ok,false,clause);assert.equal(result.detail,'focused_answer_mixed_physical_value_unbound');checks++;
+  }
+  for(const clause of locale==='en'?['Mapped footprint area: 4100 m².','Mapped footprint area: 4100 square metres.','Mapped footprint perimeter: 280 m.','Metro Gate — 120 m by straight line.','Metro Gate is 120 m away by straight line.']:
+    ['Площадь контура по карте: 4100 м².','Площадь контура по карте: 4100 квадратных метров.','Периметр контура по карте: 280 м.','Metro Gate — 120 м по прямой.']){
+    const a={...answer(locale),statement:text[locale]+' '+clause,evidenceRefs:[...answer(locale).evidenceRefs,'EVD-OBJECT-METRICS']};
+    const result=core.validatePointObjectAiContentDetailed({...plan,focusedAnswer:a},p,r);
+    assert.equal(result.ok,true,result.detail);assert.equal(result.content.answerToQuestion.statement,a.statement.normalize('NFKC'),'Existing NFKC normalization remains unchanged');checks++;
+    const missingRef=clause.startsWith('Metro')?'EVD-CONTEXT-1':'EVD-OBJECT-METRICS';
+    rejected({...a,evidenceRefs:a.evidenceRefs.filter(ref=>ref!==missingRef)},p,r);
+  }
+  for(const q of locale==='en'?['What evidence establishes the height? Report missing height as unknown.','What evidence establishes the levels for redevelopment? Report missing levels as unknown.','What evidence? Report missing height as unknown.']:
+    ['Какие данные устанавливают высоту? Укажи отсутствующую высоту как неизвестную.','Какие данные устанавливают этажность перед редевелопментом? Укажи отсутствующую этажность как неизвестную.','Какие данные? Укажи отсутствующую высоту как неизвестную.']){
+    const a={...answer(locale),statement:locale==='en'?'Height and levels are unknown. The mapped object remains only an identity lead.':'Высота и этажность неизвестны. Объект карты остаётся лишь ориентиром идентификации.',evidenceRefs:['EVD-OSM-OBJECT','EVD-ALLOWED-FIELDS']};
+    rejected(a,p,{...r,question:q});
+    assert.equal(core.validatePointObjectAiContentDetailed({...plan,focusedAnswer:a},p,{...r,question:q}).ok,false);checks++;
+  }
+}
 for(const locale of ['en','ru'])for(const depth of ['quick','standard','deep']){
   const r=request(locale,depth),p=pack(),raw={...plan,focusedAnswer:answer(locale)};
   const result=core.validatePointObjectAiContentDetailed(raw,p,r);
