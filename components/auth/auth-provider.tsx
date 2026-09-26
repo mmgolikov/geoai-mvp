@@ -166,7 +166,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setSession(createAnonymousSession());
           return false;
         }
-        const summary = await readBrowserServerSession();
+        // Only the explicit password exchange's same-user confirmation gets a
+        // longer fetch + body budget. Background reads retain the 10 s default;
+        // concurrent SDK/focus events above join this one confirmation, not retry it.
+        const summary = await readBrowserServerSession(undefined, expectedIdentity?.userId ? 30_000 : undefined);
         if (!isCurrentSessionRead(epoch, sequence)) return false;
         if (summary.status === "anonymous") {
           setSession(createAnonymousSession());
