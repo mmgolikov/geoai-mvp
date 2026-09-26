@@ -12,3 +12,11 @@ Only a parsed focused result with `answerProvenance.kind === "deterministic_reco
 - The new spec is added to the existing complete25 and product-HTTPS Playwright spec lists. Collection-only checks found both EN/RU cases in both configurations; this is CI scheduling, not execution on protected Preview.
 
 No Auth, source, provider, paid, private-ledger or hosted operation occurred. Exact-head CI/Preview and full product acceptance remain Main-owned after the active batch.
+
+## Main verification, 26 September 2026, 23:05–23:09 UTC
+
+The earlier blocked build and stopped adjacent run above are preserved as history. On unchanged product commit `8cc09c79a1d8466166fd16b4d273cf2f1b8afbcd`, Main obtained a successful optimized build after allowing its normal font download:81/81 pages, TypeScript/build PASS, build ID `Mtw53Hho-V87mMVENd5h2`. No product code or environment files were changed to obtain this result.
+
+Against that separate loopback production-mode build, the new UI spec and existing `complete26-answer-provenance.spec.ts` both completed: Chromium6/6 in11.2s, WebKit6/6 in15.4s, zero failures/skips/errors/retries. This includes the formerly unfinished adjacent invalid-provenance case; its past stall was not reproduced, but its historical cause is not established. JUnit artifacts: `artifacts/complete26-ui-root-optimized-{chromium,webkit}.xml`. Main inspected fresh readable EN1440/RU390 recovery-answer screenshots; the note wraps without clipping. Fixture data, local persistence and the loopback-only WebKit HTTP transport exception do not prove live AI, cloud, Hosted TLS or all viewport/locales.
+
+The local server was stopped and port3216 released. The active hosted batch and frozen control/Production were untouched. Main also detected the newly added Markdown file was absent from the generated documentation navigation; only those generated sidecars were refreshed before future integration. Final exact-head CI/Preview and remaining release gates are still required.
