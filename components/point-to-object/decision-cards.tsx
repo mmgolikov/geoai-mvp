@@ -145,7 +145,7 @@ export function PointObjectDecisionCards({ context, generatedAt, reportPerspecti
     access: titles.access, buildings: titles.building_context,
     coverage: ru ? "Известные и отсутствующие данные" : "Known & missing evidence",
     risks: ru ? "Ограничения и риски" : "Constraints & risks",
-    alternatives: ru ? "Альтернативы для проверки" : "Alternatives to validate",
+    alternatives: ru ? "Направления проверки" : "Validation paths",
     validation: ru ? "План проверки" : "Validation plan",
     challenge: ru ? "Проверка устойчивости решения" : "Decision challenge"
   };

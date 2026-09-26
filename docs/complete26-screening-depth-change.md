@@ -86,6 +86,27 @@ synthetic provider responses only. No product file, CI definition, control
 checkout, operational ledger, running batch, or credential file changed.
 Full CI, browser and live acceptance remain root-owned and not claimed here.
 
+### Validation-path copy follow-up
+
+Root's A05-D review found a separate bounded UX issue: the structured
+`depthReview.alternatives` are decision-validation paths, not retain/adapt/replace
+asset strategies. The section heading is now `Validation paths` /
+`Направления проверки`; its five generated EN/RU titles name the existing-asset,
+identity, planning, technical-baseline and evidence-wait paths without an
+`Alternative:` prefix. Only those titles and the section heading changed.
+Rationale, reversal conditions, source references, hypothesis labels, fallback
+opportunities, selection predicates, depth counts, prompt and wire schema remain
+unchanged. This does not deliver or imply an asset-strategy comparison feature.
+
+New `node --experimental-transform-types scripts/complete26-validation-path-copy-check.mjs`
+failed against the prior heading before the copy edit, then passed 36 checks:
+five paths × EN/RU × Q/S/D, non-title output parity against the former labels,
+0/1/2 selection counts and old/new persisted-title parser compatibility.
+Screening-depth 42, mandatory failure check, content 114, semantic-v6, depth
+contract, climate 141, analysis-evidence export, TypeScript and diff-check PASS.
+No browser, network, Auth, ledger, running batch or control checkout was touched.
+Historical artifacts retain their old titles; no saved data was rewritten.
+
 ## Remaining limitations / root handoff
 
 Fallback remains an explicitly deterministic evidence-bound decision aid, not

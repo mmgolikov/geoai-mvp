@@ -2550,37 +2550,37 @@ function renderDepthAlternative(
 ): PointObjectDepthReview["alternatives"][number] {
   const copy: Record<PointObjectDecisionPath, { title: string; rationale: string; refs: string[] }> = {
     existing_asset_screen: {
-      title: "Alternative: existing-asset screen",
+      title: "Existing-asset review",
       rationale: "Treat the mapped use or form as a screening anchor for an existing-asset review, while keeping official identity and downstream validation outside the current evidence claim.",
       refs: uniqueRefs(support.classificationRef, support.hasBuildingAttributes ? support.attributesRef : null, support.hasBuildingGeometry ? support.geometryRef : null)
     },
     identity_first_due_diligence: {
-      title: "Alternative: identity-first review",
+      title: "Identity-first review",
       rationale: "Use the open-map record only to locate the candidate, then make authority- or client-validated object and parcel identity the next gate.",
       refs: uniqueRefs(support.objectRef, support.geometryRef, support.sourceStatusRef)
     },
     planning_first_due_diligence: {
-      title: "Alternative: planning-first review",
+      title: "Planning-first review",
       rationale: "Use the mapped object or geometry to frame an authoritative planning request without treating community-map geometry as a legal parcel or development right.",
       refs: uniqueRefs(support.objectRef, support.geometryRef, support.sourceStatusRef)
     },
     technical_baseline_first: {
-      title: "Alternative: technical-baseline review",
+      title: "Technical-baseline review",
       rationale: "Use the mapped building form to target a verified condition, capacity and systems review before testing reuse or repositioning.",
       refs: uniqueRefs(support.classificationRef, support.hasBuildingAttributes ? support.attributesRef : null, support.hasBuildingGeometry ? support.geometryRef : null)
     },
     insufficient_open_context: {
-      title: "Alternative: hold for evidence",
+      title: "Hold for evidence",
       rationale: "Keep the result as a bounded location and open-map evidence anchor until a source directly supporting the requested decision is added.",
       refs: uniqueRefs(support.sourceStatusRef, support.objectRef, support.coordinateRef)
     }
   };
   const ruCopy: Record<PointObjectDecisionPath, { title: string; rationale: string }> = {
-    existing_asset_screen: { title: "Альтернатива: скрининг существующего актива", rationale: "Использовать картированное назначение или форму как основу скрининга существующего актива, не распространяя вывод на официальную идентичность и последующие проверки." },
-    identity_first_due_diligence: { title: "Альтернатива: сначала идентичность", rationale: "Использовать запись открытой карты только для привязки кандидата, а следующим этапом сделать подтверждение объекта и участка органом власти или клиентом." },
-    planning_first_due_diligence: { title: "Альтернатива: сначала планирование", rationale: "Использовать объект или геометрию карты для формирования запроса официальных градостроительных данных, не выдавая геометрию сообщества за юридический участок или право на развитие." },
-    technical_baseline_first: { title: "Альтернатива: сначала технический базис", rationale: "Использовать картированную форму здания для целевой проверки состояния, мощности и систем до анализа повторного использования или репозиционирования." },
-    insufficient_open_context: { title: "Альтернатива: пауза до получения данных", rationale: "Сохранить результат как ограниченную привязку локации и открытых данных, пока не добавлен источник, непосредственно поддерживающий решение." }
+    existing_asset_screen: { title: "Проверка существующего актива", rationale: "Использовать картированное назначение или форму как основу скрининга существующего актива, не распространяя вывод на официальную идентичность и последующие проверки." },
+    identity_first_due_diligence: { title: "Проверка идентичности", rationale: "Использовать запись открытой карты только для привязки кандидата, а следующим этапом сделать подтверждение объекта и участка органом власти или клиентом." },
+    planning_first_due_diligence: { title: "Проверка градостроительных условий", rationale: "Использовать объект или геометрию карты для формирования запроса официальных градостроительных данных, не выдавая геометрию сообщества за юридический участок или право на развитие." },
+    technical_baseline_first: { title: "Проверка технического базиса", rationale: "Использовать картированную форму здания для целевой проверки состояния, мощности и систем до анализа повторного использования или репозиционирования." },
+    insufficient_open_context: { title: "Ожидание подтверждающих данных", rationale: "Сохранить результат как ограниченную привязку локации и открытых данных, пока не добавлен источник, непосредственно поддерживающий решение." }
   };
   const deepCopy: Record<PointObjectDecisionPath, [string, string]> = {
     existing_asset_screen: [
