@@ -304,6 +304,7 @@ jobs:
           node scripts/complete26-screening-depth-check.mjs | tee artifacts/complete26-screening-depth-check.txt
           node scripts/complete26-validation-path-copy-check.mjs | tee artifacts/complete26-validation-path-copy-check.txt
           node scripts/complete26-building-part-scope-check.mjs | tee artifacts/complete26-building-part-scope-check.txt
+          node --experimental-transform-types scripts/complete26-missing-attribute-review-check.mjs | tee artifacts/complete26-missing-attribute-review-check.txt
           node scripts/complete26-final-successor-check.mjs | tee artifacts/complete26-final-successor-check.txt
           node --experimental-transform-types scripts/sprint10-map-diagnostics-check.ts | tee artifacts/sprint10-map-diagnostics-check.txt
           node scripts/quality20-review-fixes-check.mjs | tee artifacts/quality20-review-fixes-check.txt
