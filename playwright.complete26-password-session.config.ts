@@ -7,6 +7,6 @@ export default defineConfig({
   testMatch: ["complete26-password-session.spec.ts"],
   retries: 0,
   use: { ...localAuth.use, trace: "off", screenshot: "off", video: "off", serviceWorkers: "block" },
-  reporter: [["line"]],
+  reporter: [["line"], ["junit", { outputFile: "artifacts/complete26-password-session-junit.xml" }]],
   outputDir: "artifacts/complete26-password-session"
 });

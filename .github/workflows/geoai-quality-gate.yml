@@ -308,6 +308,8 @@ jobs:
           node scripts/complete26-access-summary-scope-check.mjs | tee artifacts/complete26-access-summary-scope-check.txt
           node scripts/complete26-missing-form-fields-copy-check.mjs | tee artifacts/complete26-missing-form-fields-copy-check.txt
           node scripts/complete26-fabric-diagnostic-check.mjs | tee artifacts/complete26-fabric-diagnostic-check.txt
+          node --experimental-transform-types scripts/complete26-password-session-confirmation-check.mjs | tee artifacts/complete26-password-session-confirmation-check.txt
+          node --experimental-transform-types scripts/complete26-continuation-ledger-check.mjs | tee artifacts/complete26-continuation-ledger-check.txt
           node scripts/complete26-final-successor-check.mjs | tee artifacts/complete26-final-successor-check.txt
           node --experimental-transform-types scripts/sprint10-map-diagnostics-check.ts | tee artifacts/sprint10-map-diagnostics-check.txt
           node scripts/quality20-review-fixes-check.mjs | tee artifacts/quality20-review-fixes-check.txt
@@ -472,6 +474,7 @@ jobs:
           node --experimental-transform-types scripts/sprint10-live-journey-runner-offline-check.mjs | tee artifacts/sprint10-live-runner-contract.txt
           node --experimental-transform-types scripts/sprint10-live-journey-diagnostics-check.mjs | tee artifacts/sprint10-live-diagnostics-contract.txt
           node scripts/complete26-paid-diagnostic-check.mjs | tee artifacts/complete26-paid-diagnostic-check.txt
+          node scripts/complete26-login-diagnostic-check.mjs | tee artifacts/complete26-login-diagnostic-check.txt
           node scripts/night21-find-completeness-check.mjs | tee artifacts/night21-find-completeness-contract.txt
           node --experimental-transform-types scripts/night21-create-screen-check.mjs | tee artifacts/night21-create-screen-contract.txt
           node --experimental-transform-types scripts/quality20-analysis-evidence-check.mjs | tee artifacts/quality20-analysis-evidence-contract.txt
@@ -537,6 +540,12 @@ jobs:
         run: |
           set -euo pipefail
           npx playwright test --config=playwright.cloud-projects.config.ts --workers=1 --retries=0 --fail-on-flaky-tests | tee artifacts/cloud-projects-e2e.txt
+
+      - name: Browser password confirmation and optional profile isolation (mocked provider)
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx playwright test --config=playwright.complete26-password-session.config.ts --workers=1 --retries=0 --fail-on-flaky-tests | tee artifacts/complete26-password-session-e2e.txt
 
       - name: Build
         shell: bash
