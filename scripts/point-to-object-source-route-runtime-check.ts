@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { registerHooks, stripTypeScriptTypes } from "node:module";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import type { LiveGeoContextProfile } from "../src/lib/prototype/point-to-object-live-evidence";
 
 // @ts-expect-error Node's strip-types runner requires the physical .ts suffix; production imports remain extensionless.
 import { resolvePointObjectRuntimePolicy } from "../src/lib/prototype/point-object-runtime-policy.ts";
@@ -51,6 +52,15 @@ type RouteDefinition = {
   replaceAdapters(source: string): string;
 };
 
+// The real lease always returns a profile, including when fabric is unavailable.
+// A null profile is not a valid source pack and now correctly fails route assembly.
+const contextGeoContext: LiveGeoContextProfile = {
+  radiusM: 400, coverage: "unavailable", sampleSize: 0, capReached: false, groups: [],
+  mappedBuildingCount: 0, mappedLevelsKnownCount: 0, medianMappedLevels: null,
+  nearestTransitM: null, nearestMajorRoadM: null,
+  districtCharacter: { code: "low_signal", confidence: "low", ruleVersion: "POINT_OBJECT_DISTRICT_RULE_V1", driverGroups: [] }
+};
+
 const definitions: RouteDefinition[] = [
   {
     name: "context",
@@ -66,9 +76,9 @@ const definitions: RouteDefinition[] = [
          const acquirePublicEvidenceLease = async () => { globalThis.__geoaiSourceCalls.context += 1; return {
            receipt: { evidencePackHash: "a".repeat(64), sourceResponseHash: "b".repeat(64), acquiredAt: "2026-09-20T12:34:56.000Z" }, pack: {
            evidencePackHash: "a".repeat(64),
-           source: { sourceResponseHash: "b".repeat(64), acquiredAt: "2026-09-20T12:34:56.000Z" },
+           source: { sourceResponseHash: "b".repeat(64), acquiredAt: "2026-09-20T12:34:56.000Z", fabricStatus: "unavailable", fabricDiagnostic: { failureCode: "timeout" } },
            selectedObject: { name: "Offline object", displayAddress: "Offline address", featureClass: "building", sourceFeatureId: "way/123", geometryType: "Polygon", addressParts: {}, tags: {}, metrics: {} },
-           resolution: { coordinateAssociation: "inside", resultCentroidDistanceM: 0 }, geoContext: null, linkedEntity: null
+           resolution: { coordinateAssociation: "inside", resultCentroidDistanceM: 0 }, geoContext: ${JSON.stringify(contextGeoContext)}, linkedEntity: null
          } }; };`);
     }
   },
@@ -191,12 +201,16 @@ for (const definition of definitions) {
   assert.equal(first.status, 200, `${definition.name} must run with only the explicit Production surface flag.`);
   assert.match(first.headers.get("Cache-Control") ?? "", /no-store/);
   if (definition.name === "context") {
-    const payload = await first.json() as { evidenceReceipt?: unknown };
+    const payload = await first.json() as { evidenceReceipt?: unknown; subject?: { geoContext?: unknown; fabricDiagnostic?: unknown } };
     assert.deepEqual(payload.evidenceReceipt, {
       evidencePackHash: "a".repeat(64),
       sourceResponseHash: "b".repeat(64),
       acquiredAt: "2026-09-20T12:34:56.000Z"
     }, "Context must expose the exact receipt from the server-acquired evidence pack.");
+    assert.deepEqual(payload.subject?.geoContext, contextGeoContext,
+      "Context must retain unavailable coverage and null distances, not fabricate an empty successful fabric result.");
+    assert.deepEqual(payload.subject?.fabricDiagnostic, { failureCode: "timeout" },
+      "The real projector must retain only the allowlisted diagnostic from the same frozen source pack.");
   }
 
   for (let index = 1; index < definition.clientRateLimit; index += 1) {
