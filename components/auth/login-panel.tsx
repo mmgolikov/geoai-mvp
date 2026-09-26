@@ -37,6 +37,9 @@ export function LoginPanel({ destination }: { destination: string }) {
   const [phoneCodeSent, setPhoneCodeSent] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  // SSR fields must not accept input before React can retain their changes.
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => { setIsMounted(true); }, []);
   const navigationStartedRef = useRef(false);
   const navigateAfterAuthentication = useCallback((replace = false) => {
     // The sign-in promise and authenticated-state effect can settle together.
@@ -180,6 +183,7 @@ export function LoginPanel({ destination }: { destination: string }) {
                   <button
                     key={item}
                     type="button"
+                    disabled={!isMounted}
                     aria-pressed={method === item}
                     onClick={() => changeMethod(item)}
                     className={`rounded-[10px] text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${method === item ? "bg-brand text-white shadow-sm" : "text-muted hover:bg-white"}`}
@@ -189,11 +193,12 @@ export function LoginPanel({ destination }: { destination: string }) {
                 ))}
               </div> : null}
 
-              <form onSubmit={handleSubmit} className="mt-6 grid gap-5">
+              <form onSubmit={handleSubmit} aria-busy={!isMounted} className="mt-6 grid gap-5">
                 <label className="grid gap-2" htmlFor="login-identifier">
                   <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">{passwordOnly ? "Email" : "Email or phone"}</span>
                   <input
                     id="login-identifier"
+                    disabled={!isMounted}
                     type={method === "phone" ? "tel" : "email"}
                     required
                     autoComplete={method === "phone" ? "tel" : "username"}
@@ -213,6 +218,7 @@ export function LoginPanel({ destination }: { destination: string }) {
                     <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">Password</span>
                     <input
                       id="login-password"
+                      disabled={!isMounted}
                       type="password"
                       required={passwordOnly}
                       autoComplete="current-password"
@@ -227,12 +233,13 @@ export function LoginPanel({ destination }: { destination: string }) {
 
                 <button
                   type="submit"
-                  disabled={pending}
+                  disabled={!isMounted || pending}
                   className="inline-flex h-12 items-center justify-center rounded-control bg-brand px-5 text-sm font-semibold text-white transition hover:bg-[#0854dd] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {pending ? "Please wait…" : demoSelected ? "Open demo" : passwordSelected || passwordOnly ? "Sign in" : method === "phone" ? "Send code" : "Send sign-in link"}
+                  {!isMounted ? "Loading sign-in…" : pending ? "Please wait…" : demoSelected ? "Open demo" : passwordSelected || passwordOnly ? "Sign in" : method === "phone" ? "Send code" : "Send sign-in link"}
                 </button>
               </form>
+              <noscript><p className="mt-3 text-sm text-muted">Enable JavaScript to sign in.</p></noscript>
 
               {phoneCodeSent && !passwordOnly ? (
                 <form onSubmit={handlePhoneVerification} className="mt-5 grid gap-3 rounded-2xl border border-accent/30 bg-[#e8fafa] p-4">
@@ -240,6 +247,7 @@ export function LoginPanel({ destination }: { destination: string }) {
                   <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
                     <input
                       id="phone-code"
+                      disabled={!isMounted}
                       inputMode="numeric"
                       autoComplete="one-time-code"
                       pattern="[0-9]{6}"
@@ -250,7 +258,7 @@ export function LoginPanel({ destination }: { destination: string }) {
                       className="h-12 rounded-[10px] border border-line bg-white px-4 text-sm tracking-[0.3em] text-ink outline-none focus:border-brand"
                       placeholder="000000"
                     />
-                    <button disabled={pending} className="h-12 rounded-control bg-brand px-6 text-sm font-semibold text-white disabled:opacity-60">Verify</button>
+                    <button disabled={!isMounted || pending} className="h-12 rounded-control bg-brand px-6 text-sm font-semibold text-white disabled:opacity-60">Verify</button>
                   </div>
                 </form>
               ) : null}
@@ -273,6 +281,7 @@ export function LoginPanel({ destination }: { destination: string }) {
                   <button
                     type="button"
                     onClick={fillDemoCredentials}
+                    disabled={!isMounted}
                     className="inline-flex h-12 items-center justify-center rounded-control border border-personal bg-white px-5 text-sm font-semibold text-personal transition hover:bg-white/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-personal"
                   >
                     Open demo access
