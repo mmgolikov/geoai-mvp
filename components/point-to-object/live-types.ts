@@ -1,5 +1,6 @@
 import type { PointObjectClimate } from "@/src/lib/prototype/point-to-object-climate-contract";
 import type { PointObjectAnswerProvenance } from "@/src/lib/prototype/point-to-object-answer-provenance";
+import type { PointObjectFabricDiagnostic } from "@/src/lib/prototype/point-to-object-fabric-diagnostic";
 import type { GeoJsonGeometry } from "@/src/lib/point-to-object/contracts";
 import type { MultiPolygon, Polygon } from "geojson";
 import type {
@@ -83,6 +84,8 @@ export type LiveMapNearbyLabel = {
 };
 
 export type LiveResolvedObjectContext = {
+  /** Optional acquisition diagnostic; historical absence does not identify a cause. */
+  fabricDiagnostic?: PointObjectFabricDiagnostic;
   /** Absent on legacy saved objects; refresh Context before new paid analysis. */
   evidenceReceipt?: PublicEvidenceReceipt;
   name: string | null;

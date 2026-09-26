@@ -13,6 +13,8 @@ async function loadSession(): Promise<Record<string, any>> {
     `from ${JSON.stringify(pathToFileURL(path.join(process.cwd(), "src/lib/prototype/point-to-object-climate-contract.ts")).href)}`);
   source = source.replace(/from "@\/src\/lib\/prototype\/point-to-object-answer-provenance"/,
     `from ${JSON.stringify(pathToFileURL(path.join(process.cwd(), "src/lib/prototype/point-to-object-answer-provenance.ts")).href)}`);
+  source = source.replace(/from "@\/src\/lib\/prototype\/point-to-object-fabric-diagnostic"/,
+    `from ${JSON.stringify(pathToFileURL(path.join(process.cwd(), "src/lib/prototype/point-to-object-fabric-diagnostic.ts")).href)}`);
   source = source.replace(/from "@\/src\/lib\/prototype\/point-to-object-evidence-receipt"/,
     `from ${JSON.stringify(pathToFileURL(path.join(process.cwd(), "src/lib/prototype/point-to-object-evidence-receipt.ts")).href)}`);
   source = source.replace(/import \{ LIVE_POINT_CAVEAT \} from "@\/src\/lib\/point-to-object\/contracts";\n/,

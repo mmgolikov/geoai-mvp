@@ -1,5 +1,6 @@
 import { parsePointObjectClimate } from "@/src/lib/prototype/point-to-object-climate-contract";
 import { parsePointObjectAnswerProvenance } from "@/src/lib/prototype/point-to-object-answer-provenance";
+import { parsePointObjectFabricDiagnostic } from "@/src/lib/prototype/point-to-object-fabric-diagnostic";
 import type { GeoJsonGeometry } from "@/src/lib/point-to-object/contracts";
 import { LIVE_POINT_CAVEAT } from "@/src/lib/point-to-object/contracts";
 import { parsePublicEvidenceReceipt } from "@/src/lib/prototype/point-to-object-evidence-receipt";
@@ -280,6 +281,10 @@ export function parseLiveResolvedObject(value: unknown): LiveResolvedObjectConte
   const tags = stringMap(value.tags, 36);
   const metrics = value.metrics === null ? null : parseGeometryMetrics(value.metrics);
   const geoContext = parseGeoContext(value.geoContext);
+  const hasFabricDiagnostic = Object.prototype.hasOwnProperty.call(value, "fabricDiagnostic");
+  const fabricDiagnostic = hasFabricDiagnostic ? parsePointObjectFabricDiagnostic(value.fabricDiagnostic, geoContext?.coverage) : null;
+  // Reject malformed supplied metadata; never turn it into an empty context.
+  if (hasFabricDiagnostic && !fabricDiagnostic) return null;
   const linkedEntity = value.linkedEntity === null || value.linkedEntity === undefined ? null : parseWikidataLinkedEntity(value.linkedEntity);
   const hasDisplayGeometry = Object.prototype.hasOwnProperty.call(value, "displayGeometry");
   const hasGeometryProvenance = Object.prototype.hasOwnProperty.call(value, "geometryProvenance");
@@ -325,6 +330,7 @@ export function parseLiveResolvedObject(value: unknown): LiveResolvedObjectConte
     tags,
     metrics,
     geoContext,
+    ...(fabricDiagnostic ? { fabricDiagnostic } : {}),
     linkedEntity,
     ...(climate ? { climate } : {}),
     ...(hasDisplayGeometry ? { displayGeometry: displayGeometry as LiveResolvedObjectContext["displayGeometry"] } : {}),

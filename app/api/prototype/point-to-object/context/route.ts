@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { explicitSourceHeight } from "@/src/lib/prototype/point-to-object-source-geometry";
+import { projectPointObjectFabricDiagnostic } from "@/src/lib/prototype/point-to-object-fabric-diagnostic";
 
 import { NextResponse } from "next/server";
 
@@ -171,6 +172,7 @@ export async function POST(request: Request) {
         geometryProvenance: evidencePack.displayGeometry ? "confirmed_complete_footprint" : null,
         ...explicitSourceHeight(evidencePack.selectedObject.tags),
         geoContext: evidencePack.geoContext,
+        ...projectPointObjectFabricDiagnostic(evidencePack.source, evidencePack.geoContext.coverage),
         linkedEntity: evidencePack.linkedEntity,
         ...(evidencePack.climate ? { climate: evidencePack.climate } : {})
       }
