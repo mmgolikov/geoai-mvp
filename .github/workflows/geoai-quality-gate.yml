@@ -311,6 +311,7 @@ jobs:
           node --experimental-transform-types scripts/complete26-password-session-confirmation-check.mjs | tee artifacts/complete26-password-session-confirmation-check.txt
           node --experimental-transform-types scripts/complete26-session-timing-check.mjs | tee artifacts/complete26-session-timing-check.txt
           node --experimental-transform-types scripts/complete26-auth-body-deadline-check.mjs | tee artifacts/complete26-auth-body-deadline-check.txt
+          node scripts/complete26-session-single-pass-check.mjs | tee artifacts/complete26-session-single-pass-check.txt
           node scripts/complete26-numeric-format-check.mjs | tee artifacts/complete26-numeric-format-check.txt
           node --experimental-transform-types scripts/complete26-continuation-ledger-check.mjs | tee artifacts/complete26-continuation-ledger-check.txt
           node scripts/complete26-final-successor-check.mjs | tee artifacts/complete26-final-successor-check.txt
