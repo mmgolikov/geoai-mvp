@@ -309,6 +309,7 @@ jobs:
           node scripts/complete26-missing-form-fields-copy-check.mjs | tee artifacts/complete26-missing-form-fields-copy-check.txt
           node scripts/complete26-fabric-diagnostic-check.mjs | tee artifacts/complete26-fabric-diagnostic-check.txt
           node --experimental-transform-types scripts/complete26-password-session-confirmation-check.mjs | tee artifacts/complete26-password-session-confirmation-check.txt
+          node --experimental-transform-types scripts/complete26-session-timing-check.mjs | tee artifacts/complete26-session-timing-check.txt
           node --experimental-transform-types scripts/complete26-continuation-ledger-check.mjs | tee artifacts/complete26-continuation-ledger-check.txt
           node scripts/complete26-final-successor-check.mjs | tee artifacts/complete26-final-successor-check.txt
           node --experimental-transform-types scripts/sprint10-map-diagnostics-check.ts | tee artifacts/sprint10-map-diagnostics-check.txt

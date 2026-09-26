@@ -1,6 +1,7 @@
 import { createServerClient, type CookieMethodsServer } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { getSupabasePublishableKey, getSupabaseUrl } from "@/src/lib/supabase/config";
+import { createAuthSessionTiming } from "@/src/lib/auth/session-timing";
 import {
   createPointObjectSourceMiddlewareAuthDeadline,
   isPointObjectSourceMiddlewareAuthDeadlineError,
@@ -61,6 +62,11 @@ export async function updateSupabaseSession(request: NextRequest) {
   // getClaims verifies token signature/expiry and refreshes when required.
   // Authorization still comes from RLS-backed membership rows, never claims.
   if (!sourceDeadline) {
+    if (request.nextUrl.pathname === "/api/auth/session") {
+      const measureSessionStage = createAuthSessionTiming(request, crypto.randomUUID());
+      await measureSessionStage("middleware_claims", () => supabase.auth.getClaims());
+      return response;
+    }
     await supabase.auth.getClaims();
     return response;
   }

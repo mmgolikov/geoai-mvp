@@ -4,6 +4,7 @@ import {
   type RequestIdentityEvidenceStatus
 } from "@/src/lib/auth/request-identity-evidence";
 import { getEffectiveAuthMode } from "@/src/lib/auth/auth-mode";
+import { createAuthSessionTiming } from "@/src/lib/auth/session-timing";
 import { pointObjectRequestAuthDeadlineSignal } from "@/src/lib/prototype/source-request-deadline";
 import { createRequestScopedSupabaseClient } from "@/src/lib/supabase/ssr-server";
 
@@ -78,6 +79,7 @@ function result(
 
 export async function createRequestAuthContext(request?: Request): Promise<RequestAuthContext> {
   const requestId = crypto.randomUUID();
+  const measureSessionStage = createAuthSessionTiming(request, requestId);
   // Only the two bounded source routes attach this opt-in signal. Ordinary
   // Auth callers keep their previous behavior and signatures unchanged.
   const deadlineSignal = pointObjectRequestAuthDeadlineSignal(request);
@@ -98,13 +100,15 @@ export async function createRequestAuthContext(request?: Request): Promise<Reque
   if (!supabase) return result(requestId, "public_config_missing", null);
 
   try {
-    const claimsResponse = await waitForRequestAuthOperation(supabase.auth.getClaims(), deadlineSignal);
+    const claimsResponse = await measureSessionStage("claims", () =>
+      waitForRequestAuthOperation(supabase.auth.getClaims(), deadlineSignal));
     const claims = claimsResponse.data?.claims;
     if (claimsResponse.error || !claims) {
       return result(requestId, "claims_unverified", supabase);
     }
 
-    const userResponse = await waitForRequestAuthOperation(supabase.auth.getUser(), deadlineSignal);
+    const userResponse = await measureSessionStage("user", () =>
+      waitForRequestAuthOperation(supabase.auth.getUser(), deadlineSignal));
     const user = userResponse.data.user;
     if (userResponse.error || !user) {
       return result(requestId, "user_unverified", supabase);
@@ -128,7 +132,8 @@ export async function createRequestAuthContext(request?: Request): Promise<Reque
       .schema("api")
       .rpc("current_profile");
     if (deadlineSignal) profileQuery = profileQuery.abortSignal(deadlineSignal);
-    const profileResponse = await waitForRequestAuthOperation(profileQuery.maybeSingle<ProfileRow>(), deadlineSignal);
+    const profileResponse = await measureSessionStage("profile", () =>
+      waitForRequestAuthOperation(profileQuery.maybeSingle<ProfileRow>(), deadlineSignal));
 
     if (profileResponse.error) {
       return result(requestId, "dependency_unavailable", supabase, user);
