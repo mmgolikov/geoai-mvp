@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   SPRINT10_ANALYSIS_PROMPT_VERSION as prompt, SPRINT10_V12_ANALYSIS_PROMPT_VERSION as oldPrompt,
+  SPRINT10_V13_ANALYSIS_PROMPT_VERSION as previousPrompt,
   COMPLETE25_OPENING_CHECKPOINT as checkpoint, COMPLETE25_RECOVERY_APPROVAL as approval,
   createComplete25RecoveryLedger, reserveSprint10Spend, settleSprint10Spend,
   parseSprint10ProviderTelemetry, parseSprint10SpendLedger, sprint10ReceiptHash
@@ -67,6 +68,24 @@ const reserved=reserveSprint10Spend(initial,identity,'2026-09-26T01:00:00.000Z')
 const costOnly=settleSprint10Spend(reserved.ledger,91,identity,{settledAt:'2026-09-26T01:01:00.000Z',status:502,resultHash:'b'.repeat(64),telemetry:parseSprint10ProviderTelemetry(identity,failure,502)});
 assert.equal(costOnly.receipts[0].state,'settled');assert.equal(costOnly.receipts[0].status,502);
 assert.equal(costOnly.receipts[0].estimatedUsd,0.001147);assert.ok(parseSprint10SpendLedger(costOnly));checks+=4;
+// V13 error receipts remain immutable historical accounting, not new dispatch.
+const previous = structuredClone(costOnly);
+previous.receipts[0].identity.promptVersion = previousPrompt;
+previous.receipts[0].telemetry.promptVersion = previousPrompt;
+const previousBytes = JSON.stringify(previous), previousHash = sprint10ReceiptHash(previous.receipts[0]);
+assert.ok(parseSprint10SpendLedger(previous));
+assert.equal(JSON.stringify(previous), previousBytes);
+assert.equal(sprint10ReceiptHash(previous.receipts[0]), previousHash);
+assert.equal(previous.receipts[0].status, 502);
+assert.equal(previous.receipts[0].estimatedUsd, 0.001147);
+assert.equal(parseSprint10ProviderTelemetry({...identity, promptVersion:previousPrompt},
+  {...failure, telemetry:{...telemetry, promptVersion:previousPrompt}},502),null);
+assert.equal(reserveSprint10Spend(initial,{...identity,promptVersion:previousPrompt},'2026-09-26T01:00:00.000Z').ok,false);
+const legacyPending = structuredClone(reserved.ledger);
+legacyPending.receipts[0].identity.promptVersion = previousPrompt;
+assert.ok(parseSprint10SpendLedger(legacyPending));
+assert.equal(reserveSprint10Spend(legacyPending,{...identity,requestKey:'S4.AFTER.OLD.PENDING'},'2026-09-26T01:01:00.000Z').ok,false);
+checks+=9;
 // Product/body assertions remain independent; accounting cannot invent a PASS.
 const spec=readFileSync(new URL('../tests/e2e/sprint10-live-journey.spec.ts',import.meta.url),'utf8');
 assert.ok(spec.includes('guard(response.status() === 200, "Analysis HTTP response was not successful.");'));checks++;

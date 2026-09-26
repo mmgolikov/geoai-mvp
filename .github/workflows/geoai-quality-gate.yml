@@ -305,6 +305,8 @@ jobs:
           node scripts/complete26-context-binding-check.mjs | tee artifacts/complete26-context-binding-check.txt
           node scripts/complete26-validation-path-copy-check.mjs | tee artifacts/complete26-validation-path-copy-check.txt
           node --experimental-transform-types scripts/complete26-point-validation-copy-check.mjs | tee artifacts/complete26-point-validation-copy-check.txt
+          node --experimental-transform-types scripts/complete26-required-source-policy-check.mjs | tee artifacts/complete26-required-source-policy-check.txt
+          node --experimental-transform-types scripts/complete26-source-policy-client-check.mjs | tee artifacts/complete26-source-policy-client-check.txt
           node scripts/complete26-building-part-scope-check.mjs | tee artifacts/complete26-building-part-scope-check.txt
           node --experimental-transform-types scripts/complete26-missing-attribute-review-check.mjs | tee artifacts/complete26-missing-attribute-review-check.txt
           node scripts/complete26-access-summary-scope-check.mjs | tee artifacts/complete26-access-summary-scope-check.txt
