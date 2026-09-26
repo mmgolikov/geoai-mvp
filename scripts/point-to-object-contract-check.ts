@@ -2016,7 +2016,7 @@ async function assertCandidateAiSafety(): Promise<void> {
     /source about the same identified subject contradicts a like-for-like mapped fact[\s\S]*next unresolved domain-specific gate/,
     "Deep source challenges must compare the same subject and fact without skipping unresolved gates.");
   const deepIdentityRationale = deepReview.alternatives
-    .find((item: any) => item.title === "Alternative: identity-first review")?.rationale ?? "";
+    .find((item: any) => item.title === "Identity-first review")?.rationale ?? "";
   assert.match(deepIdentityRationale,
     /object identity does not match the mapped subject[\s\S]*invalidate the subject-specific screen and restart from the confirmed object/,
     "Deep identity alternatives must invalidate and restart only when object identity mismatches.");
@@ -2027,7 +2027,7 @@ async function assertCandidateAiSafety(): Promise<void> {
     /confirmed object and parcel association advances to the next unresolved rights or planning gate/,
     "Positive identity evidence must preserve unresolved rights and planning gates.");
   const deepPlanningRationale = deepReview.alternatives
-    .find((item: any) => item.title === "Alternative: planning-first review")?.rationale ?? "";
+    .find((item: any) => item.title === "Planning-first review")?.rationale ?? "";
   assert.match(deepPlanningRationale,
     /verified rights or planning constraints for the identity-bound site contradict the development hypothesis[\s\S]*without changing mapped object metrics/,
     "Planning evidence must evaluate the development hypothesis without altering unrelated object metrics.");
@@ -2064,13 +2064,13 @@ async function assertCandidateAiSafety(): Promise<void> {
     `Identity-first Deep plan must produce conditional alternatives: ${JSON.stringify(identityPrimaryDeepValidation)}`);
   const identityPrimaryAlternatives = (identityPrimaryDeepValidation as { ok: true; content: any })
     .content.depthReview.alternatives as any[];
-  assert.match(identityPrimaryAlternatives.find((item) => item.title === "Alternative: existing-asset screen")?.rationale ?? "",
+  assert.match(identityPrimaryAlternatives.find((item) => item.title === "Existing-asset review")?.rationale ?? "",
     /independently verified current use of the same asset[\s\S]*records for the same building form[\s\S]*next unresolved gate[\s\S]*like-for-like same-asset evidence contradicts/,
     "A Deep existing-asset alternative must compare like-for-like evidence for the same asset and preserve unresolved gates.");
-  assert.match(identityPrimaryAlternatives.find((item) => item.title === "Alternative: existing-asset screen")?.rationale ?? "",
+  assert.match(identityPrimaryAlternatives.find((item) => item.title === "Existing-asset review")?.rationale ?? "",
     /planning-taxonomy difference alone is not a contradiction/,
     "A Deep existing-asset alternative must not treat a taxonomy difference as a use contradiction.");
-  assert.match(identityPrimaryAlternatives.find((item) => item.title === "Alternative: technical-baseline review")?.rationale ?? "",
+  assert.match(identityPrimaryAlternatives.find((item) => item.title === "Technical-baseline review")?.rationale ?? "",
     /If verified condition, capacity or systems do not support[\s\S]*hold the reuse or replacement judgement/,
     "A Deep technical alternative must hold the judgement without treating replacement as proven.");
 
@@ -2092,14 +2092,20 @@ async function assertCandidateAiSafety(): Promise<void> {
   assert.deepEqual(technicalGate?.evidenceRefs,
     ["EVD-CLASSIFICATION", "EVD-ALLOWED-FIELDS", "EVD-GEOMETRY", "EVD-SOURCE"],
     "Building-only technical gates must include the bound classification evidence.");
-  const priorStandardReview = structuredClone(standardReview);
+  assert.deepEqual(standardReview.alternatives.map((item: any) => item.title), ["Identity-first review"],
+    "Standard must retain exactly one validation path with the reviewed current title.");
+  // Preserve the historical full-content hashes: only the separately asserted
+  // display title differs after the validation-path copy correction.
+  const standardReviewPriorTitle = structuredClone(standardReview);
+  standardReviewPriorTitle.alternatives[0].title = "Alternative: identity-first review";
+  const priorStandardReview = structuredClone(standardReviewPriorTitle);
   priorStandardReview.decisionTriggers.find((item: any) => item.title === "Technical-baseline gate").evidenceRefs.shift();
   assert.equal(sha256(JSON.stringify(priorStandardReview)),
     "e33250cb1739dfe122a077a07ea95bf3331b184bdd9085fda73472f31a124725",
     "Only the bound classification reference may differ from the prior Standard snapshot.");
-  assert.equal(sha256(JSON.stringify(standardReview)),
+  assert.equal(sha256(JSON.stringify(standardReviewPriorTitle)),
     "4b5216fdb3bdb131a7f351561709f402b1e3a33f3a0f9a0468b48185977546a1",
-    "The complete Standard depth review must match the verified classification-reference snapshot.");
+    "Apart from the separately asserted display title, Standard must match the verified classification-reference snapshot.");
   assert.equal(
     standardReview.analyticChecks.find((item: any) => item.title === "Mapped use classification")?.implication,
     "investor · development screening · long-term horizon: Use the classification to choose the first screening workflow, not as proof of legal or permitted use.",
@@ -2173,7 +2179,7 @@ async function assertCandidateAiSafety(): Promise<void> {
     /источник о том же идентифицированном объекте противоречит сопоставимому картированному факту[\s\S]*следующему незакрытому профильному условию/,
     "Russian source challenges must compare the same subject and fact without skipping gates.");
   const russianPlanningRationale = russianDeepReview.alternatives
-    .find((item: any) => item.title === "Альтернатива: сначала планирование")?.rationale ?? "";
+    .find((item: any) => item.title === "Проверка градостроительных условий")?.rationale ?? "";
   assert.match(russianPlanningRationale,
     /участка с подтверждённой идентичностью противоречат гипотезе развития[\s\S]*без изменения картированных метрик объекта/,
     "Russian planning review must scope a contradiction to the hypothesis, not object metrics.");

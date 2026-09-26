@@ -107,6 +107,29 @@ contract, climate 141, analysis-evidence export, TypeScript and diff-check PASS.
 No browser, network, Auth, ledger, running batch or control checkout was touched.
 Historical artifacts retain their old titles; no saved data was rewritten.
 
+### Adjacent contract-selector follow-up
+
+The full point-to-object contract test still selected six EN/RU path cards by
+their former titles. Reproduced at its Deep identity assertion (line 2020 before
+this edit): an empty selected rationale failed the existing mismatch/restart
+predicate. Updated those six selectors to the exact reviewed new titles; all
+identity-versus-parcel, planning, technical, lifecycle and source predicates
+remain unchanged. No product changes were needed.
+
+The Standard whole-review hashes also include the changed display title. The
+test now separately asserts exactly one path with `Identity-first review`, then
+restores only that title in a cloned comparison value before checking both
+original historical hashes. No snapshot hashes were regenerated and no other
+field is excluded from the comparison. The only old title left in this script
+is that explicit historical-comparison value.
+
+After correction, both commands composing `test:point-to-object` passed with
+Node 24: contract check (`--experimental-strip-types`) and analysis-provenance
+check (`--experimental-transform-types`). Validation-path copy 36, TypeScript
+and diff-check also PASS. Tests used a credential-free child environment; no
+browser, provider, Auth or operational actions. Root's concurrent CI wiring,
+generated documentation and browser test work were not staged or edited.
+
 ## Remaining limitations / root handoff
 
 Fallback remains an explicitly deterministic evidence-bound decision aid, not
