@@ -85,31 +85,36 @@ async function fixture(page: Page, browserName: string, baseURL: string) {
   return { release, counts: () => ({ passwordPosts, confirmationReads, paidPosts }) };
 }
 
-test("one same-user password confirmation can finish at 25 seconds, not at the old 10-second deadline", async ({ page, browserName, baseURL }) => {
+test("one same-user password confirmation can finish at 25 seconds, not at the old 10-second deadline", async ({ page, browserName, baseURL }, testInfo) => {
   const state = await fixture(page, browserName, String(baseURL));
   try {
     await page.clock.runFor(25_000);
     await expect(page).toHaveURL(url => url.pathname === "/login");
     await expect(page.getByText(unconfirmed, { exact: true })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Please wait…", exact: true })).toBeDisabled();
+    await expect(page.locator('[data-nextjs-dialog], .vite-error-overlay')).toHaveCount(0);
+    await page.screenshot({ path: testInfo.outputPath("pending-confirmation-25s.png"), fullPage: true });
     expect(state.counts()).toEqual({ passwordPosts: 1, confirmationReads: 1, paidPosts: 0 });
     state.release();
     await page.clock.resume();
     await expect(page).toHaveURL(url => url.pathname === "/profile");
     await expect(page.getByRole("heading", { name: "Your profile", exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Sign out", exact: true })).toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath("confirmed-profile.png"), fullPage: true });
     expect(state.counts().passwordPosts).toBe(1);
     expect(state.counts().paidPosts).toBe(0);
   } finally { state.release(); }
 });
 
-test("confirmation exceeding 30 seconds fails truthfully without resending password or accepting its late response", async ({ page, browserName, baseURL }) => {
+test("confirmation exceeding 30 seconds fails truthfully without resending password or accepting its late response", async ({ page, browserName, baseURL }, testInfo) => {
   const state = await fixture(page, browserName, String(baseURL));
   try {
     await page.clock.runFor(30_001);
     await expect(page.getByText(unconfirmed, { exact: true })).toBeVisible();
     await expect(page).toHaveURL(url => url.pathname === "/login");
     await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeEnabled();
+    await expect(page.locator('[data-nextjs-dialog], .vite-error-overlay')).toHaveCount(0);
+    await page.screenshot({ path: testInfo.outputPath("unconfirmed-timeout-30s.png"), fullPage: true });
     state.release();
     await page.clock.runFor(1_000);
     await expect(page.getByText(unconfirmed, { exact: true })).toBeVisible();

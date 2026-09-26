@@ -302,6 +302,7 @@ jobs:
           node --experimental-transform-types scripts/quality20-ai-failure-check.ts | tee artifacts/quality20-ai-failure-check.txt
           node --experimental-transform-types scripts/complete26-focused-shape-check.mjs | tee artifacts/complete26-focused-shape-check.txt
           node scripts/complete26-screening-depth-check.mjs | tee artifacts/complete26-screening-depth-check.txt
+          node scripts/complete26-context-binding-check.mjs | tee artifacts/complete26-context-binding-check.txt
           node scripts/complete26-validation-path-copy-check.mjs | tee artifacts/complete26-validation-path-copy-check.txt
           node scripts/complete26-building-part-scope-check.mjs | tee artifacts/complete26-building-part-scope-check.txt
           node --experimental-transform-types scripts/complete26-missing-attribute-review-check.mjs | tee artifacts/complete26-missing-attribute-review-check.txt
@@ -309,6 +310,7 @@ jobs:
           node scripts/complete26-missing-form-fields-copy-check.mjs | tee artifacts/complete26-missing-form-fields-copy-check.txt
           node scripts/complete26-fabric-diagnostic-check.mjs | tee artifacts/complete26-fabric-diagnostic-check.txt
           node --experimental-transform-types scripts/complete26-password-session-confirmation-check.mjs | tee artifacts/complete26-password-session-confirmation-check.txt
+          node --experimental-transform-types scripts/complete26-password-confirmation-budget-check.mjs | tee artifacts/complete26-password-confirmation-budget-check.txt
           node --experimental-transform-types scripts/complete26-session-timing-check.mjs | tee artifacts/complete26-session-timing-check.txt
           node --experimental-transform-types scripts/complete26-auth-body-deadline-check.mjs | tee artifacts/complete26-auth-body-deadline-check.txt
           node scripts/complete26-session-single-pass-check.mjs | tee artifacts/complete26-session-single-pass-check.txt
@@ -503,6 +505,7 @@ jobs:
         run: |
           set -euo pipefail
           npx playwright test --config=playwright.complete26-password-session.config.ts --workers=1 --retries=0 --fail-on-flaky-tests | tee artifacts/complete26-password-session-e2e.txt
+          npx playwright test --config=playwright.complete26-delayed-password-confirmation.config.ts --workers=1 --retries=0 --fail-on-flaky-tests | tee artifacts/complete26-delayed-password-confirmation-e2e.txt
 
       - name: Browser demo-public product flow
         shell: bash

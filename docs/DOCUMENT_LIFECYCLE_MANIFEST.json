@@ -3,9 +3,9 @@
   "lastVerified": "2026-09-18",
   "authority": "docs/DOCUMENTATION_INDEX.md",
   "counts": {
-    "markdownDocuments": 274,
+    "markdownDocuments": 276,
     "activeAuthorities": 12,
-    "nonActiveDocuments": 262
+    "nonActiveDocuments": 264
   },
   "documents": {
     "AGENTS.md": {
@@ -1070,6 +1070,12 @@
       "successor": "docs/DOCUMENTATION_INDEX.md",
       "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
     },
+    "docs/complete26-context-binding.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
     "docs/complete26-fabric-diagnostic-change.md": {
       "lifecycle": "historical_or_scoped_reference",
       "currentAuthority": false,
@@ -1089,6 +1095,12 @@
       "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
     },
     "docs/complete26-missing-attribute-review.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/complete26-password-confirmation-budget.md": {
       "lifecycle": "historical_or_scoped_reference",
       "currentAuthority": false,
       "successor": "docs/DOCUMENTATION_INDEX.md",
