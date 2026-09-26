@@ -124,7 +124,9 @@ for (const { locale, width } of [{ locale: "en", width: 1440 }, { locale: "ru", 
       expect(identity.statement).toMatch(exclusion);
       await expect(page.getByText(identity.statement, { exact: true })).toBeVisible();
       const reasoning = page.locator("details").filter({ has: page.locator("summary", { hasText: labels.reasoning }) });
-      if (await reasoning.getAttribute("open") === null) await reasoning.locator("summary").click();
+      const reasoningToggle = reasoning.locator(":scope > summary");
+      await expect(reasoningToggle).toHaveCount(1);
+      if (await reasoning.getAttribute("open") === null) await reasoningToggle.click();
       await expect(reasoning.getByText(output.content.initialSemanticBrief.subject.statement, { exact: true })).toBeVisible();
       const panel = page.getByTestId("analysis-geocontext");
       if (await panel.getAttribute("open") === null) await panel.getByText(labels.measurements, { exact: true }).click();

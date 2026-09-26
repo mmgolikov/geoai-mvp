@@ -17,6 +17,7 @@ const productSpecs = [
   "complete26-workspace-project-links.spec.ts",
   "complete26-create-analogues.spec.ts",
   "complete26-answer-provenance.spec.ts",
+  "complete26-building-part.spec.ts",
   "project-hub-unified.spec.ts",
   "point-object-project-restoration-readiness.spec.ts",
   "point-to-object-find-viewport.spec.ts",

@@ -198,6 +198,30 @@ length guards remain fail-closed for unusually long source text. This patch
 does not establish what physical portion a mapped part represents or aggregate
 it into a whole-building/complex measurement.
 
+### Root building-part browser verification, 26 September 04:40 UTC
+
+Optimized build on `39cc290963fcc0850910e8a7c1b2bcf0105ec424` passed (81 routes).
+The new two-case part-scope browser spec uses real core output for identity,
+initial brief, metric source facts and all three focused depths; unrelated card
+prose and provider responses are synthetic. It verifies EN1440/RU390, unchanged
+1,800 square-metre/180-metre values, explicit part-versus-complex scope, four
+saved/reopen cycles with byte preservation, no replay, and distinct Q/S/D.
+
+The first full runs failed after 12 passes in each browser because the new test
+clicked every nested evidence summary as well as its intended reasoning toggle.
+Root corrected only that selector to the direct-child summary and asserts its
+unique cardinality. Final five-spec runs: **29/29 Chromium (27.1s)** and **29/29
+WebKit (35.4s)**, one worker, zero retries. Both include one pure metric case and
+28 browser cases. Prior failed `complete26-part-*-r1` artifacts remain; final
+screenshots/JUnit are under `artifacts/complete26-part-*-r2`.
+
+Root visually inspected EN1440 Chromium and RU390 WebKit captures: part scope,
+source measurements and controls are contained/readable; synthetic English card
+prose in the RU fixture does not certify live localization. CI permanently runs
+the 131-group scope check and the new spec. It also runs the independent reviewed
+97-group final-successor accounting check, which changes no operational ledger.
+This local proof is not A06 live acceptance, full-matrix acceptance or release.
+
 ## Remaining limitations / root handoff
 
 Fallback remains an explicitly deterministic evidence-bound decision aid, not
