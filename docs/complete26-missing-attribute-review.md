@@ -49,7 +49,7 @@ Run with Node 24:
 node --experimental-transform-types scripts/complete26-missing-attribute-review-check.mjs
 ```
 
-195 assertions: unchanged A09 question and RU analogue, Q/S/D, full validator and
+212 assertions: unchanged A09 question and RU analogue, Q/S/D, full validator and
 focused gate, independent missing/present height/levels, exact narrow canonical
 copy, decimal source values, borrowed numbers, word-number/contradictory clauses,
 missing source/code/ref, identity/tag receipt mismatch, malformed receipt, unknown
@@ -70,6 +70,16 @@ Generic `what evidence establishes the height?` / RU height-only and levels-only
 requests remain narrow even with an unknown instruction; available narrow values
 retain canonical answers. The conditional policy revision remains V1 because
 neither implementation has been deployed; the corrected commit binds its content.
+
+A second independent pass on `1e2d939` demonstrated `Altitude: 280.` and
+`A 280-high structure dominates the site.` through the full validator. The next
+fail-before regression reproduced that acceptance. Mixed reviews now admit any
+numeral-bearing clause only when it equals a typed, cited scalar/measurement
+clause; this includes common EN/RU written-number forms. No count grammar was
+invented. Exact area/perimeter/distance clauses, including a source name such as
+`Tower 1`, remain valid; numeric names in arbitrary prose fail closed. The prompt
+states this conditional constraint. Other nonnumeric source-bound synthesis and
+ordinary narrow queries keep their existing checks and rendering.
 
 Adjacent PASS: main point-to-object contract/provenance, quality20 AI failure,
 114 content cases, depth contract, focused-shape 9 groups, screening-depth 42,

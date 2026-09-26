@@ -135,7 +135,8 @@ for(const term of ['depth','thickness','unit count','construction year','roof ma
   rejected(answer(),pack(),{...request(),question:`What evidence supports redevelopment? Report missing height as unknown. Report missing ${term} as unknown.`});
 }
 // Existing context, fact and numerical guards continue AFTER the missing-value gate.
-rejected({...answer(),statement:text.en+' The object contains 987654 rooms.'},pack(),request(),'focused_answer_novel_number');
+rejected({...answer(),statement:text.en+' The object contains 987654 rooms.'},pack(),request(),'focused_answer_mixed_physical_value_unbound');
+rejected({...answer(),statement:text.en+' The object contains 987654 rooms.'},pack(),{...request(),question:'Describe the mapped context.'},'focused_answer_novel_number');
 rejected({...answer(),evidenceRefs:['EVD-OSM-OBJECT','EVD-ALLOWED-FIELDS','EVD-CONTEXT-999']});
 rejected({...answer(),evidenceRefs:['EVD-OSM-OBJECT','EVD-ALLOWED-FIELDS']},pack(),request(),'focused_answer_context_without_context_receipt');
 rejected({...answer(),statement:text.en.replace('Metro Gate','Unbound University')},pack(),request(),'focused_answer_context_value_mismatch');
@@ -145,6 +146,24 @@ assert.equal(unsupported.ok,true);assert.equal(unsupported.answer.status,'unsupp
 const plan={decision:{path:'existing_asset_screen',disposition:'continue_screening',confidence:'low',reasonCodes:['object_identity_available','use_classification_available','source_is_non_official']},signalCodes:['object_identity','use_classification','building_form','source_limit'],opportunityCodes:['existing_asset_repositioning','technical_reuse_test'],risks:['non_official_source','identity_uncertainty','geometry_not_parcel'].map(code=>({code,severity:'high',confidence:'low'})),answerCode:'source_evidence_only',caveat:'Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.'};
 for(const locale of ['en','ru']){
   const r=request(locale),p=pack();
+  for(const clause of locale==='en'?['Altitude: 280.','A 280-high structure dominates the site.','Altitude: thirty.','A thirty-high structure dominates the site.']:
+    ['Отметка: 280.','Отметка: тридцать.']){
+    const a={...answer(locale),statement:text[locale]+' '+clause};
+    const result=core.validatePointObjectAiContentDetailed({...plan,focusedAnswer:a},p,r);
+    assert.equal(result.ok,false,`Full validator accepted an unbound scalar: ${clause}`);checks++;
+  }
+  for(const clause of locale==='en'?['There are 3 neighbouring parks.','There are three neighbouring parks.','Source record 280 proves suitability.']:
+    ['Рядом 3 парка.','Рядом три парка.','Запись 280 доказывает пригодность.']){
+    const result=core.validatePointObjectAiContentDetailed({...plan,focusedAnswer:{...answer(locale),statement:text[locale]+' '+clause}},p,r);
+    assert.equal(result.ok,false);assert.equal(result.detail,'focused_answer_mixed_physical_value_unbound');checks++;
+  }
+  const named=pack();named.nearbyContext[0].name='Tower 1';
+  const entry=named.evidence.find(e=>e.id==='EVD-CONTEXT-1'),payload=JSON.parse(entry.value);payload.name='Tower 1';entry.label='Tower 1';entry.value=JSON.stringify(payload);
+  const namedText=locale==='en'?'The mapped object remains an identity lead. Height and levels are unknown. Tower 1 — 120 m by straight line. Verify identity before redevelopment.':'Объект карты остаётся ориентиром идентификации. Высота и этажность неизвестны. Tower 1 — 120 м по прямой. Подтвердите идентичность перед редевелопментом.';
+  const namedResult=core.validatePointObjectAiContentDetailed({...plan,focusedAnswer:{...answer(locale),statement:namedText}},named,r);
+  assert.equal(namedResult.ok,true,namedResult.detail);assert.equal(namedResult.content.answerToQuestion.statement,namedText);checks++;
+  const unboundName=core.validatePointObjectAiContentDetailed({...plan,focusedAnswer:{...answer(locale),statement:namedText.replace(locale==='en'?'Tower 1 — 120 m by straight line.':'Tower 1 — 120 м по прямой.',locale==='en'?'Tower 1 proves suitability.':'Tower 1 доказывает пригодность.')}},named,r);
+  assert.equal(unboundName.ok,false);checks++;
   for(const [q,value] of locale==='en'?[
     ['What evidence establishes the height? Report missing height as unknown.','200'],
     ['What evidence establishes the levels? Report missing levels as unknown.','30']
@@ -192,6 +211,7 @@ for(const locale of ['en','ru']){
   assert.equal(payload.analysisRequest.focusedQuestion,question[locale],'Do not replace the approved question');
   assert.equal(payload.validationPolicy.mixedPhysicalEvidenceReview.revision,'MIXED_PHYSICAL_REVIEW_V1_2026_09_26');
   assert.deepEqual(payload.validationPolicy.mixedPhysicalEvidenceReview.keys,['tag.height','tag.building:levels']);
+  assert.match(payload.validationPolicy.mixedPhysicalEvidenceReview.numericRule,/Every numeral-bearing clause must exactly equal/);
   assert.equal(payload.validationPolicy.canonicalDirectAttribute,false);checks++;
 }
 for(const q of [null,'What is the height?','What is the roof colour?','What evidence is needed for redevelopment?']){

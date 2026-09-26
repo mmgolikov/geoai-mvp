@@ -2923,6 +2923,10 @@ function mixedPhysicalStatementIsBound(statement: string, keys: string[], suppor
   // match an exact cited measurement, not merely contain its number or name.
   const dimensionalUnit = /(?:^|[^\p{L}])(?:m[23]?|km|cm|mm|ft|feet|foot|met(?:er|re)s?|centimet(?:er|re)s?|millimet(?:er|re)s?|inches|м[23]?|км|см|мм|метр[\p{L}]*|фут[\p{L}]*|дюйм[\p{L}]*)(?=$|[^\p{L}])|\d\s*[′″]/iu;
   const physicalScalar = /\b(?:ris(?:e|es|ing)|reaches|vertical(?:ly)?|elevation|above[ -]ground|tiers?)\b|(?:возвыш|достига|вертикал|над\s+земл|надземн|ярус)|\b(?:it|building|tower|structure)\b[^.!?]{0,50}\b(?:is|has|measures?|stands?)\b[^.!?]*\d|(?:здани[ея]|башн[яи]|сооружени[ея]|оно|он|она)[^.!?]{0,50}(?:составля|имеет|равн|:)[^.!?]*\d/iu;
+  // Mixed-review prose has no general numeric admission: a familiar number can
+  // be repurposed by infinitely many synonyms. Numerals (including common EN/RU
+  // word forms) require the exact typed/cited clauses above. Counts are not added.
+  const numeral = /\p{N}|(?:^|[^\p{L}])(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|billion|dozen|ноль|нул[ьяю]|один|одна|одно|одну|дв[ае]|двух|три|тр[её]х|четыр[её][\p{L}]*|пят[ьи][\p{L}]*|шест[ьи][\p{L}]*|сем[ьи][\p{L}]*|восем[ьи][\p{L}]*|девят[ьи][\p{L}]*|десят[ьи][\p{L}]*|одиннадцат[\p{L}]*|двенадцат[\p{L}]*|тринадцат[\p{L}]*|четырнадцат[\p{L}]*|пятнадцат[\p{L}]*|шестнадцат[\p{L}]*|семнадцат[\p{L}]*|восемнадцат[\p{L}]*|девятнадцат[\p{L}]*|двадцат[\p{L}]*|тридцат[\p{L}]*|сорок[\p{L}]*|пятьдесят|шестьдесят|семьдесят|восемьдесят|девяност[\p{L}]*|сто|сот[\p{L}]*|двести|триста|четыреста|пятьсот|шестьсот|семьсот|восемьсот|девятьсот|тысяч[\p{L}]*|миллион[\p{L}]*|миллиард[\p{L}]*)(?=$|[^\p{L}])/iu;
   // Only these complete scalar clauses are admitted. In particular, a number
   // copied from area/perimeter/context is NOT evidence of height or level count.
   const clauses = statement.normalize("NFKC").split(/(?<!\d)[.!?]|[.!?](?!\d)|[;\n]/u).map(clause => clause.trim()).filter(Boolean);
@@ -2930,7 +2934,7 @@ function mixedPhysicalStatementIsBound(statement: string, keys: string[], suppor
     const mentioned = [REVIEW_HEIGHT.test(clause) ? "tag.height" : null, REVIEW_LEVELS.test(clause) ? "tag.building:levels" : null]
       .filter((key): key is string => key !== null);
     if (!mentioned.length) {
-      if ((dimensionalUnit.test(clause) || physicalScalar.test(clause)) && !measurements.has(clause)) return false;
+      if ((numeral.test(clause) || dimensionalUnit.test(clause) || physicalScalar.test(clause)) && !measurements.has(clause)) return false;
       continue;
     }
     if (mentioned.some(key => !keys.includes(key))) return false;
@@ -3760,6 +3764,7 @@ export function buildPointObjectResponsesRequest(
           ...(mixedPhysicalKeys.length ? { mixedPhysicalEvidenceReview: {
             revision: "MIXED_PHYSICAL_REVIEW_V1_2026_09_26",
             keys: mixedPhysicalKeys,
+            numericRule: "Every numeral-bearing clause must exactly equal one of the separately cited source-value/measurement clauses below, including when a source name contains a numeral. Do not add numbers, written-out quantities, counts or numeric names elsewhere in free synthesis, even if their numbers appear in another source field. This is not a global number ban: exact cited height, levels, footprint metrics and nearby straight-line distances remain available. Keep other evidence-bound synthesis nonnumeric; deterministic source cards retain other measurements/counts.",
             rule: "This is a mixed evidence review, not a narrow request for an absent scalar. Use partial with physical_baseline and bound object + attributes refs. For each requested physical field, use a separate exact clause: absent height 'Height is unknown.' / 'Высота неизвестна.'; absent levels 'Levels are unknown.' / 'Этажность неизвестна.'. Present fields: 'Mapped height: <exact source value>.' / 'Высота по карте: <exact source value>.' and 'Mapped building levels: <exact source value>.' / 'Этажность по карте: <exact source value>.'. Do not infer, convert, restate or append physical values elsewhere. Other dimensional numbers require exact separately cited clauses: 'Mapped footprint area: <footprintAreaSqM> square metres.' / 'Площадь контура по карте: <footprintAreaSqM> квадратных метров.'; 'Mapped footprint perimeter: <footprintPerimeterM> m.' / 'Периметр контура по карте: <footprintPerimeterM> м.' with the metrics ref; '<exact nearby name> — <distanceM> m by straight line.' / '<exact nearby name> — <distanceM> м по прямой.' with that nearby ref. Otherwise omit dimensional claims, not source evidence. Continue evidence-bound synthesis, context citations and missing-source gates. Never use this exception for dates or visual attributes."
           } } : {}),
           regionalClimateContractVersion: "REGIONAL_CLIMATE_ANSWER_V1",
