@@ -1782,8 +1782,8 @@ export function renderInitialSemanticBrief(
       `Access: ${accessParts.join("; ")} by straight-line distance; routes, travel time and capacity are not measured.`,
       `Доступ: ${accessParts.join("; ")} по прямой; маршруты, время в пути и пропускная способность не измерены.`)
     : localized(locale,
-      "Access: no usable transit or major-road distance was returned; verify access with route and capacity evidence.",
-      "Доступ: расстояния до общественного транспорта и магистральных дорог не получены; нужны данные о маршрутах и пропускной способности.");
+      `Access: in the ${geoContext ? `${geoContext.radiusM} m ` : ""}area-context sample, no usable transit or major-road distance was returned; verify access with route and capacity evidence.`,
+      `Доступ: в выборке окружения${geoContext ? ` радиусом ${geoContext.radiusM} м` : ""} расстояния до общественного транспорта и магистральных дорог не получены; нужны данные о маршрутах и пропускной способности.`);
 
   const groupSet = new Set(meaningfulGroups.map((group) => group.group));
   const hasUsableContext = meaningfulGroups.length > 0 || nearby.length > 0;
