@@ -5,6 +5,7 @@ import {readFileSync} from 'node:fs';
 import {registerHooks,stripTypeScriptTypes} from 'node:module';
 import {fileURLToPath} from 'node:url';
 const baseline=process.argv.includes('--baseline');
+const priorFix=process.argv.includes('--prior-fix');
 let networkCalls=0;
 globalThis.fetch=async()=>{networkCalls++;throw Error('Network forbidden');};
 registerHooks({
@@ -16,8 +17,9 @@ registerHooks({
   load(url,c,next){
     if(url.startsWith('file:')&&url.endsWith('.ts')){
       let source=readFileSync(fileURLToPath(url),'utf8');
-      if(baseline && url.endsWith('point-to-object-ai-core.ts')){
-        const previous=spawnSync('git',['show','7da5b006c20d0762fe858280d557882609e3890d:src/lib/prototype/point-to-object-ai-core.ts'],{encoding:'utf8',timeout:10_000,maxBuffer:2_000_000});
+      if((baseline||priorFix) && url.endsWith('point-to-object-ai-core.ts')){
+        const revision=baseline?'7da5b006c20d0762fe858280d557882609e3890d':'568797eab77ad65ffe50bf70f97a2d700647b260';
+        const previous=spawnSync('git',['show',`${revision}:src/lib/prototype/point-to-object-ai-core.ts`],{encoding:'utf8',timeout:10_000,maxBuffer:2_000_000});
         assert.equal(previous.status,0,'Exact frozen baseline must be available locally');source=previous.stdout;
       }
       if(url.endsWith('point-to-object-ai-core.ts'))source+='\nexport { evidenceSupport, contextEvidenceTerms };';
@@ -40,6 +42,7 @@ const validate=(a,p=evidencePack(),r=request('en'))=>core.validatePointObjectAiC
 let checks=0;
 const accepted=(a,p,r,priorAccepted=false)=>{const bytes=JSON.stringify(p),v=validate(a,p,r);if(baseline){if(priorAccepted)assert.equal(v.ok,true,JSON.stringify(v));else assert.equal(v.detail,'focused_answer_context_value_mismatch');checks++;return;}assert.equal(v.ok,true,JSON.stringify({v,terms:[...core.contextEvidenceTerms(a.evidenceRefs,core.evidenceSupport(p))]}));assert.equal(v.content.answerToQuestion.statement,a.statement);assert.equal(JSON.stringify(p),bytes);checks++;};
 const rejected=(a,p,r,detail)=>{const v=validate(a,p,r);assert.equal(v.ok,false,'Unexpected acceptance');assert.equal(v.detail,detail);checks++;};
+const reviewRejected=(a,p,r,previouslyAccepted=true)=>{const v=validate(a,p,r);assert.equal(v.ok,priorFix&&previouslyAccepted,JSON.stringify(v));if(!v.ok)assert.equal(v.detail,'focused_answer_context_value_mismatch');checks++;};
 for(const [locale,transit,district] of [
   ['en','Transit services appear in the bounded sample; route suitability remains unverified.','The rule-based district profile is commercial and business-led in this bounded mapped sample.'],
   ['ru','Транспорт присутствует в ограниченной выборке; пригодность маршрутов не подтверждена.','По картографической выборке район имеет деловой и коммерческий профиль; вывод требует проверки.']
@@ -59,12 +62,28 @@ const noTransport=evidencePack();noTransport.geoContext.groups.find(g=>g.group==
 rejected(answer('Transit services appear in the bounded mapped sample; route suitability remains unverified.',['EVD-CONTEXT-SUMMARY']),noTransport,request('en'),'focused_answer_context_value_mismatch');
 const metricOnly=evidencePack();metricOnly.geoContext.groups.find(g=>g.group==='transport').count=0;syncContext(metricOnly);
 accepted(answer('Transit services appear in the bounded sample; route suitability remains unverified.',['EVD-CONTEXT-SUMMARY']),metricOnly,request('en'));
+accepted(answer('The nearest transit point is 120 m away in this bounded sample; route suitability remains unverified.',['EVD-CONTEXT-SUMMARY']),transportOnly(),request('en'));
+accepted(answer('At 120 m there is a transit point in this bounded sample; route suitability remains unverified.',['EVD-CONTEXT-SUMMARY']),transportOnly(),request('en'));
+accepted(answer('Ближайшая точка общественного транспорта находится в 120 м по прямой; пригодность маршрутов не подтверждена.',['EVD-CONTEXT-SUMMARY']),transportOnly(),request('ru'),true);
+reviewRejected(answer('The nearest transit point is 85 m away in this bounded sample; route suitability remains unverified.',['EVD-CONTEXT-SUMMARY']),transportOnly(),request('en'));
+reviewRejected(answer('At 85 m there is a transit point in this bounded sample; route suitability remains unverified.',['EVD-CONTEXT-SUMMARY']),transportOnly(),request('en'));
+reviewRejected(answer('Transit services do not appear in the bounded sample; route suitability remains unverified.',['EVD-CONTEXT-SUMMARY']),transportOnly(),request('en'));
+reviewRejected(answer('Ближайшая точка общественного транспорта находится в 85 м по прямой; пригодность маршрутов не подтверждена.',['EVD-CONTEXT-SUMMARY']),transportOnly(),request('ru'));
+reviewRejected(answer('Транспорт не представлен в ограниченной выборке; пригодность маршрутов не подтверждена.',['EVD-CONTEXT-SUMMARY']),transportOnly(),request('ru'));
 const districtOnly=evidencePack();districtOnly.geoContext.districtCharacter={code:'hospitality_tourism',confidence:'medium',ruleVersion:'POINT_OBJECT_DISTRICT_RULE_V1',driverGroups:['hospitality']};syncContext(districtOnly);
 const tourism=answer('The rule-based district profile is tourism-led in this bounded sample; verify it before a development decision.',['EVD-DISTRICT-PROFILE']);
 accepted(tourism,districtOnly,request('en'));
 rejected({...tourism,evidenceRefs:['EVD-CONTEXT-SUMMARY']},districtOnly,request('en'),'focused_answer_context_value_mismatch');
 const noDistrictDriver=evidencePack();noDistrictDriver.geoContext.groups.find(g=>g.group==='commercial').count=0;syncContext(noDistrictDriver);
 rejected(answer('The rule-based district profile is commercial and business-led in this bounded mapped sample.',['EVD-DISTRICT-PROFILE']),noDistrictDriver,request('en'),'focused_answer_context_value_mismatch');
+reviewRejected(answer('The district is not commercial and not business-led in this bounded mapped sample.',['EVD-DISTRICT-PROFILE']),evidencePack(),request('en'));
+reviewRejected(answer('Район не имеет делового и коммерческого профиля в ограниченной картографической выборке.',['EVD-DISTRICT-PROFILE']),evidencePack(),request('ru'));
+accepted(answer('The mapped commercial district profile supports testing a residential conversion hypothesis; official controls remain unknown.',['EVD-DISTRICT-PROFILE']),evidencePack(),request('en'));
+accepted(answer('The mapped commercial district profile is not official residential zoning; validate controls separately.',['EVD-DISTRICT-PROFILE']),evidencePack(),request('en'));
+reviewRejected(answer('There are no business uses in this bounded mapped sample.',['EVD-CONTEXT-SUMMARY']),evidencePack(),request('en'));
+const noResidential=evidencePack();
+reviewRejected(answer('Residential and commercial uses appear in this bounded mapped sample.',['EVD-CONTEXT-SUMMARY']),noResidential,request('en'),false);
+reviewRejected(answer('The rule-based district profile is residential and commercial in this bounded mapped sample.',['EVD-DISTRICT-PROFILE']),noResidential,request('en'));
 const unknown=evidencePack(true);
 rejected(answer('The district is not reliably classifiable from the returned map sample; validation is needed.',['EVD-DISTRICT-PROFILE']),unknown,request('en'),'focused_answer_context_value_mismatch');
 rejected(answer('Transit services appear in the bounded sample; route suitability remains unverified.',['EVD-CONTEXT-SUMMARY']),unknown,request('en'),'focused_answer_context_value_mismatch');
@@ -75,4 +94,4 @@ const shallowDeep=answer('Transit services appear in the bounded sample; route s
 shallowDeep.missingEvidenceCodes=['official_identity','parcel_boundary','title_rights','planning_controls','physical_baseline','current_market','cost_financials','complete_nearby_inventory'];
 rejected(shallowDeep,transportOnly(),deep,'focused_answer_scenario_depth');
 assert.equal(networkCalls,0);
-console.log(JSON.stringify({status:'PASS',checks,networkCalls,scope:'synthetic full validator only'}));
+console.log(JSON.stringify({status:priorFix?'P2_REPRODUCED':'PASS',checks,networkCalls,scope:'synthetic full validator only'}));

@@ -2936,6 +2936,50 @@ function contextEvidenceTerms(
   return terms;
 }
 
+function contextEvidenceClaimMismatch(
+  statement: string,
+  refs: readonly string[],
+  support: PointObjectEvidenceSupport
+): boolean {
+  const context = support.projection.geoContext;
+  if (!context || context.coverage !== "available") return false;
+  const summaryCited = !!support.contextSummaryRef && refs.includes(support.contextSummaryRef);
+  const districtCited = !!support.districtRef && refs.includes(support.districtRef);
+  const positiveGroup = (group: PointObjectContextGroup) => summaryCited &&
+    context.groups.some((item) => item.group === group && item.count > 0);
+  const assertedCategory = (pattern: RegExp) => [...statement.matchAll(pattern)].some((match) => {
+    const before = statement.slice(Math.max(0, match.index - 32), match.index);
+    const after = statement.slice(match.index + match[0].length, match.index + match[0].length + 28);
+    // A proposed programme or unknown official zoning is not an observation
+    // that the category already occurs in the mapped context.
+    return !(/\b(?:test|testing|consider|potential|possible|proposed|hypothesis)\s+(?:an?\s+)?$/iu.test(before) ||
+      /^\s+(?:conversion|redevelopment|programme?|concept|hypothesis|proposal|development|zoning)\b/iu.test(after) ||
+      /\bofficial\s+$/iu.test(before));
+  });
+  // A second supported word cannot cover an absent category mentioned in the
+  // same statement. District character is a separate, cited source.
+  if ((assertedCategory(/\bresidential\b|(?<![\p{L}\p{N}])жил[а-яё]*/giu) && !positiveGroup("residential") &&
+       !(districtCited && context.districtCharacter.code === "residential")) ||
+      (assertedCategory(/\b(?:commercial|business)\b|(?<![\p{L}\p{N}])(?:делов|коммерч)[а-яё]*/giu) && !positiveGroup("commercial") &&
+       !(districtCited && context.districtCharacter.code === "commercial_business"))) return true;
+  if (summaryCited && /\btransit\b|(?<![\p{L}\p{N}])транспорт[а-яё]*/iu.test(statement)) {
+    // These forms deny an observed transport finding rather than qualify
+    // unmeasured route suitability elsewhere in the sentence.
+    if (/\b(?:no|without)\s+(?:\w+\s+){0,2}transit\b|\btransit\b(?:\s+\w+){0,3}\s+(?:do(?:es)?\s+not|(?:is|are)\s+not|not|absent|missing)\b|(?<![\p{L}\p{N}])транспорт[а-яё]*(?:\s+[а-яё]+){0,3}\s+(?:не(?![\p{L}\p{N}])|отсутств[а-яё]*)/iu.test(statement)) return true;
+    const distance = /(?:\btransit\b|(?<![\p{L}\p{N}])транспорт[а-яё]*)(?:(?!\b(?:road|highway)\b|дорог[а-яё]*|магистрал[а-яё]*)[^.;!?]){0,80}?(?<![\p{L}\p{N}])(\d+(?:[.,]\d+)?)\s*(?:m|meters?|metres?|м)(?![\p{L}\p{N}])/iu.exec(statement) ??
+      /(?:\b(?:at|about|around|approximately)\s+|(?<![\p{L}\p{N}])в\s+)(\d+(?:[.,]\d+)?)\s*(?:m|meters?|metres?|м)(?![\p{L}\p{N}])(?:(?!\b(?:road|highway)\b|дорог[а-яё]*|магистрал[а-яё]*)[^.;!?]){0,60}?(?:\btransit\b|(?<![\p{L}\p{N}])транспорт[а-яё]*)/iu.exec(statement);
+    if (distance) {
+      const mapped = context.nearestTransitM ?? context.groups.find((item) => item.group === "transport" && item.count > 0)?.nearestDistanceM;
+      if (mapped === null || mapped === undefined || Math.abs(Number(distance[1].replace(",", ".")) - mapped) > 0.05) return true;
+    }
+  }
+  if ((summaryCited || districtCited) &&
+      (/\b(?:no|without)\s+(?:(?:mapped|observed)\s+)?(?:commercial|business|residential)\s+(?:uses|features|objects|groups?)\b/iu.test(statement) ||
+       /\b(?:district|profile|area)\b[^.;!?]{0,40}\b(?:is|has)\s+not\s+(?:an?\s+)?(?:commercial|business|residential|tourism|hospitality|mixed|civic|industrial|recreation)\b/iu.test(statement) ||
+       /(?<![\p{L}\p{N}])район[^.;!?]{0,40}(?:не\s+имеет|не\s+является|нет)\s+(?:[\p{L}-]+\s+){0,2}(?:делов|коммерч|жил|турист|гостинич|смешан|обществен|промышл|рекреац)[\p{L}-]*/iu.test(statement))) return true;
+  return false;
+}
+
 type DirectAttributeRequirement = {
   key: string;
   value: string | null;
@@ -3349,7 +3393,8 @@ function validateFocusedAnswer(
   if (contextRefs.length > 0) {
     const statementText = statement.toLocaleLowerCase("en-US");
     const contextTerms = contextEvidenceTerms(contextRefs, support);
-    if (contextTerms.size === 0 || ![...contextTerms].some((term) => statementText.includes(term))) {
+    if (contextTerms.size === 0 || ![...contextTerms].some((term) => statementText.includes(term)) ||
+        contextEvidenceClaimMismatch(statement, contextRefs, support)) {
       return { ok: false, detail: "focused_answer_context_value_mismatch" };
     }
   }
