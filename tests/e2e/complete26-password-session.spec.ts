@@ -82,7 +82,7 @@ async function fixture(page: Page, browserName: string, baseURL: string, unavail
   await page.goto("/login?next=%2Fprofile");
   await expect(page.getByRole("heading", { name: "Sign in to GeoAI" })).toBeVisible();
   await page.locator("#login-identifier").fill(user.email);
-  await page.getByLabel("Password", { exact: true }).fill("synthetic-fixture-password");
+  await page.locator("#login-password").fill("synthetic-fixture-password");
   return { release, counts: () => ({ passwordPosts, optionalReads, paidPosts }) };
 }
 
