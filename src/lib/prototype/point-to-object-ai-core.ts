@@ -1551,7 +1551,9 @@ function deterministicEvidenceContent(
     title: localized(locale, "Confirm object and parcel identity", "Подтвердить объект и границы участка"),
     action: relation === "reverse_nearest_indexed_object_not_point_in_polygon"
       ? localized(locale, "Match the selected location and nearest indexed record to the intended real-world asset and an authority- or client-validated parcel record.", "Сопоставить выбранную локацию и ближайшую индексированную запись с реальным объектом и участком, подтверждённым органом власти или клиентом.")
-      : localized(locale, "Match the community-map object and rendered footprint to an official or client-supplied asset and parcel identifier.", "Сопоставить объект и отображаемый контур открытой карты с официальным или предоставленным клиентом идентификатором объекта и участка."),
+      : geometryRef && (geometryType === "Polygon" || geometryType === "MultiPolygon")
+        ? localized(locale, "Match the community-map object and mapped footprint to an official or client-supplied asset and parcel identifier.", "Сопоставить объект и картированный контур открытой карты с официальным или предоставленным клиентом идентификатором объекта и участка.")
+        : localized(locale, "Match the mapped point or location and object identity to an official or client-supplied asset and parcel identifier. Obtain a verified boundary if area or parcel analysis is needed.", "Сопоставить точку или местоположение на карте и идентичность объекта с официальным или предоставленным клиентом идентификатором объекта и участка. Если нужен анализ площади или участка, получить подтверждённые границы."),
     source: localized(locale, "Relevant land/municipality authority or client asset register", "Профильный земельный/муниципальный орган или реестр активов клиента"),
     decisionImpact: localized(locale, "Determines which asset, footprint and rights should be evaluated.", "Определяет, какой объект, контур и набор прав должны анализироваться."),
     priority: "critical", evidenceRefs: [relationshipRef]
