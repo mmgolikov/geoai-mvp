@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
-import {mkdtempSync,realpathSync,writeFileSync,readFileSync,existsSync,rmSync} from 'node:fs';
+import {mkdtempSync,realpathSync,writeFileSync,readFileSync,existsSync,lstatSync,symlinkSync,rmSync} from 'node:fs';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {
@@ -80,6 +80,13 @@ try{
  assert.throws(()=>advanceFile(root,path,contract,'f'.repeat(64),claimPath));checks++;
  const lease=join(root,'.synthetic-ledger.json.sprint10-live-journey.lock');writeFileSync(lease,'offline',{flag:'wx',mode:0o600});
  assert.throws(()=>advanceFile(root,path,contract,hash(bytes),claimPath),/runner lease/);rmSync(lease);checks++;
+ symlinkSync(join(root,'missing-synthetic-lease-target'),lease);
+ assert.equal(existsSync(lease),false,'dangling link reproduces the old existsSync bypass');
+ assert.throws(()=>advanceFile(root,path,contract,hash(bytes),claimPath),/runner lease/);
+ assert.equal(readFileSync(path,'utf8'),bytes,'rejected dangling lease cannot change ledger bytes');
+ assert.equal(existsSync(sprint10LedgerLockPath(path)),false,'own cycle lock released on rejection');
+ assert.equal(lstatSync(lease).isSymbolicLink(),true,'never remove someone else\'s lease');
+ rmSync(lease);checks+=5;
  writeFileSync(path,bytes+' ',{mode:0o600});assert.throws(()=>advanceFile(root,path,contract,hash(bytes),claimPath),/bytes changed/);checks++;
  writeFileSync(path,bytes,{mode:0o600});assert.deepEqual(advanceFile(root,path,contract,hash(bytes),claimPath),next);assert.deepEqual(readSprint10SpendLedgerFile(root,path),next);
  const after=readFileSync(path);assert.throws(()=>advanceFile(root,path,contract,hash(bytes),claimPath));assert.deepEqual(readFileSync(path),after);

@@ -1255,7 +1255,13 @@ export function startComplete26SuccessorEpochFile(
   const lock = acquireSprint10LedgerLock(root, target);
   try {
     // A surviving live-run lease is not permission to steal or resume a runner.
-    if (existsSync(join(root, `.${basename(target)}.sprint10-live-journey.lock`))) throw new Error("An active or stale runner lease blocks the successor.");
+    let runnerLeaseAbsent = false;
+    try {
+      lstatSync(join(root, `.${basename(target)}.sprint10-live-journey.lock`));
+    } catch (error) {
+      runnerLeaseAbsent = (error as NodeJS.ErrnoException).code === "ENOENT";
+    }
+    if (!runnerLeaseAbsent) throw new Error("An active, stale or unverifiable runner lease blocks the successor.");
     validateExistingPrivateFile(claimPath, "The exclusive successor claim");
     if (statSync(claimPath).size > 4096) throw new Error("The successor claim exceeds its fixed size bound.");
     const claim = JSON.parse(readFileSync(claimPath, "utf8")) as unknown;
