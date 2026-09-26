@@ -64,6 +64,28 @@ export, quality20 capture (43 IDs), A09 capture (58), cloud-artifact input (44),
 TypeScript with no incremental output, and `git diff --check`.
 The repository's `lint` command is TypeScript; no ESLint configuration was added.
 
+### CI loader follow-up
+
+Independent review found that the mandatory `quality20-ai-failure-check.ts`
+loader's unrestricted import regex swallowed the newly preceding provenance
+import. Reproduced on `5e07904`: Node 24 exited 1 with
+`ERR_INVALID_TYPESCRIPT_SYNTAX: Expected 'from', got '='`, before its service
+assertions ran. This was a test-loader failure, not a provider/product failure.
+
+The loader now matches exactly one brace-bounded core import and binds the real
+lightweight provenance module separately. Assertions cover provenance before or
+after the core import, exact import cardinality, the recovered fixed diagnostic,
+rejection of an arbitrary code, and absence of provenance on initial results.
+Existing failure-usage, repair, retry-count and unknown-cost assertions remain.
+
+After correction: mandatory failure check PASS; screening-depth 42 groups,
+focused-shape 9 groups, content 114 cases, semantic-v6, depth contract, climate
+141 cases and analysis-evidence export PASS; TypeScript and `git diff --check`
+PASS. Commands ran in a credential-free child environment (`env -i`) with
+synthetic provider responses only. No product file, CI definition, control
+checkout, operational ledger, running batch, or credential file changed.
+Full CI, browser and live acceptance remain root-owned and not claimed here.
+
 ## Remaining limitations / root handoff
 
 Fallback remains an explicitly deterministic evidence-bound decision aid, not

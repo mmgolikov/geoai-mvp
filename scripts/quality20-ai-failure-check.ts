@@ -3,15 +3,31 @@ import { readFileSync } from "node:fs";
 import { stripTypeScriptTypes } from "node:module";
 // @ts-expect-error -- Node strip-types runner requires the explicit extension.
 import { core, evidencePack } from "./point-to-object-semantic-v6-check.ts";
+// @ts-expect-error -- Node strip-types runner requires the explicit extension.
+import * as answerProvenance from "../src/lib/prototype/point-to-object-answer-provenance.ts";
 
-const fixtureGlobal = globalThis as typeof globalThis & { __failureCore?: unknown };
+const fixtureGlobal = globalThis as typeof globalThis & { __failureCore?: unknown; __failureProvenance?: unknown };
 fixtureGlobal.__failureCore = core;
-const source = readFileSync(new URL("../src/lib/prototype/point-to-object-ai.ts", import.meta.url), "utf8")
+fixtureGlobal.__failureProvenance = answerProvenance;
+// Do not span another import's closing brace when a preceding dependency is added.
+const coreImport = /^import \{([^{}]*?)\} from "\.\/point-to-object-ai-core";/gm;
+const provenanceImport = /^import \{([^{}]*?)\} from "\.\/point-to-object-answer-provenance";/gm;
+const serviceSource = readFileSync(new URL("../src/lib/prototype/point-to-object-ai.ts", import.meta.url), "utf8");
+assert.equal([...serviceSource.matchAll(coreImport)].length, 1);
+assert.equal([...serviceSource.matchAll(provenanceImport)].length, 1);
+for (const dependencyOrder of [serviceSource, serviceSource.replace(provenanceImport, "") + "\n" + serviceSource.match(provenanceImport)![0]]) {
+  const match = [...dependencyOrder.matchAll(coreImport)][0];
+  assert.ok(match);
+  assert.doesNotMatch(match[1], /\bimport\b|point-to-object-answer-provenance/);
+}
+const source = serviceSource
   .replace('import "server-only";', "")
   .replace('import { getPointObjectUpstreamStatus } from "@/src/lib/ai/openai-upstream-gate";',
     "const getPointObjectUpstreamStatus = () => ({ enabled: true });")
-  .replace(/import \{([\s\S]*?)\} from "\.\/point-to-object-ai-core";/,
+  .replace(coreImport,
     (_all, names: string) => `const { ${names.replace(/\s*type \w+,?/g, "")} } = globalThis.__failureCore;`)
+  .replace(provenanceImport,
+    (_all, names: string) => `const { ${names.replace(/\s*type \w+,?/g, "")} } = globalThis.__failureProvenance;`)
   .replace(/import type \{ GroundablePointObjectEvidencePack \} from "\.\/point-to-object-live-evidence";/, "")
   .replace(/import \{ pointObjectAnalysisRoleScenarioOrUnspecified \} from "\.\/point-to-object-ai-provenance";/,
     'const pointObjectAnalysisRoleScenarioOrUnspecified = () => ({ role: "unspecified", scenario: "unspecified" });');
@@ -84,11 +100,15 @@ try {
   assert.equal(recovered.content.answerToQuestion.status, "partial");
   assert.doesNotMatch(JSON.stringify(recovered.content), /987654321/);
   assert.equal(recovered.content.depthReview.depth, "quick");
+  assert.deepEqual(recovered.answerProvenance, { kind: "deterministic_recovery", rejectionCode: "focused_answer_novel_number" });
+  assert.equal(answerProvenance.isPointObjectFocusedRecoveryCode("arbitrary_rejected_text"), false);
   mock([{ status: "completed", output_text: JSON.stringify({ ...plan, depthPlan: wrongCriteria.depthPlan }), usage }]);
   assert.equal((await service.generatePointObjectAiAnalysis(pack, req)).content.answerToQuestion.status, "partial");
   assert.equal(calls, 1, "Combined invalid prose and Quick criteria still require full revalidation, not another attempt");
   mock([{ status: "completed", output_text: JSON.stringify(wrongCriteria), usage }]);
-  assert.equal((await service.generatePointObjectAiAnalysis(pack, unfocused)).content.depthReview.depth, "quick");
+  const recoveredInitial = await service.generatePointObjectAiAnalysis(pack, unfocused);
+  assert.equal(recoveredInitial.content.depthReview.depth, "quick");
+  assert.equal(Object.hasOwn(recoveredInitial, "answerProvenance"), false);
   assert.equal(calls, 1);
 
   const failure = await rejected([invalid, invalid]);
@@ -123,5 +143,6 @@ try {
   if (originalKey === undefined) delete process.env.OPENAI_API_KEY;
   else process.env.OPENAI_API_KEY = originalKey;
   delete fixtureGlobal.__failureCore;
+  delete fixtureGlobal.__failureProvenance;
 }
 console.log("quality20-ai-failure-check: PASS (offline recovery, complete-only failure usage, unknown-cost fail-closed)");
