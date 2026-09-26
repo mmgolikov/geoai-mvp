@@ -160,6 +160,44 @@ script and the product HTTPS suite. Artifacts are retained under
 prior r1/r2 failure artifacts are preserved. No external provider, operational
 ledger, cloud data, control candidate, deployment or Production was changed.
 
+### Selected building-part scope follow-up
+
+Root's frozen A06 review (Museum Of The Future, `way/1054289435`) identified
+`tag.building:part=yes` in the acquired evidence, while deterministic source facts
+labelled the selected geometry's measurements as an unqualified footprint.
+The model projection already admits this tag only through the exact joined
+attribute receipt; this was a display/recovery scope loss, not absent model
+evidence or a geometry-calculation defect.
+
+For a positive source-bound `building:part` tag only, EN/RU source identity,
+classification/initial brief, metric labels and deterministic focused recovery
+now say building part, not the whole building/complex. Scoped identity and metric
+claims reference the existing attribute receipt as well as their original
+receipt. The part tag is first in the displayed attribute list, so the existing
+six-attribute cap cannot hide it. Linked Wikidata remains explicitly complex
+context, not selected-part measurements. No acquisition, geometry, numeric value,
+classification predicate, source guard, schema, model or retry rule changed.
+Already-valid model prose remains untouched; this is not a new guard against
+every possible model-authored scope error.
+
+Before product edits on `fcce2d6`, the new synthetic check failed `Source identity
+must retain part scope`. After: `complete26-building-part-scope-check.mjs` PASS
+131 groups, covering yes/typed roof, Q/S/D, EN/RU, five focused goals, linked
+complex and standalone objects, museum parts without a whole-building tag,
+six-attribute display cap, metric-value preservation, missing/mismatched receipt
+negatives, generic recovery and valid-model-text preservation. One SHA-256
+captured before editing proves byte-identical absent/no-tag source facts,
+initial briefs and focused Q/S/D output. Rendering leaves source packs unchanged.
+
+Adjacent PASS: full `test:point-to-object`, semantic-v6, content 114, depth
+contract, focused-shape 9, screening-depth 42, validation-path copy 36, failure
+telemetry check, climate 141, TypeScript and diff-check. Zero network calls.
+This proves synthetic contracts, not fresh A06 acceptance. Root must repeat the
+candidate browser/CI checks; historical results are not rewritten. Existing
+length guards remain fail-closed for unusually long source text. This patch
+does not establish what physical portion a mapped part represents or aggregate
+it into a whole-building/complex measurement.
+
 ## Remaining limitations / root handoff
 
 Fallback remains an explicitly deterministic evidence-bound decision aid, not

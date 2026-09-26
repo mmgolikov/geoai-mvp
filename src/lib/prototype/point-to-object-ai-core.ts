@@ -1319,15 +1319,23 @@ function friendlyFeatureLabel(value: string | null, locale: PointObjectLocale): 
 /** Display only: preserve the source classification used by geometry contracts.
  * structuredAttributes contains only tags joined to this exact source receipt.
  */
+function isMappedBuildingPart(selected: ReturnType<typeof buildModelEvidenceProjection>["selectedObject"]): boolean {
+  const part = selected.structuredAttributes["tag.building:part"];
+  return Boolean(part && part.toLowerCase() !== "no");
+}
+
 function selectedFeatureDisplay(selected: ReturnType<typeof buildModelEvidenceProjection>["selectedObject"], locale: PointObjectLocale) {
+  const display = (label: string, fromAttributes: boolean) => isMappedBuildingPart(selected)
+    ? { label: localized(locale, `${label} (building part)`, `${label} (часть здания)`), fromAttributes: true }
+    : { label, fromAttributes };
   if (selected.featureClass === "building:yes") {
     for (const key of ["tourism", "amenity", "shop", "office"] as const) {
       const value = selected.structuredAttributes[`tag.${key}`];
       const label = value ? FRIENDLY_FEATURE_LABELS[`${key}:${value}`] : null;
-      if (label) return { label: label[locale], fromAttributes: true };
+      if (label) return display(label[locale], true);
     }
   }
-  return { label: friendlyFeatureLabel(selected.featureClass, locale), fromAttributes: false };
+  return display(friendlyFeatureLabel(selected.featureClass, locale), false);
 }
 
 function humanList(values: string[], locale: PointObjectLocale): string {
@@ -1365,13 +1373,15 @@ function deterministicEvidenceContent(
   const tags = selected.structuredAttributes;
   const geometryType = selected.geometryType;
   const metrics = selected.metrics;
+  const buildingPart = isMappedBuildingPart(selected);
   const geoContext = projection.geoContext;
   const sourceFacts: GroundedClaim[] = [];
   if (objectRef && sourceFeatureId) sourceFacts.push({
-    statement: name
+    statement: (name
       ? localized(locale, `OpenStreetMap resolves this location to ${name} (${sourceFeatureId}).`, `OpenStreetMap определяет эту локацию как ${name} (${sourceFeatureId}).`)
-      : localized(locale, `OpenStreetMap resolves this location to ${sourceFeatureId}.`, `OpenStreetMap связывает эту локацию с объектом ${sourceFeatureId}.`),
-    evidenceRefs: [objectRef]
+      : localized(locale, `OpenStreetMap resolves this location to ${sourceFeatureId}.`, `OpenStreetMap связывает эту локацию с объектом ${sourceFeatureId}.`)) + (buildingPart
+        ? localized(locale, " The selected feature is a mapped building part, not the whole building or complex.", " Выбранный объект — часть здания по карте, не всё здание или комплекс.") : ""),
+    evidenceRefs: uniqueRefs(objectRef, buildingPart ? attributesRef : null)
   });
   if (classificationRef && featureClass) {
     const display = selectedFeatureDisplay(selected, locale);
@@ -1382,6 +1392,7 @@ function deterministicEvidenceContent(
   }
   if (attributesRef) {
     const labels: Record<string, { en: string; ru: string }> = {
+      ...(buildingPart ? { "tag.building:part": { en: "building part", ru: "часть здания" } } : {}),
       "tag.building": { en: "building", ru: "тип здания" }, "tag.building:levels": { en: "levels", ru: "этажность" },
       "tag.height": { en: "height", ru: "высота" }, "tag.start_date": { en: "mapped start date", ru: "указанный год/дата" },
       "tag.amenity": { en: "amenity", ru: "сервис" }, "tag.shop": { en: "shop", ru: "ритейл" },
@@ -1402,10 +1413,10 @@ function deterministicEvidenceContent(
   if (metricsRef && metrics) sourceFacts.push({
     statement: localized(
       locale,
-      `Approximate mapped footprint: ${metrics.footprintAreaSqM.toLocaleString("en-US")} m²; perimeter: ${metrics.footprintPerimeterM.toLocaleString("en-US")} m. These values are derived from generalized open-map geometry, not a survey or cadastral record.`,
-      `Ориентировочная площадь картированного контура: ${metrics.footprintAreaSqM.toLocaleString("ru-RU")} м²; периметр: ${metrics.footprintPerimeterM.toLocaleString("ru-RU")} м. Значения рассчитаны по обобщённой геометрии открытой карты, а не по результатам съёмки или кадастровым данным.`
+      `Approximate mapped ${buildingPart ? "building part footprint" : "footprint"}: ${metrics.footprintAreaSqM.toLocaleString("en-US")} m²; perimeter: ${metrics.footprintPerimeterM.toLocaleString("en-US")} m.${buildingPart ? " These metrics describe the selected part, not the whole building or complex." : ""} These values are derived from generalized open-map geometry, not a survey or cadastral record.`,
+      `Ориентировочная площадь картированного контура${buildingPart ? " части здания" : ""}: ${metrics.footprintAreaSqM.toLocaleString("ru-RU")} м²; периметр: ${metrics.footprintPerimeterM.toLocaleString("ru-RU")} м.${buildingPart ? " Это метрики выбранной части, не всего здания или комплекса." : ""} Значения рассчитаны по обобщённой геометрии открытой карты, а не по результатам съёмки или кадастровым данным.`
     ),
-    evidenceRefs: [metricsRef]
+    evidenceRefs: uniqueRefs(metricsRef, buildingPart ? attributesRef : null)
   });
   if (geometryRef && geometryType) sourceFacts.push({
     statement: localized(locale,
@@ -3174,7 +3185,9 @@ function recoveredFocusedAnswerPlan(
   const requiredMissing = requiredMissingEvidence(question, support, request.goal);
   if (broadCommitmentReview(request) && (request.goal === "redevelopment" || request.goal === "due_diligence")) {
     const locale = request.locale;
-    const subject = support.hasMappedBuilding
+    const subject = isMappedBuildingPart(support.projection.selectedObject)
+      ? localized(locale, "The record identifies a mapped building part, not the whole building or complex; its condition is unverified.", "Запись описывает часть здания по карте, не всё здание или комплекс; состояние не проверено.")
+      : support.hasMappedBuilding
       ? localized(locale, "The record identifies a mapped building, not its verified condition.", "Запись описывает картированное здание, но не подтверждает его состояние.")
       : localized(locale, "The record anchors a mapped object; building identity is not established. Confirm its extent, uses and structure inventory.", "Запись привязывает объект карты; идентичность здания не установлена. Уточните границы объекта, использование и состав застройки.");
     const redevelopment = {
@@ -3234,7 +3247,9 @@ function recoveredFocusedAnswerPlan(
         "Вывод: сравните сохранение назначения по карте с изменением территории после общей проверки границ, доступа и экологии. Гипотеза: если объект не совпадает, остановите анализ; при иной привязке участка пересмотрите выводы о территории. При противоречиях прав или регламентов приостановите изменение; состав зданий не установлен, их адаптацию и замену не ранжируйте.")
     };
     const statement = [
-      localized(locale, `Mapped object: ${selected.name ?? "unnamed object"} — ${display.label}.`, `Объект по карте: ${selected.name ?? "без названия"} — ${display.label}.`),
+      isMappedBuildingPart(selected)
+        ? localized(locale, `Selected part, not whole building/complex: ${selected.name ?? "unnamed object"} — ${display.label}.`, `Выбранная часть, не всё здание/комплекс: ${selected.name ?? "без названия"} — ${display.label}.`)
+        : localized(locale, `Mapped object: ${selected.name ?? "unnamed object"} — ${display.label}.`, `Объект по карте: ${selected.name ?? "без названия"} — ${display.label}.`),
       form ? `${form}.` : localized(locale, "Physical attributes were not returned.", "Физические характеристики не получены."),
       contextStatement, implications[request.depth],
       localized(locale, "Market and cost evidence is missing; no feasibility conclusion.", "Данных о рынке и затратах нет; реализуемость не установлена.")
@@ -3288,7 +3303,11 @@ function recoveredFocusedAnswerPlan(
   const selected = selectedLabel(support, request.locale);
   const featureClass = support.projection.selectedObject.featureClass;
   const objectDescriptorTriggersNearbyGate = nearbyLanguage.test(`${selected} ${featureClass ?? ""}`);
-  const objectSentence = objectDescriptorTriggersNearbyGate
+  const objectSentence = isMappedBuildingPart(support.projection.selectedObject)
+    ? localized(request.locale,
+      "The selected open-map feature is a building part, not the whole building or complex.",
+      "Выбранный объект открытой карты — часть здания, не всё здание или комплекс.")
+    : objectDescriptorTriggersNearbyGate
     ? localized(
       request.locale,
       "The selected open-map record and its mapped attributes support a screening-level next step.",
