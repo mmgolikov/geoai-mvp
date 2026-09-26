@@ -492,6 +492,14 @@ jobs:
           node --experimental-transform-types scripts/sprint10-hosted-auth-live-check.mjs | tee artifacts/sprint10-combined-auth-contract.txt
           node --experimental-strip-types scripts/product-https-harness-check.mjs | tee artifacts/product-https-harness-contract.txt
 
+      # Fail fast on the short credential-entry gate before the longer product
+      # matrix. Every existing suite and its assertions remain mandatory.
+      - name: Browser password confirmation and optional profile isolation (mocked provider)
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx playwright test --config=playwright.complete26-password-session.config.ts --workers=1 --retries=0 --fail-on-flaky-tests | tee artifacts/complete26-password-session-e2e.txt
+
       - name: Browser demo-public product flow
         shell: bash
         env:
@@ -540,12 +548,6 @@ jobs:
         run: |
           set -euo pipefail
           npx playwright test --config=playwright.cloud-projects.config.ts --workers=1 --retries=0 --fail-on-flaky-tests | tee artifacts/cloud-projects-e2e.txt
-
-      - name: Browser password confirmation and optional profile isolation (mocked provider)
-        shell: bash
-        run: |
-          set -euo pipefail
-          npx playwright test --config=playwright.complete26-password-session.config.ts --workers=1 --retries=0 --fail-on-flaky-tests | tee artifacts/complete26-password-session-e2e.txt
 
       - name: Build
         shell: bash
