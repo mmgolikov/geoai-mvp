@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { stripTypeScriptTypes } from "node:module";
 import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 
 const integrationRoot = resolve(process.argv[2] ?? process.cwd());
 const routePath = `${integrationRoot}/app/api/prototype/point-to-object/context/route.ts`;
@@ -29,6 +30,13 @@ const actualReceipt = {
 };
 const clientEvidencePackHash = "c".repeat(64);
 const clientSourceResponseHash = "d".repeat(64);
+// The real lease returns an explicit profile even when fabric is unavailable.
+const actualGeoContext = {
+  radiusM: 400, coverage: "unavailable", sampleSize: 0, capReached: false, groups: [],
+  mappedBuildingCount: 0, mappedLevelsKnownCount: 0, medianMappedLevels: null,
+  nearestTransitM: null, nearestMajorRoadM: null,
+  districtCharacter: { code: "low_signal", confidence: "low", ruleVersion: "POINT_OBJECT_DISTRICT_RULE_V1", driverGroups: [] }
+};
 
 assert.match(original, /const \{ pack: evidencePack, receipt \} = await acquirePublicEvidenceLease\(\{[\s\S]*osmFeatureId: parsed\.value\.expectedSourceFeatureId \?\? null/,
   "Context must acquire a lease for the exact selected lookup identity.");
@@ -36,6 +44,10 @@ assert.match(original, /evidenceReceipt: receipt,[\s\S]*subject: \{\s*evidenceRe
   "Context must expose the same server-issued receipt at the response and subject scopes.");
 
 let transformed = original;
+transformed = replaceRequired(transformed,
+  'from "@/src/lib/prototype/point-to-object-fabric-diagnostic"',
+  `from ${JSON.stringify(pathToFileURL(resolve(integrationRoot, "src/lib/prototype/point-to-object-fabric-diagnostic.ts")).href)}`,
+  "actual fabric-diagnostic helper");
 transformed = replaceRequired(transformed,
   'import { explicitSourceHeight } from "@/src/lib/prototype/point-to-object-source-geometry";',
   "const explicitSourceHeight = () => ({});",
@@ -76,14 +88,14 @@ transformed = replaceRequired(transformed,
        receipt: ${JSON.stringify(actualReceipt)},
        pack: {
          evidencePackHash: ${JSON.stringify(actualEvidencePackHash)},
-         source: { sourceResponseHash: ${JSON.stringify(actualSourceResponseHash)}, rawProviderPayload: "DO_NOT_EXPOSE_SOURCE_PAYLOAD" },
+         source: { sourceResponseHash: ${JSON.stringify(actualSourceResponseHash)}, rawProviderPayload: "DO_NOT_EXPOSE_SOURCE_PAYLOAD", fabricStatus: "unavailable", fabricDiagnostic: { failureCode: "timeout" } },
          selectedObject: {
            name: "Synthetic object", displayAddress: "Synthetic address", featureClass: "building",
            sourceFeatureId: "way/123", geometryType: "Polygon", addressParts: {}, tags: {}, metrics: {},
            internalSecret: "DO_NOT_EXPOSE_INTERNAL_FIELD"
          },
          resolution: { coordinateAssociation: "inside", resultCentroidDistanceM: 0 },
-         displayGeometry: null, geoContext: null, linkedEntity: null
+         displayGeometry: null, geoContext: ${JSON.stringify(actualGeoContext)}, linkedEntity: null
        }
      };
    };`,
@@ -155,6 +167,8 @@ assert.deepEqual(payload.subject.evidenceReceipt, actualReceipt,
   "The subject must carry the same receipt as the top-level response.");
 assert.notEqual(payload.evidenceReceipt.evidencePackHash, clientEvidencePackHash);
 assert.notEqual(payload.evidenceReceipt.sourceResponseHash, clientSourceResponseHash);
+assert.deepEqual(payload.subject.geoContext, actualGeoContext, "Unavailable fabric must retain its explicit source profile, not a null/zero-success substitute.");
+assert.deepEqual(payload.subject.fabricDiagnostic, { failureCode: "timeout" }, "The actual helper must project the safe same-pack failure code.");
 assert.doesNotMatch(JSON.stringify(payload), /DO_NOT_EXPOSE|rawProviderPayload|internalSecret/,
   "The public response must not expose raw provider data or internal fixture fields.");
 
