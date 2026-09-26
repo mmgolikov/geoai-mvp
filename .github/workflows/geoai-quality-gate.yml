@@ -301,6 +301,8 @@ jobs:
           node scripts/point-to-object-shared-exact-source-check.mjs | tee artifacts/point-to-object-shared-exact-source-check.txt
           node --experimental-transform-types scripts/quality20-ai-failure-check.ts | tee artifacts/quality20-ai-failure-check.txt
           node --experimental-transform-types scripts/complete26-focused-shape-check.mjs | tee artifacts/complete26-focused-shape-check.txt
+          node scripts/complete26-screening-depth-check.mjs | tee artifacts/complete26-screening-depth-check.txt
+          node scripts/complete26-validation-path-copy-check.mjs | tee artifacts/complete26-validation-path-copy-check.txt
           node --experimental-transform-types scripts/sprint10-map-diagnostics-check.ts | tee artifacts/sprint10-map-diagnostics-check.txt
           node scripts/quality20-review-fixes-check.mjs | tee artifacts/quality20-review-fixes-check.txt
           node scripts/quality20-evidence-receipt-check.mjs | tee artifacts/quality20-evidence-receipt-check.txt

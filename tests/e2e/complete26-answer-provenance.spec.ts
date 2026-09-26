@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { sprint10Selection, sprint10SelectionWithReceipt, sprint10AnalysisResponse, SPRINT10_CAVEAT } from "./helpers/sprint10-analysis-fixture";
+import { sprint10Selection, sprint10PublicEvidenceReceipt, sprint10AnalysisResponse, SPRINT10_CAVEAT } from "./helpers/sprint10-analysis-fixture";
 import { installLoopbackBrowserHarness } from "./helpers/local-webkit-csp";
 import { POINT_OBJECT_AI_PROMPT_VERSION, recoverPointObjectAiFocusedContentDetailed, validatePointObjectAiContentDetailed, type PointObjectAnalysisRequest } from "../../src/lib/prototype/point-to-object-ai-core";
 import type { GroundablePointObjectEvidencePack } from "../../src/lib/prototype/point-to-object-live-evidence";
@@ -71,10 +71,12 @@ async function stored(page: Page) {
 
 async function prepare(page: Page, locale: "en" | "ru", baseURL: string) {
   await page.context().addCookies([{ name: "geoai_locale", value: locale, url: baseURL }]);
+  const acquiredSelection = { ...sprint10Selection, resolvedObject: { ...selection,
+    evidenceReceipt: sprint10PublicEvidenceReceipt(sourceFeatureId, locale) } };
   await page.addInitScript(({ key, value }) => {
     // Preserve saved bytes across reload; install only the initial source fixture.
     if (!sessionStorage.getItem(key)) sessionStorage.setItem(key, JSON.stringify(value));
-  }, { key: POINT_OBJECT_SESSION_KEYS.selection, value: sprint10SelectionWithReceipt(sprint10Selection) });
+  }, { key: POINT_OBJECT_SESSION_KEYS.selection, value: acquiredSelection });
   let posts = 0, kind: FixtureKind = "absent";
   const unexpected: string[] = [];
   const outputs: ReturnType<typeof fixture>[] = [];
@@ -87,6 +89,8 @@ async function prepare(page: Page, locale: "en" | "ru", baseURL: string) {
     if (route.request().method() === "GET") return route.fulfill({ json: { mode: "ready", challenge: "A".repeat(43) } });
     expect(route.request().method()).toBe("POST");
     const { role, scenario, depth, goal, perspective, horizon, question, locale: requestLocale, evidenceReceipt } = route.request().postDataJSON();
+    expect(requestLocale).toBe(locale);
+    expect(evidenceReceipt.sourceLocale).toBe(locale === "ru" ? "ru,en" : "en");
     const output = fixture({ role, scenario, depth, goal, perspective, horizon, question, locale: requestLocale }, ++posts, evidenceReceipt.evidencePackHash, kind);
     if (kind !== "invalid") expect(parsePointObjectAiResponse(output)).not.toBeNull();
     outputs.push(output);
@@ -157,7 +161,11 @@ for (const { locale, width } of [{ locale: "en", width: 1440 }, { locale: "ru", 
     await page.getByRole("button", { name: labels.quick, exact: true }).click();
     await page.getByRole("button", { name: labels.run }).click();
     await expect.poll(harness.posts).toBe(2);
-    await expect(page.getByRole("alert")).toBeVisible();
+    const preservedResultAlert = page.getByRole("alert").filter({ hasText: locale === "en"
+      ? "The previous result is still available below."
+      : "Предыдущий результат остаётся доступен ниже." });
+    await expect(preservedResultAlert).toHaveCount(1);
+    await expect(preservedResultAlert).toBeVisible();
     await expect(page.getByTestId("role-decision-cards")).toHaveAttribute("data-depth", "standard");
     expect(parsePointObjectAiResponse(harness.latest())).toBeNull();
     expect(await page.evaluate(key => sessionStorage.getItem(key), POINT_OBJECT_SESSION_KEYS.analysis)).toBe(before);

@@ -130,6 +130,36 @@ and diff-check also PASS. Tests used a credential-free child environment; no
 browser, provider, Auth or operational actions. Root's concurrent CI wiring,
 generated documentation and browser test work were not staged or edited.
 
+### Root browser and permanent-gate verification, 26 September 04:10 UTC
+
+Root ran the four adjacent dashboard/state/provenance specs against the optimized
+81-route build through the loopback HTTPS harness, with real Chromium and WebKit,
+one worker and zero retries. The final run passed **27/27 in Chromium (21.9s)** and
+**27/27 in WebKit (29.5s)**. EN/RU, 390/834/1440px dashboard layouts, actual-core
+Quick/Standard/Deep recovery, historical missing provenance, validated-model
+provenance, malformed provenance rejection, unchanged saved bytes after reopen,
+no extra AI POST on reopen, race/cancel/timeout and retained previous results are
+covered. API/source responses are fixtures; this is not live or cloud acceptance.
+
+Two earlier runs in each browser are retained as failures, not hidden retries:
+the new test's generic alert selector also matched Next.js's hidden route
+announcer; its RU fixture then incorrectly supplied an EN evidence lease. Root
+scoped the alert to the exact retained-result message and made the seeded lease
+locale-specific, adding assertions on request locale and source locale. The
+product's locale guard was correct and was not changed. Targeted RU Chromium
+2/2 passed before both full 27-case runs. No assertions were skipped or weakened.
+
+Root visually inspected the final EN1440 Chromium and RU390 WebKit recovery
+screenshots: the answer, cards and localized headings are legible and contained,
+with no overlapping/clipped content in these captures. Other card prose remains
+synthetic fixture text; these images do not certify live content or translation.
+Final root TypeScript/lint and diff check passed. Permanent CI now runs the two
+new offline checks, and the new browser file is included in both the complete25
+script and the product HTTPS suite. Artifacts are retained under
+`artifacts/complete26-depth-{chromium,webkit}-r3`, with separate JUnit receipts;
+prior r1/r2 failure artifacts are preserved. No external provider, operational
+ledger, cloud data, control candidate, deployment or Production was changed.
+
 ## Remaining limitations / root handoff
 
 Fallback remains an explicitly deterministic evidence-bound decision aid, not
