@@ -1,4 +1,5 @@
 import { parsePointObjectClimate } from "@/src/lib/prototype/point-to-object-climate-contract";
+import { parsePointObjectAnswerProvenance } from "@/src/lib/prototype/point-to-object-answer-provenance";
 import type { GeoJsonGeometry } from "@/src/lib/point-to-object/contracts";
 import { LIVE_POINT_CAVEAT } from "@/src/lib/point-to-object/contracts";
 import { parsePublicEvidenceReceipt } from "@/src/lib/prototype/point-to-object-evidence-receipt";
@@ -1177,7 +1178,8 @@ export function parsePointObjectAiResponse(value: unknown): PointObjectAiRespons
     if (code === null || error === null || retryable === null) return null;
     return { mode: "unavailable", code, error, retryable };
   }
-  if (!hasExactKeys(value, ["mode", "schemaVersion", "generatedAt", "evidencePackId", "evidencePackHash", "request", "content", "subject", "telemetry"]) ||
+  const hasAnswerProvenance = Object.prototype.hasOwnProperty.call(value, "answerProvenance");
+  if (!hasExactKeys(value, ["mode", "schemaVersion", "generatedAt", "evidencePackId", "evidencePackHash", "request", "content", "subject", "telemetry", ...(hasAnswerProvenance ? ["answerProvenance"] : [])]) ||
       value.schemaVersion !== POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION) return null;
   const generatedAt = isoTimestamp(value.generatedAt);
   const evidencePackId = nonEmptyText(value.evidencePackId, 160);
@@ -1185,6 +1187,8 @@ export function parsePointObjectAiResponse(value: unknown): PointObjectAiRespons
     ? value.evidencePackHash
     : null;
   const request = parsePointObjectAnalysisRequestReceipt(value.request);
+  const answerProvenance = hasAnswerProvenance ? parsePointObjectAnswerProvenance(value.answerProvenance) : null;
+  if (hasAnswerProvenance && (!answerProvenance || !request?.focused)) return null;
   const content = parseContent(value.content);
   const subject = parseSubject(value.subject);
   const telemetry = parsePointObjectAiTelemetry(value.telemetry);
@@ -1212,6 +1216,7 @@ export function parsePointObjectAiResponse(value: unknown): PointObjectAiRespons
     evidencePackHash,
     request,
     content,
+    ...(answerProvenance ? { answerProvenance } : {}),
     subject,
     telemetry
   };

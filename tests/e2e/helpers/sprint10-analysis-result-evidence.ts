@@ -15,6 +15,8 @@ import {
   writeFileSync
 } from "node:fs";
 import { basename, dirname, isAbsolute, resolve } from "node:path";
+// @ts-expect-error The Node transform-types offline runner requires the explicit TypeScript extension.
+import { parsePointObjectAnswerProvenance, type PointObjectAnswerProvenance } from "../../../src/lib/prototype/point-to-object-answer-provenance.ts";
 
 // @ts-expect-error The Node transform-types offline runner requires the explicit TypeScript extension.
 import { parseSprint10ProviderTelemetry, type Sprint10RequestIdentity, type Sprint10SpendTelemetry } from "./sprint10-live-budget.ts";
@@ -84,6 +86,7 @@ export type Sprint10AnalysisResultEvidence = {
     locale: "en" | "ru";
   };
   content: JsonRecord;
+  answerProvenance?: PointObjectAnswerProvenance;
   telemetry: JsonRecord;
 };
 
@@ -441,13 +444,16 @@ function safeTelemetry(value: Sprint10SpendTelemetry): JsonRecord {
 }
 
 export function buildSprint10AnalysisResultEvidence(input: Sprint10AnalysisEvidenceInput): Sprint10AnalysisResultEvidence {
-  const response = expectRecord(input.response, ["mode", "schemaVersion", "generatedAt", "evidencePackId", "evidencePackHash", "request", "content", "telemetry", "subject"], "response");
+  const hasAnswerProvenance = record(input.response) && Object.prototype.hasOwnProperty.call(input.response, "answerProvenance");
+  const response = expectRecord(input.response, ["mode", "schemaVersion", "generatedAt", "evidencePackId", "evidencePackHash", "request", "content", "telemetry", "subject", ...(hasAnswerProvenance ? ["answerProvenance"] : [])], "response");
   if (response.mode !== "openai" || response.schemaVersion !== 6) fail("response is not the accepted current Analyse result.");
   if (typeof input.expectedSourceFeatureId !== "string" || !SOURCE_FEATURE_PATTERN.test(input.expectedSourceFeatureId)) fail("expected source identity is invalid.");
   const subject = record(response.subject) ? response.subject : fail("response subject is missing.");
   const responseRequest = expectRecord(response.request,
     ["role", "scenario", "depth", "goal", "perspective", "horizon", "question", "locale", "focused"], "response.request");
   const submitted = parseSubmitted(input.submittedRequest, responseRequest);
+  const answerProvenance = hasAnswerProvenance ? parsePointObjectAnswerProvenance(response.answerProvenance) : null;
+  if (hasAnswerProvenance && (!answerProvenance || responseRequest.focused !== true)) fail("answer provenance is not a bounded focused-answer diagnostic.");
   if ((record(input.submittedRequest) && input.submittedRequest.expectedSourceFeatureId !== input.expectedSourceFeatureId) ||
       subject.sourceFeatureId !== input.expectedSourceFeatureId) fail("source identity changed before evidence capture.");
   if (typeof response.evidencePackHash !== "string" || !HASH_PATTERN.test(response.evidencePackHash) ||
@@ -475,6 +481,7 @@ export function buildSprint10AnalysisResultEvidence(input: Sprint10AnalysisEvide
     evidencePackHash: response.evidencePackHash,
     submitted,
     content: parsedContent.content,
+    ...(answerProvenance ? { answerProvenance } : {}),
     telemetry: safeTelemetry(telemetry)
   };
   const bytes = Buffer.byteLength(`${JSON.stringify(evidence)}\n`, "utf8");

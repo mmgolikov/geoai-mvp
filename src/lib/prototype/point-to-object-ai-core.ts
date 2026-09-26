@@ -1,6 +1,7 @@
 import { LIVE_POINT_CAVEAT } from "@/src/lib/point-to-object/contracts";
 import { CLIMATE_EVIDENCE_ID, parsePointObjectClimate } from "./point-to-object-climate-contract";
 import { semanticHash } from "@/src/lib/point-to-object/hash";
+import type { PointObjectAnswerProvenance } from "./point-to-object-answer-provenance";
 import type {
   GroundablePointObjectEvidencePack,
   LiveGeoContextProfile,
@@ -253,6 +254,7 @@ export type PointObjectAiResult = {
     focused: boolean;
   };
   content: PointObjectAiContent;
+  answerProvenance?: PointObjectAnswerProvenance;
   telemetry: PointObjectAiTelemetry;
 };
 
@@ -3208,13 +3210,33 @@ function recoveredFocusedAnswerPlan(
     const contextStatement = groups.length && context
       ? localized(locale, `OSM sample within ${context.radiusM} m: `, `Выборка OSM в радиусе ${context.radiusM} м: `) + groups.map(item => `${GEO_CONTEXT_GROUP_LABELS[item.group][locale]} — ${item.count}`).join("; ") + "."
       : localized(locale, "Area context is insufficient; no complete inventory is established.", "Контекст территории недостаточен; полнота данных не установлена.");
-    const implication = support.hasBuildingForm
-      ? localized(locale, "Implication: mapped use and form support an existing-asset screen. Hypothesis: test reuse or repositioning after identity, rights, planning and condition checks.", "Вывод: назначение и форма по карте дают основу для анализа существующего актива. Гипотеза: проверить обновление или репозиционирование после проверки идентичности, прав, регламентов и состояния.")
-      : localized(locale, "Implication: establish the object baseline first. A development hypothesis needs verified identity, rights, planning and physical evidence.", "Вывод: сначала установить характеристики объекта. Гипотеза развития требует проверки идентичности, прав, регламентов и физических данных.");
+    // A polygon alone is not a building inventory. Depth changes the decision
+    // work, not the available facts or permission to make a commitment.
+    const implications = support.hasMappedBuilding ? {
+      quick: localized(locale,
+        "Implication: mapped building identity is a lead, not verified capacity. Hypothesis: confirm object and parcel identity before selecting an asset strategy.",
+        "Вывод: здание по карте — ориентир, не подтверждение его возможностей. Гипотеза: подтвердить идентичность объекта и участка до выбора стратегии актива."),
+      standard: localized(locale,
+        "Implication: compare retaining current use with adapting the building. Hypothesis: adaptation is conditional on rights, planning and a condition/capacity survey; compare scope and costs before preferring it.",
+        "Вывод: сравните сохранение использования с адаптацией здания. Гипотеза: адаптация допустима к оценке после проверки прав, регламентов, состояния и возможностей; до выбора сопоставьте объём работ и затраты."),
+      deep: localized(locale,
+        "Implication: compare retention, adaptation and replacement on one verified baseline. Hypothesis: if object identity fails, stop; a parcel-only mismatch rebinds site conclusions, not object facts. Reject adaptation if condition or capacity contradicts it; hold replacement unless rights, planning and comparable market/cost evidence support it.",
+        "Вывод: сравните сохранение, адаптацию и замену здания на единой проверенной базе. Гипотеза: если объект не совпадает, остановите анализ; ошибка только привязки участка меняет выводы о территории, не факты объекта. Отклоните адаптацию при неподходящем состоянии или возможностях; замену не выбирайте без прав, регламентов и сопоставимых данных рынка и затрат.")
+    } : {
+      quick: localized(locale,
+        "Implication: mapped extent and use do not establish a development site. Hypothesis: confirm object identity and parcel association first; no building inventory is established.",
+        "Вывод: контур и назначение по карте не подтверждают площадку развития. Гипотеза: сначала проверить идентичность объекта и привязку участка; состав зданий не установлен."),
+      standard: localized(locale,
+        "Implication: compare retaining mapped use with a site-change hypothesis. Hypothesis: change requires verified extent, actual use, parcel association, rights and planning constraints; no building inventory or reuse capacity is established.",
+        "Вывод: сравните сохранение назначения по карте с гипотезой изменения территории. Гипотеза: изменение требует проверки границ, использования, привязки участка, прав и регламентов; состав зданий и возможности их адаптации не установлены."),
+      deep: localized(locale,
+        "Implication: compare retaining mapped use with changing the site after a common boundary, access and environmental review. Hypothesis: if object identity fails, stop; if parcel association changes, rebind site conclusions. Hold change if rights or planning conflict; no building inventory is established, so do not rank building adaptation or replacement.",
+        "Вывод: сравните сохранение назначения по карте с изменением территории после общей проверки границ, доступа и экологии. Гипотеза: если объект не совпадает, остановите анализ; при иной привязке участка пересмотрите выводы о территории. При противоречиях прав или регламентов приостановите изменение; состав зданий не установлен, их адаптацию и замену не ранжируйте.")
+    };
     const statement = [
       localized(locale, `Mapped object: ${selected.name ?? "unnamed object"} — ${display.label}.`, `Объект по карте: ${selected.name ?? "без названия"} — ${display.label}.`),
       form ? `${form}.` : localized(locale, "Physical attributes were not returned.", "Физические характеристики не получены."),
-      contextStatement, implication,
+      contextStatement, implications[request.depth],
       localized(locale, "Market and cost evidence is missing; no feasibility conclusion.", "Данных о рынке и затратах нет; реализуемость не установлена.")
     ].join(" ");
     return {

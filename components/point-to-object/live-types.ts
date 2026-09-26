@@ -1,4 +1,5 @@
 import type { PointObjectClimate } from "@/src/lib/prototype/point-to-object-climate-contract";
+import type { PointObjectAnswerProvenance } from "@/src/lib/prototype/point-to-object-answer-provenance";
 import type { GeoJsonGeometry } from "@/src/lib/point-to-object/contracts";
 import type { MultiPolygon, Polygon } from "geojson";
 import type {
@@ -403,6 +404,7 @@ export type PointObjectAiResponse =
       evidencePackHash: string;
       request: PointObjectAnalysisRequestReceipt;
       content: PointObjectAiContent;
+      answerProvenance?: PointObjectAnswerProvenance;
       subject: PointObjectAiSubject;
       telemetry: PointObjectAiTelemetry;
     }

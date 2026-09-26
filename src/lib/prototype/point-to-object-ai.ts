@@ -1,4 +1,5 @@
 import "server-only";
+import { isPointObjectFocusedRecoveryCode, type PointObjectFocusedRecoveryCode } from "./point-to-object-answer-provenance";
 
 import { getPointObjectUpstreamStatus } from "@/src/lib/ai/openai-upstream-gate";
 import {
@@ -289,10 +290,7 @@ function isRepairableValidationCode(code: PointObjectAiValidationCode): boolean 
 }
 
 function isDeterministicFocusedRecovery(detail: string | undefined): boolean {
-  return detail === "focused_answer_context_value_mismatch" ||
-    detail === "focused_answer_scenario_depth" ||
-    detail === "focused_answer_context_without_context_receipt" ||
-    detail === "focused_answer_novel_number";
+  return isPointObjectFocusedRecoveryCode(detail);
 }
 
 export async function generatePointObjectAiAnalysis(
@@ -321,6 +319,7 @@ export async function generatePointObjectAiAnalysis(
   const attemptUsages: PointObjectAiAttemptUsageInput[] = [];
   let attempts = 0;
   let requestId: string | null = null;
+  let focusedRecoveryCode: PointObjectFocusedRecoveryCode | null = null;
 
   const initialKind: AttemptKind = analysisRequest.question ? "focused" : "initial";
   let profile = profileFor(analysisRequest, initialKind);
@@ -359,6 +358,7 @@ export async function generatePointObjectAiAnalysis(
         analysisRequest
       );
       if (recovered.ok) {
+        if (isPointObjectFocusedRecoveryCode(validation.detail)) focusedRecoveryCode = validation.detail;
         console.warn("point_object_ai_focused_answer_recovered", {
           rejectedDetail: validation.detail,
           attempt: attempts,
@@ -422,6 +422,7 @@ export async function generatePointObjectAiAnalysis(
           analysisRequest
         );
         if (recovered.ok) {
+          if (isPointObjectFocusedRecoveryCode(validation.detail)) focusedRecoveryCode = validation.detail;
           console.warn("point_object_ai_focused_answer_recovered", {
             rejectedDetail: validation.detail,
             attempt: attempts,
@@ -479,6 +480,11 @@ export async function generatePointObjectAiAnalysis(
         locale: analysisRequest.locale
       },
       content: validation.content,
+      // Focused-answer validation path, not authorship of the other rendered
+      // cards or a claim that a historical/initial answer was model-written.
+      ...(analysisRequest.question ? { answerProvenance: focusedRecoveryCode
+        ? { kind: "deterministic_recovery" as const, rejectionCode: focusedRecoveryCode }
+        : { kind: "model_validated" as const, rejectionCode: null } } : {}),
       telemetry: telemetry()
     };
   } catch (error) {
