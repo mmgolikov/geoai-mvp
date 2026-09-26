@@ -2871,11 +2871,34 @@ function contextEvidenceTerms(
   support: PointObjectEvidenceSupport
 ): Set<string> {
   const terms = new Set<string>();
-  if (support.contextSummaryRef && refs.includes(support.contextSummaryRef) && support.projection.geoContext?.coverage === "available") {
-    for (const group of support.projection.geoContext.groups.filter((item) => item.count > 0)) {
+  const generic = new Set(["mapped", "features", "public", "uses", "other", "картографические", "объекты"]);
+  const context = support.projection.geoContext;
+  const addLabel = (label: { en: string; ru: string }) => {
+    // A generic adjective must not bind an otherwise unrelated context claim.
+    for (const token of `${label.en} ${label.ru}`.toLocaleLowerCase("en-US").split(/[^\p{L}\p{N}]+/u)) {
+      if (token.length >= 4 && !generic.has(token)) terms.add(token);
+    }
+  };
+  if (support.contextSummaryRef && refs.includes(support.contextSummaryRef) && context?.coverage === "available") {
+    for (const group of context.groups.filter((item) => item.count > 0)) {
       const label = GEO_CONTEXT_GROUP_LABELS[group.group];
-      for (const token of `${label.en} ${label.ru}`.toLocaleLowerCase("en-US").split(/[^\p{L}\p{N}]+/u)) {
-        if (token.length >= 4) terms.add(token);
+      addLabel(label);
+    }
+    // "Transit" is the ordinary English name for the mapped transport group;
+    // the alias exists only while that group or its measured nearest point does.
+    if (context.groups.some((item) => item.group === "transport" && item.count > 0) || context.nearestTransitM !== null) terms.add("transit");
+  }
+  if (support.districtRef && refs.includes(support.districtRef) && context?.coverage === "available") {
+    const district = context.districtCharacter;
+    // A low-signal or unbacked character is an unknown, not a usable finding.
+    if (district.code !== "low_signal" && district.driverGroups.length > 0 &&
+        district.driverGroups.every((driver) => context.groups.some((group) => group.group === driver && group.count > 0))) {
+      addLabel(DISTRICT_LABELS[district.code]);
+      // The rendered Russian adjective and a grammatical case of the same
+      // rule-based character differ at the ending, not in evidence meaning.
+      if (district.code === "commercial_business") {
+        terms.add("делов");
+        terms.add("коммерч");
       }
     }
   }
