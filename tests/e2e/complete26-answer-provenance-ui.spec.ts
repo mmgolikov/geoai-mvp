@@ -41,7 +41,8 @@ async function prepare(page: Page, locale: "en" | "ru", baseURL: string) {
 
 test.beforeEach(async ({ page }, info) => installLoopbackBrowserHarness(page, info.project.use.browserName, info.project.use.baseURL));
 
-for (const { locale, width } of [{ locale: "en", width: 1440 }, { locale: "ru", width: 390 }] as const) {
+const cases = (["en", "ru"] as const).flatMap(locale => [390, 834, 1440].map(width => ({ locale, width })));
+for (const { locale, width } of cases) {
   test(`recovery origin is next to both answer locations and survives reopen ${locale} ${width}`, async ({ page }, info) => {
     await page.setViewportSize({ width, height: 900 });
     const state = await prepare(page, locale, info.project.use.baseURL!);
@@ -65,10 +66,19 @@ for (const { locale, width } of [{ locale: "en", width: 1440 }, { locale: "ru", 
     await expect(note).toHaveText(explanation[locale]);
     await expect(page.getByTestId("ai-success")).not.toContainText("focused_answer_novel_number");
     await expect(page.getByTestId("role-decision-cards").getByTestId("answer-provenance-recovery")).toHaveCount(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+    await note.scrollIntoViewIfNeeded();
+    await expect(note).toBeInViewport();
+    await page.getByTestId("ai-success").screenshot({ path: info.outputPath(`answer-provenance-preset-${locale}-${width}.png`) });
     const bytes = await page.evaluate(key => sessionStorage.getItem(key), POINT_OBJECT_SESSION_KEYS.analysis);
     await page.reload();
     await expect(note).toHaveText(explanation[locale]);
     expect(await page.evaluate(key => sessionStorage.getItem(key), POINT_OBJECT_SESSION_KEYS.analysis)).toBe(bytes);
+    expect(state.posts()).toBe(3);
+
+    // A draft change must not relabel or discard the displayed completed answer.
+    await page.getByRole("button", { name: locale === "en" ? "Deep" : "Глубоко", exact: true }).click();
+    await expect(note).toHaveText(explanation[locale]);
     expect(state.posts()).toBe(3);
 
     state.setKind("model_validated");
@@ -91,6 +101,8 @@ for (const { locale, width } of [{ locale: "en", width: 1440 }, { locale: "ru", 
     expect(state.posts()).toBe(5);
     expect(state.unexpected).toEqual([]);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+    await note.scrollIntoViewIfNeeded();
+    await expect(note).toBeInViewport();
     await page.getByTestId("ai-success").screenshot({ path: info.outputPath(`answer-provenance-ui-${locale}-${width}.png`) });
   });
 }
