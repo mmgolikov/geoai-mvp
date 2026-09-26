@@ -2921,7 +2921,7 @@ function mixedPhysicalStatementIsBound(statement: string, keys: string[], suppor
   // Number allowlists alone cannot distinguish a borrowed perimeter from a
   // fabricated height. Unit-bearing or vertical/pro-noun scalar clauses must
   // match an exact cited measurement, not merely contain its number or name.
-  const dimensionalUnit = /(?:^|[^\p{L}])(?:m[23]?|km|cm|mm|ft|feet|foot|met(?:er|re)s?|centimet(?:er|re)s?|millimet(?:er|re)s?|inches|м[23]?|км|см|мм|метр[\p{L}]*|фут[\p{L}]*|дюйм[\p{L}]*)(?=$|[^\p{L}])|\d\s*[′″]/iu;
+  const dimensionalUnit = /(?:^|[^\p{L}])(?:m[23]?|km|cm|mm|ft|feet|foot|met(?:er|re)s?|centimet(?:er|re)s?|millimet(?:er|re)s?|inches|м[23]?|км|см|мм|метр(?:а|у|ом|е|ы|ов|ам|ами|ах)?|фут[\p{L}]*|дюйм[\p{L}]*)(?=$|[^\p{L}])|\d\s*[′″]/iu;
   const physicalScalar = /\b(?:ris(?:e|es|ing)|reaches|vertical(?:ly)?|elevation|above[ -]ground|tiers?)\b|(?:возвыш|достига|вертикал|над\s+земл|надземн|ярус)|\b(?:it|building|tower|structure)\b[^.!?]{0,50}\b(?:is|has|measures?|stands?)\b[^.!?]*\d|(?:здани[ея]|башн[яи]|сооружени[ея]|оно|он|она)[^.!?]{0,50}(?:составля|имеет|равн|:)[^.!?]*\d/iu;
   // Mixed-review prose has no general numeric admission: a familiar number can
   // be repurposed by infinitely many synonyms. Numerals (including common EN/RU
@@ -2931,10 +2931,13 @@ function mixedPhysicalStatementIsBound(statement: string, keys: string[], suppor
   // copied from area/perimeter/context is NOT evidence of height or level count.
   const clauses = statement.normalize("NFKC").split(/(?<!\d)[.!?]|[.!?](?!\d)|[;\n]/u).map(clause => clause.trim()).filter(Boolean);
   for (const clause of clauses) {
+    // An exact cited place name may contain "Level" or "Высота". Its distance
+    // remains context evidence, never satisfaction of the requested scalar.
+    if (measurements.has(clause)) continue;
     const mentioned = [REVIEW_HEIGHT.test(clause) ? "tag.height" : null, REVIEW_LEVELS.test(clause) ? "tag.building:levels" : null]
       .filter((key): key is string => key !== null);
     if (!mentioned.length) {
-      if ((numeral.test(clause) || dimensionalUnit.test(clause) || physicalScalar.test(clause)) && !measurements.has(clause)) return false;
+      if (numeral.test(clause) || dimensionalUnit.test(clause) || physicalScalar.test(clause)) return false;
       continue;
     }
     if (mentioned.some(key => !keys.includes(key))) return false;

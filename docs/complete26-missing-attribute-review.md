@@ -49,7 +49,7 @@ Run with Node 24:
 node --experimental-transform-types scripts/complete26-missing-attribute-review-check.mjs
 ```
 
-212 assertions: unchanged A09 question and RU analogue, Q/S/D, full validator and
+250 assertions: unchanged A09 question and RU analogue, Q/S/D, full validator and
 focused gate, independent missing/present height/levels, exact narrow canonical
 copy, decimal source values, borrowed numbers, word-number/contradictory clauses,
 missing source/code/ref, identity/tag receipt mismatch, malformed receipt, unknown
@@ -80,6 +80,15 @@ invented. Exact area/perimeter/distance clauses, including a source name such as
 `Tower 1`, remain valid; numeric names in arbitrary prose fail closed. The prompt
 states this conditional constraint. Other nonnumeric source-bound synthesis and
 ordinary narrow queries keep their existing checks and rendering.
+
+The final independent pass found two conservative false positives in `b3f7f68`:
+Russian `метро` matched the broad metre stem; and a cited nearby name `Level 33`
+was mistaken for the selected object's level count. Both full-validator positives
+failed before correction. Metre recognition now uses exact Russian inflections,
+with ten unit negatives retained. Exact source/ref-bound measurement clauses are
+recognized before physical keywords but never satisfy requested height/levels
+coverage. EN/RU `Level 33` / `Высота 33` positives retain wrong-ref, wrong-value and
+omitted-unknown negatives. No additional grammar or factual permission was added.
 
 Adjacent PASS: main point-to-object contract/provenance, quality20 AI failure,
 114 content cases, depth contract, focused-shape 9 groups, screening-depth 42,

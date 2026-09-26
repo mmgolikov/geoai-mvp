@@ -157,13 +157,19 @@ for(const locale of ['en','ru']){
     const result=core.validatePointObjectAiContentDetailed({...plan,focusedAnswer:{...answer(locale),statement:text[locale]+' '+clause}},p,r);
     assert.equal(result.ok,false);assert.equal(result.detail,'focused_answer_mixed_physical_value_unbound');checks++;
   }
-  const named=pack();named.nearbyContext[0].name='Tower 1';
-  const entry=named.evidence.find(e=>e.id==='EVD-CONTEXT-1'),payload=JSON.parse(entry.value);payload.name='Tower 1';entry.label='Tower 1';entry.value=JSON.stringify(payload);
-  const namedText=locale==='en'?'The mapped object remains an identity lead. Height and levels are unknown. Tower 1 — 120 m by straight line. Verify identity before redevelopment.':'Объект карты остаётся ориентиром идентификации. Высота и этажность неизвестны. Tower 1 — 120 м по прямой. Подтвердите идентичность перед редевелопментом.';
+  for(const name of ['Tower 1','Level 33','Высота 33']){
+  const named=pack();named.nearbyContext[0].name=name;
+  const entry=named.evidence.find(e=>e.id==='EVD-CONTEXT-1'),payload=JSON.parse(entry.value);payload.name=name;entry.label=name;entry.value=JSON.stringify(payload);
+  const namedText=locale==='en'?`The mapped object remains an identity lead. Height and levels are unknown. ${name} — 120 m by straight line. Verify identity before redevelopment.`:`Объект карты остаётся ориентиром идентификации. Высота и этажность неизвестны. ${name} — 120 м по прямой. Подтвердите идентичность перед редевелопментом.`;
   const namedResult=core.validatePointObjectAiContentDetailed({...plan,focusedAnswer:{...answer(locale),statement:namedText}},named,r);
   assert.equal(namedResult.ok,true,namedResult.detail);assert.equal(namedResult.content.answerToQuestion.statement,namedText);checks++;
-  const unboundName=core.validatePointObjectAiContentDetailed({...plan,focusedAnswer:{...answer(locale),statement:namedText.replace(locale==='en'?'Tower 1 — 120 m by straight line.':'Tower 1 — 120 м по прямой.',locale==='en'?'Tower 1 proves suitability.':'Tower 1 доказывает пригодность.')}},named,r);
+  const unboundName=core.validatePointObjectAiContentDetailed({...plan,focusedAnswer:{...answer(locale),statement:namedText.replace(locale==='en'?`${name} — 120 m by straight line.`:`${name} — 120 м по прямой.`,locale==='en'?`${name} proves suitability.`:`${name} доказывает пригодность.`)}},named,r);
   assert.equal(unboundName.ok,false);checks++;
+  for(const change of [a=>a.evidenceRefs=a.evidenceRefs.filter(ref=>ref!=='EVD-CONTEXT-1'),a=>a.statement=a.statement.replace('120','280'),a=>a.statement=a.statement.replace(locale==='en'?'Height and levels are unknown.':'Высота и этажность неизвестны.','')]){
+    const a={...answer(locale),statement:namedText};change(a);
+    assert.equal(core.validatePointObjectAiContentDetailed({...plan,focusedAnswer:a},named,r).ok,false,'A cited place name never supplies requested missing physical fields');checks++;
+  }
+  }
   for(const [q,value] of locale==='en'?[
     ['What evidence establishes the height? Report missing height as unknown.','200'],
     ['What evidence establishes the levels? Report missing levels as unknown.','30']
@@ -203,6 +209,18 @@ for(const locale of ['en','ru'])for(const depth of ['quick','standard','deep']){
   assert.equal(result.ok,true,result.detail);assert.equal(result.content.answerToQuestion.statement,text[locale]);checks++;
   const rejectedFull=core.validatePointObjectAiContentDetailed({...raw,focusedAnswer:{...answer(locale),statement:text[locale]+(locale==='en'?' Height is 280.':' Высота 280 м.')}},p,r);
   assert.equal(rejectedFull.ok,false);assert.equal(rejectedFull.detail,'focused_answer_mixed_physical_value_unbound');checks++;
+}
+for(const context of ['Станция метро Metro Gate присутствует в ограниченной выборке окружения.','Метрополитен: станция Metro Gate отмечена в ограниченной выборке окружения.']){
+  const a={...answer('ru'),statement:context+' Высота и этажность неизвестны. Подтвердите идентичность перед редевелопментом.'};
+  const result=core.validatePointObjectAiContentDetailed({...plan,focusedAnswer:a},pack(),request('ru'));
+  assert.equal(result.ok,true,`Cited RU metro context must not be a metre unit: ${result.detail}`);
+  assert.equal(result.content.answerToQuestion.statement,a.statement);checks++;
+}
+for(const unit of ['метр','метра','метру','метром','метре','метры','метров','метрам','метрами','метрах']){
+  const a={...answer('ru'),statement:text.ru+` Габарит: ${unit}.`};
+  const result=core.validatePointObjectAiContentDetailed({...plan,focusedAnswer:a},pack(),request('ru'));
+  assert.equal(result.ok,false,`Unit stays a bounded physical claim: ${unit}`);
+  assert.equal(result.detail,'focused_answer_mixed_physical_value_unbound');checks++;
 }
 const profile={model:'offline',verbosity:'low',maxOutputTokens:1000,reasoningEffort:'low'};
 for(const locale of ['en','ru']){
