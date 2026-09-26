@@ -65,6 +65,8 @@ import {
 } from "./helpers/sprint10-depth-cycle-evidence";
 // @ts-expect-error The diagnostics module is an operator-only JavaScript contract checked by its offline suite.
 import { LIVE_JOURNEY_CLEANUP_STAGES, LIVE_JOURNEY_STEPS, analyseContextFailureStage, analysePaidFailureStage, analyseSuggestionCorrelationChecks, boundedLiveJourneyResponseJson, canonicalLiveJourneyCompletedSteps, encodeLiveJourneyDiagnostic, primaryAfterFinalizeFailure } from "../../scripts/sprint10-live-journey-diagnostics.mjs";
+// @ts-expect-error The test-only JavaScript diagnostic contract has an offline suite.
+import { observeLogin, LOGIN_SESSION_STATUSES } from "../../scripts/complete26-login-diagnostic.mjs";
 import { POINT_OBJECT_SOURCE_HARNESS_RESPONSE_TIMEOUT_MS as SOURCE_REQUEST_HARNESS_TIMEOUT_MS } from "../../src/lib/prototype/source-request-deadline";
 import { loadQuality20Selection, quality20Hash, quality20RequestKey, quality20CreateProgrammeTestId, quality20CreateControls, validateQuality20Context,
   validateQuality20PaidBody, validateQuality20AnalysisResult, validateQuality20Ledger,
@@ -785,35 +787,53 @@ async function verifyExactPreview(page: Page, configuration: LiveConfiguration) 
     "The health response is not bound to the exact Preview host.");
 }
 
-async function login(page: Page, configuration: LiveConfiguration) {
-  await page.goto("/login?next=%2Fprototype%2Fpoint-to-object");
-  await expect(page.getByRole("heading", { name: "Sign in to GeoAI" })).toBeVisible();
-  await page.locator("#login-identifier").fill(configuration.email);
-  await page.getByLabel("Password").fill(configuration.password);
-  await Promise.all([
-    page.waitForURL((url) => url.pathname === "/prototype/point-to-object" || url.pathname === "/profile"),
-    page.getByRole("button", { name: "Sign in", exact: true }).click()
-  ]);
-  const evidence = await page.evaluate(async (expectedId) => {
-    const response = await fetch("/api/auth/session", { method: "GET", credentials: "same-origin", cache: "no-store" });
-    const body = await response.json().catch(() => null) as {
-      isAuthenticated?: unknown;
-      supabaseAuthenticated?: unknown;
-      isDemo?: unknown;
-      sessionStatus?: unknown;
-      user?: { id?: unknown; isDemoUser?: unknown } | null;
-      supabaseUser?: { id?: unknown } | null;
-    } | null;
-    return {
-      status: response.status,
-      noStore: response.headers.get("cache-control")?.includes("no-store") === true,
-      accepted: body?.isAuthenticated === true && body?.supabaseAuthenticated === true && body?.isDemo === false &&
-        body?.user?.isDemoUser === false && body?.sessionStatus === "supabase_user_with_profile" &&
-        body?.user?.id === expectedId && body?.supabaseUser?.id === expectedId
-    };
-  }, configuration.userId);
-  guard(evidence.status === 200 && evidence.noStore && evidence.accepted,
-    "The browser session did not match the injected permanent synthetic identity.");
+async function login(page: Page, configuration: LiveConfiguration, onFailure: (value: unknown) => void) {
+  const observation = observeLogin(page, configuration.origin, `https://${EXACT_DEVELOPMENT_PROJECT_REF}.supabase.co`);
+  try {
+    observation.stage("navigation");
+    await page.goto("/login?next=%2Fprototype%2Fpoint-to-object");
+    observation.stage("form_visible");
+    await expect(page.getByRole("heading", { name: "Sign in to GeoAI" })).toBeVisible();
+    observation.stage("credentials_fill");
+    await page.locator("#login-identifier").fill(configuration.email);
+    await page.getByLabel("Password").fill(configuration.password);
+    observation.stage("submit_redirect");
+    await Promise.all([
+      page.waitForURL((url) => url.pathname === "/prototype/point-to-object" || url.pathname === "/profile"),
+      page.getByRole("button", { name: "Sign in", exact: true }).click()
+    ]);
+    observation.stage("session_fetch");
+    const evidence = await page.evaluate(async ({ expectedId, sessionStatuses }) => {
+      const response = await fetch("/api/auth/session", { method: "GET", credentials: "same-origin", cache: "no-store" });
+      const body = await response.json().catch(() => null) as {
+        isAuthenticated?: unknown;
+        supabaseAuthenticated?: unknown;
+        isDemo?: unknown;
+        sessionStatus?: unknown;
+        user?: { id?: unknown; isDemoUser?: unknown } | null;
+        supabaseUser?: { id?: unknown } | null;
+      } | null;
+      return {
+        status: response.status,
+        bodyRecord: body !== null && typeof body === "object" && !Array.isArray(body),
+        sessionStatus: typeof body?.sessionStatus === "string" && sessionStatuses.includes(body.sessionStatus) ? body.sessionStatus : "unrecognized",
+        noStore: response.headers.get("cache-control")?.includes("no-store") === true,
+        accepted: body?.isAuthenticated === true && body?.supabaseAuthenticated === true && body?.isDemo === false &&
+          body?.user?.isDemoUser === false && body?.sessionStatus === "supabase_user_with_profile" &&
+          body?.user?.id === expectedId && body?.supabaseUser?.id === expectedId
+      };
+    }, { expectedId: configuration.userId, sessionStatuses: LOGIN_SESSION_STATUSES as string[] });
+    observation.stage("session_assert");
+    observation.session(evidence);
+    guard(evidence.status === 200 && evidence.noStore && evidence.accepted,
+      "The browser session did not match the injected permanent synthetic identity.");
+    observation.stage("complete");
+  } catch (error) {
+    onFailure(observation.failure(error));
+    throw error;
+  } finally {
+    observation.stop();
+  }
 }
 
 async function browserSessionState(page: Page, expectedUserId: string) {
@@ -2908,6 +2928,7 @@ test("root-authorized protected Preview source-to-decision journey", async ({ pa
   let primaryStage: string | null = null;
   let cleanupFailureStage: string | null = null;
   let loginAttempted = false;
+  let authLogin: unknown = null;
   let visualFinalizationFailed = false;
   try {
     progress.start("anonymous_protection");
@@ -2918,7 +2939,7 @@ test("root-authorized protected Preview source-to-decision journey", async ({ pa
     progress.complete("exact_preview");
     loginAttempted = true;
     progress.start("auth_login");
-    await login(page, configuration);
+    await login(page, configuration, (value) => { authLogin = value; });
     progress.complete("auth_login");
     if (configuration.scope === "quality20-acquire") await runQuality20Acquisition(page, configuration, budget, progress);
     if (configuration.quality20) {
@@ -3014,7 +3035,8 @@ test("root-authorized protected Preview source-to-decision journey", async ({ pa
       primaryStatus,
       primaryStage,
       cleanupStage: cleanupFailureStage,
-      completedSteps: progress.completed()
+      completedSteps: progress.completed(),
+      ...(primaryStage === "auth_login" && authLogin !== null ? { authLogin } : {})
     }));
   }
   guard(!visualFinalizationFailed, "Visual evidence index could not be finalized safely.");

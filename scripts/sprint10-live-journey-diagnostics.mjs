@@ -1,3 +1,5 @@
+import { parseLoginDiagnostic } from "./complete26-login-diagnostic.mjs";
+
 export const LIVE_JOURNEY_DIAGNOSTIC_SCHEMA = "geoai.sprint10.live-journey-diagnostic.v1";
 export const LIVE_JOURNEY_DIAGNOSTIC_MARKER = "LIVE_JOURNEY_DIAGNOSTIC_V1:";
 
@@ -184,7 +186,8 @@ function exactKeys(value, keys) {
 }
 
 export function parseLiveJourneyDiagnostic(value) {
-  if (!exactKeys(value, ["schemaVersion", "primaryStatus", "primaryStage", "cleanupStage", "completedSteps"]) ||
+  const hasLogin = value !== null && typeof value === "object" && Object.hasOwn(value, "authLogin");
+  if (!exactKeys(value, ["schemaVersion", "primaryStatus", "primaryStage", "cleanupStage", "completedSteps", ...(hasLogin ? ["authLogin"] : [])]) ||
       value.schemaVersion !== LIVE_JOURNEY_DIAGNOSTIC_SCHEMA ||
       !(value.primaryStatus === null || primaryStatuses.has(value.primaryStatus)) ||
       !(value.primaryStage === null || stepSet.has(value.primaryStage)) ||
@@ -193,7 +196,8 @@ export function parseLiveJourneyDiagnostic(value) {
       value.completedSteps.some((step) => !stepSet.has(step)) ||
       new Set(value.completedSteps).size !== value.completedSteps.length ||
       (value.primaryStatus === null) !== (value.primaryStage === null) ||
-      (value.primaryStatus === null && value.cleanupStage === null)) {
+      (value.primaryStatus === null && value.cleanupStage === null) ||
+      (hasLogin && value.primaryStage !== "auth_login")) {
     throw new Error("The live journey diagnostic is malformed.");
   }
   let previous = -1;
@@ -207,7 +211,8 @@ export function parseLiveJourneyDiagnostic(value) {
     primaryStatus: value.primaryStatus,
     primaryStage: value.primaryStage,
     cleanupStage: value.cleanupStage,
-    completedSteps: Object.freeze([...value.completedSteps])
+    completedSteps: Object.freeze([...value.completedSteps]),
+    ...(hasLogin ? { authLogin: parseLoginDiagnostic(value.authLogin) } : {})
   });
 }
 
