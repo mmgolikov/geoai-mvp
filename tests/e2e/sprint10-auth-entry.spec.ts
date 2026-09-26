@@ -54,7 +54,7 @@ const entries = [
 
 for (const width of [390, 834, 1440]) {
   for (const entry of entries) {
-    test(`S1 auth entry ${width}px: ${entry.name} without hydration errors`, async ({ page }, testInfo) => {
+    test(`S1 auth entry ${width}px: ${entry.name} without hydration errors`, async ({ page, browser }, testInfo) => {
       await page.setViewportSize({ width, height: width === 390 ? 844 : 1000 });
       const pageErrors: string[] = [];
       const mutationRequests: string[] = [];
@@ -95,6 +95,39 @@ for (const width of [390, 834, 1440]) {
       await page.getByLabel(/^Email or phone/).fill("entry-fixture@example.invalid");
       await page.getByLabel(/^Password/).fill("fixture-only-no-submit");
       await expect(page.locator("form button[type=submit]")).toHaveText("Sign in");
+      const emailMethod = page.getByRole("button", { name: "Email", exact: true });
+      const submit = page.locator("form button[type=submit]");
+      await expect(emailMethod).toBeEnabled();
+      await expect(submit).toBeEnabled();
+      for (const input of [page.getByLabel(/^Email or phone/), page.getByLabel(/^Password/)]) {
+        await input.focus();
+        await expect(input).toHaveCSS("border-color", "rgb(8, 127, 140)");
+      }
+      await testInfo.attach("enabled-auth-palette", { body: JSON.stringify(await Promise.all([emailMethod, submit].map((control) => control.evaluate((element) => ({ background: getComputedStyle(element).backgroundColor, color: getComputedStyle(element).color, disabled: (element as HTMLButtonElement).disabled }))))), contentType: "application/json" });
+      await page.screenshot({ path: testInfo.outputPath("auth-enabled.png"), fullPage: true });
+      await expect(emailMethod).toHaveCSS("background-color", "rgb(8, 127, 140)");
+      await expect(submit).toHaveCSS("background-color", "rgb(8, 127, 140)");
+
+      if (entry.name === "ordinary login opens current product") {
+        // The initial server-rendered form must also retain its local palette.
+        // No JavaScript or submission: this cannot create an authenticated persona.
+        const context = await browser.newContext({ baseURL: testInfo.project.use.baseURL, ignoreHTTPSErrors: testInfo.project.use.ignoreHTTPSErrors, javaScriptEnabled: false, viewport: { width, height: width === 390 ? 844 : 1000 } });
+        try {
+          const origin = new URL(testInfo.project.use.baseURL!).origin;
+          await context.route((url) => ["http:", "https:"].includes(url.protocol) && url.origin !== origin, (route) => route.abort());
+          const initial = await context.newPage();
+          await initial.goto("/login");
+          const controls = [initial.getByRole("button", { name: "Email", exact: true }), initial.locator("form button[type=submit]")];
+          await testInfo.attach("initial-auth-palette", { body: JSON.stringify(await Promise.all(controls.map((control) => control.evaluate((element) => ({ background: getComputedStyle(element).backgroundColor, color: getComputedStyle(element).color, disabled: (element as HTMLButtonElement).disabled }))))), contentType: "application/json" });
+          await initial.screenshot({ path: testInfo.outputPath("auth-initial-disabled.png"), fullPage: true });
+          for (const control of controls) {
+            await expect(control).toBeDisabled();
+            await expect(control).toHaveCSS("background-color", "rgb(229, 250, 250)");
+            await expect(control).toHaveCSS("color", "rgb(52, 64, 84)");
+            await expect(control).toHaveCSS("opacity", "1");
+          }
+        } finally { await context.close(); }
+      }
       await expect(page.locator("[data-nextjs-dialog]")).toHaveCount(0);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
       expect(pageErrors).toEqual([]);

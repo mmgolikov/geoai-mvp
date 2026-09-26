@@ -7,12 +7,16 @@ import { isPasswordOnlyAuthEnabled, passwordOnlyAuthMessage } from "@/src/lib/au
 
 type AuthMethod = "email" | "phone";
 
+// Auth actions own their palette in SSR and hydrated states; do not depend on
+// the global product-shell :has(...):not(:disabled) override of brand blue.
+const authPrimary = "bg-[#087f8c] text-white hover:bg-[#087f8c] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-[#e5fafa] disabled:text-[#344054] disabled:opacity-100";
+
 function JourneyItem({ number, tone, label, text }: { number: string; tone: "brand" | "personal"; label: string; text: string }) {
   return (
     <div className="flex min-h-[58px] items-center gap-3">
-      <span className={`inline-flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full text-xs font-bold ${tone === "brand" ? "bg-[#f0f7ff] text-brand" : "bg-[#f5f2ff] text-personal"}`}>{number}</span>
+      <span className={`inline-flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full text-xs font-bold text-[#344054] ${tone === "brand" ? "bg-[#e5fafa]" : "bg-[#f4fbfb]"}`}>{number}</span>
       <span className="min-w-0">
-        <strong className={`block text-[10px] font-semibold uppercase ${tone === "brand" ? "text-brand" : "text-personal"}`}>{label}</strong>
+        <strong className="block text-[10px] font-semibold uppercase text-[#087f8c]">{label}</strong>
         <span className="mt-0.5 block text-sm font-medium text-ink">{text}</span>
       </span>
     </div>
@@ -178,7 +182,7 @@ export function LoginPanel({ destination }: { destination: string }) {
             </div>
           ) : (
             <>
-              {!passwordOnly ? <div className="mt-7 grid h-14 grid-cols-2 gap-1.5 rounded-xl bg-[#f0f7ff] p-1" role="group" aria-label="Sign-in method">
+              {!passwordOnly ? <div className="mt-7 grid h-14 grid-cols-2 gap-1.5 rounded-xl bg-[#f4fbfb] p-1" role="group" aria-label="Sign-in method">
                 {(["email", "phone"] as AuthMethod[]).map((item) => (
                   <button
                     key={item}
@@ -186,7 +190,7 @@ export function LoginPanel({ destination }: { destination: string }) {
                     disabled={!isMounted}
                     aria-pressed={method === item}
                     onClick={() => changeMethod(item)}
-                    className={`rounded-[10px] text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${method === item ? "bg-brand text-white shadow-sm" : "text-muted hover:bg-white"}`}
+                    className={`rounded-[10px] text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] ${method === item ? `${authPrimary} shadow-sm` : "text-[#344054] hover:bg-[#f4fbfb] disabled:bg-[#f4fbfb] disabled:text-[#344054]"}`}
                   >
                     {item === "email" ? "Email" : "Phone"}
                   </button>
@@ -207,7 +211,7 @@ export function LoginPanel({ destination }: { destination: string }) {
                       setIdentifier(event.target.value);
                       setPhoneCodeSent(false);
                     }}
-                    className="h-[52px] rounded-[10px] border border-line bg-white px-4 text-sm text-ink outline-none transition placeholder:text-muted/70 focus:border-brand focus:ring-2 focus:ring-brand/10"
+                    className="h-[52px] rounded-[10px] border border-line bg-white px-4 text-sm text-ink outline-none transition placeholder:text-muted/70 focus:border-[#087f8c] focus:ring-2 focus:ring-[#e5fafa]"
                     placeholder={method === "phone" ? "+971501234567" : "name@company.com"}
                   />
                   <span className="text-[11px] leading-4 text-muted">{passwordOnly ? "Use the email registered for your existing account." : method === "phone" ? "Use a full phone number with country code." : "Use the email registered for your account or request a secure sign-in link."}</span>
@@ -224,7 +228,7 @@ export function LoginPanel({ destination }: { destination: string }) {
                       autoComplete="current-password"
                       value={password}
                       onChange={(event) => setPassword(event.target.value)}
-                      className="h-[52px] rounded-[10px] border border-line bg-white px-4 text-sm text-ink outline-none transition placeholder:text-muted/70 focus:border-brand focus:ring-2 focus:ring-brand/10"
+                      className="h-[52px] rounded-[10px] border border-line bg-white px-4 text-sm text-ink outline-none transition placeholder:text-muted/70 focus:border-[#087f8c] focus:ring-2 focus:ring-[#e5fafa]"
                       placeholder={passwordOnly ? "Password" : "Optional"}
                     />
                     <span className="text-[11px] leading-4 text-muted">{passwordOnly ? "A password is required. Contact the project owner if account access is unavailable." : "Leave empty to receive a secure sign-in link."}</span>
@@ -234,7 +238,7 @@ export function LoginPanel({ destination }: { destination: string }) {
                 <button
                   type="submit"
                   disabled={!isMounted || pending}
-                  className="inline-flex h-12 items-center justify-center rounded-control bg-brand px-5 text-sm font-semibold text-white transition hover:bg-[#0854dd] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+                  className={`inline-flex h-12 items-center justify-center rounded-control px-5 text-sm font-semibold transition ${authPrimary}`}
                 >
                   {!isMounted ? "Loading sign-in…" : pending ? "Please wait…" : demoSelected ? "Open demo" : passwordSelected || passwordOnly ? "Sign in" : method === "phone" ? "Send code" : "Send sign-in link"}
                 </button>
@@ -255,10 +259,10 @@ export function LoginPanel({ destination }: { destination: string }) {
                       required
                       value={phoneCode}
                       onChange={(event) => setPhoneCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
-                      className="h-12 rounded-[10px] border border-line bg-white px-4 text-sm tracking-[0.3em] text-ink outline-none focus:border-brand"
+                      className="h-12 rounded-[10px] border border-line bg-white px-4 text-sm tracking-[0.3em] text-ink outline-none focus:border-[#087f8c] focus:ring-2 focus:ring-[#e5fafa]"
                       placeholder="000000"
                     />
-                    <button disabled={!isMounted || pending} className="h-12 rounded-control bg-brand px-6 text-sm font-semibold text-white disabled:opacity-60">Verify</button>
+                    <button disabled={!isMounted || pending} className={`h-12 rounded-control px-6 text-sm font-semibold ${authPrimary}`}>Verify</button>
                   </div>
                 </form>
               ) : null}
@@ -273,16 +277,16 @@ export function LoginPanel({ destination }: { destination: string }) {
               </div>
 
               {demoAccessAvailable ? (
-                <div className="mt-4 grid gap-4 rounded-2xl bg-[#f5f2ff] p-4 sm:grid-cols-[1fr_auto] sm:items-center">
+                <div className="mt-4 grid gap-4 rounded-2xl bg-[#f4fbfb] p-4 sm:grid-cols-[1fr_auto] sm:items-center">
                   <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-personal">Guided access</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#087f8c]">Guided access</p>
                     <p className="mt-1 text-xs leading-5 text-muted">Use the ready browser-local sample account. It never authorizes protected server resources.</p>
                   </div>
                   <button
                     type="button"
                     onClick={fillDemoCredentials}
                     disabled={!isMounted}
-                    className="inline-flex h-12 items-center justify-center rounded-control border border-personal bg-white px-5 text-sm font-semibold text-personal transition hover:bg-white/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-personal"
+                    className="inline-flex h-12 items-center justify-center rounded-control border border-[#087f8c] bg-white px-5 text-sm font-semibold text-[#087f8c] transition hover:bg-[#e5fafa] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] disabled:cursor-not-allowed disabled:border-line disabled:bg-[#e5fafa] disabled:text-[#344054]"
                   >
                     Open demo access
                   </button>
