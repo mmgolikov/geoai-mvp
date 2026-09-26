@@ -21,16 +21,38 @@ export type BrowserSignOutDisposition =
 
 const defaultAuthRequestTimeoutMs = 10_000;
 
-async function runBoundedAuthRequest(
+async function runBoundedAuthRequest<T>(
   fetcher: BrowserAuthFetch,
   input: RequestInfo | URL,
   init: RequestInit,
-  timeoutMs: number
-) {
+  timeoutMs: number,
+  consumeResponse: (response: Response) => Promise<T>
+): Promise<T> {
   const controller = new AbortController();
-  const timeout = globalThis.setTimeout(() => controller.abort(), timeoutMs);
+  const startedAt = performance.now();
+  const timeoutError = new DOMException("Authentication request timed out.", "AbortError");
+  const throwIfExpired = () => {
+    // JSON parsing can occupy a task past the deadline before its timer runs.
+    if (performance.now() - startedAt >= timeoutMs) controller.abort(timeoutError);
+    controller.signal.throwIfAborted();
+  };
+  let timeout: ReturnType<typeof globalThis.setTimeout> | undefined;
+  const expired = new Promise<never>((_resolve, reject) => {
+    timeout = globalThis.setTimeout(() => {
+      // Settle first even when a dependency ignores abort or catches body errors.
+      reject(timeoutError);
+      controller.abort(timeoutError);
+    }, timeoutMs);
+  });
+  const operation = (async () => {
+    const response = await fetcher(input, { ...init, signal: controller.signal });
+    throwIfExpired();
+    const result = await consumeResponse(response);
+    throwIfExpired();
+    return result;
+  })();
   try {
-    return await fetcher(input, { ...init, signal: controller.signal });
+    return await Promise.race([operation, expired]);
   } finally {
     globalThis.clearTimeout(timeout);
   }
@@ -40,18 +62,8 @@ export async function requestConfirmedBrowserSignOut(
   fetcher: BrowserAuthFetch = fetch,
   timeoutMs = defaultAuthRequestTimeoutMs
 ): Promise<BrowserSignOutRequest> {
-  const controllerState = { timedOut: false };
-  const boundedFetcher: BrowserAuthFetch = async (input, init) => {
-    try {
-      return await runBoundedAuthRequest(fetcher, input, init ?? {}, timeoutMs);
-    } catch (error) {
-      controllerState.timedOut = error instanceof DOMException && error.name === "AbortError";
-      throw error;
-    }
-  };
-
   try {
-    const response = await boundedFetcher("/api/auth/logout", {
+    return await runBoundedAuthRequest<BrowserSignOutRequest>(fetcher, "/api/auth/logout", {
       method: "POST",
       credentials: "same-origin",
       cache: "no-store",
@@ -60,21 +72,22 @@ export async function requestConfirmedBrowserSignOut(
         "Content-Type": "application/json"
       },
       body: "{}"
+    }, timeoutMs, async (response) => {
+      if (!response.ok) return { ok: false, reason: "server_rejected" };
+      let payload: { ok?: unknown; status?: unknown };
+      try {
+        payload = await response.json() as { ok?: unknown; status?: unknown };
+      } catch {
+        return { ok: false, reason: "server_rejected" };
+      }
+      return payload.ok === true && payload.status === "signed_out"
+        ? { ok: true, reason: "confirmed" }
+        : { ok: false, reason: "server_rejected" };
     });
-    if (!response.ok) return { ok: false, reason: "server_rejected" };
-    let payload: { ok?: unknown; status?: unknown };
-    try {
-      payload = await response.json() as { ok?: unknown; status?: unknown };
-    } catch {
-      return { ok: false, reason: "server_rejected" };
-    }
-    return payload.ok === true && payload.status === "signed_out"
-      ? { ok: true, reason: "confirmed" }
-      : { ok: false, reason: "server_rejected" };
-  } catch {
+  } catch (error) {
     return {
       ok: false,
-      reason: controllerState.timedOut ? "timeout" : "network_failure"
+      reason: error instanceof DOMException && error.name === "AbortError" ? "timeout" : "network_failure"
     };
   }
 }
@@ -84,25 +97,26 @@ export async function readBrowserServerSession(
   timeoutMs = defaultAuthRequestTimeoutMs
 ): Promise<BrowserSessionRead> {
   try {
-    const response = await runBoundedAuthRequest(fetcher, "/api/auth/session", {
+    return await runBoundedAuthRequest<BrowserSessionRead>(fetcher, "/api/auth/session", {
       method: "GET",
       credentials: "same-origin",
       cache: "no-store",
       headers: { Accept: "application/json" }
-    }, timeoutMs);
-    if (!response.ok) return { status: "unavailable" };
-    const payload = await response.json() as {
-      isAuthenticated?: unknown;
-      sessionStatus?: unknown;
-      user?: GeoAIAuthSession["user"];
-    };
-    if (payload.isAuthenticated === false && payload.sessionStatus === "session_missing") {
-      return { status: "anonymous" };
-    }
-    if (payload.isAuthenticated === true && payload.user) {
-      return { status: "authenticated", user: payload.user };
-    }
-    return { status: "unavailable" };
+    }, timeoutMs, async (response) => {
+      if (!response.ok) return { status: "unavailable" };
+      const payload = await response.json() as {
+        isAuthenticated?: unknown;
+        sessionStatus?: unknown;
+        user?: GeoAIAuthSession["user"];
+      };
+      if (payload.isAuthenticated === false && payload.sessionStatus === "session_missing") {
+        return { status: "anonymous" };
+      }
+      if (payload.isAuthenticated === true && payload.user) {
+        return { status: "authenticated", user: payload.user };
+      }
+      return { status: "unavailable" };
+    });
   } catch {
     return { status: "unavailable" };
   }
