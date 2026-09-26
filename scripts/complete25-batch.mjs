@@ -130,7 +130,7 @@ export function validateComplete26BatchOpening(config,ledger,opening,fresh=true)
       opening.currentCandidateCommit===config.plan.execution.commit&&opening.currentCandidateHost===config.previewHost&&
       opening.previousCandidateCommit!==opening.currentCandidateCommit,"SUCCESSOR_BINDING");
     guard(Number.isInteger(opening.openingReceiptCount)&&opening.openingReceiptCount>90&&
-      opening.openingReceiptCount+53<=160&&Number.isFinite(opening.openingAccountedUsd)&&opening.openingAccountedUsd>0&&
+      opening.openingReceiptCount+53<=liveBudget.sprint10LedgerReceiptCapacity(ledger)&&Number.isFinite(opening.openingAccountedUsd)&&opening.openingAccountedUsd>0&&
       ledger.estimatedOrReservedUsd>=opening.openingAccountedUsd,"SUCCESSOR_OPENING");
     if(fresh)guard(sprint10LedgerReceiptCount(ledger)===opening.openingReceiptCount&&
       ledger.estimatedOrReservedUsd===opening.openingAccountedUsd&&ledger.ceilingUsd-ledger.estimatedOrReservedUsd>=1.2,"INITIAL_HEADROOM");

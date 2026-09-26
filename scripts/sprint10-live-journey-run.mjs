@@ -23,7 +23,7 @@ import {
   SPRINT10_LIVE_CEILING_USD,
   hasSprint10UnresolvedCharge,
   sprint10LedgerReceiptCount,
-  SPRINT10_MAX_RECEIPTS,
+  sprint10LedgerReceiptCapacity,
   recordComplete25CaseAttemptFile,
   readSprint10SpendLedgerFile,
   sprint10LedgerLockPath
@@ -172,7 +172,7 @@ export function validateLiveLedgerPreflight(rootValue, pathValue, scope) {
 
 export function validateLiveLedgerScopeHeadroom(ledger, scope) {
   if (!acceptedScopes.has(scope)) fail("The selected bounded live scope is not accepted for ledger preflight.");
-  if (Array.isArray(ledger.receipts) && sprint10LedgerReceiptCount(ledger) + LIVE_SCOPE_RECEIPT_PLAN[scope].length > SPRINT10_MAX_RECEIPTS) {
+  if (Array.isArray(ledger.receipts) && sprint10LedgerReceiptCount(ledger) + LIVE_SCOPE_RECEIPT_PLAN[scope].length > sprint10LedgerReceiptCapacity(ledger)) {
     fail("The complete selected live scope exceeds historic-inclusive receipt capacity.");
   }
   const reserveRequired = LIVE_SCOPE_RECEIPT_PLAN[scope]

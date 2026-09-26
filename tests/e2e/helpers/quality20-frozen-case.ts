@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { closeSync, constants, fstatSync, openSync, readFileSync, realpathSync } from "node:fs";
 import { isAbsolute } from "node:path";
 // @ts-expect-error The offline Node strip-types runner needs an explicit extension.
-import { parseSprint10SpendLedger, hasSprint10UnresolvedCharge, sprint10LedgerReceiptCount, complete26SuccessorOpening, SPRINT10_MAX_RECEIPTS, type Sprint10SpendLedger } from "./sprint10-live-budget.ts";
+import { parseSprint10SpendLedger, hasSprint10UnresolvedCharge, sprint10LedgerReceiptCount, sprint10LedgerReceiptCapacity, complete26SuccessorOpening, SPRINT10_MAX_RECEIPTS, type Sprint10SpendLedger } from "./sprint10-live-budget.ts";
 
 export const QUALITY20_AMENDMENT = "quality20-dubai-a01-a06-singapore-a07-a08-v1";
 // COMPLETE25 appends four Create rows; the original 54 records stay unchanged.
@@ -240,7 +240,7 @@ export function validateQuality20Ledger(selection: Quality20Selection, input: Sp
   const receipts = parsed ? parsed.receipts : input as readonly { identity?: { requestKey?: string }; state?: string }[];
   const paid = selection.definition.scope !== "quality20-find";
   const totalCount = parsed ? sprint10LedgerReceiptCount(parsed) : receipts.length;
-  requireCondition(totalCount >= 13 && totalCount + Number(paid) <= SPRINT10_MAX_RECEIPTS, "Bounded historic-inclusive receipt journal is full or historic denominator missing.");
+  requireCondition(totalCount >= 13 && totalCount + Number(paid) <= (parsed ? sprint10LedgerReceiptCapacity(parsed) : SPRINT10_MAX_RECEIPTS), "Bounded historic-inclusive receipt journal is full or historic denominator missing.");
   if (parsed?.schemaVersion === 2) {
     const epoch = parsed.acceptanceEpoch;
     requireCondition(epoch.candidateCommit === selection.manifest.execution.commit &&
