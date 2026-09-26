@@ -16,6 +16,7 @@ type Props = {
   districtLabels: Record<string, string>;
   request: PointObjectAnalysisRequestReceipt;
   content: Omit<PointObjectAiContent, "initialSemanticBrief">;
+  answerRecoveryNote: string | null;
 };
 
 type InfrastructureCard = {
@@ -35,7 +36,7 @@ const INFRASTRUCTURE_CARDS: InfrastructureCard[] = [
   { id: "tourism", group: "hospitality", icon: "tourism", title: { en: "Hospitality", ru: "Гостиницы и размещение" } }
 ];
 
-export function PointObjectDecisionCards({ context, generatedAt, reportPerspective, places, groupLabels, districtLabels, request, content }: Props) {
+export function PointObjectDecisionCards({ context, generatedAt, reportPerspective, places, groupLabels, districtLabels, request, content, answerRecoveryNote }: Props) {
   const { locale } = usePointObjectLocale();
   const view = request.scenario.startsWith("b2c_") ? "living" : "development";
   const [category, setCategory] = useState<string | null>(null);
@@ -156,7 +157,7 @@ export function PointObjectDecisionCards({ context, generatedAt, reportPerspecti
     if (id === "buildings") return body("building_context");
     if (id === "district" || id === "access") return body(id);
     if (id === "coverage") return <>
-      {request.goal === "custom" ? <div className={styles.questionResult} data-testid="dashboard-question-result"><strong>{ru ? "Ответ на сохранённый вопрос" : "Answer to the saved question"}</strong><p>{questionAnswer?.statement ?? (ru ? "Ответ в этом результате не получен." : "No answer was returned in this result.")}</p>{questionAnswer ? <><span>{questionAnswer.status === "answered" ? (ru ? "Ответ получен" : "Answered") : questionAnswer.status === "partial" ? (ru ? "Частичный ответ" : "Partial answer") : (ru ? "Данных недостаточно" : "Unsupported by evidence")} · {questionAnswer.confidence === "medium" ? (ru ? "Средняя уверенность" : "Medium confidence") : (ru ? "Низкая уверенность" : "Low confidence")} · {questionAnswer.horizon === "current" ? (ru ? "Текущий момент" : "Current") : questionAnswer.horizon === "one_to_three_years" ? (ru ? "1–3 года" : "1–3 years") : (ru ? "Долгосрочно" : "Long term")}</span>{questionAnswer.missingEvidence.length ? <p className="text-sm text-muted">{ru ? "Не хватает:" : "Missing:"} {questionAnswer.missingEvidence.join(" · ")}</p> : null}{refs(questionAnswer.evidenceRefs)}</> : null}</div> : null}
+      {request.goal === "custom" ? <div className={styles.questionResult} data-testid="dashboard-question-result"><strong>{ru ? "Ответ на сохранённый вопрос" : "Answer to the saved question"}</strong><p>{questionAnswer?.statement ?? (ru ? "Ответ в этом результате не получен." : "No answer was returned in this result.")}</p>{questionAnswer ? <>{answerRecoveryNote ? <p className="text-xs leading-5 text-muted" role="note" data-testid="answer-provenance-recovery">{answerRecoveryNote}</p> : null}<span>{questionAnswer.status === "answered" ? (ru ? "Ответ получен" : "Answered") : questionAnswer.status === "partial" ? (ru ? "Частичный ответ" : "Partial answer") : (ru ? "Данных недостаточно" : "Unsupported by evidence")} · {questionAnswer.confidence === "medium" ? (ru ? "Средняя уверенность" : "Medium confidence") : (ru ? "Низкая уверенность" : "Low confidence")} · {questionAnswer.horizon === "current" ? (ru ? "Текущий момент" : "Current") : questionAnswer.horizon === "one_to_three_years" ? (ru ? "1–3 года" : "1–3 years") : (ru ? "Долгосрочно" : "Long term")}</span>{questionAnswer.missingEvidence.length ? <p className="text-sm text-muted">{ru ? "Не хватает:" : "Missing:"} {questionAnswer.missingEvidence.join(" · ")}</p> : null}{refs(questionAnswer.evidenceRefs)}</> : null}</div> : null}
       <dl className={styles.coverage}>
       <div><dt>{ru ? "Окружение OSM" : "OSM context"}</dt><dd>{data.available ? context?.capReached ? (ru ? "Частично · лимит" : "Partial · capped") : (ru ? "Выборка получена" : "Sample returned") : empty}</dd></div>
       <div><dt>{ru ? "Этажность зданий" : "Building levels"}</dt><dd>{data.available && context ? `${context.mappedLevelsKnownCount}/${context.mappedBuildingCount}` : "—"}</dd></div>

@@ -591,6 +591,9 @@ export function PointToObjectAnalysis() {
   const localizedPerspective = (value: PointObjectAnalysisPerspective) => value === "developer" ? t("analysis.developer") : value === "investor" ? t("analysis.investor") : t("analysis.assetOwner");
   const localizedHorizon = (value: PointObjectAnalysisHorizon) => value === "current" ? t("analysis.current") : value === "one_to_three_years" ? t("analysis.oneToThree") : t("analysis.longTerm");
   const localizedAnswerStatus = (value: "answered" | "partial" | "unsupported") => locale === "ru" ? (value === "answered" ? "Ответ сформирован" : value === "partial" ? "Частичный ответ" : "Нет достаточных данных") : value;
+  const answerRecoveryNote = analysis?.mode === "openai" && "answerProvenance" in analysis && analysis.answerProvenance?.kind === "deterministic_recovery"
+    ? (locale === "ru" ? "Этот ответ опирается на данные источников, поскольку ответ модели не удалось проверить." : "This answer uses source evidence because the model response could not be verified.")
+    : null;
   const localizedSeverity = (value: "low" | "medium" | "high") => locale === "ru" ? (value === "high" ? "Высокий" : value === "medium" ? "Средний" : "Низкий") : value;
   const localizedPriority = (value: "critical" | "high" | "medium") => locale === "ru" ? (value === "critical" ? "Критический" : value === "high" ? "Высокий" : "Средний") : value;
   const evidenceClassLabel = (value: "observed" | "derived" | "hypothesis") => value === "observed" ? t("analysis.observed") : value === "derived" ? t("analysis.derived") : t("analysis.hypothesis");
@@ -683,6 +686,7 @@ export function PointToObjectAnalysis() {
                         <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-semibold text-[#52657a]">{confidenceLabel(content.answerToQuestion.confidence)}</span>
                       </div>
                       <p className="mt-2 text-sm font-semibold leading-6 text-[#243447]">{content.answerToQuestion.statement}</p>
+                      {answerRecoveryNote ? <p className="mt-2 text-xs leading-5 text-[#52657a]" role="note" data-testid="answer-provenance-recovery">{answerRecoveryNote}</p> : null}
                       {content.answerToQuestion.missingEvidence.length > 0 ? <p className="mt-3 text-xs leading-5 text-[#52657a]"><span className="font-bold">{t("analysis.strengthen")}</span> {content.answerToQuestion.missingEvidence.join("; ")}.</p> : null}
                       <EvidenceRefs references={content.answerToQuestion.evidenceRefs} />
                     </div>
@@ -690,7 +694,7 @@ export function PointToObjectAnalysis() {
                   <p className="mt-5 border-t border-line pt-4 text-[11px] leading-5 text-muted" data-testid="analysis-caveat">{content.caveat}</p>
                 </section>
 
-                {analysis?.mode === "openai" ? <PointObjectDecisionCards key={`${analysis.evidencePackId}:${analysis.generatedAt}`} context={geoContext} generatedAt={analysis.generatedAt} request={analysis.request} content={content} reportPerspective={localizedPerspective(analysis.request.perspective)} places={mergedLocationContext.filter((item) => item.evidenceRefs.some((ref) => /^EVD-CONTEXT-\d+$/.test(ref)))} groupLabels={contextGroupLabels} districtLabels={districtLabels} /> : null}
+                {analysis?.mode === "openai" ? <PointObjectDecisionCards key={`${analysis.evidencePackId}:${analysis.generatedAt}`} context={geoContext} generatedAt={analysis.generatedAt} request={analysis.request} content={content} answerRecoveryNote={answerRecoveryNote} reportPerspective={localizedPerspective(analysis.request.perspective)} places={mergedLocationContext.filter((item) => item.evidenceRefs.some((ref) => /^EVD-CONTEXT-\d+$/.test(ref)))} groupLabels={contextGroupLabels} districtLabels={districtLabels} /> : null}
                 {analysis?.mode === "openai" ? <PointObjectClimateContext climate={analysis.subject?.climate} /> : null}
                 {content.depthReview ? <DepthReviewPanel review={content.depthReview} /> : null}
 
