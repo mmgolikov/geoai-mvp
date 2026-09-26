@@ -174,6 +174,42 @@ for (const { locale, width } of [{ locale: "en", width: 1440 }, { locale: "ru", 
     await expect(preview).toHaveAttribute("data-preview-status", "ready");
     await expect(preview).toHaveAttribute("data-environment-key", hospitalityBKey!);
     await expect.poll(async () => Number(await resultMap.getAttribute("data-concept-environment-rendered-count"))).toBeGreaterThan(0);
+    if (locale === "ru" && width === 390) {
+      // Supplement the preserved scrolled scene screenshots with the real
+      // dialog scroll-top; do not reposition the sticky header or its content.
+      const dashboard = page.getByTestId("create-full-result-dashboard");
+      await dashboard.evaluate(element => element.scrollTo({ top: 0, behavior: "instant" }));
+      await expect.poll(() => dashboard.evaluate(element => element.scrollTop)).toBe(0);
+      const heading = dashboard.getByRole("heading", { level: 1, name: conceptTemplate("hospitality_recreation", locale).title, exact: true });
+      await expect(heading).toBeVisible();
+      const headingBox = await heading.boundingBox();
+      const headerBox = await dashboard.locator("header").boundingBox();
+      expect(headingBox).not.toBeNull();
+      expect(headerBox).not.toBeNull();
+      expect(headingBox!.y).toBeGreaterThanOrEqual(headerBox!.y + headerBox!.height);
+      expect(headingBox!.x).toBeGreaterThanOrEqual(0);
+      expect(headingBox!.x + headingBox!.width).toBeLessThanOrEqual(width);
+      expect(headingBox!.y + headingBox!.height).toBeLessThanOrEqual(1000);
+      await page.screenshot({ path: testInfo.outputPath("hospitality-heading-scroll-top-ru-390.png") });
+
+      // Use the user-facing close-to-map action, not a forced drawer/style edit.
+      await dashboard.getByRole("button", { name: "Показать на карте", exact: true }).click();
+      await expect(dashboard).toBeHidden();
+      await expect(page.getByTestId("mobile-workspace-shell")).toHaveAttribute("data-sheet", "peek");
+      await expect(page.getByRole("button", { name: "Открыть задачу", exact: true })).toHaveAttribute("aria-expanded", "false");
+      await expect(mainMap).toHaveAttribute("data-concept-environment-key", hospitalityBKey!);
+      // /projects navigation created a new map with the mocked empty style.
+      // Reinstall only the same synthetic native source; normal replacement
+      // guards still decide whether the saved concept may become visible.
+      await mainEnvironmentState(true);
+      await expect.poll(async () => (await mainEnvironmentState())?.count ?? 0).toBeGreaterThan(0);
+      await expect.poll(() => mainMap.evaluate(element => {
+        const bounds = element.getBoundingClientRect();
+        const hit = document.elementFromPoint(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+        return Boolean(hit && element.contains(hit));
+      })).toBe(true);
+      await page.screenshot({ path: testInfo.outputPath("hospitality-main-map-drawer-closed-ru-390.png") });
+    }
     expect(requests).toHaveLength(2);
     expect(unexpected).toEqual([]);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
