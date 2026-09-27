@@ -8,6 +8,7 @@ import { unstable_cache } from "next/cache";
 import type { MultiPolygon, Polygon, Position } from "geojson";
 import { sourceRetryAfterSeconds, waitForSourceAdmission } from "./point-to-object-source-recovery";
 import { PUBLIC_SOURCE_TOTAL_BUDGET_MS, runOverpassWithinBudget } from "./point-to-object-source-budget";
+import type { OverpassFailureTelemetry } from "./point-to-object-source-budget";
 
 import { LIVE_POINT_CAVEAT } from "@/src/lib/point-to-object/contracts";
 import { semanticHash, sha256 } from "@/src/lib/point-to-object/hash";
@@ -765,7 +766,8 @@ function assertNoOverpassRuntimeRemark(payload: unknown): void {
   }
 }
 
-async function fetchOverpassJsonUncached(query: string, deadlineAtMs = Date.now() + PUBLIC_SOURCE_TOTAL_BUDGET_MS): Promise<unknown> {
+async function fetchOverpassJsonUncached(query: string, deadlineAtMs = Date.now() + PUBLIC_SOURCE_TOTAL_BUDGET_MS, mandatoryExact = false): Promise<unknown> {
+  const diagnostic: OverpassFailureTelemetry | undefined = mandatoryExact ? { phase: "admission", dispatched: false, elapsedMs: 0, admissionMs: 0, upstreamStatus: null, abortSource: null } : undefined;
   try {
     return await runOverpassWithinBudget(deadlineAtMs, waitForOverpassSlot, async (signal) => {
     const url = configuredOverpassEndpoint();
@@ -782,17 +784,21 @@ async function fetchOverpassJsonUncached(query: string, deadlineAtMs = Date.now(
       // Cache only validated JSON: an HTTP 200 runtime error is not empty context.
       cache: "no-store"
     });
+    if (diagnostic) diagnostic.upstreamStatus = response.status;
     if (!response.ok) {
       await response.body?.cancel().catch(() => undefined);
       if (response.status === 429) {
         throw new LivePointEvidenceError("OVERPASS_RATE_LIMITED", 429, "The OpenStreetMap source is rate limited. Wait before retrying.", true, sourceRetryAfterSeconds(response.headers.get("retry-after")));
       }
       if (response.status === 408 || response.status === 504) {
+        if (diagnostic) diagnostic.abortSource = "upstream_http";
         throw new LivePointEvidenceError("OVERPASS_TIMEOUT", 504, "The OpenStreetMap source did not respond in time.", true);
       }
       throw new LivePointEvidenceError("OVERPASS_UNAVAILABLE", 502, "The OpenStreetMap source is temporarily unavailable.", true);
     }
+    if (diagnostic) diagnostic.phase = "body";
     const text = await readOverpassText(response);
+    if (diagnostic) diagnostic.phase = "parse";
     let payload: unknown;
     try {
       payload = JSON.parse(text);
@@ -801,8 +807,11 @@ async function fetchOverpassJsonUncached(query: string, deadlineAtMs = Date.now(
     }
     assertUsableOverpassPayload(payload);
     return payload;
-    });
+    }, undefined, diagnostic);
   } catch (error) {
+    // Fixed server-only fields; never include query, identity, response or exception.
+    // A logging failure cannot alter the source result/error or trigger a retry.
+    if (diagnostic) { try { console.warn("point_object_exact_source_failure", JSON.stringify(diagnostic)); } catch { /* best-effort diagnostic only */ } }
     if (error instanceof LivePointEvidenceError) throw error;
     if (isTimeout(error)) {
       throw new LivePointEvidenceError("OVERPASS_TIMEOUT", 504, "The OpenStreetMap source did not respond in time.", true);
@@ -819,8 +828,8 @@ const fetchOverpassJsonCached = unstable_cache(
 
 // A lease acquisition is already cached as a complete public pack. Its absolute
 // deadline must not become an argument in the reusable query-only cache key.
-function fetchOverpassJson(query: string, deadlineAtMs?: number): Promise<unknown> {
-  return deadlineAtMs === undefined ? fetchOverpassJsonCached(query) : fetchOverpassJsonUncached(query, deadlineAtMs);
+function fetchOverpassJson(query: string, deadlineAtMs?: number, mandatoryExact = false): Promise<unknown> {
+  return deadlineAtMs === undefined ? fetchOverpassJsonCached(query) : fetchOverpassJsonUncached(query, deadlineAtMs, mandatoryExact);
 }
 
 type PublicSourceDiagnostic = {
@@ -1584,7 +1593,7 @@ async function lookupPlace(
 async function exactSourcePlace(sourceFeatureId: string, locale: string, deadlineAtMs?: number, shared?: SharedExactSourceSnapshot | null): Promise<{ place: SafeNominatimPlace | null; receipt: NominatimResponseReceipt }> {
   try {
     const source = await readExactSourceElement(sourceFeatureId, async (query) => {
-      const payload = await fetchOverpassJson(query, deadlineAtMs);
+      const payload = await fetchOverpassJson(query, deadlineAtMs, true);
       assertUsableOverpassPayload(payload);
       if (payload.elements.length === 0) {
         throw new LivePointEvidenceError("OBJECT_NOT_RESOLVED", 422, "The exact OpenStreetMap source record was not found. The selected identity has not changed.", false);
