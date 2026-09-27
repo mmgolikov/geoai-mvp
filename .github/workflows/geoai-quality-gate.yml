@@ -320,6 +320,7 @@ jobs:
           node scripts/complete26-numeric-format-check.mjs | tee artifacts/complete26-numeric-format-check.txt
           node --experimental-transform-types scripts/complete26-continuation-ledger-check.mjs | tee artifacts/complete26-continuation-ledger-check.txt
           node scripts/complete26-final-successor-check.mjs | tee artifacts/complete26-final-successor-check.txt
+          node --experimental-transform-types scripts/complete26-v14-successor-check.mjs | tee artifacts/complete26-v14-successor-check.txt
           node --experimental-transform-types scripts/sprint10-map-diagnostics-check.ts | tee artifacts/sprint10-map-diagnostics-check.txt
           node scripts/quality20-review-fixes-check.mjs | tee artifacts/quality20-review-fixes-check.txt
           node scripts/quality20-evidence-receipt-check.mjs | tee artifacts/quality20-evidence-receipt-check.txt
