@@ -3287,6 +3287,12 @@ function validateFocusedAnswer(
     if (!statement) return { ok: false, detail: stringValue(value.statement, Number.MAX_SAFE_INTEGER)
       ? "focused_answer_statement_too_long" : "focused_answer_statement_empty" };
     if (!canonicalDirectAttribute && statement.length < 40) return { ok: false, detail: "focused_answer_statement_too_short" };
+    // Near the prose ceiling, require an explicit sentence ending rather than
+    // accepting a likely cut-off. This is not a general grammar validator and
+    // does not rewrite text, short answers, or canonical attribute values.
+    if (!canonicalDirectAttribute && statement.length >= 880 && !/[.!?…]["'”’»\])}`]*$/u.test(statement)) {
+      return { ok: false, detail: "focused_answer_statement_incomplete" };
+    }
   }
   if (!Array.isArray(value.evidenceRefs)) return { ok: false, detail: "focused_answer_refs_type" };
   if (refs.length !== value.evidenceRefs.length) return { ok: false, detail: "focused_answer_refs_value" };

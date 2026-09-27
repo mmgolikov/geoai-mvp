@@ -62,24 +62,31 @@ pass('safe exact codes isolate all former shape predicate families',()=>{
 });
 pass('40/900 boundaries and ordinary schema reject 39/901 in EN/RU',()=>{
   for(const locale of ['en','ru'])for(const n of [39,40,900,901]){
-    const r={...request,locale}, text=(locale==='en'?'a':'я').repeat(n), result=validate({...answer,statement:text},r);
+    const sentence=locale==='en'?'Evidence requires verification. ':'Данные требуют подтверждения. ';
+    const text=n===900?sentence.repeat(locale==='en'?27:29)+(locale==='en'?'Please verify mapped asset identity.':'Проверьте сведения об объекте.'):(locale==='en'?'a':'я').repeat(n);
+    const r={...request,locale}, result=validate({...answer,statement:text},r);
+    assert.equal(text.length,n);if(n===900)assert.equal(result.answer.statement.length,900);
     const fits=n>=40&&n<=900;assert.equal(result.ok,fits);assert.equal(new RegExp(schema(r).properties.statement.anyOf[0].pattern,'u').test(text),fits);
   }
+  assert.equal(validate({...answer,statement:'a'.repeat(900)}).detail,'focused_answer_statement_incomplete');
 });
 pass('multiline/control/trim normalization and NFKC remain authoritative (not truncation)',()=>{
   const text='  '+('a'.repeat(20))+'\n\t'+('я'.repeat(19))+'  ';
   const result=validate({...answer,statement:text});assert.equal(result.ok,true);assert.equal(result.answer.statement,'a'.repeat(20)+' '+'я'.repeat(19));
   assert.equal(validate({...answer,statement:'a'.repeat(38)+'\n'}).detail,'focused_answer_statement_too_short');
-  assert.equal(validate({...answer,statement:'ﬃ'.repeat(300)}).ok,true);
+  assert.equal(validate({...answer,statement:'ﬃ'.repeat(299)+'fi.'}).ok,true);
+  assert.equal(validate({...answer,statement:'ﬃ'.repeat(300)}).detail,'focused_answer_statement_incomplete');
   assert.equal(validate({...answer,statement:'ﬃ'.repeat(301)}).detail,'focused_answer_statement_too_long');
   assert.equal(validate({...answer,statement:'e\u0301'.repeat(20)}).detail,'focused_answer_statement_too_short');
   assert.equal(validate({...answer,statement:'Ａ'.repeat(40)}).answer.statement,'A'.repeat(40));
 });
 pass('surrogate pairs preserve existing JS UTF-16 limit; provider pattern is not normalization proof',()=>{
-  for(const count of [20,450,451]){
+  for(const count of [20,451]){
     const text='😀'.repeat(count), result=validate({...answer,statement:text});
     assert.equal(text.length,count*2);assert.equal(result.ok,count<=450);
   }
+  assert.equal(validate({...answer,statement:'😀'.repeat(449)+'a.'}).ok,true);
+  assert.equal(validate({...answer,statement:'😀'.repeat(450)}).detail,'focused_answer_statement_incomplete');
   // Unicode-aware schema regex counts codepoints, server counts UTF-16 after NFKC.
   assert.equal(new RegExp(schema().properties.statement.anyOf[0].pattern,'u').test('😀'.repeat(451)),true);
   assert.equal(validate({...answer,statement:'😀'.repeat(451)}).detail,'focused_answer_statement_too_long');
@@ -120,7 +127,7 @@ pass('repair prompt receives safe field code, not rejected prose; no new repair 
   assert.match(body.input[1].content[0].text,/focused_answer_statement_too_long/);
   const service=readFileSync(new URL('../src/lib/prototype/point-to-object-ai.ts',import.meta.url),'utf8');
   const recovery=service.split('function isDeterministicFocusedRecovery')[1].split('export async function')[0];
-  assert.doesNotMatch(recovery,/statement_too_long|statement_too_short|refs_duplicate|missing_codes_duplicate/);
+  assert.doesNotMatch(recovery,/statement_incomplete|statement_too_long|statement_too_short|refs_duplicate|missing_codes_duplicate/);
 });
 assert.equal(networkCalls,0);
 console.log(JSON.stringify({status:'PASS',groups:checks,networkCalls,scope:'synthetic focused-answer contract; old A01-S exact predicate unknown'}));
