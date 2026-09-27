@@ -298,7 +298,7 @@ try {
   assert.deepEqual(validateLiveLedgerScopeHeadroom({ ceilingUsd: 15, estimatedOrReservedUsd: 13.5 }, "journey"),
     { reserveRequired: 1.5, remainingUsd: 1.5 });
   assert.throws(() => validateLiveLedgerScopeHeadroom({ ceilingUsd: 15, estimatedOrReservedUsd: 13.50000001 }, "journey"),
-    /insufficient remaining/);
+    /^Error: The selected live scope has insufficient authorized reserve headroom\.$/);
   assert.doesNotThrow(() => validateLiveLedgerScopeHeadroom({ ceilingUsd: 15, estimatedOrReservedUsd: 13.8 }, "dubai-analyse"));
   assert.throws(() => validateLiveLedgerScopeHeadroom({ ceilingUsd: 15, estimatedOrReservedUsd: 13.80000001 }, "dubai-analyse"));
   assert.doesNotThrow(() => validateLiveLedgerScopeHeadroom({ ceilingUsd: 15, estimatedOrReservedUsd: 14.7 }, "singapore-create"));
