@@ -6,23 +6,32 @@ import { registerHooks, stripTypeScriptTypes } from 'node:module';
 import { fileURLToPath } from 'node:url';
 let networkCalls=0;
 globalThis.fetch=async()=>{networkCalls++;throw new Error('Network forbidden');};
+const oldAction='      : localized(locale, "Match the community-map object and rendered footprint to an official or client-supplied asset and parcel identifier.", "Сопоставить объект и отображаемый контур открытой карты с официальным или предоставленным клиентом идентификатором объекта и участка."),';
 registerHooks({
   resolve(s,c,next){
     if(s.startsWith('@/'))return next(new URL(`../${s.slice(2)}.ts`,import.meta.url).href,c);
-    if((s.startsWith('./')||s.startsWith('../'))&&!/\.[cm]?[jt]s$/.test(s))return next(`${s}.ts`,c);
+    if((s.startsWith('./')||s.startsWith('../'))&&!/\.[cm]?[jt]s(?:\?|$)/.test(s))return next(`${s}.ts`,c);
     return next(s,c);
   },
   load(url,c,next){
-    if(url.startsWith('file:')&&url.endsWith('.ts')){
+    if(url.startsWith('file:')&&new URL(url).pathname.endsWith('.ts')){
       let source=readFileSync(fileURLToPath(url),'utf8');
-      if(url.endsWith('/point-to-object-ai-core.ts'))source+='\nexport { deterministicEvidenceContent, evidenceSupport };';
-      if(url.endsWith('/point-to-object-semantic-v6-check.ts'))source+='\nexport { linkedEntityForPack, wikidataEvidence };';
+      if(new URL(url).pathname.endsWith('/point-to-object-ai-core.ts')){
+        if(new URL(url).search==='?baseline'){
+          const pattern=/      : geometryRef && \(geometryType === "Polygon" \|\| geometryType === "MultiPolygon"\)[\s\S]*?(?=\n    source: localized\(locale, "Relevant land\/municipality authority)/g;
+          assert.equal([...source.matchAll(pattern)].length,1,'One intended validation-copy block only');
+          source=source.replace(pattern,oldAction);
+        }
+        source+='\nexport { deterministicEvidenceContent, evidenceSupport };';
+      }
+      if(new URL(url).pathname.endsWith('/point-to-object-semantic-v6-check.ts'))source+='\nexport { linkedEntityForPack, wikidataEvidence };';
       return {format:'module',shortCircuit:true,source:stripTypeScriptTypes(source,{mode:'transform'})};
     }
     return next(url,c);
   }
 });
 const core=await import('../src/lib/prototype/point-to-object-ai-core.ts');
+const baseline=await import('../src/lib/prototype/point-to-object-ai-core.ts?baseline');
 const fixture=await import('./point-to-object-semantic-v6-check.ts');
 function pack(part,linked=false){
   const p=fixture.evidencePack();
@@ -40,16 +49,40 @@ const request=(locale,depth,goal='object_profile')=>({locale,depth,goal,perspect
   redevelopment:['Assess whether redevelopment is useful for this object.','Стоит ли проверять гипотезу редевелопмента этого объекта?'],
   due_diligence:['Build a due diligence plan for this object.','Составь план due diligence для этого объекта.']
 })[goal][locale==='ru'?1:0]});
-function output(p,locale,depth,goal='object_profile'){
-  const support=core.evidenceSupport(p),r=request(locale,depth,goal);
-  const recovery=core.recoverPointObjectAiFocusedContentDetailed(plan,p,r);
+function output(p,locale,depth,goal='object_profile',implementation=core){
+  const support=implementation.evidenceSupport(p),r=request(locale,depth,goal);
+  const recovery=implementation.recoverPointObjectAiFocusedContentDetailed(plan,p,r);
   assert.equal(recovery.ok,true,recovery.detail);
-  return {source:core.deterministicEvidenceContent(p,support.allowed,locale),brief:core.renderInitialSemanticBrief(support,r),answer:recovery.content.answerToQuestion};
+  return {source:implementation.deterministicEvidenceContent(p,support.allowed,locale),brief:implementation.renderInitialSemanticBrief(support,r),answer:recovery.content.answerToQuestion};
 }
 const hash=v=>createHash('sha256').update(JSON.stringify(v)).digest('hex');
+function pointPack(part){
+  const p=pack(part);p.selectedObject.geometryType='Point';p.selectedObject.metrics=null;
+  p.resolution.coordinateAssociation='trusted_open_map_identity';
+  p.evidence.find(e=>e.id==='EVD-GEOMETRY').value=JSON.stringify({sourceFeatureId:p.selectedObject.sourceFeatureId,geometryType:'Point',geometryHash:p.selectedObject.geometryHash});
+  p.evidence=p.evidence.filter(e=>e.id!=='EVD-OBJECT-METRICS');return p;
+}
 const ordinary=[];
 for(const part of [undefined,'no'])for(const locale of ['en','ru'])for(const depth of ['quick','standard','deep'])ordinary.push(output(pack(part),locale,depth));
-assert.equal(hash(ordinary),'347f4a76224f077d3587d06a21ab8a318e46404b56ae75c28abcb4794fbb3825','Absent/no tag must keep the complete prior EN/RU Q/S/D output');
+const ordinaryBefore=[];
+for(const part of [undefined,'no'])for(const locale of ['en','ru'])for(const depth of ['quick','standard','deep'])ordinaryBefore.push(output(pack(part),locale,depth,'object_profile',baseline));
+const point=[],pointBefore=[];
+for(const part of [undefined,'no'])for(const locale of ['en','ru'])for(const depth of ['quick','standard','deep']){
+  point.push(output(pointPack(part),locale,depth));pointBefore.push(output(pointPack(part),locale,depth,'object_profile',baseline));
+}
+assert.equal(hash(ordinaryBefore),'347f4a76224f077d3587d06a21ab8a318e46404b56ae75c28abcb4794fbb3825','Original polygon EN/RU Q/S/D output stays frozen');
+assert.equal(hash(ordinary),'2ccbfce33e520dc467d8394d10103b57660c5c7e134b74ac2913521bafd12f7c','Intended polygon copy changes the complete output hash');
+assert.equal(hash(pointBefore),'a63d21802e7b15b4f28300f4491fa3f10e09980cb93664dfaf106cafff5bd947','Original point EN/RU Q/S/D output stays frozen');
+assert.equal(hash(point),'238ba03897563a0b543eb1e0c57d219bdea6b48d7f3213c3896270ca613e6cb6','Intended point copy changes the complete output hash');
+const desired={en:{polygon:'Match the community-map object and mapped footprint to an official or client-supplied asset and parcel identifier.',point:'Match the mapped point or location and object identity to an official or client-supplied asset and parcel identifier. Obtain a verified boundary if area or parcel analysis is needed.'},ru:{polygon:'Сопоставить объект и картированный контур открытой карты с официальным или предоставленным клиентом идентификатором объекта и участка.',point:'Сопоставить точку или местоположение на карте и идентичность объекта с официальным или предоставленным клиентом идентификатором объекта и участка. Если нужен анализ площади или участка, получить подтверждённые границы.'}};
+for(const [kind,current,previous] of [['polygon',ordinary,ordinaryBefore],['point',point,pointBefore]])for(let i=0;i<current.length;i++){
+  const locale=Math.floor(i/3)%2?'ru':'en',actual=current[i].source.nextValidation[0].action,old=previous[i].source.nextValidation[0].action;
+  assert.equal(actual,desired[locale][kind],`${kind} ${locale} must use exact source-aware copy`);
+  assert.notEqual(old,actual,'Before-fix copy must fail the desired wording');
+  assert.equal(old,locale==='en'?'Match the community-map object and rendered footprint to an official or client-supplied asset and parcel identifier.':'Сопоставить объект и отображаемый контур открытой карты с официальным или предоставленным клиентом идентификатором объекта и участка.');
+  const normalized=structuredClone(current[i]);normalized.source.nextValidation[0].action=old;
+  assert.deepEqual(normalized,previous[i],'All other source, brief and answer fields retain exact old parity');
+}
 let checks=0;
 for(const part of ['yes','roof'])for(const linked of [false,true])for(const locale of ['en','ru'])for(const depth of ['quick','standard','deep'])for(const goal of ['object_profile','custom','development_screening','redevelopment','due_diligence']){
   const p=pack(part,linked), before=JSON.stringify(p), projection=core.buildModelEvidenceProjection(p), out=output(p,locale,depth,goal);
