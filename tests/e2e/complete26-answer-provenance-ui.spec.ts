@@ -30,7 +30,7 @@ async function prepare(page: Page, locale: "en" | "ru", baseURL: string) {
     const { role, scenario, depth, goal, perspective, horizon, question, locale: requestLocale, evidenceReceipt } = route.request().postDataJSON();
     expect(requestLocale).toBe(locale);
     const response = sprint10AnalysisResponse({ role, scenario, depth, goal, perspective, horizon, question, locale: requestLocale },
-      ++posts, evidenceReceipt.evidencePackHash, kind === "absent" ? "POINT_OBJECT_AI_PROMPT_V12_2026_09_21" : "POINT_OBJECT_AI_PROMPT_V13_2026_09_26");
+      ++posts, evidenceReceipt.evidencePackHash, kind === "absent" ? "POINT_OBJECT_AI_PROMPT_V12_2026_09_21" : "POINT_OBJECT_AI_PROMPT_V14_2026_09_26");
     const output = question && kind !== "absent" ? { ...response, answerProvenance: kind === "model_validated"
       ? { kind, rejectionCode: null } : { kind, rejectionCode: "focused_answer_novel_number" } } : response;
     expect(parsePointObjectAiResponse(output)).not.toBeNull();
