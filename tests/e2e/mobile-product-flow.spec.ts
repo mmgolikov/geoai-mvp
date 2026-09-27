@@ -263,19 +263,15 @@ async function captureVisualEvidence(
 }
 
 async function signInDemo(page: Page, nextPath: "/projects" | "/workspace") {
-  await page.goto(`/login?next=${encodeURIComponent(nextPath)}&intent=demo`);
-  const redirected = await page.waitForURL((url) => url.pathname === nextPath, { timeout: 3000 }).then(
-    () => true,
-    () => false
-  );
-  if (redirected) {
-    return;
-  }
-  await page.getByRole("button", { name: "Open demo access" }).click();
-  await expect(page.getByLabel("Email or phone")).toHaveValue("demo@geoai.space");
-  await expect(page.getByLabel("Password")).toHaveValue("111111");
-  await page.getByRole("button", { name: "Open demo", exact: true }).click();
-  await expect(page).toHaveURL((url) => url.pathname === nextPath);
+  const baseURL = test.info().project.use.baseURL;
+  if (!baseURL) throw new Error("Demo route must have a configured origin.");
+  const origin = new URL(baseURL).origin;
+  await page.goto(`/login?next=${encodeURIComponent(nextPath)}&intent=demo`, { waitUntil: "domcontentloaded" });
+  const destination = (url: URL) => url.origin === origin && url.pathname === nextPath;
+  // An authenticated demo redirects automatically. The destination can reach
+  // DOMContentLoaded before its slower resources finish loading in CI.
+  await page.waitForURL(destination, { waitUntil: "domcontentloaded", timeout: 15_000 });
+  await expect(page).toHaveURL(destination);
   await expect(page.getByRole("link", { name: "Open demo profile" })).toHaveAttribute("data-authenticated", "true");
 }
 
@@ -287,6 +283,28 @@ test.describe("mobile product navigation, targets and visual evidence", () => {
   test.beforeAll(async () => {
     visualEvidence.length = 0;
     await fs.rm(visualDirectory, { force: true, recursive: true });
+  });
+
+  test("waits for a delayed authenticated demo redirect on mobile", async ({ page }) => {
+    let delayedNavigations = 0;
+    let observedDelayMs = 0;
+    await page.route("**/projects", async (route) => {
+      const request = route.request();
+      if (!request.isNavigationRequest() || request.frame() !== page.mainFrame()) {
+        await route.continue();
+        return;
+      }
+      delayedNavigations += 1;
+      const startedAt = Date.now();
+      await new Promise((resolve) => setTimeout(resolve, 3_600));
+      observedDelayMs = Date.now() - startedAt;
+      await route.continue();
+    });
+
+    await signInDemo(page, "/projects");
+    expect(delayedNavigations).toBe(1);
+    expect(observedDelayMs).toBeGreaterThan(3_000);
+    await expect(page.getByRole("heading", { level: 1, name: "Project Hub" })).toBeVisible();
   });
 
   test("creates, restores and opens a project on mobile", async ({ page }) => {
