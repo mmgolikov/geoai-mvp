@@ -24,6 +24,12 @@ import {
   hasSprint10UnresolvedCharge,
   sprint10LedgerReceiptCount,
   sprint10LedgerReceiptCapacity,
+  complete26ReviewedBatchSegmentOpening,
+  complete26Candidate642Opening,
+  complete26EmptyEpochRepinOpening,
+  complete26PostSinglepassOpening,
+  complete26V14SuccessorOpening,
+  COMPLETE26_CANDIDATE642_COMMIT,
   recordComplete25CaseAttemptFile,
   readSprint10SpendLedgerFile,
   sprint10LedgerLockPath
@@ -155,10 +161,11 @@ function rejectExistingLease(ledgerPath, { allowActiveRunnerLease = false } = {}
 export function validateLedger(rootValue, pathValue, allowUnresolved = false) {
   let ledger;
   try { ledger = readSprint10SpendLedgerFile(rootValue, pathValue); }
-  catch { fail("The existing exact USD 15 cycle ledger is malformed, missing or unsafe."); }
-  if (ledger.ledgerId !== exactLedgerId || ledger.ceilingUsd !== SPRINT10_LIVE_CEILING_USD ||
+  catch { fail("The existing authorized cycle ledger is malformed, missing or unsafe."); }
+  if (ledger.ledgerId !== exactLedgerId ||
+      !(ledger.ceilingUsd === SPRINT10_LIVE_CEILING_USD || (ledger.ceilingUsd === 20 && ledger.ceilingAmendment)) ||
       (!allowUnresolved && hasSprint10UnresolvedCharge(ledger, true))) {
-    fail("The existing exact USD 15 cycle ledger is not accepted or contains an unresolved reserved/unknown charge.");
+    fail("The existing authorized cycle ledger is not accepted or contains an unresolved reserved/unknown charge.");
   }
   return ledger;
 }
@@ -178,7 +185,7 @@ export function validateLiveLedgerScopeHeadroom(ledger, scope) {
   const reserveRequired = LIVE_SCOPE_RECEIPT_PLAN[scope]
     .reduce((sum, item) => Number((sum + item.reserveUsd).toFixed(8)), 0);
   if (Number((ledger.estimatedOrReservedUsd + reserveRequired).toFixed(8)) > ledger.ceilingUsd) {
-    fail("The selected live scope has insufficient remaining USD 15 reserve headroom.");
+    fail("The selected live scope has insufficient authorized reserve headroom.");
   }
   return { reserveRequired, remainingUsd: Number((ledger.ceilingUsd - ledger.estimatedOrReservedUsd).toFixed(8)) };
 }
@@ -234,23 +241,94 @@ export function validateDepthCycleEvidenceCaptureEnvironment(source, scope) {
   });
 }
 
-function commandOutput(command, args, repositoryRoot, label) {
+function commandOutput(command, args, repositoryRoot, label, raw = false) {
   const result = spawnSync(command, args, {
     cwd: repositoryRoot,
     env: runtimeEnvironment(),
     encoding: "utf8",
-    maxBuffer: 64 * 1024,
+    // Full tracked-index flags are ~68 KB on frozen 61d; keep raw inventory bounded.
+    maxBuffer: raw ? 256 * 1024 : 64 * 1024,
     timeout: 10_000,
     killSignal: "SIGTERM"
   });
   if (result.error || result.signal || result.status !== 0) fail(`${label} could not be verified with a sanitized environment.`);
-  return result.stdout.trim();
+  return raw ? result.stdout : result.stdout.trim();
 }
 
-function validateLocalCheckout(repositoryRoot, expectedCommit) {
+export const COMPLETE26_REVIEWED_HARNESS_FILES=Object.freeze([
+  "tests/e2e/helpers/sprint10-live-budget.ts", "tests/e2e/helpers/quality20-frozen-case.ts",
+  "scripts/complete25-batch.mjs", "scripts/sprint10-live-journey-run.mjs", "scripts/complete26-reviewed-batch-segment-check.mjs",
+  "scripts/complete26-login-diagnostic.mjs", "scripts/complete26-login-diagnostic-check.mjs",
+  "scripts/sprint10-live-journey-diagnostics.mjs", "scripts/complete26-login-navigation-reproduction.mjs",
+  "scripts/complete26-nonpaid-auth-browser.mjs", "scripts/complete26-nonpaid-auth-browser-check.mjs",
+  "scripts/complete26-candidate642-transition-check.mjs", "scripts/complete26-empty-epoch-repin-check.mjs",
+  "scripts/complete26-ceiling-amendment-check.mjs", "scripts/complete26-post-singlepass-transition-check.mjs",
+  "docs/complete26-post-singlepass-transition.md", "scripts/complete26-v14-successor-check.mjs",
+  "docs/complete26-v14-successor-transition.md"
+]);
+
+export function hashComplete26HarnessFile(repositoryRoot,path) {
+  if(!COMPLETE26_REVIEWED_HARNESS_FILES.includes(path))fail("Unreviewed harness path.");
+  const target=join(repositoryRoot,path), info=lstatSync(target);
+  if(info.isSymbolicLink()||realpathSync(target)!==target||!info.isFile()||info.nlink!==1||info.size>2_000_000)fail("Harness file must be a bounded regular nonsymlink.");
+  return createHash("sha256").update(readFileSync(target)).digest("hex");
+}
+
+export function validateComplete26HarnessReview(review, {repositoryRoot, controlRoot, expectedCommit, segmentSha256, candidateTransitionSha256, emptyEpochRepinSha256, emptyEpochRepinOpening, postSinglepassSha256, postSinglepassOpening, v14SuccessorSha256, v14SuccessorOpening, statusEntries, controlClean, controlHead, indexFlagsClean, hashFile}) {
+  const exact=(o,keys)=>o&&typeof o==="object"&&!Array.isArray(o)&&Object.keys(o).sort().join("|")===keys.sort().join("|");
+  const v14=review?.schemaVersion==="geoai.complete26.reviewed-harness-overlay.v5";
+  const post=review?.schemaVersion==="geoai.complete26.reviewed-harness-overlay.v4";
+  const emptyRepin=review?.schemaVersion==="geoai.complete26.reviewed-harness-overlay.v3";
+  const candidate642=review?.schemaVersion==="geoai.complete26.reviewed-harness-overlay.v2";
+  const transitioned=v14||post||emptyRepin||candidate642,binding=v14?v14SuccessorSha256:post?postSinglepassSha256:emptyRepin?emptyEpochRepinSha256:candidate642?candidateTransitionSha256:segmentSha256;
+  if(v14 ? !v14SuccessorOpening || v14SuccessorOpening.transitionSha256!==binding || v14SuccessorOpening.currentCandidateCommit!==expectedCommit || segmentSha256!==undefined || candidateTransitionSha256!==undefined || emptyEpochRepinSha256!==undefined || postSinglepassSha256!==undefined : v14SuccessorSha256!==undefined) fail("Exact parsed V14 successor overlay binding required.");
+  if(post ? !postSinglepassOpening || postSinglepassOpening.transitionSha256!==binding || postSinglepassOpening.currentCandidateCommit!==expectedCommit || segmentSha256!==undefined || candidateTransitionSha256!==undefined || emptyEpochRepinSha256!==undefined : postSinglepassSha256!==undefined) fail("Exact parsed post-singlepass overlay binding required.");
+  if(emptyRepin ? !emptyEpochRepinOpening || emptyEpochRepinOpening.transitionSha256!==binding || emptyEpochRepinOpening.currentCandidateCommit!==expectedCommit || segmentSha256!==undefined || candidateTransitionSha256!==undefined : emptyEpochRepinSha256!==undefined) fail("Exact parsed empty-epoch overlay binding required.");
+  if (!exact(review,["schemaVersion","rootReference","candidateCommit","repositoryRoot","controlRoot",transitioned?"transitionSha256":"segmentSha256","files"]) ||
+      review.schemaVersion!==(v14?"geoai.complete26.reviewed-harness-overlay.v5":post?"geoai.complete26.reviewed-harness-overlay.v4":emptyRepin?"geoai.complete26.reviewed-harness-overlay.v3":candidate642?"geoai.complete26.reviewed-harness-overlay.v2":"geoai.complete26.reviewed-harness-overlay.v1") || !/^root:[A-Za-z0-9:_-]{10,160}$/.test(review.rootReference) ||
+      (candidate642?segmentSha256!==undefined:candidateTransitionSha256!==undefined) ||
+      !/^[a-f0-9]{40}$/.test(expectedCommit??"") || (!v14 && !post && !emptyRepin && expectedCommit!==(candidate642?COMPLETE26_CANDIDATE642_COMMIT:"61d333ed210e3b6ffb8ed5448a67ebe78bfab0f9")) || review.candidateCommit!==expectedCommit || controlHead!==expectedCommit || !controlClean || !indexFlagsClean ||
+      review.repositoryRoot!==repositoryRoot || review.controlRoot!==controlRoot || repositoryRoot===controlRoot ||
+      !/^[a-f0-9]{64}$/.test(binding??"") || review[transitioned?"transitionSha256":"segmentSha256"]!==binding ||
+      !Array.isArray(review.files) || review.files.length===0 || review.files.length>COMPLETE26_REVIEWED_HARNESS_FILES.length || review.files.length!==statusEntries.length) fail("Invalid exact reviewed harness overlay.");
+  const names=new Set();
+  for (const file of review.files) {
+    if (!exact(file,["path","status","sha256"]) || !COMPLETE26_REVIEWED_HARNESS_FILES.includes(file.path) || names.has(file.path) ||
+        (!transitioned && file.path==="scripts/complete26-candidate642-transition-check.mjs") ||
+        (!emptyRepin && !post && !v14 && file.path==="scripts/complete26-empty-epoch-repin-check.mjs") ||
+        (!post && !v14 && file.path==="scripts/complete26-post-singlepass-transition-check.mjs") ||
+        (!post && !v14 && file.path==="docs/complete26-post-singlepass-transition.md") ||
+        (!v14 && ["scripts/complete26-v14-successor-check.mjs","docs/complete26-v14-successor-transition.md"].includes(file.path)) ||
+        ![" M","M ","MM","??"].includes(file.status) || !/^[a-f0-9]{64}$/.test(file.sha256) ||
+        !statusEntries.includes(`${file.status} ${file.path}`) || hashFile(file.path)!==file.sha256) fail("Unreviewed or changed test-only harness file.");
+    names.add(file.path);
+  }
+  return true;
+}
+
+export function validateLocalCheckout(repositoryRoot, expectedCommit, env=process.env) {
   const head = commandOutput("git", ["rev-parse", "HEAD"], repositoryRoot, "The local harness HEAD").toLowerCase();
   if (head !== expectedCommit) fail("The local harness HEAD does not match the exact expected Preview commit.");
   const status = commandOutput("git", ["status", "--porcelain=v1", "--untracked-files=all"], repositoryRoot, "The local harness worktree");
+  const reviewPath=env.GEOAI_COMPLETE26_HARNESS_REVIEW_PATH, reviewHash=env.GEOAI_COMPLETE26_HARNESS_REVIEW_SHA256;
+  if (reviewPath!==undefined || reviewHash!==undefined) {
+    if (!reviewPath || !/^[a-f0-9]{64}$/.test(reviewHash??"") || !isAbsolute(reviewPath) || realpathSync(reviewPath)!==reviewPath) fail("Exact private harness review required.");
+    privateRegularFile(reviewPath,"Harness review");
+    const bytes=readFileSync(reviewPath);if(bytes.length>16384||createHash("sha256").update(bytes).digest("hex")!==reviewHash)fail("Harness review bytes changed.");
+    const review=JSON.parse(bytes.toString("utf8"));
+    const controlRoot=resolve(repositoryRoot,"../complete25-control");
+    if(realpathSync(repositoryRoot)!==repositoryRoot||realpathSync(controlRoot)!==controlRoot)fail("Harness roots must be canonical.");
+    const entries=commandOutput("git",["status","--porcelain=v1","-z","--untracked-files=all"],repositoryRoot,"Reviewed harness status",true).split("\0").filter(Boolean);
+    const emptyEpochRepinOpening=review.schemaVersion==="geoai.complete26.reviewed-harness-overlay.v3"?complete26EmptyEpochRepinOpening(readSprint10SpendLedgerFile(env.GEOAI_SPRINT10_LIVE_LEDGER_ROOT,env.GEOAI_SPRINT10_LIVE_LEDGER_PATH)):null;
+    const postSinglepassOpening=review.schemaVersion==="geoai.complete26.reviewed-harness-overlay.v4"?complete26PostSinglepassOpening(readSprint10SpendLedgerFile(env.GEOAI_SPRINT10_LIVE_LEDGER_ROOT,env.GEOAI_SPRINT10_LIVE_LEDGER_PATH)):null;
+    const v14SuccessorOpening=review.schemaVersion==="geoai.complete26.reviewed-harness-overlay.v5"?complete26V14SuccessorOpening(readSprint10SpendLedgerFile(env.GEOAI_SPRINT10_LIVE_LEDGER_ROOT,env.GEOAI_SPRINT10_LIVE_LEDGER_PATH)):null;
+    validateComplete26HarnessReview(review,{repositoryRoot,controlRoot,expectedCommit,segmentSha256:env.GEOAI_COMPLETE26_REVIEWED_SEGMENT_SHA256,candidateTransitionSha256:env.GEOAI_COMPLETE26_CANDIDATE_TRANSITION_SHA256,emptyEpochRepinSha256:env.GEOAI_COMPLETE26_EMPTY_EPOCH_REPIN_SHA256,emptyEpochRepinOpening,postSinglepassSha256:env.GEOAI_COMPLETE26_POST_SINGLEPASS_SHA256,postSinglepassOpening,v14SuccessorSha256:env.GEOAI_COMPLETE26_V14_SUCCESSOR_SHA256,v14SuccessorOpening,statusEntries:entries,
+      controlHead:commandOutput("git",["rev-parse","HEAD"],controlRoot,"Control HEAD"),
+      controlClean:commandOutput("git",["status","--porcelain=v1","--untracked-files=all"],controlRoot,"Control status").length===0,
+      indexFlagsClean:[repositoryRoot,controlRoot].every(root=>commandOutput("git",["ls-files","-v","-z"],root,"Tracked index flags",true).split("\0").filter(Boolean).every(entry=>entry.startsWith("H "))),
+      hashFile:path=>hashComplete26HarnessFile(repositoryRoot,path)});
+    return;
+  }
   if (status.length > 0) fail("The local harness worktree must be clean before any credential reaches a child process.");
 }
 
@@ -369,11 +447,30 @@ function preflight(repositoryRoot) {
   const ledgerRoot = required("GEOAI_SPRINT10_LIVE_LEDGER_ROOT");
   const ledgerPath = required("GEOAI_SPRINT10_LIVE_LEDGER_PATH");
   const ledger = validateLiveLedgerPreflight(ledgerRoot, ledgerPath, scope);
+  const v14Opening=complete26V14SuccessorOpening(ledger);
+  const v14SuccessorSha256=process.env.GEOAI_COMPLETE26_V14_SUCCESSOR_SHA256;
+  if(v14Opening ? v14Opening.transitionSha256!==v14SuccessorSha256 || !process.env.GEOAI_COMPLETE26_HARNESS_REVIEW_PATH : v14SuccessorSha256!==undefined) fail("Exact V14 successor opt-in required.");
+  const postOpening=v14Opening?null:complete26PostSinglepassOpening(ledger);
+  const postSinglepassSha256=process.env.GEOAI_COMPLETE26_POST_SINGLEPASS_SHA256;
+  if(postOpening ? postOpening.transitionSha256!==postSinglepassSha256 || !process.env.GEOAI_COMPLETE26_HARNESS_REVIEW_PATH : postSinglepassSha256!==undefined) fail("Exact post-singlepass opt-in required.");
+  const segment=v14Opening||postOpening?null:complete26ReviewedBatchSegmentOpening(ledger);
+  const reviewedSegmentSha256=process.env.GEOAI_COMPLETE26_REVIEWED_SEGMENT_SHA256;
+  if(segment ? segment.contractSha256!==reviewedSegmentSha256 || !process.env.GEOAI_COMPLETE26_HARNESS_REVIEW_PATH : reviewedSegmentSha256!==undefined) fail("Exact reviewed segment opt-in required.");
+  const emptyOpening=v14Opening||postOpening?null:complete26EmptyEpochRepinOpening(ledger);
+  const emptyEpochRepinSha256=process.env.GEOAI_COMPLETE26_EMPTY_EPOCH_REPIN_SHA256;
+  if(emptyOpening ? emptyOpening.transitionSha256!==emptyEpochRepinSha256 || !process.env.GEOAI_COMPLETE26_HARNESS_REVIEW_PATH : emptyEpochRepinSha256!==undefined) fail("Exact empty-epoch repin opt-in required.");
+  const candidateOpening=v14Opening||postOpening||emptyOpening?null:complete26Candidate642Opening(ledger);
+  const candidateTransitionSha256=process.env.GEOAI_COMPLETE26_CANDIDATE_TRANSITION_SHA256;
+  if(candidateOpening ? candidateOpening.transitionSha256!==candidateTransitionSha256 || !process.env.GEOAI_COMPLETE26_HARNESS_REVIEW_PATH : candidateTransitionSha256!==undefined) fail("Exact candidate642 transition opt-in required.");
   if (ledger.schemaVersion === 2 && (ledger.acceptanceEpoch.candidateCommit !== commit ||
       ledger.acceptanceEpoch.candidateHost !== target.hostname)) fail("COMPLETE25 recovery is bound to another frozen candidate.");
   if (quality20) validateQuality20Ledger(quality20, ledger);
   const receiptPath = required("GEOAI_SPRINT10_LIVE_DEPLOYMENT_RECEIPT_PATH");
   const deploymentReceipt = validateReceipt(receiptPath, previewUrl, commit);
+  if(candidateOpening && candidateOpening.currentDeploymentId!==deploymentReceipt.deployment.id) fail("Candidate642 deployment differs from its reviewed transition.");
+  if(emptyOpening && emptyOpening.currentDeploymentId!==deploymentReceipt.deployment.id) fail("Empty-epoch deployment differs from its reviewed transition.");
+  if(postOpening && postOpening.currentDeploymentId!==deploymentReceipt.deployment.id) fail("Post-singlepass deployment differs from its reviewed transition.");
+  if(v14Opening && v14Opening.currentDeploymentId!==deploymentReceipt.deployment.id) fail("V14 successor deployment differs from its reviewed transition.");
   if ((quality20 && quality20.manifest.execution.deploymentId !== deploymentReceipt.deployment.id) ||
       (acquisition && acquisition.execution.deploymentId !== deploymentReceipt.deployment.id)) {
     fail("QUALITY20_BLOCKED: approved case/acquisition deployment differs from the current receipt.");
@@ -390,6 +487,11 @@ function preflight(repositoryRoot) {
     ledgerRoot,
     ledgerPath,
     ...captureLiveLedgerBaseline(ledger),
+    reviewedSegmentSha256,
+    candidateTransitionSha256,
+    emptyEpochRepinSha256,
+    postSinglepassSha256,
+    v14SuccessorSha256,
     quality20,
     acquisition,
     quality20Environment: Object.fromEntries((quality20 ? [
@@ -630,7 +732,7 @@ export function classifyLiveJourneyReport(report, resultStatus, config, receipts
 }
 
 function run() {
-  const repositoryRoot = fileURLToPath(new URL("..", import.meta.url));
+  const repositoryRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
   const config = preflight(repositoryRoot);
   const playwrightCli = fileURLToPath(new URL("../node_modules/@playwright/test/cli.js", import.meta.url));
   const playwrightEntry = fileURLToPath(new URL("../node_modules/@playwright/test/index.js", import.meta.url));
@@ -724,10 +826,11 @@ module.exports = defineConfig({
       fail(`The bounded discovery receipt was not accepted (projects=${projects.length}, tests=${tests}).`);
     }
 
+    if (config.reviewedSegmentSha256 || config.candidateTransitionSha256 || config.emptyEpochRepinSha256 || config.postSinglepassSha256 || config.v14SuccessorSha256) validateLocalCheckout(repositoryRoot, config.commit);
     if (config.baselineOpeningSha256 && config.quality20) {
       const attempt = recordComplete25CaseAttemptFile(config.ledgerRoot, config.ledgerPath,
         config.quality20.definition.id, config.quality20.manifestSha256, new Date().toISOString(),
-        { candidateCommit: config.commit, candidateHost: config.host });
+        { candidateCommit: config.commit, candidateHost: config.host, ...(config.reviewedSegmentSha256 ? {reviewedSegmentSha256:config.reviewedSegmentSha256} : {}) });
       liveEnvironment.GEOAI_COMPLETE25_CASE_ATTEMPT_ID = attempt.attemptId;
     }
 

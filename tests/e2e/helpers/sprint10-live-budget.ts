@@ -111,7 +111,7 @@ type Sprint10LedgerCommon = {
   cycleId: typeof SPRINT10_CYCLE_ID;
   ledgerId: string;
   createdAt: string;
-  ceilingUsd: typeof SPRINT10_LIVE_CEILING_USD;
+  ceilingUsd: typeof SPRINT10_LIVE_CEILING_USD | typeof COMPLETE26_AMENDED_CEILING_USD;
   generation: number;
   receipts: Sprint10Receipt[];
   estimatedOrReservedUsd: number;
@@ -151,8 +151,37 @@ export type Complete25CaseAttempt = {
 export const COMPLETE26_EPOCH_ID = "COMPLETE26_2026_09_26" as const;
 export const COMPLETE26_FINAL_EPOCH_ID = "COMPLETE26_FINAL_REVALIDATION" as const;
 export const COMPLETE26_CONTINUATION_EPOCH_ID = "COMPLETE26_REVIEWED_CONTINUATION" as const;
+export const COMPLETE26_CANDIDATE642_EPOCH_ID = "COMPLETE26_642_REVALIDATION" as const;
+export const COMPLETE26_EMPTY_REPIN_EPOCH_ID = "COMPLETE26_EMPTY_EPOCH_REPIN" as const;
+export const COMPLETE26_POST_SINGLEPASS_EPOCH_ID = "COMPLETE26_POST_SINGLEPASS" as const;
+export const COMPLETE26_V14_EPOCH_ID = "COMPLETE26_V14_FINAL_REVALIDATION" as const;
+export const COMPLETE26_V14_PREDECESSOR_COMMIT = "ebf7c348b7eefba357630b0c54d0b406ec891dd3" as const;
+export const COMPLETE26_V14_PREDECESSOR_HOST = "geoai-popboz5n1-geoaidev.vercel.app" as const;
+export const COMPLETE26_SINGLEPASS_COMMIT = "7da5b006c20d0762fe858280d557882609e3890d";
+export const COMPLETE26_SINGLEPASS_HOST = "geoai-qb5673t5b-geoaidev.vercel.app";
+export const COMPLETE26_CANDIDATE642_COMMIT = "642a3858ee2aaa375e750d75a062f37a2c1937c0";
+export const COMPLETE26_CANDIDATE642_HOST = "geoai-di2yjdj2r-geoaidev.vercel.app";
+export const COMPLETE26_CANDIDATE642_DEPLOYMENT = "dpl_Au5Xs5bktXabMMhwi3Hq7zDt967T";
+export const COMPLETE26_AMENDED_CEILING_USD = 20 as const;
+export const COMPLETE26_CEILING_AMENDMENT_AUTHORITY = Object.freeze({
+  kind: "geoai.complete26.founder-ceiling-amendment.v1",
+  reference: "founder:complete26_20260926_1802utc_add_usd5",
+  approvedAtMinute: "2026-09-26T18:02Z",
+  approvalText: "добавь 5 долларов в лимит",
+  previousCeilingUsd: 15,
+  additionalUsd: 5,
+  currentCeilingUsd: 20
+});
+export type Complete26CeilingAmendmentContract = {
+  schemaVersion: "geoai.complete26.ceiling-amendment.v1";
+  rootReference: string; appliedAt: string;
+  previousLedgerSha256: string; previousLedgerCanonicalSha256: string;
+  previousGeneration: 281; openingReceiptCount: 135; openingAccountedUsd: 10.6824222;
+  previousCeilingUsd: 15; currentCeilingUsd: 20;
+  authority: typeof COMPLETE26_CEILING_AMENDMENT_AUTHORITY;
+};
 type Complete25AcceptanceEpoch = {
-  id: typeof COMPLETE25_EPOCH_ID | typeof COMPLETE26_EPOCH_ID | typeof COMPLETE26_FINAL_EPOCH_ID | typeof COMPLETE26_CONTINUATION_EPOCH_ID;
+  id: typeof COMPLETE25_EPOCH_ID | typeof COMPLETE26_EPOCH_ID | typeof COMPLETE26_FINAL_EPOCH_ID | typeof COMPLETE26_CONTINUATION_EPOCH_ID | typeof COMPLETE26_CANDIDATE642_EPOCH_ID | typeof COMPLETE26_EMPTY_REPIN_EPOCH_ID | typeof COMPLETE26_POST_SINGLEPASS_EPOCH_ID | typeof COMPLETE26_V14_EPOCH_ID;
   approvalReference: typeof COMPLETE25_RECOVERY_APPROVAL;
   candidateCommit: string; candidateHost: string; acceptanceRevision: number; attempts: Complete25CaseAttempt[];
 };
@@ -206,7 +235,431 @@ export type Sprint10SpendLedger = Sprint10LedgerCommon & ({ schemaVersion: 1 } |
     transition: Complete26ContinuationContract;
     transitionSha256: string;
   };
+  reviewedBatchSegment?: { contract: Complete26ReviewedBatchSegmentContract; contractSha256: string };
+  candidateTransitionArchive?: {
+    epoch: Complete25AcceptanceEpoch;
+    reviewedBatchSegment: { contract: Complete26ReviewedBatchSegmentContract; contractSha256: string };
+    transition: Complete26Candidate642Contract; transitionSha256: string;
+  };
+  emptyEpochRepinArchive?: { epoch: Complete25AcceptanceEpoch; transition: Complete26EmptyEpochRepinContract; transitionSha256: string };
+  postSinglepassArchive?: { epoch: Complete25AcceptanceEpoch; transition: Complete26PostSinglepassContract; transitionSha256: string };
+  v14SuccessorArchive?: { epoch: Complete25AcceptanceEpoch; transition: Complete26V14SuccessorContract; transitionSha256: string };
+  ceilingAmendment?: { contract: Complete26CeilingAmendmentContract; contractSha256: string };
 });
+
+/** A new exact-candidate batch. Old V13 attempts and their costs remain archived. */
+export type Complete26V14SuccessorContract = {
+  schemaVersion: "geoai.complete26.v14-successor-transition.v1";
+  rootReference: string; appliedAt: string;
+  previousLedgerSha256: string; previousLedgerCanonicalSha256: string;
+  previousGeneration: 342; openingReceiptCount: 164; openingAccountedUsd: 12.0768842;
+  previousCandidateCommit: typeof COMPLETE26_V14_PREDECESSOR_COMMIT;
+  previousCandidateHost: typeof COMPLETE26_V14_PREDECESSOR_HOST;
+  currentCandidateCommit: string; currentCandidateHost: string; currentDeploymentId: string;
+  currentEpochId: typeof COMPLETE26_V14_EPOCH_ID; receiptCeiling: 219;
+  terminal: {
+    status: "FAIL"; completedCaseIds: string[]; attemptedCaseIds: string[];
+    stoppedCaseId: "A10"; stoppedStatus: 502; fullyRetired: true;
+    causeReviewSha256: string;
+  };
+  evidence: {
+    terminalBatchPlanSha256: string; terminalBatchResultSha256: string;
+    retiredHostedReceiptSha256: string; retiredPersonaCheckpointSha256: string;
+    stoppedChildReceiptSha256: string; newBatchPlanSha256: string;
+    newPreviewReceiptSha256: string; newCiReceiptSha256: string;
+    newAuthReceiptSha256: string;
+  };
+};
+
+export type Complete26EmptyEpochRepinContract = Omit<Complete26Candidate642Contract, "schemaVersion" | "previousGeneration" | "currentEpochId" | "terminal"> & {
+  schemaVersion: "geoai.complete26.empty-epoch-repin.v1"; previousGeneration: 281 | 282;
+  currentEpochId: typeof COMPLETE26_EMPTY_REPIN_EPOCH_ID;
+  terminal: { status: "FAIL"; completedCaseIds: []; attemptedCaseIds: []; stoppedCaseId: "A01-Q";
+    failureStage: "acquisition_auth_login"; loginStage: "submit_redirect"; paidDispatchStarted: false;
+    sourceDispatchStarted: false; fullyRetired: true; causeReviewSha256: string };
+};
+
+export type Complete26PostSinglepassContract = Omit<Complete26EmptyEpochRepinContract, "schemaVersion" | "previousGeneration" | "openingReceiptCount" | "openingAccountedUsd" | "currentEpochId" | "terminal" | "evidence"> & {
+  schemaVersion: "geoai.complete26.post-singlepass-transition.v1"; previousGeneration: 289;
+  openingReceiptCount: 138; openingAccountedUsd: 10.8480797;
+  currentEpochId: typeof COMPLETE26_POST_SINGLEPASS_EPOCH_ID;
+  terminal: { status: "FAIL"; completedCaseIds: ["A01-Q", "A01-D", "A01-S"];
+    attemptedCaseIds: ["A01-Q", "A01-D", "A01-S"]; stoppedCaseId: "A02-Q";
+    primaryStage: "auth_login"; loginStage: "submit_redirect"; errorClass: "timeout";
+    stoppedChildPaidDispatchStarted: false; stoppedChildSourceDispatchStarted: false;
+    fullyRetired: true; causeReviewSha256: string };
+  evidence: { terminalBatchPlanSha256: string; terminalBatchResultSha256: string;
+    retiredHostedReceiptSha256: string; retiredPersonaCheckpointSha256: string;
+    stoppedChildReceiptSha256: string; newBatchPlanSha256: string;
+    newPreviewReceiptSha256: string; newCiReceiptSha256: string; newAuthReceiptSha256: string };
+};
+
+function validPostSinglepassContract(c: unknown): c is Complete26PostSinglepassContract {
+  if (!record(c) || !exactKeys(c, ["schemaVersion", "rootReference", "appliedAt", "previousLedgerSha256", "previousLedgerCanonicalSha256", "previousGeneration", "openingReceiptCount", "openingAccountedUsd", "previousCandidateCommit", "previousCandidateHost", "currentCandidateCommit", "currentCandidateHost", "currentDeploymentId", "currentEpochId", "receiptCeiling", "terminal", "evidence"]) ||
+      c.schemaVersion !== "geoai.complete26.post-singlepass-transition.v1" || c.previousGeneration !== 289 || c.openingReceiptCount !== 138 || c.openingAccountedUsd !== 10.8480797 || c.receiptCeiling !== 201 || c.currentEpochId !== COMPLETE26_POST_SINGLEPASS_EPOCH_ID ||
+      c.previousCandidateCommit !== COMPLETE26_SINGLEPASS_COMMIT || c.previousCandidateHost !== COMPLETE26_SINGLEPASS_HOST ||
+      typeof c.currentCandidateCommit !== "string" || !COMMIT_PATTERN.test(c.currentCandidateCommit) || /^0+$/.test(c.currentCandidateCommit) || c.currentCandidateCommit === c.previousCandidateCommit || c.currentCandidateCommit === COMPLETE26_CANDIDATE642_COMMIT ||
+      typeof c.currentCandidateHost !== "string" || !safeCandidateHost(c.currentCandidateHost) || c.currentCandidateHost === c.previousCandidateHost || c.currentCandidateHost === COMPLETE26_CANDIDATE642_HOST ||
+      typeof c.currentDeploymentId !== "string" || !/^dpl_[A-Za-z0-9]{8,80}$/.test(c.currentDeploymentId) ||
+      typeof c.rootReference !== "string" || !/^root:[A-Za-z0-9:_-]{10,160}$/.test(c.rootReference) || !validIso(c.appliedAt) ||
+      ![c.previousLedgerSha256, c.previousLedgerCanonicalSha256].every(h => typeof h === "string" && HASH_PATTERN.test(h) && !/^0+$/.test(h)) ||
+      !record(c.terminal) || !exactKeys(c.terminal, ["status", "completedCaseIds", "attemptedCaseIds", "stoppedCaseId", "primaryStage", "loginStage", "errorClass", "stoppedChildPaidDispatchStarted", "stoppedChildSourceDispatchStarted", "fullyRetired", "causeReviewSha256"]) ||
+      c.terminal.status !== "FAIL" || JSON.stringify(c.terminal.completedCaseIds) !== '["A01-Q","A01-D","A01-S"]' || JSON.stringify(c.terminal.attemptedCaseIds) !== '["A01-Q","A01-D","A01-S"]' ||
+      c.terminal.stoppedCaseId !== "A02-Q" || c.terminal.primaryStage !== "auth_login" || c.terminal.loginStage !== "submit_redirect" || c.terminal.errorClass !== "timeout" || c.terminal.stoppedChildPaidDispatchStarted !== false || c.terminal.stoppedChildSourceDispatchStarted !== false || c.terminal.fullyRetired !== true ||
+      typeof c.terminal.causeReviewSha256 !== "string" || !HASH_PATTERN.test(c.terminal.causeReviewSha256) || /^0+$/.test(c.terminal.causeReviewSha256) ||
+      !record(c.evidence) || !exactKeys(c.evidence, ["terminalBatchPlanSha256", "terminalBatchResultSha256", "retiredHostedReceiptSha256", "retiredPersonaCheckpointSha256", "stoppedChildReceiptSha256", "newBatchPlanSha256", "newPreviewReceiptSha256", "newCiReceiptSha256", "newAuthReceiptSha256"])) return false;
+  return Object.values(c.evidence).every(h => typeof h === "string" && HASH_PATTERN.test(h) && !/^0+$/.test(h)) && c.evidence.newBatchPlanSha256 !== c.evidence.terminalBatchPlanSha256;
+}
+
+function validPostSinglepassPredecessor(l: Sprint10SpendLedger, c: Complete26PostSinglepassContract): boolean {
+  if (l.schemaVersion !== 2 || !l.emptyEpochRepinArchive || !l.ceilingAmendment || l.postSinglepassArchive || l.generation !== 289 || l.ceilingUsd !== 20 ||
+      l.generation !== c.previousGeneration || sprint10LedgerReceiptCount(l) !== 138 || l.estimatedOrReservedUsd !== c.openingAccountedUsd ||
+      l.acceptanceEpoch.id !== COMPLETE26_EMPTY_REPIN_EPOCH_ID || l.acceptanceEpoch.candidateCommit !== c.previousCandidateCommit || l.acceptanceEpoch.candidateHost !== c.previousCandidateHost ||
+      l.acceptanceEpoch.acceptanceRevision !== 3 || JSON.stringify(l.acceptanceEpoch.attempts.map(a => a.caseId)) !== '["A01-Q","A01-D","A01-S"]' ||
+      l.receipts.length !== 48 || complete25CheckpointHash(l) !== c.previousLedgerCanonicalSha256 || hasSprint10UnresolvedCharge(l, true) ||
+      l.receipts.find(r => r.id === 93)?.state !== "unknown" || l.conservativeCharges?.some(ch => ch.receiptId > 135) ||
+      l.receipts.some(r => r.identity.candidateCommit === c.currentCandidateCommit || r.identity.candidateHost === c.currentCandidateHost)) return false;
+  const recent = l.receipts.slice(-3);
+  if (recent.some((r, i) => r.id !== 136 + i || r.state !== "settled" || r.status !== 200 ||
+      r.identity.candidateCommit !== c.previousCandidateCommit || r.identity.candidateHost !== c.previousCandidateHost ||
+      !r.identity.requestKey.startsWith(`Q20:${c.terminal.completedCaseIds[i]}:AI:`))) return false;
+  const lastChange = Math.max(Date.parse(l.emptyEpochRepinArchive.transition.appliedAt), ...l.acceptanceEpoch.attempts.map(a => Date.parse(a.startedAt)), ...recent.map(r => Date.parse(r.settledAt ?? r.createdAt)));
+  return Date.parse(c.appliedAt) >= lastChange;
+}
+
+/** Pure one-shot archival transition; evidence contents and freshness are a separate root gate. */
+export function startComplete26PostSinglepassEpoch(value: Sprint10SpendLedger, contract: Complete26PostSinglepassContract): Sprint10SpendLedger {
+  const ledger = parseSprint10SpendLedger(value);
+  if (!ledger || ledger.schemaVersion !== 2 || !validPostSinglepassContract(contract) || !validPostSinglepassPredecessor(ledger, contract)) throw new Error("Post-singlepass transition requires exact settled 289/138 predecessor and reviewed future tuple.");
+  const next: Sprint10SpendLedger = { ...structuredClone(ledger), generation: 290,
+    postSinglepassArchive: { epoch: structuredClone(ledger.acceptanceEpoch), transition: structuredClone(contract), transitionSha256: complete25CheckpointHash(contract) },
+    acceptanceEpoch: { id: COMPLETE26_POST_SINGLEPASS_EPOCH_ID, approvalReference: COMPLETE25_RECOVERY_APPROVAL, candidateCommit: contract.currentCandidateCommit, candidateHost: contract.currentCandidateHost, acceptanceRevision: 0, attempts: [] } };
+  if (!parseSprint10SpendLedger(next)) throw new Error("Invalid post-singlepass archive.");
+  return next;
+}
+
+export function complete26PostSinglepassOpening(value: unknown) {
+  const ledger = parseSprint10SpendLedger(value);
+  if (!ledger || ledger.schemaVersion !== 2 || !ledger.postSinglepassArchive) return null;
+  return { ...ledger.postSinglepassArchive.transition, transitionSha256: ledger.postSinglepassArchive.transitionSha256 };
+}
+
+const COMPLETE26_V14_PREDECESSOR_COMPLETED = Object.freeze([
+  ...Array.from({ length: 8 }, (_, index) =>
+    ["Q", "D", "S"].map(depth => `A${String(index + 1).padStart(2, "0")}-${depth}`)).flat(),
+  "A09"
+]);
+
+function validComplete26V14SuccessorContract(value: unknown): value is Complete26V14SuccessorContract {
+  if (!record(value) || !exactKeys(value, ["schemaVersion", "rootReference", "appliedAt",
+    "previousLedgerSha256", "previousLedgerCanonicalSha256", "previousGeneration",
+    "openingReceiptCount", "openingAccountedUsd", "previousCandidateCommit",
+    "previousCandidateHost", "currentCandidateCommit", "currentCandidateHost",
+    "currentDeploymentId", "currentEpochId", "receiptCeiling", "terminal", "evidence"]) ||
+      value.schemaVersion !== "geoai.complete26.v14-successor-transition.v1" ||
+      value.previousGeneration !== 342 || value.openingReceiptCount !== 164 ||
+      value.openingAccountedUsd !== 12.0768842 || value.receiptCeiling !== 219 ||
+      value.previousCandidateCommit !== COMPLETE26_V14_PREDECESSOR_COMMIT ||
+      value.previousCandidateHost !== COMPLETE26_V14_PREDECESSOR_HOST ||
+      value.currentEpochId !== COMPLETE26_V14_EPOCH_ID ||
+      typeof value.rootReference !== "string" || !/^root:[A-Za-z0-9:_-]{10,160}$/.test(value.rootReference) ||
+      !validIso(value.appliedAt) ||
+      typeof value.currentCandidateCommit !== "string" || !COMMIT_PATTERN.test(value.currentCandidateCommit) ||
+      /^0+$/.test(value.currentCandidateCommit) || value.currentCandidateCommit === COMPLETE26_V14_PREDECESSOR_COMMIT ||
+      typeof value.currentCandidateHost !== "string" || !safeCandidateHost(value.currentCandidateHost) ||
+      value.currentCandidateHost === COMPLETE26_V14_PREDECESSOR_HOST ||
+      typeof value.currentDeploymentId !== "string" || !/^dpl_[A-Za-z0-9]{8,80}$/.test(value.currentDeploymentId) ||
+      ![value.previousLedgerSha256, value.previousLedgerCanonicalSha256].every(
+        hash => typeof hash === "string" && HASH_PATTERN.test(hash) && !/^0+$/.test(hash)) ||
+      !record(value.terminal) || !exactKeys(value.terminal,
+        ["status", "completedCaseIds", "attemptedCaseIds", "stoppedCaseId",
+          "stoppedStatus", "fullyRetired", "causeReviewSha256"]) ||
+      value.terminal.status !== "FAIL" || value.terminal.stoppedCaseId !== "A10" ||
+      value.terminal.stoppedStatus !== 502 || value.terminal.fullyRetired !== true ||
+      JSON.stringify(value.terminal.completedCaseIds) !== JSON.stringify(COMPLETE26_V14_PREDECESSOR_COMPLETED) ||
+      JSON.stringify(value.terminal.attemptedCaseIds) !== JSON.stringify([...COMPLETE26_V14_PREDECESSOR_COMPLETED, "A10"]) ||
+      typeof value.terminal.causeReviewSha256 !== "string" ||
+      !HASH_PATTERN.test(value.terminal.causeReviewSha256) || /^0+$/.test(value.terminal.causeReviewSha256) ||
+      !record(value.evidence) || !exactKeys(value.evidence,
+        ["terminalBatchPlanSha256", "terminalBatchResultSha256", "retiredHostedReceiptSha256",
+          "retiredPersonaCheckpointSha256", "stoppedChildReceiptSha256", "newBatchPlanSha256",
+          "newPreviewReceiptSha256", "newCiReceiptSha256", "newAuthReceiptSha256"])) return false;
+  return Object.values(value.evidence).every(hash =>
+    typeof hash === "string" && HASH_PATTERN.test(hash) && !/^0+$/.test(hash)) &&
+    value.evidence.newBatchPlanSha256 !== value.evidence.terminalBatchPlanSha256;
+}
+
+function validComplete26V14Predecessor(
+  ledger: Sprint10SpendLedger, contract: Complete26V14SuccessorContract
+): boolean {
+  if (ledger.schemaVersion !== 2 || !ledger.postSinglepassArchive || ledger.v14SuccessorArchive ||
+      ledger.generation !== 342 || sprint10LedgerReceiptCount(ledger) !== 164 ||
+      ledger.estimatedOrReservedUsd !== 12.0768842 || ledger.ceilingUsd !== 20 ||
+      ledger.acceptanceEpoch.id !== COMPLETE26_POST_SINGLEPASS_EPOCH_ID ||
+      ledger.acceptanceEpoch.candidateCommit !== COMPLETE26_V14_PREDECESSOR_COMMIT ||
+      ledger.acceptanceEpoch.candidateHost !== COMPLETE26_V14_PREDECESSOR_HOST ||
+      ledger.postSinglepassArchive.transition.currentCandidateCommit !== COMPLETE26_V14_PREDECESSOR_COMMIT ||
+      ledger.postSinglepassArchive.transition.currentCandidateHost !== COMPLETE26_V14_PREDECESSOR_HOST ||
+      ledger.acceptanceEpoch.acceptanceRevision !== 26 ||
+      JSON.stringify(ledger.acceptanceEpoch.attempts.map(attempt => attempt.caseId)) !==
+        JSON.stringify(contract.terminal.attemptedCaseIds) ||
+      complete25CheckpointHash(ledger) !== contract.previousLedgerCanonicalSha256 ||
+      hasSprint10UnresolvedCharge(ledger, true) ||
+      ledger.receipts.find(receipt => receipt.id === 93)?.state !== "unknown" ||
+      ledger.receipts.some(receipt =>
+        receipt.identity.candidateCommit === contract.currentCandidateCommit ||
+        receipt.identity.candidateHost === contract.currentCandidateHost)) return false;
+  const recent = ledger.receipts.filter(receipt => receipt.id > 138);
+  if (recent.length !== 26 || recent.some((receipt, index) =>
+    receipt.id !== 139 + index || receipt.state !== "settled" ||
+    receipt.status !== (index === 25 ? 502 : 200) ||
+    receipt.identity.candidateCommit !== COMPLETE26_V14_PREDECESSOR_COMMIT ||
+    receipt.identity.candidateHost !== COMPLETE26_V14_PREDECESSOR_HOST ||
+    receipt.identity.promptVersion !== SPRINT10_V13_ANALYSIS_PROMPT_VERSION ||
+    receipt.identity.route !== "ai" ||
+    !receipt.identity.requestKey.startsWith(`Q20:${contract.terminal.attemptedCaseIds[index]}:AI:`))) return false;
+  if (recent.at(-1)?.estimatedUsd !== 0.0849996 ||
+      recent.at(-1)?.telemetry?.estimatedCostUsd !== 0.0849996 ||
+      recent.at(-1)?.telemetry?.attempts !== 2) return false;
+  const lastChange = Math.max(
+    Date.parse(ledger.postSinglepassArchive.transition.appliedAt),
+    ...ledger.acceptanceEpoch.attempts.map(attempt => Date.parse(attempt.startedAt)),
+    ...recent.map(receipt => Date.parse(receipt.settledAt ?? receipt.createdAt)),
+    ...(ledger.conservativeCharges ?? []).map(charge =>
+      Date.parse("appliedAt" in charge ? charge.appliedAt : charge.approvedAt))
+  );
+  return Date.parse(contract.appliedAt) >= lastChange;
+}
+
+/** Pure, fail-closed archival transition. Actual proof contents are a separate Root gate. */
+export function startComplete26V14SuccessorEpoch(
+  value: Sprint10SpendLedger, contract: Complete26V14SuccessorContract
+): Sprint10SpendLedger {
+  const ledger = parseSprint10SpendLedger(value);
+  if (!ledger || ledger.schemaVersion !== 2 || !validComplete26V14SuccessorContract(contract) ||
+      !validComplete26V14Predecessor(ledger, contract)) {
+    throw new Error("V14 successor requires exact terminal A10/164 history and reviewed final tuple.");
+  }
+  const next: Sprint10SpendLedger = {
+    ...structuredClone(ledger), generation: ledger.generation + 1,
+    v14SuccessorArchive: {
+      epoch: structuredClone(ledger.acceptanceEpoch),
+      transition: structuredClone(contract),
+      transitionSha256: complete25CheckpointHash(contract)
+    },
+    acceptanceEpoch: {
+      id: COMPLETE26_V14_EPOCH_ID, approvalReference: COMPLETE25_RECOVERY_APPROVAL,
+      candidateCommit: contract.currentCandidateCommit,
+      candidateHost: contract.currentCandidateHost, acceptanceRevision: 0, attempts: []
+    }
+  };
+  if (!parseSprint10SpendLedger(next)) throw new Error("Invalid V14 successor archive.");
+  return next;
+}
+
+export function complete26V14SuccessorOpening(value: unknown) {
+  const ledger = parseSprint10SpendLedger(value);
+  if (!ledger || ledger.schemaVersion !== 2 || !ledger.v14SuccessorArchive) return null;
+  return {
+    ...ledger.v14SuccessorArchive.transition,
+    transitionSha256: ledger.v14SuccessorArchive.transitionSha256
+  };
+}
+
+function validEmptyEpochRepinContract(c: unknown): c is Complete26EmptyEpochRepinContract {
+  if (!record(c) || !exactKeys(c, ["schemaVersion", "rootReference", "appliedAt", "previousLedgerSha256", "previousLedgerCanonicalSha256", "previousGeneration", "openingReceiptCount", "openingAccountedUsd", "previousCandidateCommit", "previousCandidateHost", "currentCandidateCommit", "currentCandidateHost", "currentDeploymentId", "currentEpochId", "receiptCeiling", "terminal", "evidence"]) ||
+      c.schemaVersion !== "geoai.complete26.empty-epoch-repin.v1" || ![281, 282].includes(c.previousGeneration as number) || c.openingReceiptCount !== 135 || c.openingAccountedUsd !== 10.6824222 || c.receiptCeiling !== 201 || c.currentEpochId !== COMPLETE26_EMPTY_REPIN_EPOCH_ID ||
+      c.previousCandidateCommit !== COMPLETE26_CANDIDATE642_COMMIT || c.previousCandidateHost !== COMPLETE26_CANDIDATE642_HOST ||
+      typeof c.currentCandidateCommit !== "string" || !COMMIT_PATTERN.test(c.currentCandidateCommit) || /^0+$/.test(c.currentCandidateCommit) || c.currentCandidateCommit === c.previousCandidateCommit ||
+      typeof c.currentCandidateHost !== "string" || !safeCandidateHost(c.currentCandidateHost) || c.currentCandidateHost === c.previousCandidateHost ||
+      typeof c.currentDeploymentId !== "string" || !/^dpl_[A-Za-z0-9]{8,80}$/.test(c.currentDeploymentId) || c.currentDeploymentId === COMPLETE26_CANDIDATE642_DEPLOYMENT ||
+      typeof c.rootReference !== "string" || !/^root:[A-Za-z0-9:_-]{10,160}$/.test(c.rootReference) || !validIso(c.appliedAt) ||
+      ![c.previousLedgerSha256, c.previousLedgerCanonicalSha256].every(h => typeof h === "string" && HASH_PATTERN.test(h) && !/^0+$/.test(h)) ||
+      !record(c.terminal) || !exactKeys(c.terminal, ["status", "completedCaseIds", "attemptedCaseIds", "stoppedCaseId", "failureStage", "loginStage", "paidDispatchStarted", "sourceDispatchStarted", "fullyRetired", "causeReviewSha256"]) ||
+      c.terminal.status !== "FAIL" || JSON.stringify(c.terminal.completedCaseIds) !== "[]" || JSON.stringify(c.terminal.attemptedCaseIds) !== "[]" || c.terminal.stoppedCaseId !== "A01-Q" || c.terminal.failureStage !== "acquisition_auth_login" || c.terminal.loginStage !== "submit_redirect" || c.terminal.paidDispatchStarted !== false || c.terminal.sourceDispatchStarted !== false || c.terminal.fullyRetired !== true ||
+      typeof c.terminal.causeReviewSha256 !== "string" || !HASH_PATTERN.test(c.terminal.causeReviewSha256) || /^0+$/.test(c.terminal.causeReviewSha256) ||
+      !record(c.evidence) || !exactKeys(c.evidence, ["terminalBatchPlanSha256", "terminalBatchResultSha256", "retiredHostedReceiptSha256", "retiredPersonaCheckpointSha256", "newBatchPlanSha256", "newPreviewReceiptSha256", "newCiReceiptSha256", "stoppedChildReceiptSha256", "authThreeCycleReceiptSha256"])) return false;
+  return Object.values(c.evidence).every(h => typeof h === "string" && HASH_PATTERN.test(h) && !/^0+$/.test(h)) && c.evidence.newBatchPlanSha256 !== c.evidence.terminalBatchPlanSha256;
+}
+
+function validEmptyEpochRepinPredecessor(l: Sprint10SpendLedger, c: Complete26EmptyEpochRepinContract): boolean {
+  return l.schemaVersion === 2 && !!l.candidateTransitionArchive && !l.emptyEpochRepinArchive &&
+    (l.ceilingAmendment ? l.generation === 282 && l.ceilingUsd === COMPLETE26_AMENDED_CEILING_USD && c.previousGeneration === 282 && Date.parse(c.appliedAt) >= Date.parse(l.ceilingAmendment.contract.appliedAt) :
+      l.generation === 281 && l.ceilingUsd === SPRINT10_LIVE_CEILING_USD && c.previousGeneration === 281) &&
+    l.acceptanceEpoch.id === COMPLETE26_CANDIDATE642_EPOCH_ID && l.acceptanceEpoch.attempts.length === 0 && l.acceptanceEpoch.acceptanceRevision === 0 &&
+    l.generation === c.previousGeneration && sprint10LedgerReceiptCount(l) === c.openingReceiptCount && l.estimatedOrReservedUsd === c.openingAccountedUsd &&
+    l.acceptanceEpoch.candidateCommit === c.previousCandidateCommit && l.acceptanceEpoch.candidateHost === c.previousCandidateHost &&
+    complete25CheckpointHash(l) === c.previousLedgerCanonicalSha256 && !hasSprint10UnresolvedCharge(l, true) &&
+    !l.receipts.some(r => r.identity.candidateCommit === c.currentCandidateCommit || r.identity.candidateHost === c.currentCandidateHost) &&
+    Date.parse(c.appliedAt) >= Date.parse(l.candidateTransitionArchive.transition.appliedAt);
+}
+
+function validComplete26CeilingAmendmentContract(c: unknown): c is Complete26CeilingAmendmentContract {
+  if (!record(c)) return false;
+  const authority = c.authority;
+  return exactKeys(c, ["schemaVersion", "rootReference", "appliedAt", "previousLedgerSha256", "previousLedgerCanonicalSha256", "previousGeneration", "openingReceiptCount", "openingAccountedUsd", "previousCeilingUsd", "currentCeilingUsd", "authority"]) &&
+    c.schemaVersion === "geoai.complete26.ceiling-amendment.v1" && c.previousGeneration === 281 && c.openingReceiptCount === 135 && c.openingAccountedUsd === 10.6824222 &&
+    c.previousCeilingUsd === SPRINT10_LIVE_CEILING_USD && c.currentCeilingUsd === COMPLETE26_AMENDED_CEILING_USD &&
+    typeof c.rootReference === "string" && /^root:[A-Za-z0-9:_-]{10,160}$/.test(c.rootReference) && validIso(c.appliedAt) &&
+    Date.parse(c.appliedAt as string) >= Date.parse(COMPLETE26_CEILING_AMENDMENT_AUTHORITY.approvedAtMinute) &&
+    [c.previousLedgerSha256, c.previousLedgerCanonicalSha256].every(h => typeof h === "string" && HASH_PATTERN.test(h) && !/^0+$/.test(h)) &&
+    record(authority) && exactKeys(authority, Object.keys(COMPLETE26_CEILING_AMENDMENT_AUTHORITY)) &&
+    Object.entries(COMPLETE26_CEILING_AMENDMENT_AUTHORITY).every(([key, value]) => authority[key] === value);
+}
+
+function validComplete26CeilingAmendmentPredecessor(l: Sprint10SpendLedger, c: Complete26CeilingAmendmentContract): boolean {
+  return l.schemaVersion === 2 && !!l.candidateTransitionArchive && !l.emptyEpochRepinArchive && !l.ceilingAmendment &&
+    l.ceilingUsd === 15 && l.generation === c.previousGeneration && sprint10LedgerReceiptCount(l) === c.openingReceiptCount &&
+    l.estimatedOrReservedUsd === c.openingAccountedUsd && complete25CheckpointHash(l) === c.previousLedgerCanonicalSha256 &&
+    l.acceptanceEpoch.id === COMPLETE26_CANDIDATE642_EPOCH_ID && l.acceptanceEpoch.candidateCommit === COMPLETE26_CANDIDATE642_COMMIT &&
+    l.acceptanceEpoch.candidateHost === COMPLETE26_CANDIDATE642_HOST && l.acceptanceEpoch.acceptanceRevision === 0 &&
+    l.acceptanceEpoch.attempts.length === 0 && l.receipts.find(r => r.id === 93)?.state === "unknown" &&
+    !hasSprint10UnresolvedCharge(l, true) && Date.parse(c.appliedAt) >= Date.parse(l.candidateTransitionArchive.transition.appliedAt);
+}
+
+/** One founder-authorized $5 ceiling amendment; receipts, archives and unknown costs remain byte-equivalent values. */
+export function startComplete26CeilingAmendment(value: Sprint10SpendLedger, contract: Complete26CeilingAmendmentContract): Sprint10SpendLedger {
+  const ledger = parseSprint10SpendLedger(value);
+  if (!ledger || ledger.schemaVersion !== 2 || !validComplete26CeilingAmendmentContract(contract) || !validComplete26CeilingAmendmentPredecessor(ledger, contract)) throw new Error("Ceiling amendment requires exact founder authority and unchanged empty 281/135 predecessor.");
+  const next: Sprint10SpendLedger = { ...structuredClone(ledger), ceilingUsd: COMPLETE26_AMENDED_CEILING_USD, generation: ledger.generation + 1,
+    ceilingAmendment: { contract: structuredClone(contract), contractSha256: complete25CheckpointHash(contract) } };
+  if (!parseSprint10SpendLedger(next)) throw new Error("Invalid founder ceiling amendment archive.");
+  return next;
+}
+
+/** Single root-reviewed empty-epoch move, not a retry launcher. Proof contents/freshness are the operator's gate. */
+export function startComplete26EmptyEpochRepin(value: Sprint10SpendLedger, contract: Complete26EmptyEpochRepinContract): Sprint10SpendLedger {
+  const ledger = parseSprint10SpendLedger(value);
+  if (!ledger || ledger.schemaVersion !== 2 || !validEmptyEpochRepinContract(contract) || !validEmptyEpochRepinPredecessor(ledger, contract)) throw new Error("Repin requires the unchanged empty, retired 281/135 epoch and exact reviewed target.");
+  const next: Sprint10SpendLedger = { ...structuredClone(ledger), generation: ledger.generation + 1,
+    emptyEpochRepinArchive: { epoch: structuredClone(ledger.acceptanceEpoch), transition: structuredClone(contract), transitionSha256: complete25CheckpointHash(contract) },
+    acceptanceEpoch: { id: COMPLETE26_EMPTY_REPIN_EPOCH_ID, approvalReference: COMPLETE25_RECOVERY_APPROVAL, candidateCommit: contract.currentCandidateCommit, candidateHost: contract.currentCandidateHost, acceptanceRevision: 0, attempts: [] } };
+  if (!parseSprint10SpendLedger(next)) throw new Error("Invalid empty epoch archive.");
+  return next;
+}
+
+export function complete26EmptyEpochRepinOpening(value: unknown) {
+  const ledger = parseSprint10SpendLedger(value);
+  if (!ledger || ledger.schemaVersion !== 2 || !ledger.emptyEpochRepinArchive) return null;
+  return { ...ledger.emptyEpochRepinArchive.transition, transitionSha256: ledger.emptyEpochRepinArchive.transitionSha256 };
+}
+
+export type Complete26Candidate642Contract = Omit<Complete26FinalSuccessorContract, "schemaVersion" | "currentEpochId" | "terminal" | "evidence"> & {
+  schemaVersion: "geoai.complete26.candidate642-transition.v1";
+  previousGeneration: 280; openingReceiptCount: 135; openingAccountedUsd: 10.6824222;
+  currentEpochId: typeof COMPLETE26_CANDIDATE642_EPOCH_ID; currentDeploymentId: string;
+  terminal: { status: "FAIL"; completedCaseIds: string[]; attemptedCaseIds: string[];
+    stoppedCaseId: "A02-Q"; failureStage: "acquisition_auth_login"; paidDispatchStarted: false; fullyRetired: true; causeReviewSha256: string };
+  evidence: Complete26ReviewedBatchSegmentContract["evidence"];
+};
+
+function validCandidate642Contract(c: unknown): c is Complete26Candidate642Contract {
+  if (!record(c) || !exactKeys(c, ["schemaVersion", "rootReference", "appliedAt", "previousLedgerSha256", "previousLedgerCanonicalSha256", "previousGeneration", "openingReceiptCount", "openingAccountedUsd", "previousCandidateCommit", "previousCandidateHost", "currentCandidateCommit", "currentCandidateHost", "currentDeploymentId", "currentEpochId", "receiptCeiling", "terminal", "evidence"]) ||
+      c.schemaVersion !== "geoai.complete26.candidate642-transition.v1" || c.currentEpochId !== COMPLETE26_CANDIDATE642_EPOCH_ID || c.receiptCeiling !== 201 ||
+      c.previousGeneration !== 280 || c.openingReceiptCount !== 135 || c.openingAccountedUsd !== 10.6824222 ||
+      c.previousCandidateCommit !== SEGMENT_COMMIT || c.previousCandidateHost !== SEGMENT_HOST || c.currentCandidateCommit !== COMPLETE26_CANDIDATE642_COMMIT ||
+      c.currentCandidateHost !== COMPLETE26_CANDIDATE642_HOST || c.currentDeploymentId !== COMPLETE26_CANDIDATE642_DEPLOYMENT ||
+      typeof c.rootReference !== "string" || !/^root:[a-zA-Z0-9:_-]{10,160}$/.test(c.rootReference) || !validIso(c.appliedAt) ||
+      ![c.previousLedgerSha256, c.previousLedgerCanonicalSha256].every(h => typeof h === "string" && HASH_PATTERN.test(h) && !/^0+$/.test(h)) ||
+      !record(c.terminal) || !exactKeys(c.terminal, ["status", "completedCaseIds", "attemptedCaseIds", "stoppedCaseId", "failureStage", "paidDispatchStarted", "fullyRetired", "causeReviewSha256"]) ||
+      c.terminal.status !== "FAIL" || c.terminal.stoppedCaseId !== "A02-Q" || c.terminal.failureStage !== "acquisition_auth_login" || c.terminal.paidDispatchStarted !== false || c.terminal.fullyRetired !== true ||
+      JSON.stringify(c.terminal.completedCaseIds) !== JSON.stringify(["A01-Q", "A01-D", "A01-S"]) || JSON.stringify(c.terminal.attemptedCaseIds) !== JSON.stringify(c.terminal.completedCaseIds) ||
+      typeof c.terminal.causeReviewSha256 !== "string" || !HASH_PATTERN.test(c.terminal.causeReviewSha256) || /^0+$/.test(c.terminal.causeReviewSha256) ||
+      !record(c.evidence) || !exactKeys(c.evidence, ["terminalBatchPlanSha256", "terminalBatchResultSha256", "retiredHostedReceiptSha256", "retiredPersonaCheckpointSha256", "newBatchPlanSha256", "newPreviewReceiptSha256", "newCiReceiptSha256", "stoppedChildReceiptSha256", "authThreeCycleReceiptSha256"])) return false;
+  return Object.values(c.evidence).every(h => typeof h === "string" && HASH_PATTERN.test(h) && !/^0+$/.test(h)) && c.evidence.newBatchPlanSha256 !== c.evidence.terminalBatchPlanSha256;
+}
+
+function validCandidate642Predecessor(l: Sprint10SpendLedger, c: Complete26Candidate642Contract): boolean {
+  if (l.schemaVersion !== 2 || !l.reviewedBatchSegment || l.candidateTransitionArchive || l.acceptanceEpoch.id !== COMPLETE26_CONTINUATION_EPOCH_ID ||
+      l.generation !== c.previousGeneration || sprint10LedgerReceiptCount(l) !== c.openingReceiptCount || l.estimatedOrReservedUsd !== c.openingAccountedUsd ||
+      l.acceptanceEpoch.candidateCommit !== c.previousCandidateCommit || l.acceptanceEpoch.candidateHost !== c.previousCandidateHost ||
+      complete25CheckpointHash(l) !== c.previousLedgerCanonicalSha256 || hasSprint10UnresolvedCharge(l, true) ||
+      JSON.stringify(l.acceptanceEpoch.attempts.slice(3).map(a => a.caseId)) !== JSON.stringify(c.terminal.attemptedCaseIds)) return false;
+  const receipts = l.receipts.filter(r => r.id > 132);
+  return receipts.length === 3 && receipts.every((r, i) => r.state === "settled" && r.status === 200 && r.identity.requestKey.startsWith(`Q20:${c.terminal.completedCaseIds[i]}:AI:`)) &&
+    Date.parse(c.appliedAt) >= Math.max(Date.parse(l.reviewedBatchSegment.contract.appliedAt), ...l.acceptanceEpoch.attempts.map(a => Date.parse(a.startedAt)), ...l.receipts.map(r => Date.parse(r.settledAt ?? r.createdAt)), ...(l.conservativeCharges ?? []).map(cg => Date.parse("appliedAt" in cg ? cg.appliedAt : cg.approvedAt)));
+}
+
+/** One further candidate only. Root must validate all actual terminal/Auth/CI/source-plan proofs before claiming. */
+export function startComplete26Candidate642Epoch(value: Sprint10SpendLedger, contract: Complete26Candidate642Contract): Sprint10SpendLedger {
+  const ledger = parseSprint10SpendLedger(value);
+  if (!ledger || ledger.schemaVersion !== 2 || !ledger.reviewedBatchSegment || !validCandidate642Contract(contract) || !validCandidate642Predecessor(ledger, contract)) throw new Error("Candidate642 requires the exact retired 280/135 predecessor and unchanged USD15 history.");
+  const next: Sprint10SpendLedger = { ...structuredClone(ledger), generation: ledger.generation + 1,
+    candidateTransitionArchive: { epoch: structuredClone(ledger.acceptanceEpoch), reviewedBatchSegment: structuredClone(ledger.reviewedBatchSegment), transition: structuredClone(contract), transitionSha256: complete25CheckpointHash(contract) },
+    acceptanceEpoch: { id: COMPLETE26_CANDIDATE642_EPOCH_ID, approvalReference: COMPLETE25_RECOVERY_APPROVAL, candidateCommit: contract.currentCandidateCommit, candidateHost: contract.currentCandidateHost, acceptanceRevision: 0, attempts: [] } };
+  delete next.reviewedBatchSegment;
+  if (!parseSprint10SpendLedger(next)) throw new Error("Invalid candidate642 archive.");
+  return next;
+}
+
+export function complete26Candidate642Opening(value: unknown) {
+  const ledger = parseSprint10SpendLedger(value);
+  if (!ledger || ledger.schemaVersion !== 2 || !ledger.candidateTransitionArchive) return null;
+  return { ...ledger.candidateTransitionArchive.transition, transitionSha256: ledger.candidateTransitionArchive.transitionSha256 };
+}
+
+export type Complete26ReviewedBatchSegmentContract = {
+  schemaVersion: "geoai.complete26.reviewed-batch-segment.v1";
+  rootReference: string; appliedAt: string;
+  previousLedgerSha256: string; previousLedgerCanonicalSha256: string;
+  previousGeneration: 273; openingReceiptCount: 132; openingAttemptCount: 3;
+  openingAccountedUsd: number; candidateCommit: string; candidateHost: string;
+  terminal: { status: "FAIL"; completedCaseIds: string[]; attemptedCaseIds: string[];
+    stoppedCaseId: "A01-S"; paidDispatchStarted: false; fullyRetired: true; causeReviewSha256: string };
+  evidence: Complete26FinalSuccessorContract["evidence"] & { stoppedChildReceiptSha256: string; authThreeCycleReceiptSha256: string };
+};
+
+const SEGMENT_COMMIT = "61d333ed210e3b6ffb8ed5448a67ebe78bfab0f9";
+const SEGMENT_HOST = "geoai-ki7vk39sl-geoaidev.vercel.app";
+
+function validReviewedBatchSegmentContract(c: unknown): c is Complete26ReviewedBatchSegmentContract {
+  if (!record(c) || !exactKeys(c, ["schemaVersion", "rootReference", "appliedAt", "previousLedgerSha256", "previousLedgerCanonicalSha256", "previousGeneration", "openingReceiptCount", "openingAttemptCount", "openingAccountedUsd", "candidateCommit", "candidateHost", "terminal", "evidence"]) ||
+      c.schemaVersion !== "geoai.complete26.reviewed-batch-segment.v1" || typeof c.rootReference !== "string" || !/^root:[a-zA-Z0-9:_-]{10,160}$/.test(c.rootReference) ||
+      !validIso(c.appliedAt) || c.previousGeneration !== 273 || c.openingReceiptCount !== 132 || c.openingAttemptCount !== 3 ||
+      !finite(c.openingAccountedUsd) || c.openingAccountedUsd <= 0 || c.openingAccountedUsd + 1.2 > 15 ||
+      c.candidateCommit !== SEGMENT_COMMIT || c.candidateHost !== SEGMENT_HOST ||
+      ![c.previousLedgerSha256, c.previousLedgerCanonicalSha256].every(x => typeof x === "string" && HASH_PATTERN.test(x) && !/^0+$/.test(x)) ||
+      !record(c.terminal) || !exactKeys(c.terminal, ["status", "completedCaseIds", "attemptedCaseIds", "stoppedCaseId", "paidDispatchStarted", "fullyRetired", "causeReviewSha256"]) ||
+      c.terminal.status !== "FAIL" || c.terminal.stoppedCaseId !== "A01-S" || c.terminal.paidDispatchStarted !== false || c.terminal.fullyRetired !== true ||
+      JSON.stringify(c.terminal.completedCaseIds) !== JSON.stringify(["A01-Q", "A01-D"]) ||
+      JSON.stringify(c.terminal.attemptedCaseIds) !== JSON.stringify(["A01-Q", "A01-D", "A01-S"]) ||
+      typeof c.terminal.causeReviewSha256 !== "string" || !HASH_PATTERN.test(c.terminal.causeReviewSha256) || /^0+$/.test(c.terminal.causeReviewSha256) ||
+      !record(c.evidence) || !exactKeys(c.evidence, ["terminalBatchPlanSha256", "terminalBatchResultSha256", "retiredHostedReceiptSha256", "retiredPersonaCheckpointSha256", "newBatchPlanSha256", "newPreviewReceiptSha256", "newCiReceiptSha256", "stoppedChildReceiptSha256", "authThreeCycleReceiptSha256"])) return false;
+  return Object.values(c.evidence).every(x => typeof x === "string" && HASH_PATTERN.test(x) && !/^0+$/.test(x)) && c.evidence.newBatchPlanSha256 === c.evidence.terminalBatchPlanSha256;
+}
+
+function validReviewedBatchSegmentPredecessor(l: Sprint10SpendLedger, c: Complete26ReviewedBatchSegmentContract): boolean {
+  if (l.schemaVersion !== 2 || !l.continuationTransitionArchive || l.reviewedBatchSegment || l.acceptanceEpoch.id !== COMPLETE26_CONTINUATION_EPOCH_ID ||
+      l.generation !== c.previousGeneration || sprint10LedgerReceiptCount(l) !== c.openingReceiptCount || l.estimatedOrReservedUsd !== c.openingAccountedUsd ||
+      l.acceptanceEpoch.candidateCommit !== c.candidateCommit || l.acceptanceEpoch.candidateHost !== c.candidateHost ||
+      complete25CheckpointHash(l) !== c.previousLedgerCanonicalSha256 || hasSprint10UnresolvedCharge(l, true) ||
+      JSON.stringify(l.acceptanceEpoch.attempts.map(a => a.caseId)) !== JSON.stringify(c.terminal.attemptedCaseIds)) return false;
+  const receipts = l.receipts.filter(r => r.id > 130);
+  return receipts.length === 2 && receipts.every((r, i) => r.state === "settled" && r.status === 200 && r.identity.requestKey.startsWith(`Q20:${c.terminal.completedCaseIds[i]}:AI:`)) &&
+    Date.parse(c.appliedAt) >= Math.max(Date.parse(l.continuationTransitionArchive.transition.appliedAt), ...l.acceptanceEpoch.attempts.map(a => Date.parse(a.startedAt)), ...l.receipts.map(r => Date.parse(r.settledAt ?? r.createdAt)), ...(l.conservativeCharges ?? []).map(c => Date.parse("appliedAt" in c ? c.appliedAt : c.approvedAt)));
+}
+
+/** One explicit same-candidate segment. Every old attempt stays in its original array. */
+export function startComplete26ReviewedBatchSegment(value: Sprint10SpendLedger, contract: Complete26ReviewedBatchSegmentContract): Sprint10SpendLedger {
+  const ledger = parseSprint10SpendLedger(value);
+  if (!ledger || ledger.schemaVersion !== 2 || !validReviewedBatchSegmentContract(contract) || !validReviewedBatchSegmentPredecessor(ledger, contract)) throw new Error("Reviewed segment requires the exact retired 61d pre-dispatch stop and immutable history.");
+  const next: Sprint10SpendLedger = { ...structuredClone(ledger), generation: ledger.generation + 1,
+    reviewedBatchSegment: { contract: structuredClone(contract), contractSha256: complete25CheckpointHash(contract) } };
+  if (!parseSprint10SpendLedger(next)) throw new Error("Invalid reviewed batch segment.");
+  return next;
+}
+
+export function complete26ReviewedBatchSegmentOpening(value: unknown) {
+  const ledger = parseSprint10SpendLedger(value);
+  if (!ledger || ledger.schemaVersion !== 2 || !ledger.reviewedBatchSegment) return null;
+  return { ...ledger.reviewedBatchSegment.contract, contractSha256: ledger.reviewedBatchSegment.contractSha256 };
+}
+
+export function complete26ActiveCaseAttempts(value: unknown): Complete25CaseAttempt[] {
+  const ledger = parseSprint10SpendLedger(value);
+  if (!ledger || ledger.schemaVersion !== 2) throw new Error("Invalid active attempt ledger.");
+  return ledger.acceptanceEpoch.attempts.slice(ledger.reviewedBatchSegment?.contract.openingAttemptCount ?? 0);
+}
 
 /** Exactly one reviewed continuation, not an extensible retry/reset mechanism.
  * Root verifies the actual proof contents before creating the exclusive claim. */
@@ -235,7 +688,7 @@ export function complete26LedgerCanonicalHash(ledgerValue: Sprint10SpendLedger):
 export function complete26SuccessorOpening(ledgerValue: unknown) {
   const ledger = parseSprint10SpendLedger(ledgerValue);
   if (!ledger || ledger.schemaVersion !== 2 || !ledger.archivedAcceptanceEpoch) return null;
-  const { transition, transitionSha256 } = ledger.continuationTransitionArchive ?? ledger.finalTransitionArchive ?? ledger.archivedAcceptanceEpoch;
+  const { transition, transitionSha256 } = ledger.v14SuccessorArchive ?? ledger.postSinglepassArchive ?? ledger.emptyEpochRepinArchive ?? ledger.candidateTransitionArchive ?? ledger.continuationTransitionArchive ?? ledger.finalTransitionArchive ?? ledger.archivedAcceptanceEpoch;
   return { transitionSha256, openingReceiptCount: transition.openingReceiptCount,
     openingAccountedUsd: transition.openingAccountedUsd, previousCandidateCommit: transition.previousCandidateCommit,
     currentCandidateCommit: transition.currentCandidateCommit, currentCandidateHost: transition.currentCandidateHost,
@@ -249,7 +702,8 @@ export function sprint10LedgerReceiptCapacity(ledgerValue: unknown): number {
   if (!record(ledgerValue) || !("finalTransitionArchive" in ledgerValue)) return SPRINT10_MAX_RECEIPTS;
   const ledger = parseSprint10SpendLedger(ledgerValue);
   if (!ledger) throw new Error("Invalid ledger capacity input.");
-  return ledger.schemaVersion === 2 && ledger.finalTransitionArchive ? 201 : SPRINT10_MAX_RECEIPTS;
+  return ledger.schemaVersion === 2 && ledger.v14SuccessorArchive ? 219 :
+    ledger.schemaVersion === 2 && ledger.finalTransitionArchive ? 201 : SPRINT10_MAX_RECEIPTS;
 }
 
 export function startComplete26FinalSuccessorEpoch(
@@ -372,8 +826,8 @@ const REQUEST_KEY_PATTERN = /^[A-Z0-9][A-Z0-9._:-]{2,95}$/;
 const REQUEST_ID_PATTERN = /^[\x21-\x7e]{1,200}$/;
 const ISO_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 // Bounded journal capacity for the expanded, founder-approved acceptance matrix.
-// This is not a spending allowance: every reserve still shares the USD 15 cap.
-// NIGHT21 continues the same immutable USD15 ledger; this is journal capacity,
+// This is not a spending allowance: every reserve shares the parsed ledger ceiling.
+// NIGHT21 continues the same ledger and history; this is journal capacity,
 // not money, retry permission, a fresh cycle or permission to discard history.
 export const SPRINT10_MAX_RECEIPTS = 160;
 const LOCK_WAIT_MS = 5_000;
@@ -676,12 +1130,13 @@ export function createComplete25RecoveryLedger(
 
 export function recordComplete25CaseAttempt(
   ledgerValue: Sprint10SpendLedger, caseId: string, manifestSha256: string, startedAt: string,
-  candidate: { candidateCommit: string; candidateHost: string }, attemptId = randomUUID()
+  candidate: { candidateCommit: string; candidateHost: string; reviewedSegmentSha256?: string }, attemptId = randomUUID()
 ): { ledger: Sprint10SpendLedger; attempt: Complete25CaseAttempt } {
   const ledger = parseSprint10SpendLedger(ledgerValue);
   if (!ledger || ledger.schemaVersion !== 2 || hasSprint10UnresolvedCharge(ledger, true) ||
       candidate.candidateCommit !== ledger.acceptanceEpoch.candidateCommit || candidate.candidateHost !== ledger.acceptanceEpoch.candidateHost ||
-      ledger.acceptanceEpoch.attempts.some(item => item.caseId === caseId)) {
+      (ledger.reviewedBatchSegment?.contractSha256 ?? undefined) !== candidate.reviewedSegmentSha256 ||
+      complete26ActiveCaseAttempts(ledger).some(item => item.caseId === caseId)) {
     throw new Error("COMPLETE25 case was already attempted, candidate changed or the ledger is unresolved; no automatic retry.");
   }
   const attempt = { caseId, manifestSha256, startedAt, attemptId };
@@ -820,18 +1275,19 @@ function validContinuationPredecessor(ledger: Sprint10SpendLedger, contract: Com
   return Date.parse(contract.appliedAt) >= lastChange;
 }
 
-function validAcceptanceEpoch(value: unknown, id: string, minimumTime: string): value is Complete25AcceptanceEpoch {
+function validAcceptanceEpoch(value: unknown, id: string, minimumTime: string, segmentStart: string | null = null): value is Complete25AcceptanceEpoch {
   if (!record(value) || !exactKeys(value, ["id", "approvalReference", "candidateCommit", "candidateHost", "acceptanceRevision", "attempts"]) ||
       value.id !== id || value.approvalReference !== COMPLETE25_RECOVERY_APPROVAL ||
       typeof value.candidateCommit !== "string" || !COMMIT_PATTERN.test(value.candidateCommit) ||
       typeof value.candidateHost !== "string" || !safeCandidateHost(value.candidateHost) ||
-      !Array.isArray(value.attempts) || value.attempts.length > 58 || value.acceptanceRevision !== value.attempts.length) return false;
+      !Array.isArray(value.attempts) || value.attempts.length > (segmentStart ? 61 : 58) || value.acceptanceRevision !== value.attempts.length) return false;
   const seenCases = new Set<string>(), seenAttempts = new Set<string>();
-  for (const attempt of value.attempts) {
+  for (const [index, attempt] of value.attempts.entries()) {
+    if (segmentStart && index === 3) seenCases.clear();
     if (!record(attempt) || !exactKeys(attempt, ["caseId", "manifestSha256", "startedAt", "attemptId"]) ||
         !complete25CaseId(attempt.caseId) || seenCases.has(attempt.caseId) ||
         typeof attempt.manifestSha256 !== "string" || !HASH_PATTERN.test(attempt.manifestSha256) ||
-        !validIso(attempt.startedAt) || Date.parse(attempt.startedAt) < Date.parse(minimumTime) ||
+        !validIso(attempt.startedAt) || Date.parse(attempt.startedAt) < Date.parse(segmentStart && index >= 3 ? segmentStart : minimumTime) ||
         typeof attempt.attemptId !== "string" || !LEDGER_ID_PATTERN.test(attempt.attemptId) || seenAttempts.has(attempt.attemptId)) return false;
     seenCases.add(attempt.caseId); seenAttempts.add(attempt.attemptId);
   }
@@ -863,15 +1319,41 @@ export function parseSprint10SpendLedger(value: unknown): Sprint10SpendLedger | 
   const successor = "archivedAcceptanceEpoch" in value;
   const finalSuccessor = "finalTransitionArchive" in value;
   const continuation = "continuationTransitionArchive" in value;
-  const capacity = finalSuccessor ? 201 : SPRINT10_MAX_RECEIPTS;
+  const candidate642 = "candidateTransitionArchive" in value;
+  if (candidate642 && (!continuation || "reviewedBatchSegment" in value || !record(value.candidateTransitionArchive) ||
+      !exactKeys(value.candidateTransitionArchive, ["epoch", "reviewedBatchSegment", "transition", "transitionSha256"]) ||
+      !validCandidate642Contract(value.candidateTransitionArchive.transition) || value.candidateTransitionArchive.transitionSha256 !== complete25CheckpointHash(value.candidateTransitionArchive.transition))) return null;
+  const candidateArchive = candidate642 ? value.candidateTransitionArchive as NonNullable<Extract<Sprint10SpendLedger, { schemaVersion: 2 }>["candidateTransitionArchive"]> : null;
+  const amendment = "ceilingAmendment" in value;
+  if (amendment && (!candidate642 || !record(value.ceilingAmendment) || !exactKeys(value.ceilingAmendment, ["contract", "contractSha256"]) ||
+      !validComplete26CeilingAmendmentContract(value.ceilingAmendment.contract) || value.ceilingAmendment.contractSha256 !== complete25CheckpointHash(value.ceilingAmendment.contract))) return null;
+  const emptyRepin = "emptyEpochRepinArchive" in value;
+  if (emptyRepin && (!candidate642 || !record(value.emptyEpochRepinArchive) || !exactKeys(value.emptyEpochRepinArchive, ["epoch", "transition", "transitionSha256"]) ||
+      !validEmptyEpochRepinContract(value.emptyEpochRepinArchive.transition) || value.emptyEpochRepinArchive.transitionSha256 !== complete25CheckpointHash(value.emptyEpochRepinArchive.transition))) return null;
+  const emptyArchive = emptyRepin ? value.emptyEpochRepinArchive as NonNullable<Extract<Sprint10SpendLedger, { schemaVersion: 2 }>["emptyEpochRepinArchive"]> : null;
+  const postSinglepass = "postSinglepassArchive" in value;
+  if (postSinglepass && (!emptyRepin || !amendment || !record(value.postSinglepassArchive) || !exactKeys(value.postSinglepassArchive, ["epoch", "transition", "transitionSha256"]) ||
+      !validPostSinglepassContract(value.postSinglepassArchive.transition) || value.postSinglepassArchive.transitionSha256 !== complete25CheckpointHash(value.postSinglepassArchive.transition))) return null;
+  const postArchive = postSinglepass ? value.postSinglepassArchive as NonNullable<Extract<Sprint10SpendLedger, { schemaVersion: 2 }>["postSinglepassArchive"]> : null;
+  const v14Successor = "v14SuccessorArchive" in value;
+  if (v14Successor && (!postSinglepass || !record(value.v14SuccessorArchive) ||
+      !exactKeys(value.v14SuccessorArchive, ["epoch", "transition", "transitionSha256"]) ||
+      !validComplete26V14SuccessorContract(value.v14SuccessorArchive.transition) ||
+      value.v14SuccessorArchive.transitionSha256 !== complete25CheckpointHash(value.v14SuccessorArchive.transition))) return null;
+  const v14Archive = v14Successor ? value.v14SuccessorArchive as NonNullable<Extract<Sprint10SpendLedger, { schemaVersion: 2 }>["v14SuccessorArchive"]> : null;
+  const segment = "reviewedBatchSegment" in value || candidate642;
+  const segmentValue = candidateArchive ? candidateArchive.reviewedBatchSegment : value.reviewedBatchSegment;
+  const capacity = v14Successor ? 219 : finalSuccessor ? 201 : SPRINT10_MAX_RECEIPTS;
   if (finalSuccessor && (!recovery || !successor)) return null;
   if (continuation && !finalSuccessor) return null;
-  const allowedKeys = recovery ? [...keys, "openingCheckpoint", "openingCheckpointSha256", "acceptanceEpoch", ...(successor ? ["archivedAcceptanceEpoch"] : []), ...(finalSuccessor ? ["finalTransitionArchive"] : []), ...(continuation ? ["continuationTransitionArchive"] : [])] : keys;
+  if (segment && (!continuation || !record(segmentValue) || !exactKeys(segmentValue, ["contract", "contractSha256"]) || !validReviewedBatchSegmentContract(segmentValue.contract) || segmentValue.contractSha256 !== complete25CheckpointHash(segmentValue.contract))) return null;
+  const segmentContract = segment ? (segmentValue as { contract: Complete26ReviewedBatchSegmentContract }).contract : null;
+  const allowedKeys = recovery ? [...keys, "openingCheckpoint", "openingCheckpointSha256", "acceptanceEpoch", ...(successor ? ["archivedAcceptanceEpoch"] : []), ...(finalSuccessor ? ["finalTransitionArchive"] : []), ...(continuation ? ["continuationTransitionArchive"] : []), ...(segment && !candidate642 ? ["reviewedBatchSegment"] : []), ...(candidate642 ? ["candidateTransitionArchive"] : []), ...(amendment ? ["ceilingAmendment"] : []), ...(emptyRepin ? ["emptyEpochRepinArchive"] : []), ...(postSinglepass ? ["postSinglepassArchive"] : []), ...(v14Successor ? ["v14SuccessorArchive"] : [])] : keys;
   if (!exactKeys(value, "conservativeCharges" in value ? [...allowedKeys, "conservativeCharges"] : allowedKeys) ||
       (value.schemaVersion !== 1 && !recovery) ||
       value.cycleId !== SPRINT10_CYCLE_ID || typeof value.ledgerId !== "string" ||
       !LEDGER_ID_PATTERN.test(value.ledgerId) || !validIso(value.createdAt) ||
-      value.ceilingUsd !== SPRINT10_LIVE_CEILING_USD || !integer(value.generation) ||
+      value.ceilingUsd !== (amendment ? COMPLETE26_AMENDED_CEILING_USD : SPRINT10_LIVE_CEILING_USD) || !integer(value.generation) ||
       !Array.isArray(value.receipts) || value.receipts.length > capacity ||
       !finite(value.estimatedOrReservedUsd)) return null;
   if (recovery) {
@@ -882,10 +1364,23 @@ export function parseSprint10SpendLedger(value: unknown): Sprint10SpendLedger | 
       const archive = value.archivedAcceptanceEpoch;
       const finalArchive = value.finalTransitionArchive;
       const continuationArchive = value.continuationTransitionArchive;
+      const continuationEpoch = candidateArchive ? candidateArchive.epoch : value.acceptanceEpoch;
+      const candidateEpoch = emptyArchive ? emptyArchive.epoch : value.acceptanceEpoch;
+      const emptyEpoch = postArchive ? postArchive.epoch : value.acceptanceEpoch;
+      const postEpoch = v14Archive ? v14Archive.epoch : value.acceptanceEpoch;
+      if (v14Archive && (!validAcceptanceEpoch(value.acceptanceEpoch, COMPLETE26_V14_EPOCH_ID, v14Archive.transition.appliedAt) ||
+          value.acceptanceEpoch.candidateCommit !== v14Archive.transition.currentCandidateCommit ||
+          value.acceptanceEpoch.candidateHost !== v14Archive.transition.currentCandidateHost)) return null;
+      if (postArchive && (!validAcceptanceEpoch(postEpoch, COMPLETE26_POST_SINGLEPASS_EPOCH_ID, postArchive.transition.appliedAt) ||
+          postEpoch.candidateCommit !== postArchive.transition.currentCandidateCommit || postEpoch.candidateHost !== postArchive.transition.currentCandidateHost)) return null;
+      if (emptyArchive && (!validAcceptanceEpoch(emptyEpoch, COMPLETE26_EMPTY_REPIN_EPOCH_ID, emptyArchive.transition.appliedAt) ||
+          emptyEpoch.candidateCommit !== emptyArchive.transition.currentCandidateCommit || emptyEpoch.candidateHost !== emptyArchive.transition.currentCandidateHost)) return null;
+      if (candidateArchive && (!validAcceptanceEpoch(candidateEpoch, COMPLETE26_CANDIDATE642_EPOCH_ID, candidateArchive.transition.appliedAt) ||
+          candidateEpoch.candidateCommit !== candidateArchive.transition.currentCandidateCommit || candidateEpoch.candidateHost !== candidateArchive.transition.currentCandidateHost || (emptyArchive && candidateEpoch.attempts.length !== 0))) return null;
       if (continuation && (!record(continuationArchive) || !exactKeys(continuationArchive, ["epoch", "transition", "transitionSha256"]) ||
           !validContinuationContract(continuationArchive.transition) || continuationArchive.transitionSha256 !== complete25CheckpointHash(continuationArchive.transition) ||
-          !validAcceptanceEpoch(value.acceptanceEpoch, COMPLETE26_CONTINUATION_EPOCH_ID, continuationArchive.transition.appliedAt) ||
-          value.acceptanceEpoch.candidateCommit !== continuationArchive.transition.currentCandidateCommit || value.acceptanceEpoch.candidateHost !== continuationArchive.transition.currentCandidateHost)) return null;
+          !validAcceptanceEpoch(continuationEpoch, COMPLETE26_CONTINUATION_EPOCH_ID, continuationArchive.transition.appliedAt, segmentContract?.appliedAt ?? null) ||
+          continuationEpoch.candidateCommit !== continuationArchive.transition.currentCandidateCommit || continuationEpoch.candidateHost !== continuationArchive.transition.currentCandidateHost)) return null;
       const finalEpoch = continuation ? (continuationArchive as { epoch: unknown }).epoch : value.acceptanceEpoch;
       if (finalSuccessor && (!record(finalArchive) || !exactKeys(finalArchive, ["epoch", "transition", "transitionSha256"]) ||
           !validFinalSuccessorContract(finalArchive.transition) || finalArchive.transitionSha256 !== complete25CheckpointHash(finalArchive.transition) ||
@@ -898,7 +1393,11 @@ export function parseSprint10SpendLedger(value: unknown): Sprint10SpendLedger | 
           intermediateEpoch.candidateCommit !== archive.transition.currentCandidateCommit || intermediateEpoch.candidateHost !== archive.transition.currentCandidateHost) return null;
       const allAttempts = [...archive.epoch.attempts, ...intermediateEpoch.attempts,
         ...(finalSuccessor ? (finalEpoch as Complete25AcceptanceEpoch).attempts : []),
-        ...(continuation ? (value.acceptanceEpoch as Complete25AcceptanceEpoch).attempts : [])];
+        ...(continuation ? (continuationEpoch as Complete25AcceptanceEpoch).attempts : []),
+        ...(candidateArchive ? (candidateEpoch as Complete25AcceptanceEpoch).attempts : []),
+        ...(emptyArchive ? (emptyEpoch as Complete25AcceptanceEpoch).attempts : []),
+        ...(postArchive ? (postEpoch as Complete25AcceptanceEpoch).attempts : []),
+        ...(v14Archive ? (value.acceptanceEpoch as Complete25AcceptanceEpoch).attempts : [])];
       if (new Set(allAttempts.map(a => a.attemptId)).size !== allAttempts.length) return null;
     } else if (!validAcceptanceEpoch(value.acceptanceEpoch, COMPLETE25_EPOCH_ID, value.createdAt)) {
       return null;
@@ -917,22 +1416,33 @@ export function parseSprint10SpendLedger(value: unknown): Sprint10SpendLedger | 
       const archive = recoveryLedger.archivedAcceptanceEpoch;
       const finalArchive = recoveryLedger.finalTransitionArchive;
       const continuationArchive = recoveryLedger.continuationTransitionArchive;
+      const v14Archive = recoveryLedger.v14SuccessorArchive;
       const historical = archive && receipt.id <= archive.transition.openingReceiptCount;
       const intermediate = finalArchive && receipt.id <= finalArchive.transition.openingReceiptCount;
       const finalHistorical = continuationArchive && receipt.id <= continuationArchive.transition.openingReceiptCount;
-      const epoch = historical ? archive.epoch : intermediate ? finalArchive.epoch : finalHistorical ? continuationArchive.epoch : recoveryLedger.acceptanceEpoch;
-      const minimumTime = historical || !archive ? value.createdAt : continuationArchive && !finalHistorical ? continuationArchive.transition.appliedAt : finalArchive && !intermediate ? finalArchive.transition.appliedAt : archive.transition.appliedAt;
+      const continuationEpoch = candidateArchive ? candidateArchive.epoch : recoveryLedger.acceptanceEpoch;
+      const candidateHistorical = candidateArchive && receipt.id <= candidateArchive.transition.openingReceiptCount;
+      const postHistorical = postArchive && receipt.id <= postArchive.transition.openingReceiptCount;
+      const v14Historical = v14Archive && receipt.id <= v14Archive.transition.openingReceiptCount;
+      const epoch = historical ? archive.epoch : intermediate ? finalArchive.epoch : finalHistorical ? continuationArchive.epoch : candidateHistorical ? continuationEpoch : postHistorical ? postArchive.epoch : v14Historical ? v14Archive.epoch : recoveryLedger.acceptanceEpoch;
+      const activeSegment = segmentContract !== null && receipt.id > segmentContract.openingReceiptCount && (!candidateArchive || candidateHistorical);
+      const minimumTime = v14Archive && !v14Historical ? v14Archive.transition.appliedAt : postArchive && !postHistorical ? postArchive.transition.appliedAt : candidateArchive && !candidateHistorical ? (emptyArchive ?? candidateArchive).transition.appliedAt : activeSegment ? segmentContract!.appliedAt : historical || !archive ? value.createdAt : continuationArchive && !finalHistorical ? continuationArchive.transition.appliedAt : finalArchive && !intermediate ? finalArchive.transition.appliedAt : archive.transition.appliedAt;
       if (receipt.identity.candidateCommit !== epoch.candidateCommit || receipt.identity.candidateHost !== epoch.candidateHost ||
           Date.parse(receipt.createdAt) < Date.parse(minimumTime)) return null;
+      if (v14Archive && receipt.id > v14Archive.transition.openingReceiptCount &&
+          receipt.identity.route === "ai" &&
+          receipt.identity.promptVersion !== SPRINT10_ANALYSIS_PROMPT_VERSION) return null;
       if (receipt.identity.requestKey.startsWith("Q20:")) {
         const match = /^Q20:([^:]+):(AI|CREATE):([A-F0-9]{64})$/.exec(receipt.identity.requestKey);
-        const attempt = match && epoch.attempts.find(item => item.caseId === match[1] && item.manifestSha256 === match[3].toLowerCase());
-        if (!match || !attempt || paidCases.has(`${epoch.id}:${match[1]}`) || match[2].toLowerCase() !== receipt.identity.route ||
+        const attempts = segmentContract && epoch === continuationEpoch ? (activeSegment ? epoch.attempts.slice(3) : epoch.attempts.slice(0, 3)) : epoch.attempts;
+        const attempt = match && attempts.find(item => item.caseId === match[1] && item.manifestSha256 === match[3].toLowerCase());
+        const caseKey = `${epoch.id}:${activeSegment ? "reviewed-segment:" : ""}${match?.[1]}`;
+        if (!match || !attempt || paidCases.has(caseKey) || match[2].toLowerCase() !== receipt.identity.route ||
             Date.parse(receipt.createdAt) < Date.parse(attempt.startedAt)) return null;
         const expectedRoute = match[1].startsWith("C-") ? "create" : /^F0/.test(match[1]) ? null : "ai";
         const expectedDepth = match[1].endsWith("-Q") ? "quick" : match[1].endsWith("-D") ? "deep" : "standard";
         if (receipt.identity.route !== expectedRoute || receipt.identity.depth !== expectedDepth) return null;
-        paidCases.add(`${epoch.id}:${match[1]}`);
+        paidCases.add(caseKey);
       }
     }
   }
@@ -965,9 +1475,54 @@ export function parseSprint10SpendLedger(value: unknown): Sprint10SpendLedger | 
     reconciledIds.add(charge.receiptId);
   }
   const expectedGeneration = (recovery ? COMPLETE25_OPENING_CHECKPOINT.generation : 0) +
-    typedReceipts.length + typedReceipts.filter((receipt) => receipt.state !== "reserved").length + charges.length + Number(successor) + Number(finalSuccessor) + Number(continuation);
+    typedReceipts.length + typedReceipts.filter((receipt) => receipt.state !== "reserved").length + charges.length + Number(successor) + Number(finalSuccessor) + Number(continuation) + Number(segment) + Number(candidate642) + Number(amendment) + Number(emptyRepin) + Number(postSinglepass) + Number(v14Successor);
   const ledger = { ...(value as unknown as Sprint10SpendLedger), receipts: typedReceipts };
-  if (ledger.schemaVersion === 2 && ledger.continuationTransitionArchive) {
+  if (ledger.schemaVersion === 2 && ledger.v14SuccessorArchive) {
+    const archive = ledger.v14SuccessorArchive, contract = archive.transition;
+    const previous = { ...ledger, generation: contract.previousGeneration, acceptanceEpoch: archive.epoch,
+      receipts: typedReceipts.filter(receipt => receipt.id <= contract.openingReceiptCount),
+      conservativeCharges: charges.filter(charge => charge.receiptId <= contract.openingReceiptCount),
+      estimatedOrReservedUsd: contract.openingAccountedUsd };
+    delete previous.v14SuccessorArchive;
+    const parsedPrevious = parseSprint10SpendLedger(previous);
+    if (!parsedPrevious || !validComplete26V14Predecessor(parsedPrevious, contract)) return null;
+  } else if (ledger.schemaVersion === 2 && ledger.postSinglepassArchive) {
+    const a = ledger.postSinglepassArchive, c = a.transition;
+    const previous = { ...ledger, generation: c.previousGeneration, acceptanceEpoch: a.epoch,
+      receipts: typedReceipts.filter(r => r.id <= c.openingReceiptCount), conservativeCharges: charges.filter(ch => ch.receiptId <= c.openingReceiptCount), estimatedOrReservedUsd: c.openingAccountedUsd };
+    delete previous.postSinglepassArchive;
+    const parsedPrevious = parseSprint10SpendLedger(previous);
+    if (!parsedPrevious || !validPostSinglepassPredecessor(parsedPrevious, c)) return null;
+  } else if (ledger.schemaVersion === 2 && ledger.emptyEpochRepinArchive) {
+    const a = ledger.emptyEpochRepinArchive, c = a.transition;
+    const previous = { ...ledger, generation: c.previousGeneration, acceptanceEpoch: a.epoch,
+      receipts: typedReceipts.filter(r => r.id <= c.openingReceiptCount), conservativeCharges: charges.filter(cg => cg.receiptId <= c.openingReceiptCount), estimatedOrReservedUsd: c.openingAccountedUsd };
+    delete previous.emptyEpochRepinArchive;
+    const parsedPrevious = parseSprint10SpendLedger(previous);
+    if (!parsedPrevious || !validEmptyEpochRepinPredecessor(parsedPrevious, c)) return null;
+  } else if (ledger.schemaVersion === 2 && ledger.ceilingAmendment) {
+    const c = ledger.ceilingAmendment.contract;
+    const previous = { ...ledger, ceilingUsd: c.previousCeilingUsd, generation: c.previousGeneration };
+    delete previous.ceilingAmendment;
+    const parsedPrevious = parseSprint10SpendLedger(previous);
+    if (!parsedPrevious || !validComplete26CeilingAmendmentPredecessor(parsedPrevious, c)) return null;
+  } else if (ledger.schemaVersion === 2 && ledger.candidateTransitionArchive) {
+    const a = ledger.candidateTransitionArchive, c = a.transition;
+    const previous = { ...ledger, generation: c.previousGeneration, acceptanceEpoch: a.epoch, reviewedBatchSegment: a.reviewedBatchSegment,
+      receipts: typedReceipts.filter(r => r.id <= c.openingReceiptCount), conservativeCharges: charges.filter(cg => cg.receiptId <= c.openingReceiptCount), estimatedOrReservedUsd: c.openingAccountedUsd };
+    delete previous.candidateTransitionArchive;
+    const parsedPrevious = parseSprint10SpendLedger(previous);
+    if (!parsedPrevious || !validCandidate642Predecessor(parsedPrevious, c)) return null;
+  } else if (ledger.schemaVersion === 2 && ledger.reviewedBatchSegment) {
+    const c = ledger.reviewedBatchSegment.contract;
+    const previous = { ...ledger, generation: c.previousGeneration,
+      acceptanceEpoch: { ...ledger.acceptanceEpoch, acceptanceRevision: 3, attempts: ledger.acceptanceEpoch.attempts.slice(0, 3) },
+      receipts: typedReceipts.filter(r => r.id <= c.openingReceiptCount), conservativeCharges: charges.filter(cg => cg.receiptId <= c.openingReceiptCount),
+      estimatedOrReservedUsd: c.openingAccountedUsd };
+    delete previous.reviewedBatchSegment;
+    const parsedPrevious = parseSprint10SpendLedger(previous);
+    if (!parsedPrevious || !validReviewedBatchSegmentPredecessor(parsedPrevious, c)) return null;
+  } else if (ledger.schemaVersion === 2 && ledger.continuationTransitionArchive) {
     const archive = ledger.continuationTransitionArchive;
     const previous = { ...ledger, generation: archive.transition.previousGeneration, acceptanceEpoch: archive.epoch,
       receipts: typedReceipts.filter(r => r.id <= archive.transition.openingReceiptCount),
@@ -997,7 +1552,7 @@ export function parseSprint10SpendLedger(value: unknown): Sprint10SpendLedger | 
   }
   const charge = sprint10LedgerCharge(ledger);
   return value.generation === expectedGeneration && value.estimatedOrReservedUsd === charge &&
-    charge <= SPRINT10_LIVE_CEILING_USD ? ledger : null;
+    charge <= ledger.ceilingUsd ? ledger : null;
 }
 
 export function reserveSprint10Spend(
@@ -1031,7 +1586,7 @@ export function reserveSprint10Spend(
     return { ok: false, reason: "The bounded cycle-root receipt journal is full." };
   }
   if (Number((sprint10LedgerCharge(ledger) + reserveUsd).toFixed(8)) > ledger.ceilingUsd) {
-    return { ok: false, reason: "The shared USD 15 four-sprint ceiling would be exceeded." };
+    return { ok: false, reason: `The shared USD ${ledger.ceilingUsd} four-sprint ceiling would be exceeded.` };
   }
   const receipt: Sprint10Receipt = {
     id: sprint10LedgerReceiptCount(ledger) + 1,
@@ -1414,7 +1969,7 @@ export function createComplete25RecoveryLedgerFile(
 
 export function recordComplete25CaseAttemptFile(
   privateRoot: string, ledgerPath: string, caseId: string, manifestSha256: string, startedAt: string,
-  candidate: { candidateCommit: string; candidateHost: string }
+  candidate: { candidateCommit: string; candidateHost: string; reviewedSegmentSha256?: string }
 ): Complete25CaseAttempt {
   const lock = acquireSprint10LedgerLock(privateRoot, ledgerPath);
   try {
@@ -1542,6 +2097,179 @@ export function startComplete26ContinuationEpochFile(
     const current = readSprint10SpendLedgerFile(root, target);
     if (createHash("sha256").update(readFileSync(target)).digest("hex") !== expectedLedgerSha256) throw new Error("The predecessor ledger bytes changed before continuation.");
     const next = startComplete26ContinuationEpoch(current, contract);
+    writeLedgerAtomic(root, target, next);
+    return readSprint10SpendLedgerFile(root, target);
+  } finally { lock.release(); }
+}
+
+/** Root-created exclusive claim; locked CAS; never dispatches a browser or paid request. */
+export function startComplete26ReviewedBatchSegmentFile(
+  privateRoot: string, ledgerPath: string, contract: Complete26ReviewedBatchSegmentContract,
+  expectedLedgerSha256: string, exclusiveClaimPath: string
+): Sprint10SpendLedger {
+  const { root, target } = validatePrivateLedgerPath(privateRoot, ledgerPath);
+  const claimPath = join(root, ".complete26-reviewed-batch-segment-claim.json");
+  if (target !== join(root, "cycle-ledger.json") || exclusiveClaimPath !== claimPath || !HASH_PATTERN.test(expectedLedgerSha256) || expectedLedgerSha256 !== contract.previousLedgerSha256) throw new Error("Exact segment claim and predecessor bytes required.");
+  const lock = acquireSprint10LedgerLock(root, target);
+  try {
+    let absent = false;
+    try { lstatSync(join(root, `.${basename(target)}.sprint10-live-journey.lock`)); }
+    catch (error) { absent = (error as NodeJS.ErrnoException).code === "ENOENT"; }
+    if (!absent) throw new Error("An active, stale or unverifiable runner lease blocks the segment.");
+    validateExistingPrivateFile(claimPath, "Exclusive segment claim");
+    if (statSync(claimPath).size > 4096) throw new Error("Segment claim exceeds its bound.");
+    const claim = JSON.parse(readFileSync(claimPath, "utf8"));
+    if (!record(claim) || !exactKeys(claim, ["schemaVersion", "contractSha256", "ledgerPath", "expectedLedgerSha256"]) ||
+        claim.schemaVersion !== "geoai.complete26.reviewed-batch-segment-claim.v1" || claim.contractSha256 !== complete25CheckpointHash(contract) || claim.ledgerPath !== target || claim.expectedLedgerSha256 !== expectedLedgerSha256) throw new Error("Segment claim binding failed.");
+    const current = readSprint10SpendLedgerFile(root, target);
+    if (createHash("sha256").update(readFileSync(target)).digest("hex") !== expectedLedgerSha256) throw new Error("Segment predecessor bytes changed.");
+    const next = startComplete26ReviewedBatchSegment(current, contract);
+    writeLedgerAtomic(root, target, next);
+    return readSprint10SpendLedgerFile(root, target);
+  } finally { lock.release(); }
+}
+
+/** Same locked CAS mechanism; a different fixed claim cannot replay an earlier epoch. */
+export function startComplete26Candidate642EpochFile(
+  privateRoot: string, ledgerPath: string, contract: Complete26Candidate642Contract,
+  expectedLedgerSha256: string, exclusiveClaimPath: string
+): Sprint10SpendLedger {
+  const { root, target } = validatePrivateLedgerPath(privateRoot, ledgerPath);
+  const claimPath = join(root, ".complete26-candidate642-epoch-claim.json");
+  if (target !== join(root, "cycle-ledger.json") || exclusiveClaimPath !== claimPath || !HASH_PATTERN.test(expectedLedgerSha256) || expectedLedgerSha256 !== contract.previousLedgerSha256) throw new Error("Exact candidate642 claim and predecessor bytes required.");
+  const lock = acquireSprint10LedgerLock(root, target);
+  try {
+    let absent = false;
+    try { lstatSync(join(root, `.${basename(target)}.sprint10-live-journey.lock`)); }
+    catch (error) { absent = (error as NodeJS.ErrnoException).code === "ENOENT"; }
+    if (!absent) throw new Error("An active, stale or unverifiable runner lease blocks candidate642.");
+    validateExistingPrivateFile(claimPath, "Exclusive candidate642 claim");
+    if (statSync(claimPath).size > 4096) throw new Error("Candidate642 claim exceeds its bound.");
+    const claim = JSON.parse(readFileSync(claimPath, "utf8"));
+    if (!record(claim) || !exactKeys(claim, ["schemaVersion", "transitionSha256", "ledgerPath", "expectedLedgerSha256"]) ||
+        claim.schemaVersion !== "geoai.complete26.candidate642-epoch-claim.v1" || claim.transitionSha256 !== complete25CheckpointHash(contract) || claim.ledgerPath !== target || claim.expectedLedgerSha256 !== expectedLedgerSha256) throw new Error("Candidate642 claim binding failed.");
+    const current = readSprint10SpendLedgerFile(root, target);
+    if (createHash("sha256").update(readFileSync(target)).digest("hex") !== expectedLedgerSha256) throw new Error("Candidate642 predecessor bytes changed.");
+    const next = startComplete26Candidate642Epoch(current, contract);
+    writeLedgerAtomic(root, target, next);
+    return readSprint10SpendLedgerFile(root, target);
+  } finally { lock.release(); }
+}
+
+/** Fixed one-shot claim and existing atomic writer; no source/Auth/provider dispatch. */
+export function startComplete26EmptyEpochRepinFile(
+  privateRoot: string, ledgerPath: string, contract: Complete26EmptyEpochRepinContract,
+  expectedLedgerSha256: string, exclusiveClaimPath: string
+): Sprint10SpendLedger {
+  const { root, target } = validatePrivateLedgerPath(privateRoot, ledgerPath);
+  const claimPath = join(root, ".complete26-empty-epoch-repin-claim.json");
+  if (target !== join(root, "cycle-ledger.json") || exclusiveClaimPath !== claimPath || !HASH_PATTERN.test(expectedLedgerSha256) || expectedLedgerSha256 !== contract.previousLedgerSha256) throw new Error("Exact empty-epoch claim and predecessor bytes required.");
+  const lock = acquireSprint10LedgerLock(root, target);
+  try {
+    let absent = false;
+    try { lstatSync(join(root, `.${basename(target)}.sprint10-live-journey.lock`)); }
+    catch (error) { absent = (error as NodeJS.ErrnoException).code === "ENOENT"; }
+    if (!absent) throw new Error("An active, stale or unverifiable runner lease blocks empty-epoch repin.");
+    validateExistingPrivateFile(claimPath, "Exclusive empty-epoch claim");
+    if (statSync(claimPath).size > 4096) throw new Error("Empty-epoch claim exceeds its bound.");
+    const claim = JSON.parse(readFileSync(claimPath, "utf8"));
+    if (!record(claim) || !exactKeys(claim, ["schemaVersion", "transitionSha256", "ledgerPath", "expectedLedgerSha256"]) ||
+        claim.schemaVersion !== "geoai.complete26.empty-epoch-repin-claim.v1" || claim.transitionSha256 !== complete25CheckpointHash(contract) || claim.ledgerPath !== target || claim.expectedLedgerSha256 !== expectedLedgerSha256) throw new Error("Empty-epoch claim binding failed.");
+    const current = readSprint10SpendLedgerFile(root, target);
+    if (createHash("sha256").update(readFileSync(target)).digest("hex") !== expectedLedgerSha256) throw new Error("Empty-epoch predecessor bytes changed.");
+    const next = startComplete26EmptyEpochRepin(current, contract);
+    writeLedgerAtomic(root, target, next);
+    return readSprint10SpendLedgerFile(root, target);
+  } finally { lock.release(); }
+}
+
+/** Root-owned one-shot claim, raw-byte CAS, existing ledger lock and atomic writer. */
+export function startComplete26PostSinglepassFile(
+  privateRoot: string, ledgerPath: string, contract: Complete26PostSinglepassContract,
+  expectedLedgerSha256: string, exclusiveClaimPath: string
+): Sprint10SpendLedger {
+  const { root, target } = validatePrivateLedgerPath(privateRoot, ledgerPath);
+  const claimPath = join(root, ".complete26-post-singlepass-claim.json");
+  if (target !== join(root, "cycle-ledger.json") || exclusiveClaimPath !== claimPath || !HASH_PATTERN.test(expectedLedgerSha256) || expectedLedgerSha256 !== contract.previousLedgerSha256) throw new Error("Exact post-singlepass claim and predecessor bytes required.");
+  const lock = acquireSprint10LedgerLock(root, target);
+  try {
+    let absent = false;
+    try { lstatSync(join(root, `.${basename(target)}.sprint10-live-journey.lock`)); }
+    catch (error) { absent = (error as NodeJS.ErrnoException).code === "ENOENT"; }
+    if (!absent) throw new Error("An active, stale or unverifiable runner lease blocks post-singlepass transition.");
+    validateExistingPrivateFile(claimPath, "Exclusive post-singlepass claim");
+    if (statSync(claimPath).size > 4096) throw new Error("Post-singlepass claim exceeds its bound.");
+    const claim = JSON.parse(readFileSync(claimPath, "utf8"));
+    if (!record(claim) || !exactKeys(claim, ["schemaVersion", "transitionSha256", "ledgerPath", "expectedLedgerSha256"]) ||
+        claim.schemaVersion !== "geoai.complete26.post-singlepass-claim.v1" || claim.transitionSha256 !== complete25CheckpointHash(contract) || claim.ledgerPath !== target || claim.expectedLedgerSha256 !== expectedLedgerSha256) throw new Error("Post-singlepass claim binding failed.");
+    const current = readSprint10SpendLedgerFile(root, target);
+    if (createHash("sha256").update(readFileSync(target)).digest("hex") !== expectedLedgerSha256) throw new Error("Post-singlepass predecessor bytes changed.");
+    const next = startComplete26PostSinglepassEpoch(current, contract);
+    writeLedgerAtomic(root, target, next);
+    return readSprint10SpendLedgerFile(root, target);
+  } finally { lock.release(); }
+}
+
+/** One Root-owned claim; the old ledger is checked again under its existing lock. */
+export function startComplete26V14SuccessorFile(
+  privateRoot: string, ledgerPath: string, contract: Complete26V14SuccessorContract,
+  expectedLedgerSha256: string, exclusiveClaimPath: string
+): Sprint10SpendLedger {
+  const { root, target } = validatePrivateLedgerPath(privateRoot, ledgerPath);
+  const claimPath = join(root, ".complete26-v14-successor-claim.json");
+  if (target !== join(root, "cycle-ledger.json") || exclusiveClaimPath !== claimPath ||
+      !HASH_PATTERN.test(expectedLedgerSha256) ||
+      expectedLedgerSha256 !== contract.previousLedgerSha256) {
+    throw new Error("Exact V14 successor claim and predecessor bytes required.");
+  }
+  const lock = acquireSprint10LedgerLock(root, target);
+  try {
+    let runnerLeaseAbsent = false;
+    try { lstatSync(join(root, `.${basename(target)}.sprint10-live-journey.lock`)); }
+    catch (error) { runnerLeaseAbsent = (error as NodeJS.ErrnoException).code === "ENOENT"; }
+    if (!runnerLeaseAbsent) throw new Error("An active or unverifiable runner lease blocks V14 successor.");
+    validateExistingPrivateFile(claimPath, "Exclusive V14 successor claim");
+    if (statSync(claimPath).size > 4096) throw new Error("V14 successor claim exceeds its bound.");
+    const claim = JSON.parse(readFileSync(claimPath, "utf8"));
+    if (!record(claim) || !exactKeys(claim,
+      ["schemaVersion", "transitionSha256", "ledgerPath", "expectedLedgerSha256"]) ||
+        claim.schemaVersion !== "geoai.complete26.v14-successor-claim.v1" ||
+        claim.transitionSha256 !== complete25CheckpointHash(contract) ||
+        claim.ledgerPath !== target || claim.expectedLedgerSha256 !== expectedLedgerSha256) {
+      throw new Error("V14 successor claim binding failed.");
+    }
+    const current = readSprint10SpendLedgerFile(root, target);
+    if (createHash("sha256").update(readFileSync(target)).digest("hex") !== expectedLedgerSha256) {
+      throw new Error("V14 predecessor bytes changed.");
+    }
+    const next = startComplete26V14SuccessorEpoch(current, contract);
+    writeLedgerAtomic(root, target, next);
+    return readSprint10SpendLedgerFile(root, target);
+  } finally { lock.release(); }
+}
+
+/** Exact one-shot amendment claim, raw-byte CAS, existing ledger lock and atomic writer. */
+export function startComplete26CeilingAmendmentFile(
+  privateRoot: string, ledgerPath: string, contract: Complete26CeilingAmendmentContract,
+  expectedLedgerSha256: string, exclusiveClaimPath: string
+): Sprint10SpendLedger {
+  const { root, target } = validatePrivateLedgerPath(privateRoot, ledgerPath);
+  const claimPath = join(root, ".complete26-usd20-amendment-claim.json");
+  if (target !== join(root, "cycle-ledger.json") || exclusiveClaimPath !== claimPath || !HASH_PATTERN.test(expectedLedgerSha256) || expectedLedgerSha256 !== contract.previousLedgerSha256) throw new Error("Exact USD 20 amendment claim and predecessor bytes required.");
+  const lock = acquireSprint10LedgerLock(root, target);
+  try {
+    let absent = false;
+    try { lstatSync(join(root, `.${basename(target)}.sprint10-live-journey.lock`)); }
+    catch (error) { absent = (error as NodeJS.ErrnoException).code === "ENOENT"; }
+    if (!absent) throw new Error("An active, stale or unverifiable runner lease blocks ceiling amendment.");
+    validateExistingPrivateFile(claimPath, "Exclusive ceiling amendment claim");
+    if (statSync(claimPath).size > 4096) throw new Error("Ceiling amendment claim exceeds its bound.");
+    const claim = JSON.parse(readFileSync(claimPath, "utf8"));
+    if (!record(claim) || !exactKeys(claim, ["schemaVersion", "contractSha256", "ledgerPath", "expectedLedgerSha256"]) ||
+        claim.schemaVersion !== "geoai.complete26.ceiling-amendment-claim.v1" || claim.contractSha256 !== complete25CheckpointHash(contract) || claim.ledgerPath !== target || claim.expectedLedgerSha256 !== expectedLedgerSha256) throw new Error("Ceiling amendment claim binding failed.");
+    const current = readSprint10SpendLedgerFile(root, target);
+    if (createHash("sha256").update(readFileSync(target)).digest("hex") !== expectedLedgerSha256) throw new Error("Ceiling amendment predecessor bytes changed.");
+    const next = startComplete26CeilingAmendment(current, contract);
     writeLedgerAtomic(root, target, next);
     return readSprint10SpendLedgerFile(root, target);
   } finally { lock.release(); }

@@ -35,6 +35,10 @@ export const COMPLETE25_BATCH_GROUPS = Object.freeze([
   ...Array.from({length:5},(_,i)=>({id:`F0${i+1}`,caseIds:[`F0${i+1}`,...[1,2,3].map(n=>`FA${String(i*3+n).padStart(2,"0")}`)]})),
   ...QUALITY20_CASES.filter(c=>c.scope==="quality20-create").map(c=>({id:c.id,caseIds:[c.id]}))
 ].map(group=>Object.freeze({...group,caseIds:Object.freeze(group.caseIds)})));
+export const COMPLETE26_V14_BATCH_GROUPS = Object.freeze([
+  COMPLETE25_BATCH_GROUPS.find(group=>group.id==="A10"),
+  ...COMPLETE25_BATCH_GROUPS.filter(group=>group.id!=="A10")
+]);
 
 function privateDirectory(path) {
   guard(typeof path === "string" && isAbsolute(path) && realpathSync(path) === path,"PRIVATE_DIRECTORY");
@@ -55,14 +59,17 @@ export function writeComplete25PrivateJson(path,value) {
 }
 
 /** No unknown commands, case subsets, arbitrary paths or source values in approved intent. */
-export function validateComplete25BatchPlan(plan, execution) {
+export function validateComplete25BatchPlan(plan, execution, {v14Successor=false}={}) {
+  guard(typeof v14Successor==="boolean","PLAN_ORDER_OPT_IN");
+  const orderedGroups=v14Successor?COMPLETE26_V14_BATCH_GROUPS:COMPLETE25_BATCH_GROUPS;
   guard(exact(plan,["schemaVersion","execution","ledgerId","groups"])&&plan.schemaVersion===COMPLETE25_BATCH_SCHEMA&&plan.ledgerId===LEDGER_ID,"PLAN_SHAPE");
   guard(exact(plan.execution,["commit","origin","deploymentId"])&&/^[a-f0-9]{40}$/.test(plan.execution.commit)&&
     plan.execution.commit===execution.commit&&plan.execution.origin===execution.origin&&/^dpl_[A-Za-z0-9]+$/.test(plan.execution.deploymentId),"EXECUTION");
-  guard(Array.isArray(plan.groups)&&plan.groups.length===COMPLETE25_BATCH_GROUPS.length,"GROUP_DENOMINATOR");
+  guard(Array.isArray(plan.groups)&&plan.groups.length===orderedGroups.length,"GROUP_DENOMINATOR");
   const sourceIds=new Set();const shapes=new Map();
   plan.groups.forEach((group,index)=>{
-    const expected=COMPLETE25_BATCH_GROUPS[index];
+    const expected=orderedGroups[index];
+    const originalIndex=COMPLETE25_BATCH_GROUPS.findIndex(item=>item.id===expected.id);
     guard(exact(group,["id","acquisition","requests"])&&group.id===expected.id&&Array.isArray(group.requests)&&group.requests.length===expected.caseIds.length,"GROUP_SHAPE");
     group.requests.forEach((request,i)=>{
       const definition=QUALITY20_CASES.find(c=>c.id===expected.caseIds[i]);
@@ -72,12 +79,12 @@ export function validateComplete25BatchPlan(plan, execution) {
     });
     const a=group.acquisition;guard(record(a)&&quality20Hash(a.execution)===quality20Hash(plan.execution)&&a.caseId===expected.caseIds[0],"ACQUISITION_EXECUTION");
     const def=QUALITY20_CASES.find(c=>c.id===a.caseId);guard(a.marketKey===def.marketKey,"ACQUISITION_MARKET");
-    if(index<12){
+    if(originalIndex<12){
       guard(exact(a,["schemaVersion","execution","caseId","marketKey","query","expectedSourceIdentity"])&&a.schemaVersion==="geoai.quality20.nonpaid-acquisition.v1"&&
         a.query===group.requests[0].query&&a.query.length>=2&&/^(?:node|way|relation)\/[1-9]\d{0,19}$/.test(a.expectedSourceIdentity),"ANALYSE_ACQUISITION");
-      if(index<8){guard(!sourceIds.has(a.expectedSourceIdentity),"DISTINCT_CORE_IDENTITIES");sourceIds.add(a.expectedSourceIdentity);
+      if(originalIndex<8){guard(!sourceIds.has(a.expectedSourceIdentity),"DISTINCT_CORE_IDENTITIES");sourceIds.add(a.expectedSourceIdentity);
         const {caseId:_,...first}=group.requests[0];guard(group.requests.every(({caseId,...r})=>quality20Hash(r)===quality20Hash(first)),"TRIPLET_INPUTS");}
-    }else if(index<17){
+    }else if(originalIndex<17){
       validateComplete25AcquisitionPlan(a,execution);
       guard(exact(a,["schemaVersion","kind","execution","caseId","marketKey","locale","role","scenario","find"])&&a.schemaVersion==="geoai.complete25.nonpaid-acquisition.v2"&&a.kind==="find"&&a.locale==="en"&&
         a.role===group.requests[0].role&&a.scenario===group.requests[0].scenario&&exact(a.find,["bounds","boundedEnvelope","group","mappedMinimumLevels","mappedMaximumLevels"]),"FIND_ACQUISITION");
@@ -100,24 +107,40 @@ export function loadComplete25Batch(env,execution,ledgerPreflight=validateLiveLe
   const enabled=env.GEOAI_COMPLETE25_BATCH_MODE;
   const names=["GEOAI_COMPLETE25_BATCH_PLAN_PATH","GEOAI_COMPLETE25_BATCH_PLAN_SHA256","GEOAI_COMPLETE25_BATCH_APPROVAL","GEOAI_COMPLETE25_BATCH_OUTPUT_DIR"];
   const successorTransitionSha256=env.GEOAI_COMPLETE26_SUCCESSOR_TRANSITION_SHA256??null;
-  if(enabled===undefined){guard(names.every(n=>env[n]===undefined)&&successorTransitionSha256===null,"UNSCOPED_SETTINGS");return null;}
+  const reviewedSegmentSha256=env.GEOAI_COMPLETE26_REVIEWED_SEGMENT_SHA256??null;
+  const candidateTransitionSha256=env.GEOAI_COMPLETE26_CANDIDATE_TRANSITION_SHA256??null;
+  const emptyEpochRepinSha256=env.GEOAI_COMPLETE26_EMPTY_EPOCH_REPIN_SHA256??null;
+  const postSinglepassSha256=env.GEOAI_COMPLETE26_POST_SINGLEPASS_SHA256??null;
+  const v14SuccessorSha256=env.GEOAI_COMPLETE26_V14_SUCCESSOR_SHA256??null;
+  const overlayNames=["GEOAI_COMPLETE26_HARNESS_REVIEW_PATH","GEOAI_COMPLETE26_HARNESS_REVIEW_SHA256"];
+  const harnessEnvironment=Object.fromEntries(overlayNames.filter(n=>env[n]!==undefined).map(n=>[n,env[n]]));
+  if(enabled===undefined){guard(names.every(n=>env[n]===undefined)&&successorTransitionSha256===null&&reviewedSegmentSha256===null&&candidateTransitionSha256===null&&emptyEpochRepinSha256===null&&postSinglepassSha256===null&&v14SuccessorSha256===null&&Object.keys(harnessEnvironment).length===0,"UNSCOPED_SETTINGS");return null;}
+  guard(v14SuccessorSha256===null||HASH.test(v14SuccessorSha256)&&postSinglepassSha256===null&&emptyEpochRepinSha256===null&&candidateTransitionSha256===null&&reviewedSegmentSha256===null,"V14_SUCCESSOR_OPT_IN");
+  guard(postSinglepassSha256===null||HASH.test(postSinglepassSha256)&&v14SuccessorSha256===null&&emptyEpochRepinSha256===null&&candidateTransitionSha256===null&&reviewedSegmentSha256===null,"POST_SINGLEPASS_OPT_IN");
+  guard(emptyEpochRepinSha256===null||HASH.test(emptyEpochRepinSha256)&&candidateTransitionSha256===null&&reviewedSegmentSha256===null&&postSinglepassSha256===null,"EMPTY_REPIN_OPT_IN");
+  guard(candidateTransitionSha256===null||HASH.test(candidateTransitionSha256)&&reviewedSegmentSha256===null,"CANDIDATE_OPT_IN");
+  const overlayHash=v14SuccessorSha256??postSinglepassSha256??emptyEpochRepinSha256??candidateTransitionSha256??reviewedSegmentSha256;
+  guard(overlayHash===null?Object.keys(harnessEnvironment).length===0:HASH.test(overlayHash)&&overlayNames.every(n=>typeof env[n]==="string"&&env[n].length)&&HASH.test(env[overlayNames[1]]),"SEGMENT_OPT_IN");
   guard(successorTransitionSha256===null||HASH.test(successorTransitionSha256),"SUCCESSOR_OPT_IN");
   guard(enabled===COMPLETE25_BATCH_OPT_IN&&names.every(n=>typeof env[n]==="string"&&env[n].length),"OPT_IN");
   guard(env.GEOAI_HOSTED_AUTH_PROBE_LIVE_JOURNEY_SEAM===undefined||env.GEOAI_HOSTED_AUTH_PROBE_LIVE_JOURNEY_SEAM==="disabled","MUTUALLY_EXCLUSIVE");
   guard(Object.keys(env).every(n=>!env[n]||(!n.startsWith("GEOAI_QUALITY20_")&&!n.startsWith("GEOAI_SPRINT10_")&&!["GEOAI_COMPLETE25_CASE_ATTEMPT_ID","GEOAI_HOSTED_AUTH_PROBE_LIVE_JOURNEY_SCOPE","GEOAI_HOSTED_AUTH_PROBE_LIVE_RUN_APPROVAL"].includes(n))),"UNSCOPED_CASE_SETTINGS");
   const file=readComplete25PrivateJson(env.GEOAI_COMPLETE25_BATCH_PLAN_PATH);guard(HASH.test(env.GEOAI_COMPLETE25_BATCH_PLAN_SHA256)&&file.hash===env.GEOAI_COMPLETE25_BATCH_PLAN_SHA256,"PLAN_HASH");
-  const plan=validateComplete25BatchPlan(file.value,execution);const outputDir=privateDirectory(env.GEOAI_COMPLETE25_BATCH_OUTPUT_DIR);
+  const plan=validateComplete25BatchPlan(file.value,execution,{v14Successor:v14SuccessorSha256!==null});const outputDir=privateDirectory(env.GEOAI_COMPLETE25_BATCH_OUTPUT_DIR);
   const host=new URL(execution.origin).hostname;
   guard(env.GEOAI_HOSTED_AUTH_PROBE_LIVE_EXPECTED_LEDGER_ID===LEDGER_ID&&env.GEOAI_COMPLETE25_BATCH_APPROVAL===`complete25-batch:${LEDGER_ID}:${host}:${execution.commit}:${file.hash}`,"APPROVAL");
   const config={plan,planSha256:file.hash,outputDir,ledgerRoot:env.GEOAI_HOSTED_AUTH_PROBE_LIVE_LEDGER_ROOT,ledgerPath:env.GEOAI_HOSTED_AUTH_PROBE_LIVE_LEDGER_PATH,
-    ledgerId:LEDGER_ID,previewHost:host,previewUrl:execution.origin,scope:"complete25-batch",successorTransitionSha256};
+    ledgerId:LEDGER_ID,previewHost:host,previewUrl:execution.origin,scope:"complete25-batch",successorTransitionSha256,reviewedSegmentSha256,candidateTransitionSha256,emptyEpochRepinSha256,postSinglepassSha256,v14SuccessorSha256,harnessEnvironment};
   const ledger=ledgerPreflight(config.ledgerRoot,config.ledgerPath,"quality20-acquire");assertBatchLedger(config,ledger,[],true);
   return config;
 }
 function assertBatchLedger(config,ledger,completed,fresh=false) {
-  guard(ledger.schemaVersion===2&&ledger.ledgerId===LEDGER_ID&&ledger.ceilingUsd===15&&ledger.acceptanceEpoch.candidateCommit===config.plan.execution.commit&&
+  guard(ledger.schemaVersion===2&&ledger.ledgerId===LEDGER_ID&&
+    (ledger.ceilingUsd===15||(ledger.ceilingUsd===20&&!!ledger.ceilingAmendment&&!!liveBudget.parseSprint10SpendLedger(ledger)))&&
+    ledger.acceptanceEpoch.candidateCommit===config.plan.execution.commit&&
     ledger.acceptanceEpoch.candidateHost===config.previewHost,"LEDGER_BINDING");
-  guard(ledger.acceptanceEpoch.attempts.length===completed.length&&ledger.acceptanceEpoch.attempts.every((a,i)=>a.caseId===completed[i]),"ATTEMPT_DRIFT");
+  const active=liveBudget.complete26ActiveCaseAttempts(ledger);
+  guard(active.length===completed.length&&active.every((a,i)=>a.caseId===completed[i]),"ATTEMPT_DRIFT");
   const opening=typeof liveBudget.complete26SuccessorOpening==="function"?liveBudget.complete26SuccessorOpening(ledger):null;
   validateComplete26BatchOpening(config,ledger,opening,fresh);
 }
@@ -125,6 +148,21 @@ function assertBatchLedger(config,ledger,completed,fresh=false) {
 /** The ledger module alone authenticates the archived epoch and opening proof.
  * This adapter cannot invent an opening or replace normal ledger preflight. */
 export function validateComplete26BatchOpening(config,ledger,opening,fresh=true) {
+  const v14=liveBudget.complete26V14SuccessorOpening(ledger);
+  guard(v14?config.v14SuccessorSha256===v14.transitionSha256:config.v14SuccessorSha256==null,"V14_SUCCESSOR_OPT_IN_REQUIRED");
+  if(v14)guard(config.planSha256===v14.evidence.newBatchPlanSha256&&config.plan.execution.commit===v14.currentCandidateCommit&&config.previewHost===v14.currentCandidateHost&&config.plan.execution.deploymentId===v14.currentDeploymentId&&ledger.acceptanceEpoch.attempts.length<=58,"V14_SUCCESSOR_BINDING");
+  const post=v14?null:liveBudget.complete26PostSinglepassOpening(ledger);
+  guard(post?config.postSinglepassSha256===post.transitionSha256:config.postSinglepassSha256==null,"POST_SINGLEPASS_OPT_IN_REQUIRED");
+  if(post)guard(config.planSha256===post.evidence.newBatchPlanSha256&&config.plan.execution.commit===post.currentCandidateCommit&&config.previewHost===post.currentCandidateHost&&config.plan.execution.deploymentId===post.currentDeploymentId,"POST_SINGLEPASS_BINDING");
+  const repin=v14||post?null:liveBudget.complete26EmptyEpochRepinOpening(ledger);
+  guard(repin?config.emptyEpochRepinSha256===repin.transitionSha256:config.emptyEpochRepinSha256==null,"EMPTY_REPIN_OPT_IN_REQUIRED");
+  if(repin)guard(config.planSha256===repin.evidence.newBatchPlanSha256&&config.plan.execution.commit===repin.currentCandidateCommit&&config.previewHost===repin.currentCandidateHost&&config.plan.execution.deploymentId===repin.currentDeploymentId,"EMPTY_REPIN_BINDING");
+  const candidate=v14||post||repin?null:liveBudget.complete26Candidate642Opening(ledger);
+  guard(candidate?config.candidateTransitionSha256===candidate.transitionSha256:config.candidateTransitionSha256==null,"CANDIDATE_OPT_IN_REQUIRED");
+  if(candidate)guard(config.planSha256===candidate.evidence.newBatchPlanSha256&&config.plan.execution.commit===candidate.currentCandidateCommit&&config.previewHost===candidate.currentCandidateHost&&config.plan.execution.deploymentId===candidate.currentDeploymentId,"CANDIDATE_BINDING");
+  const segment=v14||post?null:liveBudget.complete26ReviewedBatchSegmentOpening(ledger);
+  guard(segment ? config.reviewedSegmentSha256===segment.contractSha256 : config.reviewedSegmentSha256==null,"SEGMENT_OPT_IN_REQUIRED");
+  if(segment)guard(config.planSha256===segment.evidence.newBatchPlanSha256&&config.plan.execution.commit===segment.candidateCommit&&config.previewHost===segment.candidateHost,"SEGMENT_BINDING");
   if(config.successorTransitionSha256!=null){
     guard(opening&&opening.transitionSha256===config.successorTransitionSha256&&
       opening.currentCandidateCommit===config.plan.execution.commit&&opening.currentCandidateHost===config.previewHost&&
@@ -132,8 +170,9 @@ export function validateComplete26BatchOpening(config,ledger,opening,fresh=true)
     guard(Number.isInteger(opening.openingReceiptCount)&&opening.openingReceiptCount>90&&
       opening.openingReceiptCount+53<=liveBudget.sprint10LedgerReceiptCapacity(ledger)&&Number.isFinite(opening.openingAccountedUsd)&&opening.openingAccountedUsd>0&&
       ledger.estimatedOrReservedUsd>=opening.openingAccountedUsd,"SUCCESSOR_OPENING");
-    if(fresh)guard(sprint10LedgerReceiptCount(ledger)===opening.openingReceiptCount&&
-      ledger.estimatedOrReservedUsd===opening.openingAccountedUsd&&ledger.ceilingUsd-ledger.estimatedOrReservedUsd>=1.2,"INITIAL_HEADROOM");
+    const activeOpening=segment??opening;
+    if(fresh)guard(sprint10LedgerReceiptCount(ledger)===activeOpening.openingReceiptCount&&
+      ledger.estimatedOrReservedUsd===activeOpening.openingAccountedUsd&&ledger.ceilingUsd-ledger.estimatedOrReservedUsd>=1.2,"INITIAL_HEADROOM");
   }else{
     guard(opening===null,"SUCCESSOR_OPT_IN_REQUIRED");
     if(fresh)guard(ledger.receipts.length===0&&sprint10LedgerReceiptCount(ledger)===90&&
@@ -162,15 +201,18 @@ export async function runComplete25Batch(config,runChild,{now=Date.now,sleep=ms=
     const unchanged=ledger=>guard(quality20Hash(ledger)===quality20Hash(expectedLedger),"LEDGER_DRIFT");
     const manifest={schemaVersion:"geoai.quality20.frozen-cases.v1",amendment:QUALITY20_AMENDMENT,frozenAt:new Date(now()).toISOString(),execution:config.plan.execution,cases:QUALITY20_CASES.map(c=>({id:c.id,binding:null}))};
     for(const [index,group] of config.plan.groups.entries()) {
-      const groupIds=COMPLETE25_BATCH_GROUPS[index].caseIds;activeCase=groupIds[0];
-      const route=index>=17?"create":"ai";const needed=index<8||index>=12&&index<17?3:1;
+      const expected=(config.v14SuccessorSha256?COMPLETE26_V14_BATCH_GROUPS:COMPLETE25_BATCH_GROUPS)[index];
+      const originalIndex=COMPLETE25_BATCH_GROUPS.findIndex(item=>item.id===expected.id);
+      const groupIds=expected.caseIds;activeCase=groupIds[0];
+      const route=originalIndex>=17?"create":"ai";const needed=originalIndex<8||originalIndex>=12&&originalIndex<17?3:1;
       let wait=complete25BatchWaitMs(now(),routeTimes[route],needed,quietUntil);
       while(wait>0){guard(now()-started+wait<MAX_BATCH_MS,"DEADLINE");await sleep(Math.min(wait,60_000));wait=complete25BatchWaitMs(now(),routeTimes[route],needed,quietUntil);}
       guard(now()-started<MAX_BATCH_MS,"DEADLINE");
       unchanged(ledgerPreflight(config.ledgerRoot,config.ledgerPath,"quality20-acquire"));
       const prefix=String(index+1).padStart(2,"0");const planPath=join(config.outputDir,`${prefix}-acquisition-plan.json`),outputPath=join(config.outputDir,`${prefix}-acquisition.json`);
       const planHash=writeJson(planPath,group.acquisition);
-      const acquisitionEnvironment={GEOAI_QUALITY20_ACQUISITION_PLAN_PATH:planPath,GEOAI_QUALITY20_ACQUISITION_PLAN_SHA256:planHash,GEOAI_QUALITY20_ACQUISITION_OUTPUT_PATH:outputPath};
+      const segmentEnvironment=config.v14SuccessorSha256?{GEOAI_COMPLETE26_V14_SUCCESSOR_SHA256:config.v14SuccessorSha256,...config.harnessEnvironment}:config.postSinglepassSha256?{GEOAI_COMPLETE26_POST_SINGLEPASS_SHA256:config.postSinglepassSha256,...config.harnessEnvironment}:config.emptyEpochRepinSha256?{GEOAI_COMPLETE26_EMPTY_EPOCH_REPIN_SHA256:config.emptyEpochRepinSha256,...config.harnessEnvironment}:config.candidateTransitionSha256?{GEOAI_COMPLETE26_CANDIDATE_TRANSITION_SHA256:config.candidateTransitionSha256,...config.harnessEnvironment}:config.reviewedSegmentSha256?{GEOAI_COMPLETE26_REVIEWED_SEGMENT_SHA256:config.reviewedSegmentSha256,...config.harnessEnvironment}:{};
+      const acquisitionEnvironment={GEOAI_QUALITY20_ACQUISITION_PLAN_PATH:planPath,GEOAI_QUALITY20_ACQUISITION_PLAN_SHA256:planHash,GEOAI_QUALITY20_ACQUISITION_OUTPUT_PATH:outputPath,...segmentEnvironment};
       const acquisition=loadQuality20Acquisition(acquisitionEnvironment,config.plan.execution);
       const acquired=await runChild({scope:"quality20-acquire",quality20:null,acquisition,quality20Environment:acquisitionEnvironment});
       // runChild has already applied the existing strict child-receipt parser.
@@ -188,7 +230,7 @@ export async function runComplete25Batch(config,runChild,{now=Date.now,sleep=ms=
         const selection=validateQuality20Manifest(JSON.stringify(manifest,null,2)+"\n",manifestHash,caseId,definition.scope,config.plan.execution,now());
         const ledger=ledgerPreflight(config.ledgerRoot,config.ledgerPath,definition.scope);unchanged(ledger);assertBatchLedger(config,ledger,completed);validateQuality20Ledger(selection,ledger,null);
         if(paid){guard(routeTimes[route].filter(t=>now()-t<RATE_MS).length<4,"RATE_CHANGED");routeTimes[route].push(now());}
-        const quality20Environment={GEOAI_QUALITY20_MANIFEST_PATH:manifestPath,GEOAI_QUALITY20_MANIFEST_SHA256:manifestHash,GEOAI_QUALITY20_CASE_ID:caseId};
+        const quality20Environment={GEOAI_QUALITY20_MANIFEST_PATH:manifestPath,GEOAI_QUALITY20_MANIFEST_SHA256:manifestHash,GEOAI_QUALITY20_CASE_ID:caseId,...segmentEnvironment};
         const visualDirectory=join(config.outputDir,`${caseId}-visual`);
         mkdirSync(visualDirectory,{mode:0o700});
         privateDirectory(visualDirectory);
@@ -203,7 +245,7 @@ export async function runComplete25Batch(config,runChild,{now=Date.now,sleep=ms=
         const after=ledgerPreflight(config.ledgerRoot,config.ledgerPath,"quality20-acquire");assertBatchLedger(config,after,[...completed,caseId]);
         guard(sprint10LedgerReceiptCount(after)===sprint10LedgerReceiptCount(ledger)+Number(paid),"RECEIPT_COUNT_DRIFT");
         guard(after.generation===ledger.generation+Number(paid)*2&&quality20Hash(after.receipts.slice(0,ledger.receipts.length))===quality20Hash(ledger.receipts)&&
-          quality20Hash(after.acceptanceEpoch.attempts.slice(0,completed.length))===quality20Hash(ledger.acceptanceEpoch.attempts)&&
+          quality20Hash(after.acceptanceEpoch.attempts.slice(0,ledger.acceptanceEpoch.attempts.length))===quality20Hash(ledger.acceptanceEpoch.attempts)&&
           after.acceptanceEpoch.attempts.at(-1).manifestSha256===manifestHash,"LEDGER_HISTORY_DRIFT");
         if(paid) guard(result.receipts[0].id===after.receipts.at(-1).id&&result.receipts[0].estimatedUsd===after.receipts.at(-1).estimatedUsd,"CHILD_RECEIPT_DRIFT");
         expectedLedger=after;
