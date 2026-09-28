@@ -55,6 +55,7 @@ test("QH05 registry reconciles exact counts/shares and never normalizes the subs
 test("QH05 submitted goal/depth change structure; local interactions never post AI", async ({page}) => {
   const posts = await prepare(page);
   await page.goto("/prototype/point-to-object/analysis");
+  await page.getByRole("button", { name: "Run focused analysis", exact: true }).click();
   const dashboard = page.getByTestId("role-decision-cards");
   await expect(dashboard).toHaveAttribute("data-depth","standard");
   await dashboard.locator('[data-category="education"]').focus();
@@ -86,6 +87,7 @@ for (const locale of ["en","ru"] as const) for (const width of [390,834,1440]) {
     await page.setViewportSize({width,height:900});
     const posts = await prepare(page);
     await page.goto("/prototype/point-to-object/analysis");
+    await page.getByRole("button", { name: "Run focused analysis", exact: true }).click();
     if (locale === "ru") await page.getByRole("button",{name:"ru",exact:true}).click();
     const dashboard = page.getByTestId("role-decision-cards");
     await expect(dashboard).toBeVisible();
@@ -105,6 +107,7 @@ for (const locale of ["en","ru"] as const) for (const width of [390,834,1440]) {
 for (const variant of ["unavailable","partial"] as const) test(`QH05 ${variant} remains explicit`, async ({page}, info) => {
   await prepare(page,variant);
   await page.goto("/prototype/point-to-object/analysis");
+  await page.getByRole("button", { name: "Run focused analysis", exact: true }).click();
   const dashboard = page.getByTestId("role-decision-cards");
   await expect(dashboard).toBeVisible();
   if (variant === "unavailable") {

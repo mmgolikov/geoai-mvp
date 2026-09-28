@@ -109,6 +109,7 @@ for (const { locale, width } of [{ locale: "en", width: 1440 }, { locale: "ru", 
     await page.setViewportSize({ width, height: 900 });
     const harness = await prepare(page, locale, info.project.use.baseURL!);
     await page.goto("/prototype/point-to-object/analysis");
+    await page.getByRole("button", { name: labels.run }).click();
     await expect(page.getByTestId("ai-success")).toBeVisible();
     const dashboard = page.getByTestId("role-decision-cards");
     const statements: string[] = [];
@@ -154,6 +155,7 @@ for (const { locale, width } of [{ locale: "en", width: 1440 }, { locale: "ru", 
     await page.setViewportSize({ width, height: 900 });
     const harness = await prepare(page, locale, info.project.use.baseURL!);
     await page.goto("/prototype/point-to-object/analysis");
+    await page.getByRole("button", { name: labels.run }).click();
     await expect(page.getByTestId("ai-success")).toBeVisible();
     const before = await page.evaluate(key => sessionStorage.getItem(key), POINT_OBJECT_SESSION_KEYS.analysis);
     harness.setKind("invalid");

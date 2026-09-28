@@ -155,6 +155,11 @@ async function prepare(page: Page, options: { holdPost?: boolean; selection?: un
 test("S1 provenance submits and restores the exact validated role/scenario receipt without another analysis call", async ({ page }) => {
   const api = await prepare(page);
   await page.goto("/prototype/point-to-object/analysis");
+  await expect(page.getByTestId("analysis-setup")).toBeVisible();
+  await expect(page.getByTestId("analysis-request-state")).toHaveAttribute("data-draft-scenario", "b2b_redevelopment_selected_aoi");
+  expect(api.challengeGets()).toBe(0);
+  expect(api.posts).toHaveLength(0);
+  await page.getByRole("button", { name: "Run focused analysis", exact: true }).click();
   await expect(page.getByTestId("ai-success")).toBeVisible();
   expect(api.posts).toHaveLength(1);
   expect(api.posts[0]).toMatchObject({
@@ -201,6 +206,7 @@ test("S1 provenance does not bind a saved null Find target to an unresolved free
   });
 
   await page.goto("/prototype/point-to-object/analysis");
+  await page.getByRole("button", { name: "Run focused analysis", exact: true }).click();
   await expect(page.getByTestId("ai-success")).toBeVisible();
   expect(api.posts).toHaveLength(1);
   expect(api.posts[0]).toMatchObject({
@@ -223,6 +229,7 @@ test("S1 provenance ignores a valid Find target that differs from the selected o
   });
 
   await page.goto("/prototype/point-to-object/analysis");
+  await page.getByRole("button", { name: "Run focused analysis", exact: true }).click();
   await expect(page.getByTestId("ai-success")).toBeVisible();
   expect(api.posts).toHaveLength(1);
   expect(api.posts[0]).toMatchObject({
@@ -236,6 +243,7 @@ test("S1 provenance ignores a valid Find target that differs from the selected o
 test("S1 provenance discards an in-flight result after the validated role/scenario context changes", async ({ page }) => {
   const api = await prepare(page, { holdPost: true });
   await page.goto("/prototype/point-to-object/analysis");
+  await page.getByRole("button", { name: "Run focused analysis", exact: true }).click();
   await expect.poll(() => api.posts.length).toBe(1);
   await expect(page.getByTestId("analysis-request-state")).toHaveAttribute("data-in-flight-role", "developer");
   await expect(page.getByTestId("analysis-request-state")).toHaveAttribute("data-in-flight-scenario", "b2b_redevelopment_selected_aoi");

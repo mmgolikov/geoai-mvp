@@ -65,6 +65,7 @@ test("COMPLETE25 scenario measures preserve source grain, nulls and total reconc
 test("COMPLETE25 completed goals/depth and local evidence drilldowns remain bound to saved result", async ({ page }, info) => {
   const posts = await prepare(page);
   await page.goto("/prototype/point-to-object/analysis");
+  await page.getByRole("button", { name: "Run focused analysis", exact: true }).click();
   const dashboard = page.getByTestId("role-decision-cards");
   await expect(dashboard).toHaveAttribute("data-depth", "standard");
   await dashboard.getByTestId("dashboard-evidence-inspection").locator("summary").first().click();
@@ -104,6 +105,7 @@ for (const locale of ["en", "ru"] as const) for (const width of [390, 834, 1440]
     await page.setViewportSize({ width, height: 900 });
     const posts = await prepare(page);
     await page.goto("/prototype/point-to-object/analysis");
+    await page.getByRole("button", { name: "Run focused analysis", exact: true }).click();
     const dashboard = page.getByTestId("role-decision-cards");
     await expect(dashboard).toBeVisible();
     if (locale === "ru") await page.getByRole("button", { name: "ru", exact: true }).click();

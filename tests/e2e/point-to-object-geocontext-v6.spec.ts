@@ -634,6 +634,7 @@ test('auth-persona: public demo recovers the RU draft while protected entry redi
   await page.getByRole('button', { name: 'Открыть задачу', exact: true }).click();
   await page.getByRole('button', { name: 'Анализировать', exact: true }).click();
   await expect(page).toHaveURL(/\/prototype\/point-to-object\/analysis$/, { timeout: 60_000 });
+  await page.getByRole('button', { name: 'Запустить целевой анализ', exact: true }).click();
   await expect(page.getByTestId('ai-success')).toBeVisible();
   const draft = 'GUEST06 несохранённое уточнение: транспорт и подъезд';
   const input = page.getByRole('textbox', { name: 'Провести целевой анализ', exact: true });
@@ -690,6 +691,7 @@ test("current Standard renders its structured criteria review and restores it wi
   await seedSelection(page);
 
   await signInDemo(page, "/prototype/point-to-object/analysis");
+  await page.getByRole("button", { name: "Run focused analysis", exact: true }).click();
   const review = page.getByTestId("analysis-depth-review");
   await expect(review).toBeVisible();
   await expect(review).toHaveAttribute("data-depth", "standard");
@@ -728,6 +730,7 @@ test("V6 renders useful GeoContext and linked-source facts in EN/RU and restores
   await seedSelection(page);
 
   await signInDemo(page, "/prototype/point-to-object/analysis");
+  await page.getByRole("button", { name: "Run focused analysis", exact: true }).click();
   await expect(page.getByTestId("ai-success")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Continue bounded object screening" })).toBeVisible();
   const dashboard = page.getByTestId("role-decision-cards");
@@ -860,6 +863,7 @@ test("a rendered tile selection never promotes a nearest POI into the requested 
     await json(route, response);
   });
   await signInDemo(page, "/prototype/point-to-object/analysis");
+  await page.getByRole("button", { name: "Run focused analysis", exact: true }).click();
   await expect(page.getByTestId("ai-success")).toBeVisible();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Selected building footprint");
   await expect(page.getByText(/Nearest mapped context.*63/)).toBeVisible();
@@ -941,6 +945,7 @@ test("Saved Analyse reopens RU from EN Projects and EN from RU Projects without 
   await seedSelection(page);
 
   await signInDemo(page, "/prototype/point-to-object/analysis");
+  await page.getByRole("button", { name: "Run focused analysis", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Continue bounded object screening" })).toBeVisible();
   await expect.poll(() => savedAnalyseArtifactCount(page)).toBe(1);
   await page.getByRole("button", { name: "ru", exact: true }).click();
@@ -1030,6 +1035,7 @@ test("Projects preserves bytes and permits explicit retry when integrity hashing
   await seedSelection(page);
 
   await signInDemo(page, "/prototype/point-to-object/analysis");
+  await page.getByRole("button", { name: "Run focused analysis", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Continue bounded object screening" })).toBeVisible();
   await expect.poll(() => savedAnalyseArtifactCount(page)).toBe(1);
   await page.goto("/projects?view=spatial");

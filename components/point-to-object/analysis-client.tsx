@@ -447,10 +447,9 @@ export function PointToObjectAnalysis() {
   }, [commitAnalysis, roleScenarioContext]);
 
   useEffect(() => {
-    // Capture the settled browser identity before restoring or starting analysis.
+    // Capture the settled browser identity before restoring the selection.
     // Anonymous visitors remain supported once session resolution completes.
     if (!isSessionResolved) return;
-    let cancelled = false;
     const restoredSelection = readPointObjectSelection();
     if (!restoredSelection) {
       setMissingSelection(true);
@@ -494,15 +493,9 @@ export function PointToObjectAnalysis() {
         setGoal(restoredSettings.goal);
         setPerspective(restoredSettings.perspective);
         setHorizon(restoredSettings.horizon);
-        // Defer automatic dispatch until this effect survives React's setup /
-        // cleanup replay. A cleaned-up mount must not send even a challenge GET.
-        if (restoredDraft === null) queueMicrotask(() => {
-          if (!cancelled) void requestAnalysis(restoredSelection, requestIdentity(restoredSelection, restoredQuestion, restoredSettings, localeRef.current));
-        });
       }
     }
     return () => {
-      cancelled = true;
       requestSequenceRef.current += 1;
       if (activeRequestRef.current) {
         window.clearTimeout(activeRequestRef.current.timeoutId);
@@ -510,7 +503,7 @@ export function PointToObjectAnalysis() {
       }
       activeRequestRef.current = null;
     };
-  }, [isSessionResolved, requestAnalysis, requestIdentity, setLocale]);
+  }, [isSessionResolved, setLocale]);
 
   // Language and viewing-profile changes never trigger paid work. Saved report
   // text keeps its original language until the user explicitly updates it.
@@ -576,7 +569,12 @@ export function PointToObjectAnalysis() {
   const sourceGeometryContainsPoint = subject?.coordinateAssociation === "open_map_geometry_contains_point";
   const sourceIdentityTrusted = pointObjectHasSelectedIdentity(selection, subject);
   const legacyIdentityUnconfirmed = subject?.coordinateAssociation === "trusted_open_map_identity" && !sourceIdentityTrusted;
-  const title = pointObjectSelectionLabel(selection, subject, t("analysis.selectedTitle"));
+  const title = pointObjectSelectionLabel(selection, subject ?? selection?.resolvedObject ?? null, t("analysis.selectedTitle"));
+  const selectedSourceId = pointObjectSelectedLookupId(selection);
+  const selectedEvidenceReceipt = selectedSourceId &&
+    selection?.resolvedObject?.sourceFeatureId === selectedSourceId &&
+    selection.resolvedObject.evidenceReceipt?.lookupSourceFeatureId === selectedSourceId
+      ? selection.resolvedObject.evidenceReceipt : null;
   const resolvedName = subject?.name && subject.name !== title ? subject.name : null;
   const contextRelation = subject
     ? sourceGeometryContainsPoint
@@ -643,7 +641,16 @@ export function PointToObjectAnalysis() {
             {resolvedName ? <p className="mt-2 text-base font-semibold text-[#344054]">{resolvedName}</p> : null}
             {contextRelation ? <p className="mt-2 text-xs font-semibold text-[#087f8c]">{contextRelation}</p> : null}
             {legacyIdentityUnconfirmed ? <p className="mt-3 rounded-xl border border-[#e7c47e] bg-[#fffaf0] p-3 text-xs leading-5 text-[#6b4b16]">{locale === "ru" ? "В сохранённом отчёте ближайший объект был отмечен как точный. Совпадение с выбранным объектом не подтверждено; исходный отчёт сохранён без изменений." : "This saved report labelled a nearby object as exact. Its identity is not confirmed against the selected feature; the original report is preserved unchanged."}</p> : null}
-            {subject?.address ? <details className="mt-2 text-sm leading-6 text-muted"><summary className="cursor-pointer">{locale === "ru" ? "Адрес и запись источника" : "Address & source record"}</summary><p>{subject.address}</p><p className="text-xs">{subject.sourceFeatureId}</p></details> : null}
+            {subject?.address || selectedSourceId ? <details className="mt-2 text-sm leading-6 text-muted"><summary className="cursor-pointer">{locale === "ru" ? "Адрес и запись источника" : "Address & source record"}</summary>
+              <p>{locale === "ru" ? "Выбранный объект" : "Selected object"}: {title}</p>
+              {selectedSourceId ? <p className="break-all text-xs">OpenStreetMap · {selectedSourceId}</p> : null}
+              {selectedEvidenceReceipt ? <>
+                <p className="text-xs">{locale === "ru" ? "Данные получены" : "Data acquired"}: <time dateTime={selectedEvidenceReceipt.acquiredAt}>{selectedEvidenceReceipt.acquiredAt}</time></p>
+                <p className="break-all text-xs">{locale === "ru" ? "Хеш набора данных" : "Evidence pack hash"}: {selectedEvidenceReceipt.evidencePackHash}</p>
+              </> : null}
+              {subject?.address ? <p>{subject.address}</p> : null}
+              {subject?.sourceFeatureId && subject.sourceFeatureId !== selectedSourceId ? <p className="break-all text-xs">{locale === "ru" ? "Запись контекста" : "Context record"}: {subject.sourceFeatureId}</p> : null}
+            </details> : null}
             {subject && Object.keys(subject.tags).length ? (
               <div className="mt-4 flex flex-wrap gap-2" aria-label={t("selection.attributes")}>
                 {Object.entries(subject.tags).slice(0, 6).map(([key, value]) => <span key={key} className="rounded-full bg-[#f3f6f8] px-2.5 py-1 text-[11px] font-semibold text-[#475467]">{humanizeAttribute(key)} · {value}</span>)}
@@ -652,6 +659,10 @@ export function PointToObjectAnalysis() {
           </div>
 
           <div className="mt-5">
+            {!loading && !analysis && selection ? <section className="rounded-[20px] border border-line bg-white p-6 shadow-soft sm:p-7" data-testid="analysis-setup">
+              <h2 className="text-lg font-bold text-[#243447]">{locale === "ru" ? "Настройте анализ объекта" : "Set up the object analysis"}</h2>
+              <p className="mt-2 text-sm leading-6 text-muted">{locale === "ru" ? "Выберите цель, вопрос и глубину анализа. Запрос начнётся после нажатия кнопки запуска." : "Choose a goal, question and depth. The analysis starts when you press Run."}</p>
+            </section> : null}
             {loading && !content ? <LoadingAnalysis depth={inFlightDepth ?? depth} /> : null}
             {loading && content ? <div className="mb-5 rounded-xl border border-[#e5fafa] bg-[#e5fafa] px-4 py-3 text-sm font-semibold text-[#344054]" role="status">{t("analysis.loading.preserve", { depth: localizedInFlightDepth })}</div> : null}
             {requestError && content ? <div className="mb-5 rounded-xl border border-[#e7c47e] bg-[#fffaf0] px-4 py-3 text-sm text-[#6b4b16]" role="alert">{requestError} {t("analysis.previous")}</div> : null}

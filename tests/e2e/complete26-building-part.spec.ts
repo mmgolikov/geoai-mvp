@@ -109,6 +109,7 @@ for (const { locale, width } of [{ locale: "en", width: 1440 }, { locale: "ru", 
     await page.setViewportSize({ width, height: 900 });
     const harness = await prepare(page, locale, info.project.use.baseURL!);
     await page.goto("/prototype/point-to-object/analysis");
+    await page.getByRole("button", { name: locale === "en" ? "Run focused analysis" : "Запустить целевой анализ", exact: true }).click();
     await expect(page.getByTestId("ai-success")).toBeVisible();
     const labels = locale === "en"
       ? { attributes: "OpenStreetMap attributes", reasoning: "Decision reasoning & context", measurements: "Measurements & sample details", goal: "Development screening", quick: "Quick", standard: "Standard", deep: "Deep", run: /^(Run focused analysis|Refresh analysis)$/ }

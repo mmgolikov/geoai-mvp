@@ -47,6 +47,7 @@ for (const { locale, width } of cases) {
     await page.setViewportSize({ width, height: 900 });
     const state = await prepare(page, locale, info.project.use.baseURL!);
     await page.goto("/prototype/point-to-object/analysis");
+    await page.getByRole("button", { name: locale === "en" ? "Run focused analysis" : "Запустить целевой анализ", exact: true }).click();
     await expect(page.getByTestId("ai-success")).toBeVisible();
     const note = page.getByTestId("answer-provenance-recovery");
     await expect(note).toHaveCount(0); // Legacy absence is unknown, not model-origin evidence.

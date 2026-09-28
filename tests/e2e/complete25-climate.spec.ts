@@ -20,7 +20,7 @@ for(const locale of ["en","ru"] as const) for(const width of [390,834,1440]) tes
     posts++; const {role,scenario,depth,goal,perspective,horizon,question,locale,evidenceReceipt}=route.request().postDataJSON(); const response=sprint10AnalysisResponse({role,scenario,depth,goal,perspective,horizon,question,locale},posts,evidenceReceipt?.evidencePackHash,"POINT_OBJECT_AI_PROMPT_V13_2026_09_26");
     return route.fulfill({json:{...response,subject:{...response.subject,climate}}});
   });
-  await page.goto("/prototype/point-to-object/analysis"); const card=page.getByTestId("climate-context"); await expect(card).toBeVisible();
+  await page.goto("/prototype/point-to-object/analysis"); await page.getByRole("button",{name:"Run focused analysis",exact:true}).click(); const card=page.getByTestId("climate-context"); await expect(card).toBeVisible();
   if(locale==="ru")await page.getByRole("button",{name:"ru",exact:true}).click();
   await expect(card).toHaveAttribute("data-year","2025"); await expect(card.locator("svg polyline")).toHaveCount(2);
   await expect(card.locator('button[aria-pressed="true"]')).toHaveCSS("background-color", "rgb(229, 250, 250)");

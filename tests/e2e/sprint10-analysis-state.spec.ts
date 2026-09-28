@@ -89,9 +89,86 @@ async function prepare(page: Page, initialReceiptAgeMs = 0) {
   };
 }
 
+test("S2 opens a new object as free setup and never requests AI before an explicit run", async ({ page }) => {
+  const api = await prepare(page);
+  await page.goto("/prototype/point-to-object/analysis");
+  await expect(page.getByTestId("analysis-setup")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Sprint 10 Hotel" })).toBeVisible();
+  await page.getByText("Address & source record", { exact: true }).click();
+  await expect(page.getByText("OpenStreetMap · way/91010", { exact: true })).toBeVisible();
+  const receipt = await page.evaluate(() => JSON.parse(sessionStorage.getItem("geoai:point-to-object:selection:v3") ?? "null")?.resolvedObject?.evidenceReceipt);
+  await expect(page.locator("details").filter({ hasText: "Address & source record" })).toContainText(`Data acquired: ${receipt.acquiredAt}`);
+  await expect(page.locator("details").filter({ hasText: "Address & source record" })).toContainText(`Evidence pack hash: ${receipt.evidencePackHash}`);
+  await expect(page.getByRole("button", { name: "Run focused analysis", exact: true })).toBeEnabled();
+  expect(api.settledChallenges()).toBe(0);
+  expect(api.posts).toHaveLength(0);
+
+  await page.getByRole("button", { name: "Deep", exact: true }).click();
+  await page.getByRole("button", { name: "Redevelopment", exact: true }).click();
+  await page.getByRole("button", { name: "ru", exact: true }).click();
+  await page.getByText("Настройки анализа", { exact: true }).click();
+  await page.getByTestId("point-object-analysis-perspective-select").selectOption("investor");
+  await page.getByTestId("point-object-analysis-horizon-select").selectOption("long_term");
+  await expect(page.getByTestId("analysis-setup")).toContainText("Настройте анализ объекта");
+  expect(api.settledChallenges()).toBe(0);
+  expect(api.posts).toHaveLength(0);
+
+  await page.reload();
+  await expect(page.getByTestId("analysis-setup")).toBeVisible();
+  expect(api.settledChallenges()).toBe(0);
+  expect(api.posts).toHaveLength(0);
+});
+
+test("S2 Redevelopment preset sends exact Standard question once after explicit double click and reopens free", async ({ page }) => {
+  const api = await prepare(page);
+  const expectedQuestion = "Assess whether redevelopment or repositioning is a useful hypothesis to investigate for this object. Do not assume development rights, condition, demand or financial feasibility.";
+  await page.goto("/prototype/point-to-object/analysis");
+  await expect(page.getByTestId("analysis-setup")).toBeVisible();
+  await page.getByRole("button", { name: "Redevelopment", exact: true }).click();
+  await expect(page.getByRole("textbox", { name: "Run a focused analysis", exact: true })).toHaveValue(expectedQuestion);
+  expect(api.settledChallenges()).toBe(0);
+  expect(api.posts).toHaveLength(0);
+
+  await page.getByRole("button", { name: "Run focused analysis", exact: true }).evaluate((button: HTMLButtonElement) => {
+    button.click();
+    button.click();
+  });
+  await expect(page.getByTestId("ai-success")).toBeVisible();
+  expect(api.settledChallenges()).toBe(1);
+  expect(api.posts).toHaveLength(1);
+  expect(api.posts[0]).toMatchObject({ depth: "standard", goal: "redevelopment", perspective: "developer", horizon: "current", locale: "en", question: expectedQuestion });
+
+  await page.reload();
+  await expect(page.getByTestId("ai-success")).toBeVisible();
+  expect(api.settledChallenges()).toBe(1);
+  expect(api.posts).toHaveLength(1);
+});
+
+for (const width of [390, 1440]) for (const locale of ["en", "ru"] as const) {
+  test(`S2 free setup stays usable at ${width}px ${locale}`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width, height: 900 });
+    const api = await prepare(page);
+    await page.goto("/prototype/point-to-object/analysis");
+    if (locale === "ru") await page.getByRole("button", { name: "ru", exact: true }).click();
+    await expect(page.getByTestId("analysis-setup")).toContainText(locale === "ru" ? "Настройте анализ объекта" : "Set up the object analysis");
+    const run = page.getByRole("button", { name: locale === "ru" ? "Запустить целевой анализ" : "Run focused analysis", exact: true });
+    await expect(run).toBeEnabled();
+    await run.scrollIntoViewIfNeeded();
+    const bounds = await run.boundingBox();
+    expect(bounds?.height).toBeGreaterThanOrEqual(44);
+    expect(bounds!.x).toBeGreaterThanOrEqual(0);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
+    expect(api.settledChallenges()).toBe(0);
+    expect(api.posts).toHaveLength(0);
+    await page.screenshot({ path: testInfo.outputPath(`s2-setup-${width}-${locale}.png`), fullPage: true });
+  });
+}
+
 test("S1 keeps draft, in-flight and completed depth honest and allows an explicit blank rerun", async ({ page }) => {
   const api = await prepare(page);
   await page.goto("/prototype/point-to-object/analysis");
+  await page.getByRole("button", { name: "Run focused analysis", exact: true }).click();
   await expect(page.getByTestId("ai-success")).toBeVisible();
   expect(api.posts).toHaveLength(1);
   expect(api.posts[0]?.depth).toBe("standard");
@@ -115,6 +192,7 @@ test("S1 keeps draft, in-flight and completed depth honest and allows an explici
 test("S1 accepts blank, custom and preset runs and suppresses a double-submit", async ({ page }) => {
   const api = await prepare(page);
   await page.goto("/prototype/point-to-object/analysis");
+  await page.getByRole("button", { name: "Run focused analysis", exact: true }).click();
   await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
 
   await page.getByRole("button", { name: "Quick", exact: true }).click();
@@ -141,6 +219,7 @@ test("S1 accepts blank, custom and preset runs and suppresses a double-submit", 
 test("S1 keeps the last result on 429 and malformed error responses and allows retry", async ({ page }) => {
   const api = await prepare(page);
   await page.goto("/prototype/point-to-object/analysis");
+  await page.getByRole("button", { name: "Run focused analysis", exact: true }).click();
   await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
 
   api.failNext({ mode: "unavailable", code: "AI_RATE_LIMITED", error: "Fixture rate limit", retryable: true }, 429);
@@ -160,6 +239,7 @@ test("S1 keeps the last result on 429 and malformed error responses and allows r
 test("S1 allows a valid Deep request to run beyond 45 seconds", async ({ page }) => {
   const api = await prepare(page);
   await page.goto("/prototype/point-to-object/analysis");
+  await page.getByRole("button", { name: "Run focused analysis", exact: true }).click();
   await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
   await page.clock.install();
   await page.getByRole("button", { name: "Deep", exact: true }).click();
@@ -178,6 +258,7 @@ test("S1 times out only after the route contract and supports an explicit retry"
   // Deliberately cross the lease expiry, independently of wall-clock quarter hours.
   const api = await prepare(page, 14 * 60_000);
   await page.goto("/prototype/point-to-object/analysis");
+  await page.getByRole("button", { name: "Run focused analysis", exact: true }).click();
   await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
   await page.clock.install();
   await page.getByRole("button", { name: "Deep", exact: true }).click();
@@ -205,6 +286,7 @@ test("S1 times out only after the route contract and supports an explicit retry"
 test("S1 challenge timeout never dispatches the aborted analysis and supports an explicit retry", async ({ page }) => {
   const api = await prepare(page, 14 * 60_000);
   await page.goto("/prototype/point-to-object/analysis");
+  await page.getByRole("button", { name: "Run focused analysis", exact: true }).click();
   await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
   await page.clock.install();
   await page.getByRole("button", { name: "Deep", exact: true }).click();
@@ -230,6 +312,7 @@ test("S1 challenge timeout never dispatches the aborted analysis and supports an
 test("S1 preserves the last result across cancel and unrelated Find context without a paid-route replay", async ({ page }) => {
   const api = await prepare(page);
   await page.goto("/prototype/point-to-object/analysis");
+  await page.getByRole("button", { name: "Run focused analysis", exact: true }).click();
   await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
   await page.getByRole("button", { name: "Quick", exact: true }).click();
   api.holdNext();
@@ -277,6 +360,7 @@ for (const width of [390, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       const api = await prepare(page);
       await page.goto("/prototype/point-to-object/analysis");
+      await page.getByRole("button", { name: "Run focused analysis", exact: true }).click();
       await expect(page.getByTestId("ai-success")).toBeVisible();
       await page.getByRole("button", { name: new RegExp(`^${locale}$`, "i") }).click();
       const deep = page.getByRole("button", { name: locale === "ru" ? "Глубоко" : "Deep", exact: true });
