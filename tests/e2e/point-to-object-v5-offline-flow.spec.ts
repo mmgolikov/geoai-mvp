@@ -602,8 +602,16 @@ test("Sprint06 J06 keeps unsent RU refinement separate on Back and restores it w
   await expect.poll(() => ({ ...aiRequests })).toEqual({ challenge: 1, generation: 1 });
   await composer.fill(draft);
   await expect.poll(() => page.evaluate(() => sessionStorage.getItem("geoai:point-to-object:question:v2"))).toBe(original);
-  await page.getByRole("link", { name: "Вернуться к карте", exact: true }).click();
-  await page.getByRole("button", { name: "Открыть задачу", exact: true }).click();
+  const backToFind = page.getByRole("link", { name: "Вернуться к поиску", exact: true });
+  await expect(backToFind).toHaveAttribute("href", "/prototype/point-to-object?mode=find");
+  await backToFind.click();
+  await expect(page).toHaveURL(/\?mode=find$/);
+  await expect(page.getByRole("tab", { name: "Поиск", exact: true })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByText("Показано: 3", { exact: true })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => JSON.parse(sessionStorage.getItem("geoai:point-to-object:find:v1") ?? "null")?.analysisTargetSourceFeatureId)).toBe("relation/2003");
+  await expect.poll(() => page.evaluate(() => sessionStorage.getItem("geoai:point-to-object:question:v2"))).toBe(original);
+  expect(aiRequests).toEqual({ challenge: 1, generation: 1 });
+  await page.getByRole("tab", { name: "Анализ", exact: true }).click();
   await expect(page.getByLabel("Что вы хотите узнать?")).toHaveValue(original);
   await page.goBack();
   await expect(page).toHaveURL(/\/analysis$/);
