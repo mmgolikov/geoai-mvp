@@ -851,6 +851,44 @@ test("V6 renders useful GeoContext and linked-source facts in EN/RU and restores
   expect(unexpectedExternal).toEqual([]);
 });
 
+for (const variant of [
+  { name: "known EN", locale: "en", width: 1440, height: "200", levels: "43", expected: "Mapped height: 200 m — OpenStreetMap height tag, not a surveyed measurement." },
+  { name: "known RU", locale: "ru", width: 390, height: "200", levels: "43", expected: "Высота на карте: 200 м — тег OpenStreetMap, не инструментальный обмер." },
+  { name: "missing EN", locale: "en", width: 390, height: null, levels: "9", expected: "Mapped height: unknown — no height tag for the exact selected object; 9 mapped levels do not establish height in metres." },
+  { name: "missing RU", locale: "ru", width: 1440, height: null, levels: "9", expected: "Высота на карте: неизвестна — тег высоты выбранного объекта отсутствует; 9 этажей на карте не задают высоту в метрах." },
+  { name: "zero", locale: "en", width: 390, height: "0", levels: "9", expected: "Mapped height: unknown — OpenStreetMap height tag “0” does not establish metres; not a surveyed measurement." },
+  { name: "invalid", locale: "ru", width: 1440, height: "about 200", levels: "9", expected: "Высота на карте: неизвестна — тег OpenStreetMap «about 200» не устанавливает высоту в метрах; это не инструментальный обмер." },
+  { name: "feet", locale: "en", width: 390, height: "200 ft", levels: "9", expected: "Mapped height: unknown — OpenStreetMap height tag “200 ft” does not establish metres; not a surveyed measurement." }
+] as const) {
+  test(`selected-source mapped height stays source-bound: ${variant.name}`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: variant.width, height: 900 });
+    const { apiCalls, unexpectedExternal } = await installAnalysisRoutes(page);
+    const tags: Record<string, string> = { "tag.building": "hotel", "tag.building:levels": variant.levels };
+    if (variant.height !== null) tags["tag.height"] = variant.height;
+    await page.addInitScript((value) => sessionStorage.setItem("geoai:point-to-object:selection:v3", JSON.stringify(value)),
+      { ...selection, resolvedObject: { ...selection.resolvedObject, tags, evidenceReceipt: publicReceipt("en") } });
+    await page.route("**/api/prototype/point-to-object/ai", async (route) => {
+      if (route.request().method() === "GET") return json(route, { mode: "ready", challenge: "A".repeat(43) });
+      const response = syntheticCurrentResponse(route.request().postDataJSON());
+      await json(route, { ...response, subject: { ...response.subject, tags } });
+    });
+    await signInDemo(page, "/prototype/point-to-object/analysis");
+    await page.getByRole("button", { name: "Run focused analysis", exact: true }).click();
+    const mappedHeight = page.getByTestId("analysis-mapped-height");
+    await expect(mappedHeight).toBeVisible();
+    if (variant.locale === "ru") await page.getByRole("button", { name: "ru", exact: true }).click();
+    await expect(mappedHeight).toHaveText(variant.expected);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
+    const aiCalls = () => apiCalls.filter(call => call.path.endsWith("/ai"));
+    expect(aiCalls().map(call => call.method)).toEqual(["GET", "POST"]);
+    await page.reload();
+    await expect(mappedHeight).toHaveText(variant.expected);
+    expect(aiCalls().map(call => call.method)).toEqual(["GET", "POST"]);
+    expect(unexpectedExternal).toEqual([]);
+    if (variant.name === "missing RU") await page.screenshot({ path: testInfo.outputPath("mapped-height-missing-ru-1440.png") });
+  });
+}
+
 test("a rendered tile selection never promotes a nearest POI into the requested exact identity", async ({ page }) => {
   const { apiCalls, unexpectedExternal } = await installAnalysisRoutes(page);
   const tileSelection = { ...selection, object: { ...selection.object, name: "Selected building footprint", sourceFeatureId: "18290731" },
@@ -867,6 +905,7 @@ test("a rendered tile selection never promotes a nearest POI into the requested 
   await expect(page.getByTestId("ai-success")).toBeVisible();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Selected building footprint");
   await expect(page.getByText(/Nearest mapped context.*63/)).toBeVisible();
+  await expect(page.getByTestId("analysis-mapped-height")).toHaveText("Mapped height: unknown — the selected object height is not established from this report.");
   await page.getByText("Address & source record", { exact: true }).click();
   await expect(page.getByText("Context address: Synthetic nearby fountain, Dubai", { exact: true })).toBeVisible();
   await expect(page.getByText(/Selected address: Synthetic nearby fountain/)).toHaveCount(0);

@@ -108,6 +108,18 @@ function humanizeAttribute(key: string): string {
   return key.replace(/^tag\./, "").replace(/^classification\./, "").replaceAll("_", " ").replaceAll(":", " · ").replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
+function mappedHeightMetres(value: string | undefined): number | null {
+  if (!value || !/^\d+(?:\.\d+)?(?:\s*m)?$/i.test(value.trim())) return null;
+  const metres = Number.parseFloat(value);
+  return Number.isFinite(metres) && metres > 0 ? metres : null;
+}
+
+function mappedLevels(value: string | undefined): number | null {
+  if (!value || !/^\d+$/.test(value.trim())) return null;
+  const levels = Number(value);
+  return Number.isSafeInteger(levels) && levels > 0 ? levels : null;
+}
+
 function friendlyEvidenceLabel(reference: string, t: ReturnType<typeof usePointObjectLocale>["t"], locale: "en" | "ru"): string {
   const labels: Record<string, string> = {
     "EVD-COORDINATES": t("evidence.point"),
@@ -575,6 +587,25 @@ export function PointToObjectAnalysis() {
     selection?.resolvedObject?.sourceFeatureId === selectedSourceId &&
     selection.resolvedObject.evidenceReceipt?.lookupSourceFeatureId === selectedSourceId
       ? selection.resolvedObject.evidenceReceipt : null;
+  const exactSourceTags = sourceIdentityTrusted ? subject?.tags : null;
+  const sourceHeightRaw = exactSourceTags?.["tag.height"] ?? exactSourceTags?.height;
+  const sourceHeightM = mappedHeightMetres(sourceHeightRaw);
+  const sourceLevels = mappedLevels(exactSourceTags?.["tag.building:levels"] ?? exactSourceTags?.["building:levels"]);
+  const mappedHeightText = !sourceIdentityTrusted
+    ? (locale === "ru"
+      ? "Высота на карте: неизвестна — высота выбранного объекта не подтверждена этим отчётом."
+      : "Mapped height: unknown — the selected object height is not established from this report.")
+    : sourceHeightM !== null
+    ? (locale === "ru"
+      ? `Высота на карте: ${sourceHeightM.toLocaleString("ru")} м — тег OpenStreetMap, не инструментальный обмер.`
+      : `Mapped height: ${sourceHeightM.toLocaleString("en")} m — OpenStreetMap height tag, not a surveyed measurement.`)
+    : sourceHeightRaw !== undefined
+    ? (locale === "ru"
+      ? `Высота на карте: неизвестна — тег OpenStreetMap «${sourceHeightRaw}» не устанавливает высоту в метрах; это не инструментальный обмер.`
+      : `Mapped height: unknown — OpenStreetMap height tag “${sourceHeightRaw}” does not establish metres; not a surveyed measurement.`)
+    : (locale === "ru"
+      ? `Высота на карте: неизвестна — тег высоты выбранного объекта отсутствует${sourceLevels === null ? "." : `; ${sourceLevels} этажей на карте не задают высоту в метрах.`}`
+      : `Mapped height: unknown — no height tag for the exact selected object${sourceLevels === null ? "." : `; ${sourceLevels} mapped levels do not establish height in metres.`}`);
   const resolvedName = subject?.name && subject.name !== title ? subject.name : null;
   const contextRelation = subject
     ? sourceGeometryContainsPoint
@@ -686,6 +717,7 @@ export function PointToObjectAnalysis() {
                   </div>
                   <h2 className="mt-4 text-xl font-bold leading-8 tracking-[-0.025em] text-[#172b4d]">{content.decisionBrief.headline}</h2>
                   <p className="mt-3 text-base leading-7 text-[#344054]">{content.decisionBrief.summary}</p>
+                  <p className="mt-3 break-words text-xs leading-5 text-[#52657a]" data-testid="analysis-mapped-height">{mappedHeightText}</p>
                   <details className="mt-4"><summary className="cursor-pointer text-sm font-bold text-[#087f8c]">{locale === "ru" ? "Обоснование и контекст решения" : "Decision reasoning & context"}</summary>
                   {semanticBrief ? <div className="mt-5 rounded-2xl border border-[#d7dee4] bg-[#f4fbfb] p-4">
                     <div className="flex items-center justify-between gap-3"><p className="text-[11px] font-bold uppercase tracking-[0.07em] text-[#087f8c]">{locale === "ru" ? "Контекст решения" : "Decision context"}</p><span className="text-[10px] font-semibold text-[#667085]">{confidenceLabel(semanticBrief.confidence)}</span></div>

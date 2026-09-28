@@ -599,6 +599,11 @@ test("Sprint06 J06 keeps unsent RU refinement separate on Back and restores it w
   await page.getByRole("button", { name: "Анализировать", exact: true }).click();
   await expect(page).toHaveURL(/\/analysis$/);
   const composer = page.getByLabel("Провести целевой анализ", { exact: true });
+  const run = page.getByRole("button", { name: "Запустить целевой анализ", exact: true });
+  await expect(run).toBeEnabled();
+  // Opening Analyse only prepares the draft; the user must explicitly start AI.
+  expect(aiRequests).toEqual({ challenge: 0, generation: 0 });
+  await run.click();
   await expect.poll(() => ({ ...aiRequests })).toEqual({ challenge: 1, generation: 1 });
   await composer.fill(draft);
   await expect.poll(() => page.evaluate(() => sessionStorage.getItem("geoai:point-to-object:question:v2"))).toBe(original);
