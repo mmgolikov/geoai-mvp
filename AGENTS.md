@@ -96,7 +96,7 @@ Next.js App Router, React, TypeScript, Tailwind, Mapbox GL JS, Next API routes, 
 
 Premium, clean, international, light enterprise SaaS. No dark heavy style unless explicitly requested. Avoid text overlap, overflow, random colors, inconsistent spacing, empty/unbalanced zones, hidden critical controls. Every screen should have one main outcome. Respect product sections, screen states, components, breakpoints and data states. Long content must truncate, wrap safely or use disclosure; never break layout.
 
-Use the current founder-approved sprint for bounded UI corrections; CR 10.02 is historical, not the sole future exception. Preserve successful layouts and attribution. No unrelated redesign, Figma write, deprecated-screen import or scope expansion by inference. Each visible change needs before/after review at the relevant sizes and languages.
+Use a current explicitly assigned RUNNING sprint brief for bounded UI corrections; preparation alone does not start implementation. Control records RUNNING when starting the assigned work within founder scope; this is not an extra routine approval gate. CR 10.02 is historical, not the sole future exception. Preserve successful layouts and attribution. No unrelated redesign, Figma write, deprecated-screen import or scope expansion by inference. Each visible change needs before/after review at the relevant sizes and languages.
 
 ## Files and areas to inspect when relevant
 
