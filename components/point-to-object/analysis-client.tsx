@@ -548,6 +548,13 @@ export function PointToObjectAnalysis() {
     if (selection) setDraftStorageFailed(!writePointObjectQuestionDraft(focusedQuestion, questionScope(selection)));
   }
 
+  const findSessionForReturn = selection ? readPointObjectFindSession() : null;
+  const selectedSourceFeatureIdForReturn = selection?.resolvedObject?.sourceFeatureId ?? selection?.object.sourceFeatureId;
+  const backToFind = Boolean(findSessionForReturn && pointObjectAnalysisTargetMatches(
+    selectedSourceFeatureIdForReturn,
+    findSessionForReturn.analysisTargetSourceFeatureId
+  ));
+
   if (missingSelection) {
     return (
       <main className="min-h-screen bg-[#f6f8fb] text-ink">
@@ -626,7 +633,7 @@ export function PointToObjectAnalysis() {
   return (
     <main className="min-h-screen bg-[#f6f8fb] text-ink">
       <p className="sr-only" aria-live="polite">{announcement}</p>
-      <PointObjectHeader backToMap />
+      <PointObjectHeader backToMap backToFind={backToFind} />
 
       <div className="mx-auto grid w-full max-w-[1920px] gap-5 p-4 sm:p-6 xl:grid-cols-[minmax(0,1fr)_340px]">
         <section className="min-w-0">

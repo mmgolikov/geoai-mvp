@@ -7,6 +7,7 @@ export const POINT_OBJECT_LOCALE_COOKIE = "geoai_locale";
 const en = {
   "brand.subtitle": "Location intelligence",
   "header.backToMap": "Back to map",
+  "header.backToFind": "Back to Find",
   "header.language": "Language",
   "header.profile.open": "Open your profile",
   "header.profile.signIn": "Sign in to GeoAI",
@@ -199,6 +200,7 @@ type CopyKey = keyof typeof en;
 const ru: Record<CopyKey, string> = {
   "brand.subtitle": "Геопространственная аналитика",
   "header.backToMap": "Вернуться к карте",
+  "header.backToFind": "Вернуться к поиску",
   "header.language": "Язык",
   "header.profile.open": "Открыть профиль",
   "header.profile.signIn": "Войти в GeoAI",

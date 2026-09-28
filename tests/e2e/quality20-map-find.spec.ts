@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { installLoopbackBrowserHarness, externalHttpUrlPattern } from "./helpers/local-webkit-csp";
+import { sprint10PublicEvidenceReceipt, sprint10Selection } from "./helpers/sprint10-analysis-fixture";
 import { POINT_OBJECT_FIND_CAVEAT, type PointObjectFindCandidate } from "../../src/lib/prototype/point-to-object-find-contract";
 
 const footprint = {type:"Polygon" as const,coordinates:[[[55.2798,25.2098],[55.2802,25.2098],[55.2802,25.2102],[55.2798,25.2102],[55.2798,25.2098]]]};
@@ -66,7 +67,11 @@ test("Q01â€“Q05 source footprints, three-way basemap comparison and exact Find â
   await expect(page.getByText("Showing 3",{exact:true})).toBeVisible();
   await page.getByTestId("find-fit-results").click();
   await expect.poll(async()=>JSON.stringify((await mapState(page)).features)).toContain('"Polygon"');
-  for(const candidate of candidates)await page.locator('li').filter({has:page.locator(`[id="find-result-${candidate.sourceFeatureId}"]`)}).getByRole("button",{name:"Compare",exact:true}).click();
+  for(const candidate of candidates){
+    await page.locator('li').filter({has:page.locator(`[id="find-result-${candidate.sourceFeatureId}"]`)}).getByRole("button",{name:"Compare",exact:true}).click();
+    if(candidate===candidates[1])expect(await page.evaluate(()=>JSON.parse(sessionStorage.getItem("geoai:point-to-object:find:v1")??"null")?.shortlist?.length)).toBe(2);
+  }
+  expect(await page.evaluate(()=>JSON.parse(sessionStorage.getItem("geoai:point-to-object:find:v1")??"null")?.shortlist?.length)).toBe(3);
   await page.getByRole("button",{name:/Compare selected|Compare 3|Compare objects/}).click();
   await page.getByRole("button",{name:/Full comparison|Open full comparison/}).click();
   const dashboard=page.getByTestId("find-full-comparison-dashboard");
@@ -85,11 +90,54 @@ test("Q01â€“Q05 source footprints, three-way basemap comparison and exact Find â
   await expect.poll(allInFrame).toBe(true);
   await expect.poll(async()=>{const boxes=await markers.evaluateAll(items=>items.map(item=>{const b=item.getBoundingClientRect();return {x:b.x,y:b.y,w:b.width,h:b.height};}));return boxes.every((a,i)=>boxes.every((b,j)=>i===j||a.x+a.w<=b.x+1||b.x+b.w<=a.x+1||a.y+a.h<=b.y+1||b.y+b.h<=a.y+1));}).toBe(true);
   await dashboard.getByTestId("find-comparison-map-context").screenshot({path:info.outputPath("comparison-390.png")});
+  // The analysis page starts AI automatically. Block both methods before
+  // any Analyse interaction: this test covers only the local handoff/return.
+  await page.route(/\/api\/prototype\/point-to-object\/ai(?:\?.*)?$/,route=>route.abort("blockedbyclient"));
   await dashboard.getByRole("button",{name:"Open object analysis"}).first().click();
   await expect(dashboard).toHaveCount(0);
   await expect.poll(()=>page.evaluate(()=>{const key=Object.keys(sessionStorage).find(key=>key.includes("selection"));return key?sessionStorage.getItem(key):null;})).toContain('way/82001');
   const saved=await page.evaluate(()=>{const key=Object.keys(sessionStorage).find(key=>key.includes("selection"))!;return JSON.parse(sessionStorage.getItem(key)!);});
   expect(saved.object.geometry).toEqual(candidates[0].geometry);expect(saved.object.renderHeightM).toBe(42);
   await page.screenshot({path:info.outputPath("analysis-source-outage-390.png"),fullPage:true});
+  await page.getByRole("tab",{name:"Find",exact:true}).click();
+  await expect(dashboard).toBeVisible();
+  expect(await page.evaluate(()=>JSON.parse(sessionStorage.getItem("geoai:point-to-object:find:v1")??"null")?.shortlist?.length)).toBe(3);
+  // The map-side return must preserve the originating full dashboard. Now
+  // resolve a second candidate to exercise the normal Analyse CTA after the
+  // first candidate's controlled source outage.
+  const reportCandidate=candidates[1];
+  await page.route("**/api/prototype/point-to-object/context",route=>{
+    const sourceFeatureId=route.request().postDataJSON()?.expectedSourceFeatureId;
+    if(sourceFeatureId!==reportCandidate.sourceFeatureId)return route.fulfill({status:503,json:{mode:"unavailable",error:"Unexpected fixture object",retryable:false}});
+    return route.fulfill({json:{mode:"resolved",subject:{
+      ...sprint10Selection.resolvedObject,
+      name:reportCandidate.label,address:"Synthetic offline test object, Dubai",featureClass:"construction",
+      sourceFeatureId,geometryType:"Polygon",tags:reportCandidate.observedTags,metrics:null,
+      displayGeometry:reportCandidate.geometry,geometryProvenance:"confirmed_complete_footprint",
+      renderHeightM:42,renderMinHeightM:3,evidenceReceipt:sprint10PublicEvidenceReceipt(sourceFeatureId)
+    }}});
+  });
+  await dashboard.getByRole("button",{name:"Open object analysis"}).nth(1).click();
+  await expect(page.getByRole("button",{name:"Analyze",exact:true})).toBeEnabled();
+  await page.getByRole("button",{name:"Analyze",exact:true}).click();
+  await expect(page).toHaveURL(/\/prototype\/point-to-object\/analysis$/);
+  await expect(page.getByRole("link",{name:"Back to Find"})).toHaveAttribute("href","/prototype/point-to-object?mode=find");
+  await page.getByRole("link",{name:"Back to Find"}).click();
+  await expect(page.getByRole("tab",{name:"Find",exact:true})).toHaveAttribute("aria-selected","true");
+  await expect(page.getByTestId("find-full-comparison-dashboard")).toBeVisible();
+  expect(await page.evaluate(()=>JSON.parse(sessionStorage.getItem("geoai:point-to-object:find:v1")??"null")?.shortlist?.map((item:{sourceFeatureId:string})=>item.sourceFeatureId))).toEqual(candidates.map(item=>item.sourceFeatureId));
+  await page.evaluate((staleTarget)=>{
+    const key="geoai:point-to-object:find:v1";
+    const session=JSON.parse(sessionStorage.getItem(key)!);
+    session.analysisTargetSourceFeatureId=staleTarget;
+    sessionStorage.setItem(key,JSON.stringify(session));
+  },candidates[0].sourceFeatureId);
+  await page.goto("/prototype/point-to-object/analysis");
+  await expect(page.getByRole("link",{name:"Back to map"})).toHaveAttribute("href","/prototype/point-to-object");
+  await expect(page.getByRole("link",{name:"Back to Find"})).toHaveCount(0);
+  await page.evaluate(()=>sessionStorage.removeItem("geoai:point-to-object:find:v1"));
+  await page.goto("/prototype/point-to-object/analysis");
+  await expect(page.getByRole("link",{name:"Back to map"})).toHaveAttribute("href","/prototype/point-to-object");
+  await expect(page.getByRole("link",{name:"Back to Find"})).toHaveCount(0);
   expect(errors).toEqual([]);
 });

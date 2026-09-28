@@ -18,6 +18,7 @@ const PointObjectProjectActions = dynamic(
 
 export type PointObjectHeaderProps = {
   backToMap?: boolean;
+  backToFind?: boolean;
 };
 
 function PointObjectProjectControl() {
@@ -43,7 +44,7 @@ function PointObjectProjectControl() {
   );
 }
 
-export function PointObjectHeader({ backToMap = false }: PointObjectHeaderProps) {
+export function PointObjectHeader({ backToMap = false, backToFind = false }: PointObjectHeaderProps) {
   const { locale, setLocale, t } = usePointObjectLocale();
   const { isAuthenticated, user } = useAuth();
   const profileLabel = isAuthenticated ? t("header.profile.open") : t("header.profile.signIn");
@@ -62,9 +63,9 @@ export function PointObjectHeader({ backToMap = false }: PointObjectHeaderProps)
       <div data-point-object-header-actions className="flex shrink-0 items-center gap-2">
         <PointObjectProjectControl />
         {backToMap ? (
-          <Link href="/prototype/point-to-object" aria-label={t("header.backToMap")} className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-line bg-white px-0 text-xs font-semibold text-ink hover:border-[#087f8c] hover:bg-[#f3fbfb] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] sm:w-auto sm:px-4 sm:text-sm">
+          <Link href={backToFind ? "/prototype/point-to-object?mode=find" : "/prototype/point-to-object"} aria-label={t(backToFind ? "header.backToFind" : "header.backToMap")} className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-line bg-white px-0 text-xs font-semibold text-ink hover:border-[#087f8c] hover:bg-[#f3fbfb] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] sm:w-auto sm:px-4 sm:text-sm">
             <span className="text-lg leading-none sm:hidden" aria-hidden="true">←</span>
-            <span className="hidden sm:inline">{t("header.backToMap")}</span>
+            <span className="hidden sm:inline">{t(backToFind ? "header.backToFind" : "header.backToMap")}</span>
           </Link>
         ) : null}
         <div className="inline-flex h-11 items-center rounded-xl border border-line bg-[#f8fafc] p-1" role="group" aria-label={t("header.language")}>

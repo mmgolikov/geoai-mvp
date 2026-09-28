@@ -744,6 +744,9 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
         restoredScenario !== restoredFind.scenario || restoredGroup !== restoredFind.group;
       const restoredScenarioChanged = restoredRole !== restoredFind.role || restoredScenario !== restoredFind.scenario;
       const restoredSelection = readPointObjectSelection();
+      const selectedSourceFeatureId = restoredSelection?.resolvedObject?.sourceFeatureId ?? restoredSelection?.object.sourceFeatureId;
+      if (initialMode === "find" && !restoredIntentWasNormalized && restoredFind.analysisTargetSourceFeatureId &&
+          selectedSourceFeatureId === restoredFind.analysisTargetSourceFeatureId) setSheet("full");
       if (!restoredSelection || restoredSelection.locationKey === restoredFind.marketKey) setLocationKey(restoredFind.marketKey);
       setFindAudience(restoredFind.audience);
       setFindRole(restoredRole);
@@ -1521,7 +1524,6 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
       return;
     }
     setMode("analyse");
-    setFindComparisonDashboardOpen(false);
     setActiveFindResultId(candidate.sourceFeatureId);
     setFindAnalysisTargetSourceFeatureId(expectedSourceFeatureId);
     updateFindSavedView(findShortlist, findComparisonOpen, expectedSourceFeatureId);
@@ -1559,7 +1561,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     // pointerdown can land on an enabled CTA just before its click is ignored.
     if (nextMode === "find") setMapMoving(true);
     setMode(nextMode);
-    setFindComparisonDashboardOpen(false);
+    if (nextMode !== "find") setFindComparisonDashboardOpen(false);
     setCreateResultDashboardOpen(false);
     if (nextMode === "find") {
       setViewModeRequest({ requestId: `find-2d:${Date.now()}`, mode: "2d" });

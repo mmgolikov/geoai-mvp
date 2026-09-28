@@ -1135,8 +1135,8 @@ test("V5.1 keeps exact identity and the complete Find comparison flow coherent o
   await emptyQuestion.press("Control+Enter");
   await expect(page).toHaveURL(/\/prototype\/point-to-object\/analysis$/);
   await expect(page.getByRole("link", { name: "Data sources" })).toHaveCount(0);
-  await page.getByRole("link", { name: "Back to map" }).click();
-  await page.getByRole("tab", { name: "Find" }).click();
+  await page.getByRole("link", { name: "Back to Find" }).click();
+  await expect(page.getByRole("tab", { name: "Find" })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByText("Showing 3", { exact: true })).toBeVisible();
   await expect(page.getByTestId("find-result-stale")).toHaveCount(0);
   await expect(page.getByTestId("find-search-cta")).toHaveText("Open full comparison dashboard");
