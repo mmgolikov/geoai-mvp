@@ -50,7 +50,7 @@ type Goal = "redevelopment" | "due_diligence" | "object_profile";
 const hash = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 const core = mode === "--record-before" ? await baselineCore() : currentCore;
 
-type Change = "none" | "unbound" | "part" | "nonbuilding" | "height_zero" | "height_malformed" | "partial_context";
+type Change = "none" | "unbound" | "part" | "nonbuilding" | "height_zero" | "height_malformed" | "partial_context" | "geocontext_unavailable" | "geocontext_partial";
 function sourceFieldPack(item: Case, change: Change = "none") {
   const pack = evidencePack(true);
   const tags: Record<string, string> = { ...item.tags };
@@ -70,10 +70,25 @@ function sourceFieldPack(item: Case, change: Change = "none") {
   pack.selectedObject.addressParts = {};
   pack.geoContext = null;
   pack.nearbyContext = [];
+  if (change === "geocontext_unavailable" || change === "geocontext_partial") {
+    // The source adapter's exact profile shape: zero counts with unavailable
+    // coverage are missing evidence, not evidence of an empty neighbourhood.
+    const context = evidencePack(true).geoContext;
+    if (change === "geocontext_partial") {
+      context.coverage = "available";
+      context.sampleSize = 1;
+      context.capReached = true;
+      context.groups = [{ group: "other_built", count: 1, sharePct: 100, nearestDistanceM: null }];
+      context.mappedBuildingCount = 1;
+    }
+    pack.geoContext = context;
+  }
   pack.evidence = pack.evidence.filter((entry: { id: string }) => ![
     "EVD-ADDRESS", "EVD-CONTEXT-SUMMARY", "EVD-DISTRICT-PROFILE", "EVD-CONTEXT-1", "EVD-CONTEXT-2"
   ].includes(entry.id));
   pack.evidence = pack.evidence.filter((entry: { id: string }) => !entry.id.startsWith("EVD-EXTRA-"));
+  if (pack.geoContext) pack.evidence.push({ id: "EVD-CONTEXT-SUMMARY", label: "context", sourceId: "SPAT-001",
+    value: JSON.stringify(pack.geoContext) });
   if (change === "partial_context") pack.evidence = pack.evidence.filter((entry: { id: string }) =>
     entry.id !== "EVD-OBJECT-METRICS");
   for (const entry of pack.evidence as Array<{ id: string; sourceId: string; value: string }>) {
@@ -160,6 +175,15 @@ if (mode === "--record-before") {
     assert.match(partial.statement, new RegExp(item.name));
     assert.ok(partial.evidenceRefs.includes("EVD-ALLOWED-FIELDS"));
     assert.ok(!partial.evidenceRefs.includes("EVD-OBJECT-METRICS"));
+    for (const contextChange of ["geocontext_unavailable", "geocontext_partial"] as const) {
+      const contextual = output(item, locale, "redevelopment", "standard", contextChange).answer;
+      assert.match(contextual.statement, new RegExp(item.name));
+      assert.ok(contextual.evidenceRefs.includes("EVD-ALLOWED-FIELDS"));
+      assert.doesNotMatch(contextual.statement, locale === "en"
+        ? /no nearby|zero nearby|no mapped buildings|nearby transport|nearby commercial/i
+        : /нет поблизости|ноль поблизости|нет зданий по карте|транспорт поблизости|коммерческ.*поблизости/i);
+      assert.match(contextual.statement, item.caseId === "S2-H" ? /\b200\b/ : /\b9\b/);
+    }
   }
   for (const locale of ["en", "ru"] as const) for (const change of ["height_zero", "height_malformed"] as const) {
     const answer = output(cases[0], locale, "redevelopment", "standard", change).answer;
@@ -168,6 +192,6 @@ if (mode === "--record-before") {
     assert.ok(answer.evidenceRefs.includes("EVD-ALLOWED-FIELDS"));
   }
   if (mode === "--verify-after") writeFileSync(join(evidenceDir, "after.json"), JSON.stringify({ fixtureScope: "public_source_fields_not_full_pack", matrix }, null, 2) + "\n");
-  console.log(JSON.stringify({ result: "PASS", checks: matrix.length + 32, networkCalls, evidence: mode === "--verify-after" ? join(evidenceDir, "after.json") : null }));
+  console.log(JSON.stringify({ result: "PASS", checks: matrix.length + 40, networkCalls, evidence: mode === "--verify-after" ? join(evidenceDir, "after.json") : null }));
 } else throw new Error("Use --record-before, --verify-after or --check");
 assert.equal(networkCalls, 0);
