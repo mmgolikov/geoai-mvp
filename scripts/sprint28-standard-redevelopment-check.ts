@@ -50,11 +50,14 @@ type Goal = "redevelopment" | "due_diligence" | "object_profile";
 const hash = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 const core = mode === "--record-before" ? await baselineCore() : currentCore;
 
-function sourceFieldPack(item: Case, change: "none" | "unbound" | "part" | "nonbuilding" = "none") {
+type Change = "none" | "unbound" | "part" | "nonbuilding" | "height_zero" | "height_malformed" | "partial_context";
+function sourceFieldPack(item: Case, change: Change = "none") {
   const pack = evidencePack(true);
   const tags: Record<string, string> = { ...item.tags };
   if (change === "part") tags["tag.building:part"] = "yes";
   if (change === "nonbuilding") { delete tags["tag.building"]; tags["tag.landuse"] = "commercial"; }
+  if (change === "height_zero") tags["tag.height"] = "0";
+  if (change === "height_malformed") tags["tag.height"] = "not recorded";
   const featureClass = change === "nonbuilding" ? "landuse:commercial" : "building:yes";
   pack.selectedObject.sourceFeatureId = item.id;
   pack.selectedObject.name = item.name;
@@ -71,6 +74,8 @@ function sourceFieldPack(item: Case, change: "none" | "unbound" | "part" | "nonb
     "EVD-ADDRESS", "EVD-CONTEXT-SUMMARY", "EVD-DISTRICT-PROFILE", "EVD-CONTEXT-1", "EVD-CONTEXT-2"
   ].includes(entry.id));
   pack.evidence = pack.evidence.filter((entry: { id: string }) => !entry.id.startsWith("EVD-EXTRA-"));
+  if (change === "partial_context") pack.evidence = pack.evidence.filter((entry: { id: string }) =>
+    entry.id !== "EVD-OBJECT-METRICS");
   for (const entry of pack.evidence as Array<{ id: string; sourceId: string; value: string }>) {
     if (entry.sourceId === "way/101") entry.sourceId = item.id;
     if (entry.id === "EVD-OSM-OBJECT") entry.value = JSON.stringify({ sourceFeatureId: item.id, name: item.name });
@@ -101,7 +106,7 @@ function request(locale: Locale, goal: Goal, depth: Depth) {
   return { role: "developer", scenario: "unspecified", locale, goal, depth, perspective: "developer", horizon: "current", question };
 }
 
-function output(item: Case, locale: Locale, goal: Goal, depth: Depth, change: "none" | "unbound" | "part" | "nonbuilding" = "none") {
+function output(item: Case, locale: Locale, goal: Goal, depth: Depth, change: Change = "none") {
   const result = core.recoverPointObjectAiFocusedContentDetailed(plan(), sourceFieldPack(item, change), request(locale, goal, depth));
   assert.equal(result.ok, true, result.detail);
   assert.equal(result.content.caveat, CAVEAT);
@@ -151,8 +156,18 @@ if (mode === "--record-before") {
     assert.match(part.statement, locale === "en" ? /building part/ : /част[ьи] здания/);
     const nonbuilding = output(item, locale, "redevelopment", "standard", "nonbuilding").answer;
     assert.doesNotMatch(nonbuilding.statement, locale === "en" ? /hotel reuse/i : /адаптац.*отел/i);
+    const partial = output(item, locale, "redevelopment", "standard", "partial_context").answer;
+    assert.match(partial.statement, new RegExp(item.name));
+    assert.ok(partial.evidenceRefs.includes("EVD-ALLOWED-FIELDS"));
+    assert.ok(!partial.evidenceRefs.includes("EVD-OBJECT-METRICS"));
+  }
+  for (const locale of ["en", "ru"] as const) for (const change of ["height_zero", "height_malformed"] as const) {
+    const answer = output(cases[0], locale, "redevelopment", "standard", change).answer;
+    assert.match(answer.statement, locale === "en" ? /height.*(?:unusable|unknown)/i : /высот.*(?:непригод|неизвест)/i);
+    assert.doesNotMatch(answer.statement, locale === "en" ? /mapped vertical form makes/ : /Картированные вертикальные параметры делают/);
+    assert.ok(answer.evidenceRefs.includes("EVD-ALLOWED-FIELDS"));
   }
   if (mode === "--verify-after") writeFileSync(join(evidenceDir, "after.json"), JSON.stringify({ fixtureScope: "public_source_fields_not_full_pack", matrix }, null, 2) + "\n");
-  console.log(JSON.stringify({ result: "PASS", checks: matrix.length + 24, networkCalls, evidence: mode === "--verify-after" ? join(evidenceDir, "after.json") : null }));
+  console.log(JSON.stringify({ result: "PASS", checks: matrix.length + 32, networkCalls, evidence: mode === "--verify-after" ? join(evidenceDir, "after.json") : null }));
 } else throw new Error("Use --record-before, --verify-after or --check");
 assert.equal(networkCalls, 0);

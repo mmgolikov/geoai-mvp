@@ -3442,7 +3442,11 @@ function recoveredFocusedAnswerPlan(
         ? localized(locale, mappedHotel ? "a hotel-tagged building part, not the whole building or complex" : "a mapped building part, not the whole building or complex", mappedHotel ? "часть здания с гостиничным тегом, не всё здание или комплекс" : "часть здания по карте, не всё здание или комплекс")
         : localized(locale, mappedHotel ? "a hotel-tagged building" : "a mapped building", mappedHotel ? "здание с гостиничным тегом" : "здание по карте");
       const levels = tags["tag.building:levels"];
-      const height = tags["tag.height"];
+      const height = tags["tag.height"]?.trim();
+      // A present OSM tag is not necessarily a usable dimension. Keep its raw
+      // source value visible, but never treat zero or malformed text as form.
+      const heightMatch = height?.match(/^(\d+(?:\.\d+)?)\s*(?:m|ft)?$/i);
+      const usableMappedHeight = Boolean(heightMatch && Number(heightMatch[1]) > 0);
       const mappedForm = [
         levels ? localized(locale, `${levels} mapped levels`, `этажность по карте: ${levels}`) : null,
         height ? openMapHeightTagValue(height, locale) : null
@@ -3450,10 +3454,14 @@ function recoveredFocusedAnswerPlan(
       const sourceFact = localized(locale,
         `OpenStreetMap identifies ${namedSubject} as ${mappedKind}${mappedForm ? `; ${mappedForm}` : ""}. These tags do not establish as-built capacity or condition.`,
         `OpenStreetMap описывает ${namedSubject} как ${mappedKind}${mappedForm ? `; ${mappedForm}` : ""}. Эти теги не подтверждают фактические параметры или состояние.`);
-      const verticalGate = height
+      const verticalGate = usableMappedHeight
         ? localized(locale,
           "The mapped vertical form makes as-built floorplates, height and structural/services evidence the first technical request before comparing retention with adaptation.",
           "Картированные вертикальные параметры делают поэтажные планы, фактическую высоту и данные о конструкциях и инженерных системах первым техническим запросом до сравнения сохранения и адаптации.")
+        : height
+        ? localized(locale,
+          "The mapped height tag is unusable for sizing; mapped height remains unknown. Request measured or as-built height and floorplates before sizing any adaptation.",
+          "Тег высоты по карте непригоден для оценки размеров; высота остаётся неизвестной. До оценки адаптации запросите измеренную или проектную высоту и поэтажные планы.")
         : localized(locale,
           `Mapped height is unknown${levels ? "; the level count cannot establish it" : ""}. Request measured or as-built height and floorplates before sizing any adaptation.`,
           `Высота по карте неизвестна${levels ? "; её нельзя вывести из этажности" : ""}. До оценки адаптации запросите измеренную или проектную высоту и поэтажные планы.`);
