@@ -1561,6 +1561,9 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     // pointerdown can land on an enabled CTA just before its click is ignored.
     if (nextMode === "find") setMapMoving(true);
     setMode(nextMode);
+    // A tab switch is a new, ordinary Analyse entry. Only choosing a Find
+    // candidate through chooseFindCandidate retains the Find return target.
+    if (nextMode === "analyse") setFindAnalysisTargetSourceFeatureId(null);
     if (nextMode !== "find") setFindComparisonDashboardOpen(false);
     setCreateResultDashboardOpen(false);
     if (nextMode === "find") {

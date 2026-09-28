@@ -126,6 +126,36 @@ test("Q01–Q05 source footprints, three-way basemap comparison and exact Find �
   await expect(page.getByRole("tab",{name:"Find",exact:true})).toHaveAttribute("aria-selected","true");
   await expect(page.getByTestId("find-full-comparison-dashboard")).toBeVisible();
   expect(await page.evaluate(()=>JSON.parse(sessionStorage.getItem("geoai:point-to-object:find:v1")??"null")?.shortlist?.map((item:{sourceFeatureId:string})=>item.sourceFeatureId))).toEqual(candidates.map(item=>item.sourceFeatureId));
+  for(const {view,locale,backLabel,tabLabel} of [
+    {view:"mini",locale:"ru",backLabel:"Вернуться к поиску",tabLabel:"Поиск"},
+    {view:"results",locale:"en",backLabel:"Back to Find",tabLabel:"Find"}
+  ] as const){
+    await page.evaluate(({view,locale})=>{
+      const key="geoai:point-to-object:find:v1";
+      const session=JSON.parse(sessionStorage.getItem(key)!);
+      session.locale=locale;
+      session.result.criteria.locale=locale;
+      session.comparisonOpen=view==="mini";
+      session.comparisonView=view;
+      sessionStorage.setItem(key,JSON.stringify(session));
+    },{view,locale});
+    await page.context().addCookies([{name:"geoai_locale",value:locale,url:info.project.use.baseURL!}]);
+    await page.goto("/prototype/point-to-object/analysis");
+    await expect(page.getByRole("link",{name:backLabel})).toHaveAttribute("href","/prototype/point-to-object?mode=find");
+    await page.getByRole("link",{name:backLabel}).click();
+    await expect(page.getByRole("tab",{name:tabLabel,exact:true})).toHaveAttribute("aria-selected","true");
+    await expect(page.getByTestId("find-full-comparison-dashboard")).toHaveCount(0);
+    if(view==="mini")await expect(page.getByTestId("find-comparison-grid")).toBeVisible();
+    else await expect(page.getByTestId("find-comparison-grid")).toHaveCount(0);
+    expect(await page.evaluate(()=>JSON.parse(sessionStorage.getItem("geoai:point-to-object:find:v1")??"null")?.comparisonView)).toBe(view);
+  }
+  // Explicit Analyse tab entry is not a Find handoff, even for the same ID.
+  await page.getByRole("tab",{name:"Analyse",exact:true}).click();
+  await expect.poll(()=>page.evaluate(()=>JSON.parse(sessionStorage.getItem("geoai:point-to-object:find:v1")??"null")?.analysisTargetSourceFeatureId)).toBeNull();
+  await expect(page.getByRole("button",{name:"Analyze",exact:true})).toBeEnabled();
+  await page.getByRole("button",{name:"Analyze",exact:true}).click();
+  await expect(page.getByRole("link",{name:"Back to map"})).toHaveAttribute("href","/prototype/point-to-object");
+  await expect(page.getByRole("link",{name:"Back to Find"})).toHaveCount(0);
   await page.evaluate((staleTarget)=>{
     const key="geoai:point-to-object:find:v1";
     const session=JSON.parse(sessionStorage.getItem(key)!);
