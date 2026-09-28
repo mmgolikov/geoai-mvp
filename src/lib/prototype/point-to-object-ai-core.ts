@@ -3432,6 +3432,41 @@ function recoveredFocusedAnswerPlan(
   const requiredMissing = requiredMissingEvidence(question, support, request.goal);
   if (broadCommitmentReview(request) && (request.goal === "redevelopment" || request.goal === "due_diligence")) {
     const locale = request.locale;
+    if (request.goal === "redevelopment" && request.depth === "standard" && support.hasMappedBuilding) {
+      const selected = support.projection.selectedObject;
+      const tags = support.attributesRef ? selected.structuredAttributes : {};
+      const isPart = isMappedBuildingPart(selected);
+      const mappedHotel = tags["tag.tourism"] === "hotel";
+      const namedSubject = support.objectRef && selected.name ? selected.name : localized(locale, "the selected open-map record", "выбранная запись открытой карты");
+      const mappedKind = isPart
+        ? localized(locale, mappedHotel ? "a hotel-tagged building part, not the whole building or complex" : "a mapped building part, not the whole building or complex", mappedHotel ? "часть здания с гостиничным тегом, не всё здание или комплекс" : "часть здания по карте, не всё здание или комплекс")
+        : localized(locale, mappedHotel ? "a hotel-tagged building" : "a mapped building", mappedHotel ? "здание с гостиничным тегом" : "здание по карте");
+      const levels = tags["tag.building:levels"];
+      const height = tags["tag.height"];
+      const mappedForm = [
+        levels ? localized(locale, `${levels} mapped levels`, `этажность по карте: ${levels}`) : null,
+        height ? openMapHeightTagValue(height, locale) : null
+      ].filter(Boolean).join("; ");
+      const sourceFact = localized(locale,
+        `OpenStreetMap identifies ${namedSubject} as ${mappedKind}${mappedForm ? `; ${mappedForm}` : ""}. These tags do not establish as-built capacity or condition.`,
+        `OpenStreetMap описывает ${namedSubject} как ${mappedKind}${mappedForm ? `; ${mappedForm}` : ""}. Эти теги не подтверждают фактические параметры или состояние.`);
+      const verticalGate = height
+        ? localized(locale,
+          "The mapped vertical form makes as-built floorplates, height and structural/services evidence the first technical request before comparing retention with adaptation.",
+          "Картированные вертикальные параметры делают поэтажные планы, фактическую высоту и данные о конструкциях и инженерных системах первым техническим запросом до сравнения сохранения и адаптации.")
+        : localized(locale,
+          `Mapped height is unknown${levels ? "; the level count cannot establish it" : ""}. Request measured or as-built height and floorplates before sizing any adaptation.`,
+          `Высота по карте неизвестна${levels ? "; её нельзя вывести из этажности" : ""}. До оценки адаптации запросите измеренную или проектную высоту и поэтажные планы.`);
+      const decisionGate = localized(locale,
+        `Compare retention${mappedHotel ? " of mapped hotel use" : " of mapped use"} with conditional adaptation of this ${isPart ? "part" : "building"}; keep site redevelopment separate. First match the object to its parcel and verify rights and planning controls, then obtain a condition survey and comparable scope/cost evidence. No option is preferred yet.`,
+        `Сравните сохранение${mappedHotel ? " картированного гостиничного использования" : " картированного использования"} с условной адаптацией ${isPart ? "этой части" : "здания"}; редевелопмент участка проверяйте отдельно. Сначала сопоставьте объект с участком и проверьте права и регламенты, затем получите обследование состояния и сопоставимые данные об объёме работ и затратах. Предпочтительный вариант пока не установлен.`);
+      return {
+        status: "partial", scope: "screening_implication", perspective: request.perspective, horizon: request.horizon,
+        statement: `${sourceFact} ${verticalGate} ${decisionGate}`,
+        evidenceRefs: uniqueRefs(support.objectRef, support.classificationRef, support.attributesRef, support.geometryRef, support.sourceStatusRef).slice(0, 6),
+        confidence: "low", missingEvidenceCodes: requiredMissing, unsupportedReasonCode: null
+      };
+    }
     const subject = isMappedBuildingPart(support.projection.selectedObject)
       ? localized(locale, "The record identifies a mapped building part, not the whole building or complex; its condition is unverified.", "Запись описывает часть здания по карте, не всё здание или комплекс; состояние не проверено.")
       : support.hasMappedBuilding
