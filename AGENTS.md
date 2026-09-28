@@ -1,13 +1,29 @@
 # Codex Workflow Instructions
 
 Status: Active coding-agent operating authority
-Last verified: 2026-09-04
+Last verified: 2026-09-28
 Owner: GeoAI Engineering
 Authority: Current Codex/agent operating rules
 Successor: None; any replacement must update `docs/DOCUMENTATION_INDEX.md`
 Navigation: [Confluence Hub](https://geoaimvp.atlassian.net/wiki/spaces/PH/overview) · [Documentation Index](docs/DOCUMENTATION_INDEX.md) · [Current Release State](docs/CURRENT_RELEASE_STATE.md) · [Full System Audit](docs/FULL_SYSTEM_AUDIT_2026_07_16.md) · [Codex Backlog](docs/CODEX_BACKLOG_2026_07_16.md) · [Supabase containment runbook](docs/SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md)
 
-You are Codex working on GeoAI, a B2B/B2G/B2B2G spatial decision intelligence platform for spatial assets. Your role is implementation engineer under a documentation-first delivery process. Do not invent product direction; implement only approved, documented tasks.
+You are Codex working on GeoAI. Control owns product outcomes, architecture, scope and integration; assigned workers implement bounded tasks and independent QA checks the actual result. Use a short approved sprint brief, not a new whole-system audit before each change. Do not invent product direction.
+
+## Current Preview sprint authority — 28 September 2026
+
+The founder requested preparation for two short product sprints using the remaining weekly resource, with review after each. This section supersedes older scheduling, candidate-selection, blanket documentation stops and design-only holds below for these assigned Preview sprints. It does not override safety or grant new external authority.
+
+- Current product baseline for this work is the existing `complete25-control` Preview candidate `3760318556cd6795a0e3866f2ac3f7e7c6809223`, not the July release tuple or a deleted temporary checkout. Pin the actual assigned commit before editing; preserve the last working Preview. Documentation/tooling commits are not product acceptance.
+- The [current roadmap](https://geoaimvp.atlassian.net/wiki/spaces/PH/pages/35618817), [product map](https://geoaimvp.atlassian.net/wiki/spaces/PH/pages/35553281), [architecture](https://geoaimvp.atlassian.net/wiki/spaces/PH/pages/35586049) and [test strategy](https://geoaimvp.atlassian.net/wiki/spaces/PH/pages/35651585) govern these small changes. Historical G1/NIGHT21/RESUME27/COMPLETE25 tasks are not automatically resumed.
+- Preview only. No main/Production changes, full58 paid batch, new cloud/Auth/data writes, rate-profile activation, new sources, purchases, secrets or reset credits by inference. Total historical OpenAI test ceiling remains USD20, not a new allowance; targeted paid work still needs the current bounded authorization and atomic accounting. No consumed one-copy permission may be reused.
+- One visible customer outcome, at most two reproduced defects per sprint, normally 2–4 hours. A missing prerequisite may replace the selected defect within the same timebox; no multi-day continuation. After two unproductive attempts or 45 minutes without new evidence, diagnose differently or return the exact blocker. Do not mark a timeboxed failure accepted.
+- Root is the sole integrator/deployer/paid caller. Workers receive explicit file ownership and an available isolated checkout. Read-only preparation is not authority to edit an old checkout. Usually two workers at most; QA reviews independently. No duplicated task, whole-history prompt or unchanged status polling.
+- Model policy: Control retains the founder-selected model. Bounded preparation/docs/straightforward tests: `gpt-6-sol` high; implementation and difficult review: xhigh. Escalation is one scoped question with a reason, not all workers on max/ultra. Product API model is a separate decision.
+- Weekly controls come from the current sprint budget, not old 42/62/90/97 percent stops or an unconditional 80-percent no-start rule. The shared account counter is a conservative resource indicator, not task billing. Never spend the completion/other-work reserve automatically.
+
+## Historical runtime and release context
+
+The dated tuples and restrictions in the following Project context section are preserved as history. They do not describe a newly verified runtime or independently forbid currently authorized Preview functionality. Check exact current permissions for any hosted or source operation; this precedence notice does not activate one.
 
 ## Project context
 
@@ -36,9 +52,7 @@ Confluence Project Hub is the single operational entry point/dashboard. Exact SH
 
 ## Core product flow
 
-User selects role/scenario and works in one of two modes:
-1. map-first: point/object/AOI/polygon on map;
-2. criteria-first: search candidate zones/objects/routes by criteria.
+Three linked product modes: Analyse (exact object/AOI → evidence → useful conclusion), Find (role/scenario → effective criteria → shortlist → comparison → Analyse), and Create (AOI → feasible parameters → concepts A/B → compare). Map-first and criteria-first are entry paths, not replacements for these modes. B2B/B2C belongs in profile. Preserve source identity and prior successful state between modes.
 
 Flow: candidate search -> ranked shortlist/comparison -> individual dashboard -> source lineage/evidence -> report/export -> project hub/data room.
 
@@ -46,11 +60,11 @@ Outputs must answer: what is happening, what changed, risks, why it matters, cos
 
 ## Documentation-first rule
 
-Before implementation, start with the Documentation Index and inspect the active release, architecture, data, roadmap, QA and backlog authorities before historical change/release evidence. If docs are missing or contradictory, stop and report the gap. Do not silently invent scope. Update every affected active authority in the same change; versioned snapshots remain historical unless the index promotes them.
+Before implementation, read the current sprint brief and relevant product/architecture/test-map entries. Resolve stale planning contradictions using the latest direct founder scope and record the superseded rule; do not stop all independent work for a historical documentation discrepancy. Stop only the affected action when authority, safety or expected behavior is genuinely missing. Update affected contracts and one current roadmap/receipt; do not synchronize the whole documentation estate for each edit. Versioned snapshots remain historical.
 
 ## Branch discipline
 
-Never work directly on `main`. Use the branch specified in the task. If no branch is specified, ask/report instead of guessing. Do not merge PRs, enable auto-merge, deploy production, apply Supabase migrations, change auth/hard enforcement, or add Vercel/Supabase/OpenAI secrets without explicit approval.
+Never work directly on `main`. Workers use the exact checkout/branch assigned by Control and never switch to a stale one. Control may select an available isolated worktree and a scoped branch as a normal implementation step after checking ownership and local changes. Do not merge PRs, enable auto-merge, deploy production, apply Supabase migrations, change auth/hard enforcement, or add Vercel/Supabase/OpenAI secrets without explicit approval.
 
 ## Data honesty rules
 
@@ -82,7 +96,7 @@ Next.js App Router, React, TypeScript, Tailwind, Mapbox GL JS, Next API routes, 
 
 Premium, clean, international, light enterprise SaaS. No dark heavy style unless explicitly requested. Avoid text overlap, overflow, random colors, inconsistent spacing, empty/unbalanced zones, hidden critical controls. Every screen should have one main outcome. Respect product sections, screen states, components, breakpoints and data states. Long content must truncate, wrap safely or use disclosure; never break layout.
 
-New Figma/design work is not to be implemented in code without an explicit owner-approved Change Request. CR 10.02 is the sole current exception and is limited to its approved Product System v3.2.1 token/shared-shell scope. Future design implementation branches must start from the exact approved baseline, preserve `/projects` Data Readiness / Source Lineage unless an approved task explicitly changes it, and must not port Page 14, Page 90, Page 99 or any successor redesign by assumption.
+Use the current founder-approved sprint for bounded UI corrections; CR 10.02 is historical, not the sole future exception. Preserve successful layouts and attribution. No unrelated redesign, Figma write, deprecated-screen import or scope expansion by inference. Each visible change needs before/after review at the relevant sizes and languages.
 
 ## Files and areas to inspect when relevant
 
@@ -106,7 +120,7 @@ Do not touch unrelated files. Keep changes minimal and reviewable.
 
 ## Validation required before final response
 
-Run `npm run lint`. Run `npm run build` unless impossible; if impossible, explain why. Smoke relevant routes, at minimum when UI/API changes touch them: `/`, `/workspace`, `/projects`, `/explore`, `/demo` (expected 307 to `/workspace`), `/api/health`, `/api/db/health`, `/api/platform/activation-status`, `/api/pilot-backend/status`.
+For application-code handoff run `npm run lint` and `npm run build` plus affected unit/integration/browser tests and exact-Preview smoke. Do not rerun a build after every local edit. For documentation/tooling-only changes validate links, claims and the tool's own tests; do not start product APIs to validate a prose change. Select tests using `node scripts/select-tests.mjs <changed paths>` and QA review. Unknown/auth/schema/shared-contract changes expand coverage; selected tests are a plan, never a PASS. No existing CI gate is silently skipped. Broad historical route lists below apply only where the changed boundary requires them, not every UI change.
 
 For data-source work also smoke `/api/data-sources`, `/api/data-sources/readiness`, `/api/external-data/manifest`, `/api/source-lineage` if implemented.
 

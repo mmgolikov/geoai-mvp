@@ -39,6 +39,9 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Validate targeted-test planning registry
+        run: node --test scripts/select-tests.test.mjs
+
       - name: Prepare evidence directory
         run: mkdir -p artifacts
 

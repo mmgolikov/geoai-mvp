@@ -1,10 +1,10 @@
 # GeoAI Documentation Index
 
 Status: Active navigation authority
-Last verified: 2026-09-06
+Last verified: 2026-09-28
 Owner: GeoAI Documentation Governance
 Authority: Sole repository navigation and lifecycle precedence
-Successor: None; any replacement must update this file and the Confluence Hub atomically
+Successor: None; update affected navigation and verify publication without claiming atomic cross-system writes
 Operational dashboard: [Confluence Project Hub](https://geoaimvp.atlassian.net/wiki/spaces/PH/overview)
 Confluence audit authority: [09.13 Full System Audit — 2026-07-16](https://geoaimvp.atlassian.net/wiki/spaces/PH/pages/12320972)
 Navigation: [Confluence Hub](https://geoaimvp.atlassian.net/wiki/spaces/PH/overview) · [Current Release State](CURRENT_RELEASE_STATE.md) · [Full System Audit](FULL_SYSTEM_AUDIT_2026_07_16.md) · [Roadmap](roadmap.md) · [QA Checklist](qa-checklist.md) · [Codex Backlog](CODEX_BACKLOG_2026_07_16.md)
@@ -12,6 +12,10 @@ Navigation: [Confluence Hub](https://geoaimvp.atlassian.net/wiki/spaces/PH/overv
 This index is the repository entry point for current documentation. If a versioned release note, dated snapshot or old change request conflicts with an active document below, the active document wins. Historical files remain immutable evidence of what was believed or released at that time; they are not current operating instructions.
 
 ## Start here
+
+**28 September — current small Preview sprints.** The founder superseded the old release cycle: prepare two visible product increments within this week's remaining resource; review each in 2–4 hours. No Production/main or full58 restart. Product baseline `3760318556cd6795a0e3866f2ac3f7e7c6809223`; this is a candidate, not accepted whole-product quality. [Current roadmap and sprint briefs](https://geoaimvp.atlassian.net/wiki/spaces/PH/pages/35618817) → [product contracts](https://geoaimvp.atlassian.net/wiki/spaces/PH/pages/35553281) → [architecture/impact](https://geoaimvp.atlassian.net/wiki/spaces/PH/pages/35586049) → [targeted testing and limits](https://geoaimvp.atlassian.net/wiki/spaces/PH/pages/35651585). Read the current section in [AGENTS.md](../AGENTS.md) first. Use `node scripts/select-tests.mjs <changed paths>` to prepare, not execute, a test plan. Historical dates and broad gates below are context, not current sprint holds. Exact external authority and safety restrictions remain in force.
+
+### Historical scopes and reference navigation
 
 September20: [Product-quality correction](sprint20/CHANGE_REQUEST.md) is the founder-approved successor candidate scope for the eight new visual/functional findings, scenario dashboards and real multi-object acceptance. Baseline `1dab55817e1664870ace88278aaed8f7558ece83`; implementation and acceptance are in progress, not released. The prior API ledger and exact Preview/development-only permissions are retained; main/Production remain unchanged.
 
@@ -54,7 +58,7 @@ September 10 Preview correction: [Map reliability, unified Project Hub and landi
 | Historical/scoped archive navigation | [Generated document archive index](DOCUMENT_ARCHIVE_INDEX.md) | Clickable lifecycle and successor sidecar without rewriting point-in-time evidence |
 | Confluence synchronization | [Confluence sync map](CONFLUENCE_SYNC_MAP.json), [CHG-19 receipt](CONFLUENCE_CHG19_RECEIPT.json) and prior [CHG-18 receipt](CONFLUENCE_CHG18_RECEIPT.json) | Current 28-page role/authority/successor map plus versioned SHA-256 direct read-back evidence |
 
-## Cross-confirmed current baseline
+## Historical cross-confirmed baseline snapshots
 
 2026-09-06 Cycle 05: accepted UI/Projects baseline `8062b29523990ebd7aebea53acbd106c25f484ac` integrates the device-local Projects flow for Analyse / Find / Create, reliable selects, map containment and `zoom-required` corrections, and the bilingual landing page. Classifier integration is present in the local line at `ef2f4853975caeae47915e4bd5c0845c0d26555e`; its local contract and bounded live semantic check on exact Preview `af46254` passed (Dubai `223`; Singapore `178`). The founder-authorized [Controlled Main Release CR](change-requests/point-to-object-001/experience-v6/CYCLE_05_MAIN_RELEASE_CR.md) governs the exact runtime tuple and bounded push → exact Preview → live geocontext/OpenAI/Create/restore acceptance → main/Production sequence. The existing public-source scope for unauthenticated address search/suggestions, Find and point/polygon geocontext is approved, but final exact-candidate CI, Preview and live acceptance remain activation gates. No final runtime tuple, release, source activation or certified readiness is asserted here. Wikimapia, Maxis-inspired design, cloud persistence and Auth/database changes are excluded.
 
@@ -112,7 +116,7 @@ POINT_TO_OBJECT_001 V6 has not been read back from or written to Confluence in t
 
 The machine-readable [Confluence sync map](CONFLUENCE_SYNC_MAP.json) is the complete synchronization contract for the 28-page active/supporting operational authority set, not for every historical page in the space. CHG-19 supersedes CHG-18 for the final local-only Auth/Admin candidate, rollback-only table-level concurrency evidence and corrected 220 kB route baseline while preserving the released PR #87/Production boundary. Direct read-back passed 28/28 with exactly one CHG-19 marker pair, no CHG-16/CHG-17/CHG-18 marker and a recorded SHA-256 for every current body; see the [CHG-19 receipt](CONFLUENCE_CHG19_RECEIPT.json). The legitimate post-CHG-18 design-page v49 edit was explicitly rebased without changing its design/navigation content and became CHG-19 v50. The prior [CHG-18 receipt](CONFLUENCE_CHG18_RECEIPT.json) remains immutable evidence of the previous state. `CR-DEV8-001` (`12320810`) remains historical released evidence and points to Current Delivery State as successor. The other 226 pages remain historical/scoped cleanup inventory under DOCS-01; synchronizing the operational set does not silently certify them as current.
 
-Hub is the operational snapshot; Home is the stable charter. Every evidence change must update Hub plus every affected mapped page after the exact candidate SHA/CI/deployment is final. Hub must directly link the current externally verified PR #113 / `main` / Production tuple, the prior historical PR #106 snapshot, execution program #96, CR 09.23 issue #107, the repository Codex backlog, Production/Vercel, Supabase containment, release state, audit, work packages, risks, decisions, security and pilot readiness.
+Hub is the operational entry point; Home is the stable charter. For the current small Preview sprints update the current roadmap, affected product/architecture/test contracts and one evidence receipt after handoff. The historical 28-page sync is not a per-sprint gate. Preserve old versions and link dated release facts as history; do not claim current runtime or synchronization without exact verification.
 Historical audit PR #97 remains scoped containment evidence and must not be used as the current release tuple.
 
 ### Product and UX
