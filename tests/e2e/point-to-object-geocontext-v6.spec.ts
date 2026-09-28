@@ -859,7 +859,7 @@ test("a rendered tile selection never promotes a nearest POI into the requested 
   await page.route("**/api/prototype/point-to-object/ai", async (route) => {
     if (route.request().method() === "GET") return json(route, { mode: "ready", challenge: "A".repeat(43) });
     const response = syntheticCurrentResponse(route.request().postDataJSON());
-    response.subject = { ...response.subject, name: "Synthetic nearby fountain", sourceFeatureId: "node/91099", coordinateAssociation: "reverse_nearest_indexed_object_not_point_in_polygon", resultCentroidDistanceM: 63 };
+    response.subject = { ...response.subject, name: "Synthetic nearby fountain", address: "Synthetic nearby fountain, Dubai", sourceFeatureId: "node/91099", coordinateAssociation: "reverse_nearest_indexed_object_not_point_in_polygon", resultCentroidDistanceM: 63 };
     await json(route, response);
   });
   await signInDemo(page, "/prototype/point-to-object/analysis");
@@ -867,6 +867,9 @@ test("a rendered tile selection never promotes a nearest POI into the requested 
   await expect(page.getByTestId("ai-success")).toBeVisible();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Selected building footprint");
   await expect(page.getByText(/Nearest mapped context.*63/)).toBeVisible();
+  await page.getByText("Address & source record", { exact: true }).click();
+  await expect(page.getByText("Context address: Synthetic nearby fountain, Dubai", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Selected address: Synthetic nearby fountain/)).toHaveCount(0);
   await expect(page.getByText("Exact mapped object", { exact: true })).toHaveCount(0);
   expect(apiCalls.find(call => call.method === "POST")?.body?.expectedSourceFeatureId).toBeNull();
   await expect.poll(() => savedAnalyseArtifactCount(page)).toBe(1);

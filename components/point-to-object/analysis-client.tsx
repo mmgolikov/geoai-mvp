@@ -648,7 +648,7 @@ export function PointToObjectAnalysis() {
                 <p className="text-xs">{locale === "ru" ? "Данные получены" : "Data acquired"}: <time dateTime={selectedEvidenceReceipt.acquiredAt}>{selectedEvidenceReceipt.acquiredAt}</time></p>
                 <p className="break-all text-xs">{locale === "ru" ? "Хеш набора данных" : "Evidence pack hash"}: {selectedEvidenceReceipt.evidencePackHash}</p>
               </> : null}
-              {subject?.address ? <p>{subject.address}</p> : null}
+              {subject?.address ? <p>{sourceIdentityTrusted ? (locale === "ru" ? "Адрес выбранного объекта" : "Selected address") : (locale === "ru" ? "Адрес записи контекста" : "Context address")}: {subject.address}</p> : null}
               {subject?.sourceFeatureId && subject.sourceFeatureId !== selectedSourceId ? <p className="break-all text-xs">{locale === "ru" ? "Запись контекста" : "Context record"}: {subject.sourceFeatureId}</p> : null}
             </details> : null}
             {subject && Object.keys(subject.tags).length ? (
