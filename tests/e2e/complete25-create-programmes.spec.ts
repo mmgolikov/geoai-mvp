@@ -59,7 +59,7 @@ for (const { locale, width } of [{ locale: "en", width: 1440 }, { locale: "ru", 
     const summary = page.getByTestId("generated-concept-summary");
     await expect(summary).toContainText(conceptTemplate("residential_quarter", locale).summary);
     const mainMap = page.getByTestId("live-map-canvas");
-    const mainEnvironmentState = (installNativeFixture = false) => mainMap.evaluate((canvas, install) => {
+    const mainEnvironmentState = (installNativeFixture = false) => mainMap.evaluate(async (canvas, install) => {
       type Hook = { memoizedState: unknown; next: Hook | null };
       type Fiber = { memoizedState: Hook | null; return: Fiber | null };
       const key = Object.getOwnPropertyNames(canvas).find(key => key.startsWith("__reactFiber$"));
@@ -79,7 +79,13 @@ for (const { locale, width } of [{ locale: "en", width: 1440 }, { locale: "ru", 
               }] } });
               map.addLayer({ id: "geoai-buildings-3d", type: "fill-extrusion", source: "complete25-native-fixture", paint: { "fill-extrusion-color": "#999999", "fill-extrusion-height": 10 } });
             }
+            const data = await (map.getSource("geoai-concept-environment") as import("maplibre-gl").GeoJSONSource).getData() as import("geojson").FeatureCollection;
+            const features = data.type === "FeatureCollection" ? data.features : [];
             return { visibility: map.getLayoutProperty("geoai-concept-environment-fill", "visibility"),
+              sourceCount: features.length,
+              residentialSourceSafe: features.length > 0 && features.every(feature =>
+                feature.geometry.type === "Polygon" && feature.properties?.provenance === "conceptual" &&
+                feature.properties?.programme === "residential_quarter" && feature.properties?.variant === "A"),
               count: map.queryRenderedFeatures({ layers: ["geoai-concept-environment-fill"] }).filter(feature =>
                 feature.properties.provenance === "conceptual" && feature.properties.programme === "hospitality_recreation" && feature.properties.variant === "B").length };
           }
@@ -92,7 +98,11 @@ for (const { locale, width } of [{ locale: "en", width: 1440 }, { locale: "ru", 
     await expect(mainMap).toHaveAttribute("data-concept-environment-status", "ready");
     const residentialKey = await mainMap.getAttribute("data-concept-environment-key");
     expect(residentialKey).toMatch(/^[a-f0-9]{8}$/);
-    await expect.poll(mainEnvironmentState).toEqual({ visibility: "none", count: 0 });
+    // Residential A has its own conceptual ground geometry. The enabled layer
+    // is safe here: the stale hospitality B variant is absent, and the source
+    // consists only of current residential polygons.
+    await expect.poll(mainEnvironmentState).toMatchObject({ visibility: "visible", residentialSourceSafe: true, count: 0 });
+    expect((await mainEnvironmentState())?.sourceCount ?? 0).toBeGreaterThan(0);
     await mainEnvironmentState(true);
     expect(requests).toEqual([{ templateId: "residential_quarter", locale }]);
     await programme("hospitality_recreation").click();
