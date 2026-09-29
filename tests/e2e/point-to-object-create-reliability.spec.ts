@@ -913,8 +913,31 @@ test("actual MapLibre rendering hides only the internal target and retains outsi
   await expect(page.getByText("Safe replacement could not be applied: source buildings were restored and the concept is hidden.")).toHaveCount(0);
   await expect.poll(async () => {
     const state = await readSpatialReplacementFixture(page);
-    return { filterRestored: state.filter == null, zoom: state.zoom, conceptVisibility: state.conceptVisibility };
-  }).toEqual({ filterRestored: true, zoom: 12, conceptVisibility: "none" });
+    const mask = await page.evaluate(async () => {
+      const map = (window as unknown as { __geoAiSpatialReplacementMap: import("maplibre-gl").Map }).__geoAiSpatialReplacementMap;
+      const layer = map.getLayer("geoai-create-aoi-low-zoom-mask");
+      const data = await (map.getSource("geoai-create-aoi") as import("maplibre-gl").GeoJSONSource).getData() as import("geojson").FeatureCollection;
+      const aoi = data.features.find(feature => feature.properties?.kind === "aoi");
+      return {
+        visibility: map.getLayoutProperty("geoai-create-aoi-low-zoom-mask", "visibility"),
+        source: layer && "source" in layer ? layer.source : null,
+        opacity: map.getPaintProperty("geoai-create-aoi-low-zoom-mask", "fill-opacity"),
+        filter: map.getFilter("geoai-create-aoi-low-zoom-mask"),
+        geometry: aoi?.geometry
+      };
+    });
+    return { filterRestored: state.filter == null, zoom: state.zoom, conceptVisibility: state.conceptVisibility, mask };
+  }).toEqual({
+    filterRestored: true, zoom: 12, conceptVisibility: "visible",
+    mask: {
+      visibility: "visible", source: "geoai-create-aoi", opacity: 1,
+      filter: ["==", ["get", "kind"], "aoi"],
+      geometry: { type: "Polygon", coordinates: [[
+        [55.26955, 25.20455], [55.27065, 25.20455], [55.27065, 25.20565],
+        [55.26955, 25.20565], [55.26955, 25.20455]
+      ]] }
+    }
+  });
   await focusSpatialReplacementFixture(page, 16);
   await expect(page.getByText("Zoom in to view the concept.")).toHaveCount(0);
   await expect(page.getByText("Safe replacement could not be applied: source buildings were restored and the concept is hidden.")).toHaveCount(0);
