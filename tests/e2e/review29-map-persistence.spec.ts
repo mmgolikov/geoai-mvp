@@ -16,6 +16,7 @@ const single = box(55.2828, 25.2137, 55.2835, 25.2144);
 const relationSouth = box(55.2840, 25.2137, 55.2844, 25.2141);
 const relationNorth = box(55.2840, 25.2145, 55.2844, 25.2149);
 const createSite = box(55.2690, 25.2040, 55.2712, 25.2060); // approximately 4.9 ha, not the founder's unexported AOI
+const restoredCreateSite = box(55.2833, 25.2132, 55.2855, 25.2152);
 const native: FeatureCollection = { type: "FeatureCollection", features: [
   { type: "Feature", id: 901, properties: { name: "Mapped tower", render_height: 42, render_min_height: 4 }, geometry: single },
   { type: "Feature", id: 902, properties: { name: "Mapped hotel relation", render_height: 36, render_min_height: 0 }, geometry: {
@@ -253,10 +254,47 @@ test("Review29 selected member publishes 3D while an unrelated source prevents g
     await page.getByRole("button", { name: "3d", exact: true }).press("Enter");
     await expect.poll(() => page.evaluate(() => (window as BrowserMap).review29Map!.getLayoutProperty(
       "geoai-live-selection-volume", "visibility"))).toBe("visible");
+    await page.getByRole("tab", { name: "Create" }).click();
+    await expect.poll(() => page.evaluate(() => (window as BrowserMap).review29Map!.getLayoutProperty(
+      "geoai-live-selection-volume", "visibility"))).toBe("none");
+    await page.getByRole("tab", { name: "Analyse" }).click();
+    await expect.poll(() => page.evaluate(() => (window as BrowserMap).review29Map!.getLayoutProperty(
+      "geoai-live-selection-volume", "visibility"))).toBe("visible");
     expect(await page.evaluate(() => (window as BrowserMap).review29Map!.isSourceLoaded("review29-unrelated-pending"))).toBe(false);
   } finally {
     releaseUnrelated?.();
   }
+});
+
+test("Review29 restores a saved member after Create without a manual 3D-volume toggle", async ({ page, browserName }, info) => {
+  await installLoopbackBrowserHarness(page, browserName, info.project.use.baseURL);
+  await installOfflineMap(page, []);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/prototype/point-to-object?mode=analyse");
+  await exposeMap(page);
+  await page.evaluate(() => (window as BrowserMap).review29Map!.jumpTo({ center: [55.2842, 25.2142], zoom: 17, pitch: 55 }));
+  await expect.poll(() => page.evaluate(() => (window as BrowserMap).review29Map!.isSourceLoaded("openmaptiles"))).toBe(true);
+  await clickMapCoordinate(page, [55.2842, 25.2139]);
+  await expect(page.getByTestId("selected-object")).toContainText("Mapped hotel relation");
+  await expect.poll(() => page.evaluate(() => Boolean(sessionStorage.getItem("geoai:point-to-object:selection:v3")))).toBe(true);
+  await page.goto("/prototype/point-to-object?mode=create");
+  await exposeMap(page);
+  await expect.poll(() => page.evaluate(() => (window as BrowserMap).review29Map!.isSourceLoaded("openmaptiles"))).toBe(true);
+  await page.getByLabel("Upload GeoJSON").setInputFiles({ name: "review29-restored-area.geojson", mimeType: "application/geo+json",
+    buffer: Buffer.from(JSON.stringify(restoredCreateSite)) });
+  await page.getByTestId("create-map-presentation-toggle").click();
+  await expect.poll(() => page.evaluate(() => JSON.stringify((window as BrowserMap).review29Map!.getFilter(
+    "geoai-buildings-3d")).includes("distance"))).toBe(true);
+  await page.getByRole("button", { name: "Public campus" }).click();
+  await page.getByTestId("create-generate-action").click();
+  await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
+  await page.getByTestId("create-open-result-dashboard").click();
+  await page.getByRole("dialog").getByRole("button", { name: "Show on map" }).click();
+  await page.getByRole("tab", { name: "Analyse" }).click();
+  await expect(page.getByTestId("selected-object")).toContainText("Mapped hotel relation");
+  await expect.poll(() => page.evaluate(() => (window as BrowserMap).review29Map!.getLayoutProperty(
+    "geoai-live-selection-volume", "visibility"))).toBe("visible");
+  await page.screenshot({ path: info.outputPath("restored-member-after-create.png") });
 });
 
 test("Review29 committed Create massing survives zoom 18→10→18, pan, style, 2D/3D and A/B without another request", async ({ page, browserName }, info) => {

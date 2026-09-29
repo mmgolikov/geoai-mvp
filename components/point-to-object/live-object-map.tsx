@@ -832,7 +832,12 @@ function setSelectedVolumeVisibility(
         SELECTED_RELATION_MEMBER_AOI.get(map)?.selectionSignature === selectionSignature;
       partitionReady = ((result.coverage !== "pending" && result.coverage !== "error" && result.hiddenParents > 0) ||
         retainedPreviousPartition) &&
-        !visibleNativeConceptConflict(map, { featureCollection: { features: [{ geometry: selectedAoi.aoi }] } });
+        // Analyse overlays only need the selected native member masked. A
+        // separate mapped building touching its bounding box must remain in
+        // the scene, not veto a transparent selected volume. Create concepts
+        // retain the stricter all-building collision policy below.
+        !visibleNativeConceptConflict(map, { featureCollection: { features: [{ geometry: selectedAoi.aoi }] } },
+          Infinity, selection.object.sourceFeatureId ?? undefined);
       if (partitionReady) SELECTED_RELATION_MEMBER_AOI.set(map, { selectionSignature, aoi: selectedAoi.aoi });
     }
   }
@@ -1024,7 +1029,8 @@ function setCreateLayers(
 function visibleNativeConceptConflict(
   map: MapLibreMap,
   massing: { featureCollection: { features: Array<{ geometry: Polygon | MultiPolygon }> } },
-  maximumComparisons = Infinity
+  maximumComparisons = Infinity,
+  selectedSourceFeatureId?: string
 ): boolean {
   const layers = buildingLayerIds(map).filter((id) => map.getLayoutProperty(id, "visibility") !== "none");
   if (!layers.length) return false;
@@ -1054,6 +1060,10 @@ function visibleNativeConceptConflict(
   }
   let comparisons = 0;
   for (const feature of visible) {
+    const nativeId = safeFeatureId(feature);
+    // A known other building is not the selected native member. An unknown
+    // identity still fails closed if it can overlap the selected footprint.
+    if (selectedSourceFeatureId && nativeId && nativeId !== selectedSourceFeatureId) continue;
     const geometry = sanitizeGeometry(feature.geometry);
     if (geometry?.type !== "Polygon" && geometry?.type !== "MultiPolygon") return true;
     for (const concept of concepts) {
@@ -2138,7 +2148,7 @@ export function LiveObjectMap({
         let selectedMemberRefreshQueued = false;
         const handleSelectedMemberNativeReady = (event: MapSourceDataEvent) => {
           const retainedId = `${PARTITION_SOURCE_PREFIX}openmaptiles`;
-          if (event.sourceId !== "openmaptiles" || selectedMemberRefreshQueued ||
+          if ((event.sourceId !== "openmaptiles" && event.sourceId !== retainedId) || selectedMemberRefreshQueued ||
             interactionModeRef.current !== "analyse" || viewModeRef.current !== "3d" ||
             !showSelectedVolumeRef.current ||
             selectionRef.current?.object.geometryProvenance !== "rendered_tile_polygon_member" ||

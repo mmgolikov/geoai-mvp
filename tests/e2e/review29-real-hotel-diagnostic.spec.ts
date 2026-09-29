@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import type { Map as MapLibreMap } from "maplibre-gl";
 import { externalHttpUrlPattern, installLoopbackBrowserHarness } from "./helpers/local-webkit-csp";
 import { sprint10Selection } from "./helpers/sprint10-analysis-fixture";
@@ -9,7 +9,28 @@ type Fiber = { memoizedState: Hook | null; return: Fiber | null };
 
 test.use({ deviceScaleFactor: 2 });
 
-test("real OpenFreeMap hotel member becomes translucent before unrelated source reaches idle", async ({ page, browserName }, info) => {
+async function exposeMap(page: Page) {
+  await expect.poll(() => page.evaluate(() => {
+    const canvas = document.querySelector("[data-testid='live-map-canvas']");
+    const key = canvas && Object.getOwnPropertyNames(canvas).find(value => value.startsWith("__reactFiber$"));
+    let fiber = key ? (canvas as unknown as Record<string, Fiber>)[key] : null;
+    while (fiber) {
+      let hook = fiber.memoizedState;
+      while (hook) {
+        const map = (hook.memoizedState as { current?: MapLibreMap } | null)?.current;
+        if (map && typeof map.jumpTo === "function" && map.isStyleLoaded()) {
+          (window as BrowserMap).review29Map = map;
+          return true;
+        }
+        hook = hook.next;
+      }
+      fiber = fiber.return;
+    }
+    return false;
+  })).toBe(true);
+}
+
+test("real OpenFreeMap hotel member stays translucent after source hold and Create/Find returns", async ({ page, browserName }, info) => {
   test.skip(process.env.GEOAI_REAL_TILE_DIAGNOSTIC !== "1", "Opt-in public basemap diagnostic; offline CI never calls external tiles.");
   await installLoopbackBrowserHarness(page, browserName, info.project.use.baseURL);
   let releaseHeld: (() => void) | undefined;
@@ -31,24 +52,7 @@ test("real OpenFreeMap hotel member becomes translucent before unrelated source 
   });
   await page.setViewportSize({ width: 3416, height: 2000 });
   await page.goto("/prototype/point-to-object?mode=analyse");
-  await expect.poll(() => page.evaluate(() => {
-    const canvas = document.querySelector("[data-testid='live-map-canvas']");
-    const key = canvas && Object.getOwnPropertyNames(canvas).find(value => value.startsWith("__reactFiber$"));
-    let fiber = key ? (canvas as unknown as Record<string, Fiber>)[key] : null;
-    while (fiber) {
-      let hook = fiber.memoizedState;
-      while (hook) {
-        const map = (hook.memoizedState as { current?: MapLibreMap } | null)?.current;
-        if (map && typeof map.jumpTo === "function" && map.isStyleLoaded()) {
-          (window as BrowserMap).review29Map = map;
-          return true;
-        }
-        hook = hook.next;
-      }
-      fiber = fiber.return;
-    }
-    return false;
-  })).toBe(true);
+  await exposeMap(page);
   const coordinate: [number, number] = [55.284040, 25.219799];
   await page.evaluate(value => (window as BrowserMap).review29Map!.jumpTo({ center: value, zoom: 17.5, pitch: 55, bearing: 0 }), coordinate);
   await expect.poll(() => page.evaluate(() => (window as BrowserMap).review29Map!.isSourceLoaded("openmaptiles")), { timeout: 30_000 }).toBe(true);
@@ -114,4 +118,25 @@ test("real OpenFreeMap hotel member becomes translucent before unrelated source 
     volumeOpacity: 0.5, partition: [{ id: 146043140, type: "MultiPolygon", parts: 3 }], sourceLoaded: true });
   expect(JSON.stringify(after.nativeFilter)).toContain("146043140");
   await page.screenshot({ path: info.outputPath("real-hotel.png") });
+
+  await page.goto("/prototype/point-to-object?mode=create");
+  await exposeMap(page);
+  await page.getByLabel("Upload GeoJSON").setInputFiles({ name: "review29-real-site.geojson", mimeType: "application/geo+json",
+    buffer: Buffer.from(JSON.stringify({ type: "Polygon", coordinates: [[
+      [55.2827, 25.2168], [55.2847, 25.2168], [55.2847, 25.2190], [55.2827, 25.2190], [55.2827, 25.2168]
+    ]] })) });
+  await page.getByTestId("create-map-presentation-toggle").click();
+  await page.getByRole("tab", { name: "Analyse" }).click();
+  await expect.poll(() => page.evaluate(() => (window as BrowserMap).review29Map!.getLayoutProperty(
+    "geoai-live-selection-volume", "visibility")), { timeout: 30_000 }).toBe("visible");
+  expect(await page.evaluate(() => JSON.stringify((window as BrowserMap).review29Map!.getFilter(
+    "geoai-buildings-3d")))).toContain("146043140");
+  await page.screenshot({ path: info.outputPath("real-hotel-after-create-return.png") });
+  await page.getByRole("tab", { name: "Find" }).click();
+  await expect(page.getByRole("button", { name: "2d", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("tab", { name: "Analyse" }).click();
+  await page.getByRole("button", { name: "3d", exact: true }).press("Enter");
+  await expect.poll(() => page.evaluate(() => (window as BrowserMap).review29Map!.getLayoutProperty(
+    "geoai-live-selection-volume", "visibility")), { timeout: 30_000 }).toBe("visible");
+  await page.screenshot({ path: info.outputPath("real-hotel-after-find-return.png") });
 });

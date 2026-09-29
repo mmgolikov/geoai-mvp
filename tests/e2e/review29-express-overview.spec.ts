@@ -30,11 +30,21 @@ const exactSelection = {
 const nearestSelection = {
   ...exactSelection,
   object: { ...exactSelection.object, sourceFeatureId: "18290731", renderHeightM: 250 },
-  resolvedObject: { ...sprint10Selection.resolvedObject, name: "Ernst Biergarten", sourceFeatureId: "node/90001",
+  resolvedObject: { ...sprint10Selection.resolvedObject, name: "Ernst Biergarten", address: "Ernst Biergarten, Dubai", sourceFeatureId: "node/90001",
     coordinateAssociation: "reverse_nearest_indexed_object_not_point_in_polygon" as const,
     resultCentroidDistanceM: 60,
     tags: { "tag.building": "bar", "tag.height": "44" },
     metrics: { ...sprint10Selection.resolvedObject.metrics, footprintAreaSqM: 9_000 } }
+};
+
+const containingSelection = {
+  ...exactSelection,
+  object: { ...exactSelection.object, name: null, featureClass: "building", sourceFeatureId: "18290731", renderHeightM: 355 },
+  resolvedObject: { ...sprint10Selection.resolvedObject, name: "Jumeirah Emirates Towers Hotel",
+    address: "Sheikh Zayed Road, Dubai", featureClass: "tourism:hotel", sourceFeatureId: "way/91011",
+    coordinateAssociation: "open_map_geometry_contains_point" as const, resultCentroidDistanceM: 20,
+    tags: { "tag.building": "hotel", "tag.tourism": "hotel", "tag.height": "355", "tag.start_date": "2000" },
+    metrics: { ...sprint10Selection.resolvedObject.metrics, footprintAreaSqM: 8_000 } }
 };
 
 async function openDemoAnalysis(page: Page, selection: unknown) {
@@ -104,7 +114,10 @@ for (const variant of [
     await expect(page.getByTestId("express-object")).toContainText("Selected building");
     await expect(page.getByTestId("express-summary")).toContainText(variant.locale === "ru" ? "Ближайшие заведения" : "Nearby venues");
     await expect(page.getByTestId("express-height")).toHaveText(variant.locale === "ru" ? "Высота неизвестна" : "Height unknown");
-    await expect(overview).not.toContainText("Ernst Biergarten");
+    await expect(page.getByTestId("express-object")).not.toContainText("Ernst Biergarten");
+    await expect(page.getByTestId("express-associated-record")).toContainText("Ernst Biergarten");
+    await expect(page.getByTestId("express-associated-record")).toContainText(variant.locale === "ru" ? "Ближайшая запись карты" : "Nearby map record");
+    await expect(page.getByTestId("express-associated-record")).toContainText(variant.locale === "ru" ? "Высота · тег OSM: 44" : "Height · OSM tag: 44");
     await expect(overview).not.toContainText("9,000");
     await expect(overview).not.toContainText("44 m");
     await expect(overview).not.toContainText("250 m");
@@ -117,6 +130,47 @@ for (const variant of [
     expect(calls).toEqual([]);
   });
 }
+
+for (const variant of [
+  { locale: "en", width: 390 },
+  { locale: "ru", width: 1440 }
+] as const) {
+  test(`containing hotel record is useful context, not selected-footprint evidence: ${variant.locale}`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: variant.width, height: 900 });
+    const calls = await openDemoAnalysis(page, containingSelection);
+    if (variant.locale === "ru") await page.getByRole("button", { name: "ru", exact: true }).click();
+    const selected = page.getByTestId("express-object");
+    const associated = page.getByTestId("express-associated-record");
+    await expect(page.getByTestId("express-summary")).toContainText(variant.locale === "ru"
+      ? "Запись карты охватывает точку, но её имя и теги не приписываются выбранному контуру"
+      : "A mapped record contains the point, but its name and tags are not attributed to the selected shape");
+    await expect(selected).not.toContainText("Jumeirah Emirates Towers Hotel");
+    await expect(selected).toContainText(variant.locale === "ru" ? "Выбранный контур" : "Selected map shape");
+    await expect(page.getByTestId("express-height")).toHaveText(variant.locale === "ru" ? "Высота неизвестна" : "Height unknown");
+    await expect(associated).toContainText(variant.locale === "ru" ? "Здание на карте, охватывающее точку" : "Mapped building containing the point");
+    await expect(associated).toContainText("Jumeirah Emirates Towers Hotel");
+    await expect(associated).toContainText("Sheikh Zayed Road, Dubai");
+    await expect(associated).toContainText(variant.locale === "ru" ? "Высота · тег OSM: 355" : "Height · OSM tag: 355");
+    await expect(associated).toContainText(variant.locale === "ru" ? "Дата (start_date) · тег OSM: 2000" : "start_date · OSM: 2000");
+    await expect(page.getByTestId("express-form")).not.toContainText("8,000");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
+    await page.screenshot({ path: testInfo.outputPath(`express-containing-${variant.locale}-${variant.width}.png`), fullPage: true });
+    await page.reload();
+    await expect(associated).toBeVisible();
+    await page.waitForTimeout(200);
+    expect(calls).toEqual([]);
+  });
+}
+
+test("a containing record tagged building=no is not labelled as a building", async ({ page }) => {
+  const selection = { ...containingSelection, resolvedObject: { ...containingSelection.resolvedObject,
+    tags: { ...containingSelection.resolvedObject.tags, "tag.building": "no" } } };
+  const calls = await openDemoAnalysis(page, selection);
+  await expect(page.getByTestId("express-associated-record")).toContainText("Mapped record containing the point");
+  await expect(page.getByTestId("express-associated-record")).not.toContainText("Mapped building containing the point");
+  await expect(page.getByTestId("express-height")).toHaveText("Height unknown");
+  expect(calls).toEqual([]);
+});
 
 test("unavailable context is unknown, not zero or a paid fallback", async ({ page }) => {
   const calls = await openDemoAnalysis(page, { ...nearestSelection, resolvedObject: null });

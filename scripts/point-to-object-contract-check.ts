@@ -1247,6 +1247,7 @@ function assertStaticBoundaries(): void {
     "components/point-to-object/create-result-preview-3d.tsx",
     "components/point-to-object/decision-cards.tsx",
     "components/point-to-object/evidence-selection.ts",
+    "components/point-to-object/express-overview.tsx",
     "components/point-to-object/find-comparison-dashboard.tsx",
     "components/point-to-object/live-object-map.tsx",
     "components/point-to-object/live-session.ts",
@@ -1373,7 +1374,7 @@ function assertStaticBoundaries(): void {
       assert.match(loadingBranch, new RegExp(`setPointObjectLayerVisibilityIfChanged\\(map, ${layer}, "none"\\);[\\s\\S]*return;`),
         `${layer} must fail closed before returning while sources are loading.`);
     }
-    assert.match(loadingBranch, /setConceptEnvironmentVisibility\(map, false\);\s*return;\s*\}\s*$/,
+    assert.match(loadingBranch, /setConceptEnvironmentVisibility\(map, false\);\s*setSelectedVolumeVisibility\(map, selectionRef\.current, nextMode, showSelectedVolumeRef\.current\);\s*return;\s*\}\s*$/,
       "Conceptual environment must also be hidden before the pending-mode return.");
   };
   assertModeLoadingBoundary(modeChangeSource);

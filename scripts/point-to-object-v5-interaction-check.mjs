@@ -206,8 +206,17 @@ assert.match(client, /overlayBottomInset: mobile \? sheet === "half"/, "Map repl
 assert.match(client, /data-testid="create-map-presentation-toggle"/);
 assert.match(client, /function toggleCreateMapPresentation\(\)[\s\S]*if \(createAreaCleared\) \{[\s\S]*setCreateAreaCleared\(false\)/,
   "A requested replacement, including partial coverage, must retain an explicit restore action");
-assert.match(map, /\(replacementStatus === "applied" \|\| replacementStatus === "partial"\) &&\s*!visibleNativeConceptConflict\(map, massing\)/,
-  "The concept may render for partial inventory only when no visible native geometry conflicts");
+function assertDurableConceptVisibility(source) {
+  assert.match(source, /const lowZoom = map\.getZoom\(\) < pointObjectReplacementMinimumReliableZoom;/,
+    "Low zoom must use the explicit native replacement reliability boundary");
+  assert.match(source, /const canShowConcept = Boolean\(massing && aoi && suppressExistingBuildings &&\s*\(lowZoom \|\| !visibleNativeConceptConflict\(map, massing\)\)\);/,
+    "Detailed zoom must still reject native collisions, independent of temporary source loading");
+  assert.match(source, /setPointObjectLayerVisibilityIfChanged\(map, CREATE_AOI_MASK_LAYER_ID,\s*canShowConcept && lowZoom \? "visible" : "none"\);/,
+    "The low-zoom concept must cover generalized native footprints with its site mask");
+}
+assertDurableConceptVisibility(map);
+assert.throws(() => assertDurableConceptVisibility(map.replace("!visibleNativeConceptConflict(map, massing)", "true")), /native collisions/);
+assert.throws(() => assertDurableConceptVisibility(map.replace('canShowConcept && lowZoom ? "visible" : "none"', '"none"')), /site mask/);
 assert.match(client, /"Show generated concept"/);
 assert.match(client, /"Hide existing buildings"/);
 assert.match(client, /setCreateReplacementRevision\(\(revision\) => revision \+ 1\)/);

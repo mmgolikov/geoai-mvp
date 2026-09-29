@@ -50,6 +50,13 @@ export function PointObjectExpressOverview({ selection, locale }: { selection: L
   const ru = locale === "ru";
   const exact = pointObjectHasSelectedIdentity(selection, selection.resolvedObject);
   const resolved = exact ? selection.resolvedObject : null;
+  const associatedRecord = exact ? null : selection.resolvedObject;
+  const associatedContains = associatedRecord?.coordinateAssociation === "open_map_geometry_contains_point";
+  const associatedNearest = associatedRecord?.coordinateAssociation === "reverse_nearest_indexed_object_not_point_in_polygon";
+  const associatedBuildingTag = associatedRecord?.tags["tag.building"] ?? associatedRecord?.tags.building;
+  const associatedContainsBuilding = associatedContains && (associatedBuildingTag
+    ? !["no", "false", "0"].includes(associatedBuildingTag.trim().toLowerCase())
+    : associatedRecord?.featureClass.toLowerCase() === "building");
   const selectedId = pointObjectSelectedLookupId(selection);
   const renderedArea = selectedPolygonAreaSqM(selection);
   const completeSourceFootprint = resolved?.geometryProvenance === "confirmed_complete_footprint" && Boolean(resolved.displayGeometry);
@@ -68,11 +75,22 @@ export function PointObjectExpressOverview({ selection, locale }: { selection: L
     office: "офисное здание", retail: "торговое здание", hotel: "гостиница",
     industrial: "промышленное здание", warehouse: "склад", school: "школа",
     hospital: "больница", public: "общественное здание", garage: "гараж",
-    parking: "паркинг", construction: "строящееся здание"
+    parking: "паркинг", construction: "строящееся здание", "tourism:hotel": "гостиница",
+    "tourism hotel": "гостиница", "amenity:bar": "бар"
   };
   const mappedClass = ru
     ? (ruBuildingClasses[mappedClassRaw?.toLowerCase() ?? ""] ?? mappedClassRaw)
     : mappedClassRaw === "yes" ? "building" : mappedClassRaw;
+  const associatedClass = associatedRecord && ru
+    ? (ruBuildingClasses[associatedRecord.featureClass.toLowerCase()] ?? associatedRecord.featureClass)
+    : associatedRecord?.featureClass;
+  const associatedTags = associatedRecord ? ([
+    [ru ? "Тип здания · OSM" : "Building type · OSM", associatedRecord.tags["tag.building"] ?? associatedRecord.tags.building],
+    [ru ? "Тип объекта · OSM" : "Place type · OSM", associatedRecord.tags["tag.tourism"] ?? associatedRecord.tags.tourism],
+    [ru ? "Высота · тег OSM" : "Height · OSM tag", associatedRecord.tags["tag.height"] ?? associatedRecord.tags.height],
+    [ru ? "Этажность · тег OSM" : "Levels · OSM tag", associatedRecord.tags["tag.building:levels"] ?? associatedRecord.tags["building:levels"]],
+    [ru ? "Дата (start_date) · тег OSM" : "start_date · OSM", associatedRecord.tags["tag.start_date"] ?? associatedRecord.tags.start_date]
+  ] as const).filter((entry) => Boolean(entry[1]?.trim())) : [];
   const context = selection.resolvedObject?.geoContext;
   const contextAvailable = context?.coverage === "available";
   const mappedName = resolved?.name ?? selection.object.name;
@@ -113,8 +131,8 @@ export function PointObjectExpressOverview({ selection, locale }: { selection: L
       : `${mappedName || "The selected feature"} matches an OpenStreetMap record${area !== null ? `, with about ${number(area)} m² of ${areaIsSelectedMapShape ? "selected map shape, possibly a fragment" : "mapped footprint"}` : ""}${heightMetres !== null ? ` and ${mappedHeightValue?.sourceUnit === "feet" ? `a “${heightRaw}” height tag equivalent to` : "a height tag of"} ${number(heightMetres)} m` : ""}. This is an initial physical picture for screening.`)
     : hasPolygon
       ? (ru
-        ? `Контур выбран на карте${renderedArea !== null ? ` (около ${number(renderedArea)} м² видимой геометрии)` : ""}, но совпадающая запись объекта не подтверждена. Ближайшие заведения и их параметры не считаются свойствами этого здания.`
-        : `A map shape is selected${renderedArea !== null ? ` (about ${number(renderedArea)} m² of visible geometry)` : ""}, but a matching object record is unconfirmed. Nearby venues and their attributes are not treated as properties of this building.`)
+        ? `Контур выбран на карте${renderedArea !== null ? ` (около ${number(renderedArea)} м² видимой геометрии)` : ""}, но совпадающая запись объекта не подтверждена. ${associatedContains ? "Запись карты охватывает точку, но её имя и теги не приписываются выбранному контуру." : associatedNearest ? "Ближайшие заведения и их параметры не считаются свойствами этого здания." : "Параметры другой записи карты не считаются свойствами выбранного контура."}`
+        : `A map shape is selected${renderedArea !== null ? ` (about ${number(renderedArea)} m² of visible geometry)` : ""}, but a matching object record is unconfirmed. ${associatedContains ? "A mapped record contains the point, but its name and tags are not attributed to the selected shape." : associatedNearest ? "Nearby venues and their attributes are not treated as properties of this building." : "Attributes of another map record are not treated as properties of the selected shape."}`)
       : (ru
         ? "Точка выбрана, но контур и запись объекта не подтверждены. Ниже показано только то, что есть в локальном снимке."
         : "The point is selected, but its footprint and object record are unconfirmed. Only locally available map evidence is shown below.");
@@ -129,11 +147,15 @@ export function PointObjectExpressOverview({ selection, locale }: { selection: L
 
   return <section className="rounded-[20px] border border-[#c8d9ec] bg-white p-5 shadow-soft sm:p-7" data-testid="express-overview">
     <p className="text-xs font-bold uppercase tracking-[0.1em] text-[#087f8c]">{ru ? "ЭКСПРЕСС-ОБЗОР · ОТКРЫТАЯ КАРТА" : "EXPRESS OVERVIEW · OPEN MAP"}</p>
-    <h2 className="mt-2 text-xl font-bold tracking-[-0.02em] text-[#172b4d]">{ru ? "Что известно о выбранном объекте" : "What we know about this selection"}</h2>
+    <h2 className="mt-2 text-xl font-bold tracking-[-0.02em] text-[#172b4d]">{ru
+      ? (exact ? "Что известно о выбранном объекте" : hasPolygon ? "Что известно о выбранном контуре" : "Что известно о выбранной точке")
+      : "What we know about this selection"}</h2>
     <p className="mt-3 max-w-3xl text-sm leading-6 text-[#344054]" data-testid="express-summary">{summary}</p>
     <div className="mt-5 grid gap-3 md:grid-cols-2">
       <article className="min-w-0 rounded-2xl border border-line bg-[#f8fafc] p-4" data-testid="express-object">
-        <h3 className="text-xs font-bold uppercase tracking-[0.06em] text-[#52657a]">{ru ? "Объект" : "Object"}</h3>
+        <h3 className="text-xs font-bold uppercase tracking-[0.06em] text-[#52657a]">{exact
+          ? (ru ? "Объект" : "Object")
+          : hasPolygon ? (ru ? "Выбранный контур" : "Selected map shape") : (ru ? "Выбранная точка" : "Selected point")}</h3>
         <p className="mt-2 break-words text-sm font-semibold leading-6 text-[#243447]">{mappedName || (ru ? "Без названия на карте" : "Unnamed on the map")}</p>
         <p className="mt-1 break-words text-xs leading-5 text-[#52657a]">{ru ? "Класс на карте" : "Mapped class"}: {mappedClass || (ru ? "не указан" : "not supplied")}</p>
         <p className="mt-1 break-all text-xs leading-5 text-[#52657a]">{selectedId ? `${ru ? "ID выбранного объекта" : "Selected object ID"}: ${selectedId}` : (ru ? "ID выбранного объекта не подтверждён" : "Selected object ID unconfirmed")}</p>
@@ -149,6 +171,19 @@ export function PointObjectExpressOverview({ selection, locale }: { selection: L
         <p className="mt-2 break-words text-xs leading-5 text-[#52657a]" data-testid="express-height">{height}</p>
         {levels !== null ? <p className="mt-1 text-xs leading-5 text-[#52657a]">{ru ? `${levels} этажей по карте; это не определяет высоту в метрах.` : `${levels} mapped levels; this does not establish height in metres.`}</p> : null}
       </article>
+      {associatedRecord ? <article className="min-w-0 rounded-2xl border border-line bg-[#f8fafc] p-4 md:col-span-2" data-testid="express-associated-record">
+        <h3 className="text-xs font-bold uppercase tracking-[0.06em] text-[#52657a]">{associatedContainsBuilding
+          ? (ru ? "Здание на карте, охватывающее точку · не подтверждено как выбранный контур" : "Mapped building containing the point · not confirmed as the selected shape")
+          : associatedContains
+            ? (ru ? "Запись карты, охватывающая точку · не подтверждена как выбранный объект" : "Mapped record containing the point · not confirmed as the selection")
+            : associatedNearest
+              ? (ru ? "Ближайшая запись карты · не выбранный объект" : "Nearby map record · not the selected object")
+              : (ru ? "Другая запись карты · не выбранный объект" : "Different map record · not the selected object")}</h3>
+        {associatedRecord.name ? <p className="mt-2 break-words text-sm font-semibold leading-6 text-[#243447]">{associatedRecord.name}</p> : null}
+        <p className="mt-1 break-words text-xs leading-5 text-[#52657a]">{ru ? "Класс записи" : "Record class"}: {associatedClass}</p>
+        {associatedRecord.address ? <p className="mt-1 break-words text-xs leading-5 text-[#52657a]">{ru ? "Адрес записи" : "Record address"}: {associatedRecord.address}</p> : null}
+        {associatedTags.length ? <p className="mt-1 break-words text-xs leading-5 text-[#52657a]">{associatedTags.map(([label, value]) => `${label}: ${value}`).join(" · ")}</p> : null}
+      </article> : null}
       <article className="min-w-0 rounded-2xl border border-line bg-[#f8fafc] p-4" data-testid="express-context">
         <h3 className="text-xs font-bold uppercase tracking-[0.06em] text-[#52657a]">{ru ? "Окружение точки" : "Around the point"}</h3>
         {contextAvailable && context ? <>
@@ -179,7 +214,11 @@ export function PointObjectExpressOverview({ selection, locale }: { selection: L
           ? contextAvailable
             ? (ru ? "Контур и картированное окружение помогают выбрать предмет выездной проверки: реальные габариты, подходы и текущее использование." : "The footprint and mapped surroundings point to useful site checks: actual dimensions, access and current use.")
             : (ru ? "Картированные параметры дают ориентир по объекту; без данных окружения нельзя оценить его связи с соседней застройкой." : "Mapped attributes offer an initial physical reference; without surroundings data, its relationship to nearby development is unknown.")
-          : (ru ? "Сначала подтвердите точную запись и границы выбранного здания; соседний POI для этого не подходит." : "First confirm the selected building’s exact record and boundary; a nearby POI cannot stand in for it.")}</p>
+          : associatedContains
+            ? (ru ? "Сначала проверьте, относится ли запись охватывающего здания именно к выбранному контуру; совпадение пока не доказано." : "First check whether the containing building record belongs to the selected shape; their identity is not yet proven.")
+            : associatedNearest
+              ? (ru ? "Сначала подтвердите точную запись и границы выбранного здания; соседний POI для этого не подходит." : "First confirm the selected building’s exact record and boundary; a nearby POI cannot stand in for it.")
+              : (ru ? "Сначала подтвердите точную запись и границы выбранного контура; другая запись карты не заменяет эту проверку." : "First confirm the selected shape’s exact record and boundary; a different map record cannot replace this check.")}</p>
         <p className="mt-2 text-xs font-semibold leading-5 text-[#087f8c]">{ru
           ? "Сверьте объект и размеры с официальными или предоставленными владельцем документами. Целевой AI-анализ запускается отдельно."
           : "Check identity and dimensions against official or owner records. Focused AI analysis is a separate action."}</p>
