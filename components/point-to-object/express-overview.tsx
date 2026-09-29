@@ -62,7 +62,17 @@ export function PointObjectExpressOverview({ selection, locale }: { selection: L
   const heightMetres = mappedHeightValue?.metres ?? null;
   const levels = mappedLevels(resolved?.tags["tag.building:levels"] ?? resolved?.tags["building:levels"]);
   const mappedClassRaw = resolved?.tags["tag.building"] ?? resolved?.tags.building ?? selection.object.featureClass;
-  const mappedClass = mappedClassRaw === "yes" ? (ru ? "здание" : "building") : mappedClassRaw;
+  const ruBuildingClasses: Record<string, string> = {
+    yes: "здание", building: "здание", residential: "жилое здание", apartments: "многоквартирный дом",
+    house: "жилой дом", detached: "отдельно стоящий дом", commercial: "коммерческое здание",
+    office: "офисное здание", retail: "торговое здание", hotel: "гостиница",
+    industrial: "промышленное здание", warehouse: "склад", school: "школа",
+    hospital: "больница", public: "общественное здание", garage: "гараж",
+    parking: "паркинг", construction: "строящееся здание"
+  };
+  const mappedClass = ru
+    ? (ruBuildingClasses[mappedClassRaw?.toLowerCase() ?? ""] ?? mappedClassRaw)
+    : mappedClassRaw === "yes" ? "building" : mappedClassRaw;
   const context = selection.resolvedObject?.geoContext;
   const contextAvailable = context?.coverage === "available";
   const mappedName = resolved?.name ?? selection.object.name;
@@ -147,7 +157,7 @@ export function PointObjectExpressOverview({ selection, locale }: { selection: L
             : `${number(context.sampleSize)} features returned within 400 m; ${number(context.mappedBuildingCount)} mapped as buildings.`}</p>
           {topGroups.length ? <p className="mt-1 text-xs leading-5 text-[#52657a]">{ru ? "Среди возвращённых" : "Among those returned"}: {topGroups.map((group) => `${number(group.count)} ${groupLabels[group.group] ?? group.group}`).join(ru ? ", " : ", ")}.</p> : null}
           {context.districtCharacter.code !== "low_signal" ? <p className="mt-1 text-xs leading-5 text-[#52657a]">{ru
-            ? `Правило по этой выборке описывает окружение как ${districtLabels[context.districtCharacter.code] ?? "смешанное"}; это не официальное зонирование.`
+            ? `Выборка указывает на ${districtLabels[context.districtCharacter.code] ?? "смешанный"} характер окружения; это не официальное зонирование.`
             : `A sample-based rule suggests a ${districtLabels[context.districtCharacter.code] ?? "mixed"} pattern; this is not official zoning.`}</p> : null}
           <p className="mt-1 text-xs leading-5 text-[#52657a]">{context.nearestTransitM !== null
             ? (ru ? `Ближайшая отмеченная остановка — ${number(context.nearestTransitM)} м по прямой.` : `Nearest mapped transit — ${number(context.nearestTransitM)} m straight-line.`)
@@ -178,6 +188,8 @@ export function PointObjectExpressOverview({ selection, locale }: { selection: L
     <p className="mt-4 text-xs leading-5 text-[#52657a]" data-testid="express-unavailable"><span className="font-semibold">{ru ? "Не установлено этой картой:" : "Not established by this map:"}</span> {ru
       ? "права и ограничения, допустимое использование, спрос, стоимость и экономика проекта."
       : "rights and constraints, permitted use, demand, costs and project economics."}</p>
-    <p className="mt-4 border-t border-line pt-3 text-[11px] leading-5 text-muted">Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.</p>
+    <p className="mt-4 border-t border-line pt-3 text-[11px] leading-5 text-muted">{ru
+      ? "Гипотеза для предварительного анализа; требуется официальная проверка. Не является заключением по праву, кадастру, зонированию, планированию или оценке стоимости."
+      : "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."}</p>
   </section>;
 }

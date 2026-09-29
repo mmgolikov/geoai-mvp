@@ -204,6 +204,61 @@ test("Review29 selected source volume is translucent; relation member keeps sibl
   })).toBe(true);
 });
 
+test("Review29 selected member publishes 3D while an unrelated source prevents global idle", async ({ page, browserName }, info) => {
+  await installLoopbackBrowserHarness(page, browserName, info.project.use.baseURL);
+  await installOfflineMap(page, []);
+  let releaseUnrelated: (() => void) | undefined;
+  const unrelated = new Promise<void>(resolve => { releaseUnrelated = resolve; });
+  await page.route("https://tiles.openfreemap.org/review29-unrelated.geojson", async route => {
+    await unrelated;
+    return route.fulfill({ json: { type: "FeatureCollection", features: [] } });
+  });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/prototype/point-to-object?mode=analyse");
+  await exposeMap(page);
+  await page.evaluate(() => (window as BrowserMap).review29Map!.jumpTo({ center: [55.2842, 25.2142], zoom: 17, pitch: 55, bearing: 0 }));
+  await expect.poll(() => page.evaluate(() => (window as BrowserMap).review29Map!.isSourceLoaded("openmaptiles"))).toBe(true);
+  await page.evaluate(() => (window as BrowserMap).review29Map!.addSource("review29-unrelated-pending", {
+    type: "geojson", data: "https://tiles.openfreemap.org/review29-unrelated.geojson"
+  }));
+  await clickMapCoordinate(page, [55.2842, 25.2139]);
+  await expect(page.getByTestId("selected-object")).toContainText("Mapped hotel relation");
+  try {
+    await expect.poll(() => page.evaluate(() => (window as BrowserMap).review29Map!.isSourceLoaded(
+      "geoai-existing-partition-source:openmaptiles"))).toBe(true);
+    await expect.poll(() => page.evaluate(() => (window as BrowserMap).review29Map!.getLayoutProperty(
+      "geoai-live-selection-volume", "visibility"))).toBe("visible");
+    const held = await page.evaluate(async () => {
+      const map = (window as BrowserMap).review29Map!;
+      const retained = await (map.getSource("geoai-existing-partition-source:openmaptiles") as GeoJSONSource).getData() as FeatureCollection;
+      return { unrelatedLoaded: map.isSourceLoaded("review29-unrelated-pending"), styleLoaded: map.isStyleLoaded(),
+        volume: map.getLayoutProperty("geoai-live-selection-volume", "visibility"),
+        fill: map.getLayoutProperty("geoai-live-selection-fill", "visibility"),
+        retainedSibling: retained.features.some(feature => feature.id === 902 &&
+          feature.geometry.type === "MultiPolygon" && feature.geometry.coordinates.length === 1),
+        nativeFilter: JSON.stringify(map.getFilter("geoai-buildings-3d")) };
+    });
+    expect(held).toMatchObject({ unrelatedLoaded: false, styleLoaded: false, volume: "visible", fill: "none", retainedSibling: true });
+    expect(held.nativeFilter).toContain("902");
+    await page.screenshot({ path: info.outputPath("selected-relation-unrelated-pending.png") });
+    await page.getByRole("button", { name: /3d volume/i }).press("Enter");
+    await expect.poll(() => page.evaluate(() => (window as BrowserMap).review29Map!.getLayoutProperty(
+      "geoai-live-selection-volume", "visibility"))).toBe("none");
+    await page.getByRole("button", { name: /3d volume/i }).press("Enter");
+    await expect.poll(() => page.evaluate(() => (window as BrowserMap).review29Map!.getLayoutProperty(
+      "geoai-live-selection-volume", "visibility"))).toBe("visible");
+    await page.getByRole("button", { name: "2d", exact: true }).press("Enter");
+    await expect.poll(() => page.evaluate(() => (window as BrowserMap).review29Map!.getLayoutProperty(
+      "geoai-live-selection-volume", "visibility"))).toBe("none");
+    await page.getByRole("button", { name: "3d", exact: true }).press("Enter");
+    await expect.poll(() => page.evaluate(() => (window as BrowserMap).review29Map!.getLayoutProperty(
+      "geoai-live-selection-volume", "visibility"))).toBe("visible");
+    expect(await page.evaluate(() => (window as BrowserMap).review29Map!.isSourceLoaded("review29-unrelated-pending"))).toBe(false);
+  } finally {
+    releaseUnrelated?.();
+  }
+});
+
 test("Review29 committed Create massing survives zoom 18→10→18, pan, style, 2D/3D and A/B without another request", async ({ page, browserName }, info) => {
   const createPosts: string[] = [];
   await installLoopbackBrowserHarness(page, browserName, info.project.use.baseURL);

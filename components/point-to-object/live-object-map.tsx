@@ -2135,6 +2135,30 @@ export function LiveObjectMap({
           });
         };
 
+        let selectedMemberRefreshQueued = false;
+        const handleSelectedMemberNativeReady = (event: MapSourceDataEvent) => {
+          const retainedId = `${PARTITION_SOURCE_PREFIX}openmaptiles`;
+          if (event.sourceId !== "openmaptiles" || selectedMemberRefreshQueued ||
+            interactionModeRef.current !== "analyse" || viewModeRef.current !== "3d" ||
+            !showSelectedVolumeRef.current ||
+            selectionRef.current?.object.geometryProvenance !== "rendered_tile_polygon_member" ||
+            !map.getLayer(HIGHLIGHT_VOLUME_LAYER_ID) ||
+            map.getLayoutProperty(HIGHLIGHT_VOLUME_LAYER_ID, "visibility") === "visible" ||
+            !map.getSource(retainedId) || !map.isSourceLoaded(retainedId) ||
+            !map.isSourceLoaded("openmaptiles")) return;
+          selectedMemberRefreshQueued = true;
+          // Native filters reparse their vector source after the retained copy
+          // is prepared. Once that source itself is ready, use its next frame;
+          // an unrelated source must not hold the selected member flat via idle.
+          map.once("render", () => {
+            selectedMemberRefreshQueued = false;
+            if (disposed || interactionModeRef.current !== "analyse" ||
+              !map.getSource("openmaptiles") || !map.isSourceLoaded("openmaptiles")) return;
+            setSelectedVolumeVisibility(map, selectionRef.current, viewModeRef.current, showSelectedVolumeRef.current);
+          });
+          map.triggerRepaint();
+        };
+
         map.once("load", () => {
           if (disposed) return;
           map.resize();
@@ -2148,6 +2172,7 @@ export function LiveObjectMap({
         map.on("moveend", handleMoveEnd);
         map.on("sourcedataloading", handleNativeSourceLoading);
         map.on("sourcedata", handleRetainedSourceData);
+        map.on("sourcedata", handleSelectedMemberNativeReady);
         let nativeHighlightSignature = "";
         map.on("idle", () => {
           if (disposed || !map.isStyleLoaded()) return;
@@ -2242,6 +2267,7 @@ export function LiveObjectMap({
       setPointObjectLayerVisibilityIfChanged(map, CONCEPT_FILL_LAYER_ID, "none");
       setPointObjectLayerVisibilityIfChanged(map, CONCEPT_VOLUME_LAYER_ID, "none");
       setConceptEnvironmentVisibility(map, false);
+      setSelectedVolumeVisibility(map, selectionRef.current, nextMode, showSelectedVolumeRef.current);
       return;
     }
     pendingViewModeLayersRef.current = false;
@@ -2285,7 +2311,7 @@ export function LiveObjectMap({
     showSelectedVolumeRef.current = nextValue;
     setShowSelectedVolume(nextValue);
     const map = mapRef.current;
-    if (!map || !map.isStyleLoaded()) return;
+    if (!map) return;
     setSelectedVolumeVisibility(map, selectionRef.current, viewModeRef.current, nextValue);
   }
 
