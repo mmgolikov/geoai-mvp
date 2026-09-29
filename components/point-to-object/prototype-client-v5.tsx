@@ -1525,6 +1525,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     }
     setMode("analyse");
     setActiveFindResultId(candidate.sourceFeatureId);
+    setContextStatus("loading");
     setFindAnalysisTargetSourceFeatureId(expectedSourceFeatureId);
     updateFindSavedView(findShortlist, findComparisonOpen, expectedSourceFeatureId);
     setNavigationTarget({
@@ -1817,11 +1818,19 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     }
   }
 
+  // A Find handoff updates its target before the map publishes the selection.
+  // Do not allow either the CTA or keyboard shortcut to open the prior object.
+  const pendingFindTarget = navigationTarget?.exactFindCandidate?.sourceFeatureId === findAnalysisTargetSourceFeatureId
+    ? findAnalysisTargetSourceFeatureId : null;
+  const canOpenAnalysis = Boolean(selection &&
+    (!pendingFindTarget || selection.object.sourceFeatureId === pendingFindTarget) &&
+    (selection.resolvedObject || contextStatus === "error"));
+
   function startAnalysis() {
     // Opening the source-bound express overview is free. A source outage must
     // not hide the selected geometry; the separate AI action still refreshes
     // and validates its evidence before any paid request.
-    if (!selection || (!selection.resolvedObject && contextStatus !== "error")) return;
+    if (!selection || !canOpenAnalysis) return;
     const storedSelection = readPointObjectSelection();
     const activeSelection = storedSelection?.clickedAt === selection.clickedAt ? { ...selection, viewport: storedSelection.viewport } : selection;
     writePointObjectSelection(activeSelection);
@@ -1956,7 +1965,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
                 {selectedAttributes.length ? <div className="mt-3 flex flex-wrap gap-1.5 border-t border-line pt-3" aria-label={t("selection.attributes")}>{selectedAttributes.map(([key, value]) => <span key={key} className="rounded-full bg-white px-2.5 py-1 text-[10px] font-semibold text-[#475467] ring-1 ring-inset ring-[#d7dee4]">{selectionAttributeLabel(key, locale)} · {humanize(value)}</span>)}</div> : null}</> : <div className="py-3"><p className="text-sm font-bold">{t("selection.empty.title")}</p><p className="mt-2 text-sm leading-6 text-muted">{t("selection.empty.body")}</p></div>}
             </section>
 
-            <div className="mt-auto shrink-0 pt-3" data-testid="analyse-composer"><label className="text-xs font-bold text-ink" htmlFor="point-object-question">{t("question.label")}</label><textarea id="point-object-question" value={question} onChange={(event) => setQuestion(event.target.value.slice(0, 500))} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === "Enter") { event.preventDefault(); startAnalysis(); } }} placeholder={t("question.placeholder")} className="mt-1.5 h-[120px] w-full resize-none rounded-xl border border-line bg-white px-3 py-2 text-sm leading-5 outline-none transition focus:border-[#087f8c] focus:ring-2 focus:ring-[#e5fafa] lg:h-[132px] lg:min-h-[120px] lg:max-h-[200px] lg:resize-y" /><div className="sticky bottom-0 bg-white pt-2"><button type="button" onClick={startAnalysis} disabled={!selection || (!selection.resolvedObject && contextStatus !== "error")} className="min-h-11 w-full rounded-control bg-[#087f8c] px-4 text-sm font-bold text-white transition hover:bg-[#087f8c] disabled:cursor-not-allowed disabled:bg-[#b7c4c4] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] focus-visible:ring-offset-2">{selection && !selection.resolvedObject && contextStatus === "loading" ? t("analyze.resolving") : t("analyze.action")}</button></div></div>
+            <div className="mt-auto shrink-0 pt-3" data-testid="analyse-composer"><label className="text-xs font-bold text-ink" htmlFor="point-object-question">{t("question.label")}</label><textarea id="point-object-question" value={question} onChange={(event) => setQuestion(event.target.value.slice(0, 500))} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === "Enter") { event.preventDefault(); startAnalysis(); } }} placeholder={t("question.placeholder")} className="mt-1.5 h-[120px] w-full resize-none rounded-xl border border-line bg-white px-3 py-2 text-sm leading-5 outline-none transition focus:border-[#087f8c] focus:ring-2 focus:ring-[#e5fafa] lg:h-[132px] lg:min-h-[120px] lg:max-h-[200px] lg:resize-y" /><div className="sticky bottom-0 bg-white pt-2"><button type="button" onClick={startAnalysis} disabled={!canOpenAnalysis} className="min-h-11 w-full rounded-control bg-[#087f8c] px-4 text-sm font-bold text-white transition hover:bg-[#087f8c] disabled:cursor-not-allowed disabled:bg-[#b7c4c4] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] focus-visible:ring-offset-2">{selection && !selection.resolvedObject && contextStatus === "loading" ? t("analyze.resolving") : t("analyze.action")}</button></div></div>
             </div> : null}
 
             {mode === "find" ? <section className="mt-2 flex min-h-0 flex-1 flex-col" data-testid="find-drawer">

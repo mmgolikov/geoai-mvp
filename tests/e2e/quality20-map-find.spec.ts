@@ -90,8 +90,8 @@ test("Q01â€“Q05 source footprints, three-way basemap comparison and exact Find â
   await expect.poll(allInFrame).toBe(true);
   await expect.poll(async()=>{const boxes=await markers.evaluateAll(items=>items.map(item=>{const b=item.getBoundingClientRect();return {x:b.x,y:b.y,w:b.width,h:b.height};}));return boxes.every((a,i)=>boxes.every((b,j)=>i===j||a.x+a.w<=b.x+1||b.x+b.w<=a.x+1||a.y+a.h<=b.y+1||b.y+b.h<=a.y+1));}).toBe(true);
   await dashboard.getByTestId("find-comparison-map-context").screenshot({path:info.outputPath("comparison-390.png")});
-  // The analysis page starts AI automatically. Block both methods before
-  // any Analyse interaction: this test covers only the local handoff/return.
+  // This test covers only the free handoff/return; block AI even if a
+  // regression were to dispatch an unintended request.
   await page.route(/\/api\/prototype\/point-to-object\/ai(?:\?.*)?$/,route=>route.abort("blockedbyclient"));
   await dashboard.getByRole("button",{name:"Open object analysis"}).first().click();
   await expect(dashboard).toHaveCount(0);
@@ -121,6 +121,10 @@ test("Q01â€“Q05 source footprints, three-way basemap comparison and exact Find â
   await expect(page.getByRole("button",{name:"Analyze",exact:true})).toBeEnabled();
   await page.getByRole("button",{name:"Analyze",exact:true}).click();
   await expect(page).toHaveURL(/\/prototype\/point-to-object\/analysis$/);
+  await expect(page.getByTestId("analysis-selected-header").getByRole("heading",{level:1})).toHaveText(reportCandidate.label);
+  await expect(page.getByTestId("express-object")).toContainText(reportCandidate.label);
+  await expect(page.getByTestId("express-object")).toContainText(`Selected object ID: ${reportCandidate.sourceFeatureId}`);
+  await expect.poll(()=>page.evaluate(()=>JSON.parse(sessionStorage.getItem("geoai:point-to-object:selection:v3")??"null")?.object?.sourceFeatureId)).toBe(reportCandidate.sourceFeatureId);
   await expect(page.getByRole("link",{name:"Back to Find"})).toHaveAttribute("href","/prototype/point-to-object?mode=find");
   await page.getByRole("link",{name:"Back to Find"}).click();
   await expect(page.getByRole("tab",{name:"Find",exact:true})).toHaveAttribute("aria-selected","true");
