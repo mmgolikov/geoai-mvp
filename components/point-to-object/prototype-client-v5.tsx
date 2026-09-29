@@ -1818,7 +1818,10 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
   }
 
   function startAnalysis() {
-    if (!selection?.resolvedObject) return;
+    // Opening the source-bound express overview is free. A source outage must
+    // not hide the selected geometry; the separate AI action still refreshes
+    // and validates its evidence before any paid request.
+    if (!selection || (!selection.resolvedObject && contextStatus !== "error")) return;
     const storedSelection = readPointObjectSelection();
     const activeSelection = storedSelection?.clickedAt === selection.clickedAt ? { ...selection, viewport: storedSelection.viewport } : selection;
     writePointObjectSelection(activeSelection);
@@ -1838,7 +1841,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
       : selection.resolvedObject.coordinateAssociation === "trusted_open_map_identity"
         ? t("selection.relation.exact")
         : t("selection.relation.nearest", { distance: Math.round(selection.resolvedObject.resultCentroidDistanceM) });
-  const selectedAttributes = visibleSelectionAttributes(selection?.resolvedObject?.tags ?? {});
+  const selectedAttributes = visibleSelectionAttributes(!resolvedObjectIsNearest ? selection?.resolvedObject?.tags ?? {} : {});
   const findGroupLabels: Record<PointObjectFindGroup, string> = locale === "ru" ? {
     residential: "Жилая недвижимость", commercial_office: "Офисы и коммерция", hospitality: "Гостиницы", retail: "Ретейл", education: "Образование", healthcare: "Здравоохранение", civic_culture: "Общественные и культурные", industrial_logistics: "Промышленность и логистика", construction: "Строительство"
   } : {
@@ -1944,16 +1947,16 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
             </div>
 
             {mode === "analyse" ? <div className="flex min-h-0 flex-1 flex-col"><section className="mt-4 shrink-0 overflow-hidden rounded-[18px] border border-line bg-[#f8fafc] p-4" data-testid="selection-card">
-              {selection ? <><p className="text-[11px] font-bold uppercase tracking-[0.09em] text-[#667085]">{t("selection.selected")}</p><h2 className="mt-2 line-clamp-2 break-words text-lg font-bold tracking-[-0.02em]" data-testid="selected-object">{selectionTitle}</h2><p className="mt-1 text-sm text-muted">{humanize(selection.resolvedObject?.featureClass ?? selection.object.featureClass)}</p>
+              {selection ? <><p className="text-[11px] font-bold uppercase tracking-[0.09em] text-[#667085]">{t("selection.selected")}</p><h2 className="mt-2 line-clamp-2 break-words text-lg font-bold tracking-[-0.02em]" data-testid="selected-object">{selectionTitle}</h2><p className="mt-1 text-sm text-muted">{humanize((!resolvedObjectIsNearest ? selection.resolvedObject?.featureClass : null) ?? selection.object.featureClass)}</p>
                 {selection.resolvedObject ? <p className="mt-1 text-xs font-semibold text-[#087f8c]">{selectionContextLabel}</p> : null}
                 {resolvedObjectIsNearest && selection.resolvedObject?.name ? <p className="mt-1 text-xs text-[#475467]">{locale === "ru" ? "Ближайший объект на карте" : "Nearest mapped object"}: {selection.resolvedObject.name}</p> : null}
-                {selection.resolvedObject?.address ? <p className="mt-2 line-clamp-2 text-xs leading-5 text-[#475467]">{selection.resolvedObject.address}</p> : null}
+                {selection.resolvedObject?.address ? <p className="mt-2 line-clamp-2 text-xs leading-5 text-[#475467]">{resolvedObjectIsNearest ? `${locale === "ru" ? "Адрес ближайшего объекта" : "Nearby object address"}: ` : ""}{selection.resolvedObject.address}</p> : null}
                 {contextStatus === "loading" ? <p className="mt-3 text-xs font-semibold text-[#087f8c]" role="status">{t("selection.resolving")}</p> : null}
                 {contextStatus === "error" ? <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-[#e7c47e] bg-[#fffaf0] px-3 py-2 text-xs text-[#6b4b16]" role="alert"><span>{sourceFailureMessage(contextFailure, contextRetrySeconds, locale)}</span><button type="button" disabled={contextRetrySeconds > 0} onClick={() => { if (contextCooldownRef.current > Date.now()) return; setContextStatus("loading"); setContextRetryVersion((value) => value + 1); }} className="min-h-9 shrink-0 rounded-lg border border-[#d6b36e] bg-white px-3 font-bold text-ink disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]">{t("selection.retry")}</button></div> : null}
                 {selectedAttributes.length ? <div className="mt-3 flex flex-wrap gap-1.5 border-t border-line pt-3" aria-label={t("selection.attributes")}>{selectedAttributes.map(([key, value]) => <span key={key} className="rounded-full bg-white px-2.5 py-1 text-[10px] font-semibold text-[#475467] ring-1 ring-inset ring-[#d7dee4]">{selectionAttributeLabel(key, locale)} · {humanize(value)}</span>)}</div> : null}</> : <div className="py-3"><p className="text-sm font-bold">{t("selection.empty.title")}</p><p className="mt-2 text-sm leading-6 text-muted">{t("selection.empty.body")}</p></div>}
             </section>
 
-            <div className="mt-auto shrink-0 pt-3" data-testid="analyse-composer"><label className="text-xs font-bold text-ink" htmlFor="point-object-question">{t("question.label")}</label><textarea id="point-object-question" value={question} onChange={(event) => setQuestion(event.target.value.slice(0, 500))} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === "Enter") { event.preventDefault(); startAnalysis(); } }} placeholder={t("question.placeholder")} className="mt-1.5 h-[120px] w-full resize-none rounded-xl border border-line bg-white px-3 py-2 text-sm leading-5 outline-none transition focus:border-[#087f8c] focus:ring-2 focus:ring-[#e5fafa] lg:h-[132px] lg:min-h-[120px] lg:max-h-[200px] lg:resize-y" /><div className="sticky bottom-0 bg-white pt-2"><button type="button" onClick={startAnalysis} disabled={!selection?.resolvedObject} className="min-h-11 w-full rounded-control bg-[#087f8c] px-4 text-sm font-bold text-white transition hover:bg-[#087f8c] disabled:cursor-not-allowed disabled:bg-[#b7c4c4] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] focus-visible:ring-offset-2">{selection && !selection.resolvedObject && contextStatus === "loading" ? t("analyze.resolving") : t("analyze.action")}</button></div></div>
+            <div className="mt-auto shrink-0 pt-3" data-testid="analyse-composer"><label className="text-xs font-bold text-ink" htmlFor="point-object-question">{t("question.label")}</label><textarea id="point-object-question" value={question} onChange={(event) => setQuestion(event.target.value.slice(0, 500))} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === "Enter") { event.preventDefault(); startAnalysis(); } }} placeholder={t("question.placeholder")} className="mt-1.5 h-[120px] w-full resize-none rounded-xl border border-line bg-white px-3 py-2 text-sm leading-5 outline-none transition focus:border-[#087f8c] focus:ring-2 focus:ring-[#e5fafa] lg:h-[132px] lg:min-h-[120px] lg:max-h-[200px] lg:resize-y" /><div className="sticky bottom-0 bg-white pt-2"><button type="button" onClick={startAnalysis} disabled={!selection || (!selection.resolvedObject && contextStatus !== "error")} className="min-h-11 w-full rounded-control bg-[#087f8c] px-4 text-sm font-bold text-white transition hover:bg-[#087f8c] disabled:cursor-not-allowed disabled:bg-[#b7c4c4] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] focus-visible:ring-offset-2">{selection && !selection.resolvedObject && contextStatus === "loading" ? t("analyze.resolving") : t("analyze.action")}</button></div></div>
             </div> : null}
 
             {mode === "find" ? <section className="mt-2 flex min-h-0 flex-1 flex-col" data-testid="find-drawer">

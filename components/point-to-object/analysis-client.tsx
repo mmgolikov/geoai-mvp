@@ -9,6 +9,7 @@ import { ReliableSelect } from "@/components/point-to-object/reliable-select";
 import { PointObjectHeader } from "@/components/point-to-object/prototype-header";
 import { PointObjectDecisionCards } from "@/components/point-to-object/decision-cards";
 import { PointObjectClimateContext } from "@/components/point-to-object/climate-context";
+import { PointObjectExpressOverview } from "@/components/point-to-object/express-overview";
 import {
   parsePointObjectAiResponse,
   writePointObjectSelection,
@@ -606,7 +607,7 @@ export function PointToObjectAnalysis() {
     : (locale === "ru"
       ? `Высота на карте: неизвестна — тег высоты выбранного объекта отсутствует${sourceLevels === null ? "." : `; ${sourceLevels} этажей на карте не задают высоту в метрах.`}`
       : `Mapped height: unknown — no height tag for the exact selected object${sourceLevels === null ? "." : `; ${sourceLevels} mapped levels do not establish height in metres.`}`);
-  const resolvedName = subject?.name && subject.name !== title ? subject.name : null;
+  const resolvedName = sourceIdentityTrusted && subject?.name && subject.name !== title ? subject.name : null;
   const contextRelation = subject
     ? sourceGeometryContainsPoint
       ? t("selection.relation.containing")
@@ -666,7 +667,7 @@ export function PointToObjectAnalysis() {
 
       <div className="mx-auto grid w-full max-w-[1920px] gap-5 p-4 sm:p-6 xl:grid-cols-[minmax(0,1fr)_340px]">
         <section className="min-w-0">
-          <div className="rounded-[20px] border border-line bg-white p-5 shadow-soft sm:p-7">
+          <div className="rounded-[20px] border border-line bg-white p-5 shadow-soft sm:p-7" data-testid="analysis-selected-header">
             <p className="text-xs font-bold uppercase tracking-[0.11em] text-[#087f8c]">{t("panel.eyebrow")}</p>
             <h1 className="mt-2 break-words text-2xl font-bold tracking-[-0.035em] sm:text-3xl">{title}</h1>
             {resolvedName ? <p className="mt-2 text-base font-semibold text-[#344054]">{resolvedName}</p> : null}
@@ -682,15 +683,16 @@ export function PointToObjectAnalysis() {
               {subject?.address ? <p>{sourceIdentityTrusted ? (locale === "ru" ? "Адрес выбранного объекта" : "Selected address") : (locale === "ru" ? "Адрес записи контекста" : "Context address")}: {subject.address}</p> : null}
               {subject?.sourceFeatureId && subject.sourceFeatureId !== selectedSourceId ? <p className="break-all text-xs">{locale === "ru" ? "Запись контекста" : "Context record"}: {subject.sourceFeatureId}</p> : null}
             </details> : null}
-            {subject && Object.keys(subject.tags).length ? (
-              <div className="mt-4 flex flex-wrap gap-2" aria-label={t("selection.attributes")}>
+            {subject && sourceIdentityTrusted && Object.keys(subject.tags).length ? (
+              <div className="mt-4 flex flex-wrap gap-2" aria-label={t("selection.attributes")} data-testid="analysis-selected-tags">
                 {Object.entries(subject.tags).slice(0, 6).map(([key, value]) => <span key={key} className="rounded-full bg-[#f3f6f8] px-2.5 py-1 text-[11px] font-semibold text-[#475467]">{humanizeAttribute(key)} · {value}</span>)}
               </div>
             ) : null}
           </div>
 
           <div className="mt-5">
-            {!loading && !analysis && selection ? <section className="rounded-[20px] border border-line bg-white p-6 shadow-soft sm:p-7" data-testid="analysis-setup">
+            {!content && selection ? <PointObjectExpressOverview selection={selection} locale={locale} /> : null}
+            {!loading && !analysis && selection ? <section className="mt-5 rounded-[20px] border border-line bg-white p-6 shadow-soft sm:p-7" data-testid="analysis-setup">
               <h2 className="text-lg font-bold text-[#243447]">{locale === "ru" ? "Настройте анализ объекта" : "Set up the object analysis"}</h2>
               <p className="mt-2 text-sm leading-6 text-muted">{locale === "ru" ? "Выберите цель, вопрос и глубину анализа. Запрос начнётся после нажатия кнопки запуска." : "Choose a goal, question and depth. The analysis starts when you press Run."}</p>
             </section> : null}

@@ -170,7 +170,10 @@ export async function POST(request: Request) {
         metrics: evidencePack.selectedObject.metrics,
         displayGeometry: evidencePack.displayGeometry ?? null,
         geometryProvenance: evidencePack.displayGeometry ? "confirmed_complete_footprint" : null,
-        ...explicitSourceHeight(evidencePack.selectedObject.tags),
+        // Reverse lookup may describe a nearby building, not the selected map
+        // footprint. Keep its raw height tag as source context, but only attach
+        // rendering metadata to a source-bound complete display geometry.
+        ...(evidencePack.displayGeometry ? explicitSourceHeight(evidencePack.selectedObject.tags) : {}),
         geoContext: evidencePack.geoContext,
         ...projectPointObjectFabricDiagnostic(evidencePack.source, evidencePack.geoContext.coverage),
         linkedEntity: evidencePack.linkedEntity,

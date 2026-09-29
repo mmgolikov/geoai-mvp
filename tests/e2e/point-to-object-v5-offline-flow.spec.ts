@@ -447,7 +447,7 @@ test("SOURCE10 context quota ends resolving, preserves the question and retries 
     return route.fallback();
   });
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/prototype/point-to-object");
+  await signInDemo(page, "/prototype/point-to-object");
   await page.getByRole("button", { name: "Open task", exact: true }).click();
   await page.locator("#point-object-question").fill("Keep this redevelopment question");
   await page.getByRole("button", { name: "Show map", exact: true }).click();
@@ -459,7 +459,9 @@ test("SOURCE10 context quota ends resolving, preserves the question and retries 
   if (await page.getByRole("button", { name: "Open task", exact: true }).isVisible()) await page.getByRole("button", { name: "Open task", exact: true }).click();
   await expect(page.getByRole("alert").filter({ hasText: "Application request limit reached." })).toBeVisible();
   await expect(page.getByRole("button", { name: "Resolving location…", exact: true })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Analyze", exact: true })).toBeDisabled();
+  // The unpaid express overview remains accessible; source retries still obey
+  // their cooldown and advanced AI independently requires current evidence.
+  await expect(page.getByRole("button", { name: "Analyze", exact: true })).toBeEnabled();
   const retry = page.getByRole("button", { name: "Retry", exact: true });
   await expect(retry).toBeDisabled();
   await expect(retry).toBeEnabled({ timeout: 8_000 });
@@ -478,6 +480,35 @@ test("SOURCE10 context quota ends resolving, preserves the question and retries 
   await page.getByRole("button", { name: "Open task", exact: true }).click();
   await expect(page.getByRole("button", { name: "Analyze", exact: true })).toBeEnabled();
   expect(requests).toBe(2); // Validated same-object cache does not consume another route quota.
+  expect(external).toEqual([]);
+});
+
+test("REVIEW29 failed context still opens a free overview without retrying or calling AI", async ({ page }) => {
+  const external = await installOfflineRoutes(page);
+  let contextCalls = 0;
+  let aiCalls = 0;
+  await page.route("**/api/prototype/point-to-object/context", route => {
+    contextCalls++;
+    return json(route, { mode: "unavailable", retryable: true }, 503);
+  });
+  await page.route("**/api/prototype/point-to-object/ai", route => {
+    aiCalls++;
+    return json(route, { mode: "unavailable" }, 503);
+  });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await signInDemo(page, "/prototype/point-to-object");
+  const search = page.getByRole("combobox", { name: "Search address or place" });
+  await search.fill("Shangri");
+  await expect(page.getByRole("option", { name: /Shangri-La exact search result/ })).toBeVisible();
+  await search.press("ArrowDown");
+  await search.press("Enter");
+  await expect(page.getByRole("alert").filter({ hasText: "Source data could not be loaded." })).toBeVisible();
+  await page.getByRole("button", { name: "Analyze", exact: true }).click();
+  await expect(page.getByTestId("express-overview")).toBeVisible();
+  await expect(page.getByTestId("express-context")).toContainText("unavailable");
+  await expect(page.getByTestId("express-object")).toContainText("Shangri-La");
+  expect(contextCalls).toBe(1);
+  expect(aiCalls).toBe(0);
   expect(external).toEqual([]);
 });
 

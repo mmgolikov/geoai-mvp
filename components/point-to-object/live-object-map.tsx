@@ -18,12 +18,11 @@ import type { GeoJsonGeometry } from "@/src/lib/point-to-object/contracts";
 import type { ConceptMassingResult, PointObjectCreateAoi } from "@/src/lib/prototype/point-to-object-create";
 import { buildConceptEnvironment } from "@/src/lib/prototype/point-to-object-create-environment";
 import { ensureConceptEnvironmentLayers, setConceptEnvironmentVisibility, updateConceptEnvironment } from "@/src/lib/prototype/point-to-object-create-environment-renderer";
-import { conceptMaterialColor, conceptSurfacePattern, installConceptSurfaceImages } from "@/src/lib/prototype/point-to-object-create-appearance";
+import { conceptMaterialColor } from "@/src/lib/prototype/point-to-object-create-appearance";
 import type { PointObjectFindBounds, PointObjectFindCandidate } from "@/src/lib/prototype/point-to-object-find-contract";
 import { separateMapMarkerControls } from "@/src/lib/prototype/point-to-object-selection-context";
 import { projectResultCoordinateBounds, isCompletedNavigationCamera, type NavigationCamera } from "@/src/lib/prototype/point-to-object-find-viewport";
 import {
-  buildPointObjectNativeSelectionOutside,
   pointObjectNativeBuilding3dFilter,
   pointObjectReplacementMinimumReliableZoom,
   restorePointObjectMapFilter,
@@ -35,7 +34,7 @@ import {
 import { pointObjectMarket } from "@/src/lib/prototype/point-to-object-markets";
 import { clearPointObjectPartitionRenderer, reconcilePointObjectCompleteFootprintRenderer } from "@/src/lib/prototype/point-to-object-map-partition-renderer";
 import { pointObjectCompleteFootprintOverlap } from "@/src/lib/prototype/point-to-object-map-partition";
-import { pointObjectFindPresentationState, pointObjectFindVerifiedFootprint, pointObjectTilePolygonMemberAt } from "@/src/lib/prototype/point-to-object-map-selection";
+import { pointObjectFindPresentationState, pointObjectFindVerifiedFootprint, pointObjectNativeSelectedBuildingPredicate, pointObjectTilePolygonMemberAt } from "@/src/lib/prototype/point-to-object-map-selection";
 import { createPointObjectMapResultOpenGuard, groupExactPointObjectProjectResults } from "@/src/lib/prototype/point-to-object-map-project-groups";
 
 const BASEMAPS: Array<{ id: LiveMapBasemapId; labelKey: "map.style.street" | "map.style.light" | "map.style.contrast"; styleUrl: string }> = [
@@ -55,9 +54,11 @@ const BUILDINGS_3D_LAYER_ID = "geoai-buildings-3d";
 const HIGHLIGHT_SOURCE_ID = "geoai-live-selection";
 const HIGHLIGHT_FILL_LAYER_ID = "geoai-live-selection-fill";
 const HIGHLIGHT_NATIVE_FILL_LAYER_ID = "geoai-live-native-selection-fill";
+const HIGHLIGHT_VOLUME_LAYER_ID = "geoai-live-selection-volume";
 const HIGHLIGHT_LINE_LAYER_ID = "geoai-live-selection-line";
 const HIGHLIGHT_POINT_LAYER_ID = "geoai-live-selection-point";
 const CREATE_AOI_SOURCE_ID = "geoai-create-aoi";
+const CREATE_AOI_MASK_LAYER_ID = "geoai-create-aoi-low-zoom-mask";
 const CREATE_AOI_FILL_LAYER_ID = "geoai-create-aoi-fill";
 const CREATE_AOI_LINE_LAYER_ID = "geoai-create-aoi-line";
 const CREATE_AOI_VERTEX_LAYER_ID = "geoai-create-aoi-vertices";
@@ -76,6 +77,10 @@ const EMPTY_FIND_RESULTS: LiveMapFindResult[] = [];
 const EMPTY_FIND_RESULT_IDS: string[] = [];
 const EMPTY_PROJECT_RESULTS: LiveMapProjectResult[] = [];
 const BUILDING_FILTER_SNAPSHOTS = new WeakMap<MapLibreMap, Map<string, PointObjectMapFilterSnapshot>>();
+const SELECTED_NATIVE_FILTER_ACTIVE = new WeakSet<MapLibreMap>();
+const SELECTED_NATIVE_PARTITION_ACTIVE = new WeakSet<MapLibreMap>();
+const SELECTED_NATIVE_SELECTION_SIGNATURE = new WeakMap<MapLibreMap, string>();
+const SELECTED_RELATION_MEMBER_AOI = new WeakMap<MapLibreMap, { selectionSignature: string; aoi: Polygon }>();
 
 const SELECTABLE_SOURCE_LAYERS = new Set([
   "building",
@@ -681,16 +686,20 @@ function collectNearbyLabels(map: MapLibreMap, point: { x: number; y: number }):
 function selectionCanShowVolume(selection: LiveMapSelection | null): boolean {
   return Boolean(
     selection?.object.geometry &&
-    selection.object.geometryProvenance !== "rendered_tile_polygon_member" &&
     selection.object.sourceFeatureId !== null &&
     (selection.object.geometry.type === "Polygon" || selection.object.geometry.type === "MultiPolygon") &&
     selection.object.renderHeightM !== null &&
-    selection.object.renderHeightM > 0
+    Number.isFinite(selection.object.renderHeightM) &&
+    selection.object.renderHeightM > Math.max(0, selection.object.renderMinHeightM ?? 0)
   );
 }
 
 function currentNativeSelectionGeometry(map: MapLibreMap, selection: LiveMapSelection | null) {
   const fallback = selection?.object.geometry ? [selection.object.geometry] : [];
+  // A relation may share one vector-tile ID across multiple building members.
+  // Its clicked Polygon is the only identified member; never expand to the
+  // entire same-ID MultiPolygon when drawing a selected volume.
+  if (selection?.object.geometryProvenance === "rendered_tile_polygon_member") return fallback;
   if (!selection || !selectionCanShowVolume(selection) || typeof map.querySourceFeatures !== "function") return fallback;
   const insideRing = (ring: Position[], point: Position, includeBoundary = false) => {
     let inside = false;
@@ -744,6 +753,37 @@ function currentNativeSelectionGeometry(map: MapLibreMap, selection: LiveMapSele
   return selected.map(geometry => sanitizeGeometry(geometry)).filter((geometry): geometry is NonNullable<typeof geometry> => geometry !== null);
 }
 
+function currentRelationMemberAoi(map: MapLibreMap, selection: LiveMapSelection): Polygon | null {
+  const captured = selection.object.geometry;
+  if (captured?.type !== "Polygon") return null;
+  if (!map.isSourceLoaded("openmaptiles")) {
+    const previous = SELECTED_RELATION_MEMBER_AOI.get(map);
+    return previous && previous.selectionSignature === SELECTED_NATIVE_SELECTION_SIGNATURE.get(map) ? previous.aoi : captured;
+  }
+  try {
+    const members = map.querySourceFeatures("openmaptiles", { sourceLayer: "building" }).flatMap(feature => {
+      if (safeFeatureId(feature) !== selection.object.sourceFeatureId ||
+        featureName(feature) !== selection.object.name ||
+        safeNumericProperty(feature.properties, ["render_height", "height"]) !== selection.object.renderHeightM ||
+        safeNumericProperty(feature.properties, ["render_min_height", "min_height"]) !== selection.object.renderMinHeightM ||
+        feature.geometry.type !== "MultiPolygon") return [];
+      const member = pointObjectTilePolygonMemberAt(feature.geometry, [selection.longitude, selection.latitude]);
+      if (!member) return [];
+      const overlap = pointObjectCompleteFootprintOverlap(member, captured);
+      // Tile quantisation may shift a ring across zooms. Require strong mutual
+      // overlap with the clicked member before following a newly loaded tile;
+      // the same relation ID alone never identifies a sibling.
+      if (!overlap || overlap.fraction < 0.9 || overlap.overlapSqM / Math.max(1e-6,
+        pointObjectCompleteFootprintOverlap(captured, member)?.areaSqM ?? 0) < 0.9) return [];
+      return [member];
+    });
+    const unique = [...new Map(members.map(member => [JSON.stringify(member), member])).values()];
+    return unique.length === 1 ? unique[0] : captured;
+  } catch {
+    return captured;
+  }
+}
+
 function setSelectedVolumeVisibility(
   map: MapLibreMap,
   selection: LiveMapSelection | null,
@@ -751,28 +791,77 @@ function setSelectedVolumeVisibility(
   showVolume: boolean
 ) {
   if (!map.getLayer(BUILDINGS_3D_LAYER_ID)) return;
-  // Recolor the original source feature instead of extruding a copied footprint
-  // at the same depth. Native holes, multipart pieces and per-part heights stay
-  // intact, with no overlapping surfaces or invented uniform prism.
-  const selected = viewMode === "3d" && showVolume && selectionCanShowVolume(selection);
+  const selected = viewMode === "3d" && showVolume && map.getZoom() >= 14 && selectionCanShowVolume(selection);
+  const selectionSignature = selected && selection ? JSON.stringify([
+    selection.object.sourceFeatureId,
+    selection.object.geometryProvenance,
+    selection.object.geometry,
+    selection.object.renderHeightM,
+    selection.object.renderMinHeightM
+  ]) : "";
+  if (SELECTED_NATIVE_SELECTION_SIGNATURE.get(map) !== selectionSignature) {
+    if (SELECTED_NATIVE_FILTER_ACTIVE.has(map)) restoreBuildingFilters(map);
+    SELECTED_NATIVE_FILTER_ACTIVE.delete(map);
+    SELECTED_NATIVE_PARTITION_ACTIVE.delete(map);
+    SELECTED_RELATION_MEMBER_AOI.delete(map);
+    SELECTED_NATIVE_SELECTION_SIGNATURE.set(map, selectionSignature);
+  }
   const geometries = currentNativeSelectionGeometry(map, selection);
-  const spatial: ExpressionSpecification[] = geometries.flatMap(geometry => {
-    const outside = geometry.type === "Polygon" || geometry.type === "MultiPolygon" ? buildPointObjectNativeSelectionOutside(geometry) : null;
-    return outside ? [["all", ["==", ["distance", geometry], 0], [">", ["distance", outside], 0]] as ExpressionSpecification] : [];
-  });
-  const nativePredicate: ExpressionSpecification = selectionCanShowVolume(selection) && selection && spatial.length ? ["all",
-      ["==", ["to-string", ["coalesce", ["id"], ["get", "osm_id"], ["get", "id"], ""]], selection.object.sourceFeatureId!],
-      ["==", ["case", ["has", "render_height"], ["to-number", ["get", "render_height"], -1], ["has", "height"], ["to-number", ["get", "height"], -1], -1], selection.object.renderHeightM ?? -1],
-      ["==", ["case", ["has", "render_min_height"], ["to-number", ["get", "render_min_height"], -1], ["has", "min_height"], ["to-number", ["get", "min_height"], -1], -1], selection.object.renderMinHeightM ?? -1],
-      // Require whole-feature containment: even a touching same-ID neighbour
-      // must remain unhighlighted. Ambiguous/clipped outside pieces stay native.
-      ["any", ...spatial]
-    ] : ["==", 1, 0];
-  const color: string | ExpressionSpecification = selected ? ["case", nativePredicate, "#0f7c88", "#d6dcdf"] : "#d6dcdf";
-  map.setPaintProperty(BUILDINGS_3D_LAYER_ID, "fill-extrusion-color", color);
+  const nativeMatch = selectionCanShowVolume(selection) && selection
+    ? pointObjectNativeSelectedBuildingPredicate(
+      selection.object.sourceFeatureId,
+      selection.object.renderHeightM,
+      selection.object.renderMinHeightM,
+      geometries
+    ) : null;
+  const nativePredicate: ExpressionSpecification = nativeMatch ?? ["==", 1, 0];
+  const relationMember = selected && selection?.object.geometryProvenance === "rendered_tile_polygon_member" &&
+    selection.object.geometry?.type === "Polygon";
+  let partitionReady = false;
+  if (relationMember && selection?.object.geometry?.type === "Polygon") {
+    const selectedAoi = validatePointObjectReplacementAoi(currentRelationMemberAoi(map, selection));
+    if (selectedAoi.valid) {
+      const snapshots = snapshotBuildingFilters(map);
+      const result = reconcilePointObjectCompleteFootprintRenderer(
+        map, selectedAoi.aoi, buildingLayerIds(map), snapshots
+      );
+      SELECTED_NATIVE_FILTER_ACTIVE.add(map);
+      SELECTED_NATIVE_PARTITION_ACTIVE.add(map);
+      const retainedPreviousPartition = result.coverage === "pending" &&
+        result.reason === "building_source_loading_previous_partition_retained" &&
+        SELECTED_RELATION_MEMBER_AOI.get(map)?.selectionSignature === selectionSignature;
+      partitionReady = ((result.coverage !== "pending" && result.coverage !== "error" && result.hiddenParents > 0) ||
+        retainedPreviousPartition) &&
+        !visibleNativeConceptConflict(map, { featureCollection: { features: [{ geometry: selectedAoi.aoi }] } });
+      if (partitionReady) SELECTED_RELATION_MEMBER_AOI.set(map, { selectionSignature, aoi: selectedAoi.aoi });
+    }
+  }
+  const exactNativeMember = selected && !relationMember && nativeMatch !== null;
+  if (exactNativeMember || (SELECTED_NATIVE_FILTER_ACTIVE.has(map) && !SELECTED_NATIVE_PARTITION_ACTIVE.has(map))) {
+    if (!BUILDING_FILTER_SNAPSHOTS.get(map)?.has(BUILDINGS_3D_LAYER_ID)) snapshotBuildingFilters(map);
+    const originalFilter = BUILDING_FILTER_SNAPSHOTS.get(map)?.get(BUILDINGS_3D_LAYER_ID);
+    const baseline = originalFilter ? restorePointObjectMapFilter(originalFilter) ?? pointObjectNativeBuilding3dFilter : pointObjectNativeBuilding3dFilter;
+    // A per-feature native filter can exclude a complete selected building.
+    // A MultiPolygon relation member cannot be isolated by this filter, so it
+    // stays a flat exact footprint until a safe member partition is available.
+    const nativeFilter = exactNativeMember
+      ? ["all", baseline, ["!", nativePredicate]] as FilterSpecification
+      : baseline;
+    if (JSON.stringify(map.getFilter(BUILDINGS_3D_LAYER_ID) ?? null) !== JSON.stringify(nativeFilter)) {
+      map.setFilter(BUILDINGS_3D_LAYER_ID, nativeFilter);
+    }
+    if (exactNativeMember) SELECTED_NATIVE_FILTER_ACTIVE.add(map);
+    else SELECTED_NATIVE_FILTER_ACTIVE.delete(map);
+  }
+  const showSelectedVolume = Boolean(exactNativeMember || partitionReady);
+  setPointObjectLayerVisibilityIfChanged(map, HIGHLIGHT_VOLUME_LAYER_ID, showSelectedVolume ? "visible" : "none");
+  setPointObjectLayerVisibilityIfChanged(map, HIGHLIGHT_FILL_LAYER_ID,
+    viewMode === "2d" || !showSelectedVolume ? "visible" : "none");
   if (map.getLayer(HIGHLIGHT_NATIVE_FILL_LAYER_ID)) {
-    map.setFilter(HIGHLIGHT_NATIVE_FILL_LAYER_ID, nativePredicate as FilterSpecification);
-    map.setLayoutProperty(HIGHLIGHT_NATIVE_FILL_LAYER_ID, "visibility", selected ? "none" : "visible");
+    if (JSON.stringify(map.getFilter(HIGHLIGHT_NATIVE_FILL_LAYER_ID)) !== JSON.stringify(nativePredicate)) {
+      map.setFilter(HIGHLIGHT_NATIVE_FILL_LAYER_ID, nativePredicate as FilterSpecification);
+    }
+    setPointObjectLayerVisibilityIfChanged(map, HIGHLIGHT_NATIVE_FILL_LAYER_ID, selected ? "none" : "visible");
   }
 }
 
@@ -784,7 +873,7 @@ function setHighlight(
 ) {
   const source = map.getSource(HIGHLIGHT_SOURCE_ID) as GeoJSONSource | undefined;
   if (!source) return;
-  const geometry = selectionCanShowVolume(selection) ? null : selection?.object.geometry ?? (selection
+  const geometry = selection?.object.geometry ?? (selection
     ? { type: "Point" as const, coordinates: [selection.longitude, selection.latitude] }
     : null);
   const data: Feature<Geometry> | { type: "FeatureCollection"; features: [] } = geometry
@@ -835,6 +924,10 @@ function buildingLayerIds(map: MapLibreMap): string[] {
 function resetBuildingFilterSnapshots(map: MapLibreMap) {
   clearPointObjectPartitionRenderer(map, true);
   BUILDING_FILTER_SNAPSHOTS.delete(map);
+  SELECTED_NATIVE_FILTER_ACTIVE.delete(map);
+  SELECTED_NATIVE_PARTITION_ACTIVE.delete(map);
+  SELECTED_NATIVE_SELECTION_SIGNATURE.delete(map);
+  SELECTED_RELATION_MEMBER_AOI.delete(map);
 }
 
 function snapshotBuildingFilters(map: MapLibreMap): Map<string, PointObjectMapFilterSnapshot> {
@@ -873,8 +966,7 @@ function applyBuildingReplacement(map: MapLibreMap, aoi: PointObjectCreateAoi): 
       map,
       { type: "Polygon", coordinates: aoi.coordinates },
       layerIds,
-      snapshots,
-      true
+      snapshots
     );
     if (result.coverage === "complete") return "applied";
     if (result.coverage === "partial") return "partial";
@@ -905,17 +997,23 @@ function setCreateLayers(
     } else {
       replacementStatus = applyBuildingReplacement(map, aoi);
     }
-  } else {
+  } else if (!SELECTED_NATIVE_FILTER_ACTIVE.has(map)) {
     restoreBuildingFilters(map);
   }
-  const canShowConcept = Boolean(massing &&
-    (replacementStatus === "applied" || replacementStatus === "partial") &&
-    !visibleNativeConceptConflict(map, massing));
+  // The generated geometry is durable presentation state. Source tile loading
+  // can temporarily make replacement pending without invalidating the result.
+  // At low zoom the dedicated site mask covers generalized native footprints;
+  // at detailed zoom a real native collision still takes precedence.
+  const lowZoom = map.getZoom() < pointObjectReplacementMinimumReliableZoom;
+  const canShowConcept = Boolean(massing && aoi && suppressExistingBuildings &&
+    (lowZoom || !visibleNativeConceptConflict(map, massing)));
+  setPointObjectLayerVisibilityIfChanged(map, CREATE_AOI_MASK_LAYER_ID,
+    canShowConcept && lowZoom ? "visible" : "none");
   const environment = aoi && massing ? buildConceptEnvironment(aoi, massing) : null;
   // Partial replacement may retain native buildings away from the new massing,
   // but on a proposed plaza/path. Gate only decoration in that case.
   const canShowEnvironment = Boolean(canShowConcept && environment?.featureCollection.features.length &&
-    !visibleNativeConceptConflict(map, environment, 256));
+    (lowZoom || !visibleNativeConceptConflict(map, environment, 256)));
   updateConceptEnvironment(map, environment, canShowEnvironment);
   if (map.getLayer(CONCEPT_FILL_LAYER_ID)) map.setLayoutProperty(CONCEPT_FILL_LAYER_ID, "visibility", canShowConcept && viewMode === "2d" ? "visible" : "none");
   if (map.getLayer(CONCEPT_VOLUME_LAYER_ID)) map.setLayoutProperty(CONCEPT_VOLUME_LAYER_ID, "visibility", canShowConcept && viewMode === "3d" ? "visible" : "none");
@@ -1050,6 +1148,21 @@ function installGeoAiLayers(map: MapLibreMap, viewMode: MapViewMode) {
       "fill-opacity": 0.28
     }
   }, labelLayer);
+  if (!map.getLayer(HIGHLIGHT_VOLUME_LAYER_ID)) map.addLayer({
+    id: HIGHLIGHT_VOLUME_LAYER_ID,
+    type: "fill-extrusion",
+    source: HIGHLIGHT_SOURCE_ID,
+    filter: ["==", ["geometry-type"], "Polygon"],
+    minzoom: 14,
+    layout: { visibility: "none" },
+    paint: {
+      "fill-extrusion-color": "#087f8c",
+      "fill-extrusion-height": ["get", "renderHeightM"],
+      "fill-extrusion-base": ["get", "renderMinHeightM"],
+      "fill-extrusion-opacity": 0.5,
+      "fill-extrusion-vertical-gradient": true
+    }
+  }, labelLayer);
   if (!map.getLayer(HIGHLIGHT_NATIVE_FILL_LAYER_ID) && map.getSource("openmaptiles")) map.addLayer({
     id: HIGHLIGHT_NATIVE_FILL_LAYER_ID,
     type: "fill",
@@ -1082,6 +1195,16 @@ function installGeoAiLayers(map: MapLibreMap, viewMode: MapViewMode) {
     }
   }, labelLayer);
   if (!map.getSource(CREATE_AOI_SOURCE_ID)) map.addSource(CREATE_AOI_SOURCE_ID, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+  if (!map.getLayer(CREATE_AOI_MASK_LAYER_ID)) map.addLayer({
+    id: CREATE_AOI_MASK_LAYER_ID,
+    type: "fill",
+    source: CREATE_AOI_SOURCE_ID,
+    filter: ["==", ["get", "kind"], "aoi"],
+    layout: { visibility: "none" },
+    // At generalized zoom native building geometry cannot be safely removed
+    // by a per-feature filter. This site surface covers only the supplied AOI.
+    paint: { "fill-color": "#eef6f4", "fill-opacity": 1 }
+  }, labelLayer);
   if (!map.getLayer(CREATE_AOI_FILL_LAYER_ID)) map.addLayer({
     id: CREATE_AOI_FILL_LAYER_ID,
     type: "fill",
@@ -1105,25 +1228,21 @@ function installGeoAiLayers(map: MapLibreMap, viewMode: MapViewMode) {
   }, labelLayer);
   if (!map.getSource(CONCEPT_SOURCE_ID)) map.addSource(CONCEPT_SOURCE_ID, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
   ensureConceptEnvironmentLayers(map, labelLayer);
-  installConceptSurfaceImages(map);
   const conceptColor: ExpressionSpecification = conceptMaterialColor;
   if (!map.getLayer(CONCEPT_FILL_LAYER_ID)) map.addLayer({
     id: CONCEPT_FILL_LAYER_ID,
     type: "fill",
     source: CONCEPT_SOURCE_ID,
-    minzoom: pointObjectReplacementMinimumReliableZoom,
     layout: { visibility: "none" },
-    paint: { "fill-color": conceptColor, "fill-pattern": conceptSurfacePattern, "fill-opacity": 0.95, "fill-outline-color": "#087f8c" }
+    paint: { "fill-color": conceptColor, "fill-opacity": 0.95, "fill-outline-color": "#087f8c" }
   }, labelLayer);
   if (!map.getLayer(CONCEPT_VOLUME_LAYER_ID)) map.addLayer({
     id: CONCEPT_VOLUME_LAYER_ID,
     type: "fill-extrusion",
     source: CONCEPT_SOURCE_ID,
-    minzoom: pointObjectReplacementMinimumReliableZoom,
     layout: { visibility: "none" },
     paint: {
       "fill-extrusion-color": conceptColor,
-      "fill-extrusion-pattern": conceptSurfacePattern,
       "fill-extrusion-height": ["get", "heightM"],
       "fill-extrusion-base": ["get", "baseM"],
       "fill-extrusion-opacity": 0.88,
@@ -1495,10 +1614,10 @@ export function LiveObjectMap({
     if (!map) return;
     map.getCanvas().style.cursor = interactionMode === "create" && createDrawingRef.current ? "crosshair" : "";
     if (map.isStyleLoaded()) setFindFootprintLayers(map, findResultsRef.current, activeFindResultIdRef.current, hoveredFindResultIdRef.current, shortlistedFindResultIdsRef.current, interactionMode, viewModeRef.current);
-    if (interactionMode !== "analyse" && map.isStyleLoaded()) {
-      selectionRef.current = null;
-      setHighlight(map, null, viewModeRef.current, showSelectedVolumeRef.current);
-    }
+    selectionRef.current = interactionMode === "analyse" ? selection : null;
+    // Source workers can make isStyleLoaded false during a mode switch even
+    // though the installed selection source/layers are writable. Clear now.
+    if (map.getSource(HIGHLIGHT_SOURCE_ID)) setHighlight(map, selectionRef.current, viewModeRef.current, showSelectedVolumeRef.current);
   }, [interactionMode]);
 
   useEffect(() => {
@@ -1533,10 +1652,10 @@ export function LiveObjectMap({
   }, [conceptMassing, createAoi, createAreaCleared, createDraftCoordinates, createDrawing, createReplacementRevision]);
 
   useEffect(() => {
-    selectionRef.current = selection;
+    selectionRef.current = interactionModeRef.current === "analyse" ? selection : null;
     const map = mapRef.current;
-    if (!map || !map.isStyleLoaded()) return;
-    setHighlight(map, selection, viewModeRef.current, showSelectedVolumeRef.current);
+    if (!map?.getSource(HIGHLIGHT_SOURCE_ID)) return;
+    setHighlight(map, selectionRef.current, viewModeRef.current, showSelectedVolumeRef.current);
   }, [selection]);
 
   useEffect(() => {
@@ -1794,7 +1913,7 @@ export function LiveObjectMap({
           // mode-specific handlers and layer visibility here so a basemap load
           // cannot overwrite a user's rotation or a 2D/3D choice made mid-load.
           applyViewMode(map, viewModeRef.current, false, false);
-          setHighlight(map, selectionRef.current, viewModeRef.current, showSelectedVolumeRef.current);
+          setHighlight(map, interactionModeRef.current === "analyse" ? selectionRef.current : null, viewModeRef.current, showSelectedVolumeRef.current);
           const replacementStatus = setCreateLayers(map, createDraftRef.current, createAoiRef.current, createAreaClearedRef.current, conceptMassingRef.current, viewModeRef.current);
           replacementStatusCallbackRef.current?.(replacementStatus);
           pendingViewModeLayersRef.current = false;
@@ -1912,11 +2031,8 @@ export function LiveObjectMap({
                 ? "idle"
                 : "error";
           replacementStatusCallbackRef.current?.(status);
-          const conceptVisible = Boolean(
-            conceptMassingRef.current &&
-            (status === "applied" || status === "partial") &&
-            !visibleNativeConceptConflict(map, conceptMassingRef.current)
-          );
+          const conceptVisible = Boolean(conceptMassingRef.current &&
+            !visibleNativeConceptConflict(map, conceptMassingRef.current));
           setPointObjectLayerVisibilityIfChanged(map, CONCEPT_FILL_LAYER_ID, conceptVisible && viewModeRef.current === "2d" ? "visible" : "none");
           setPointObjectLayerVisibilityIfChanged(map, CONCEPT_VOLUME_LAYER_ID, conceptVisible && viewModeRef.current === "3d" ? "visible" : "none");
           const environment = conceptMassingRef.current
@@ -1970,28 +2086,19 @@ export function LiveObjectMap({
           viewportCallbackRef.current?.(nextSelection);
         };
 
-        const suspendConceptForNativeSourceChange = () => {
+        const reconcileConceptForNativeSourceChange = () => {
           if (!createAreaClearedRef.current || !createAoiRef.current) return;
-          if (map.getLayer(CONCEPT_FILL_LAYER_ID)) map.setLayoutProperty(CONCEPT_FILL_LAYER_ID, "visibility", "none");
-          if (map.getLayer(CONCEPT_VOLUME_LAYER_ID)) map.setLayoutProperty(CONCEPT_VOLUME_LAYER_ID, "visibility", "none");
-          setConceptEnvironmentVisibility(map, false);
           if (map.getZoom() < pointObjectReplacementMinimumReliableZoom) {
-            // Low zoom deliberately restores the native source. Later tile
-            // loading events must not overwrite that terminal UI state with
-            // "preparing", because idle reconciliation is disabled here.
+            // The low-zoom AOI surface preserves the displayed proposal while
+            // native source geometry is generalized and cannot be partitioned.
             restoreBuildingFilters(map);
             replacementStatusCallbackRef.current?.("zoom-required");
-          } else {
-            replacementStatusCallbackRef.current?.("idle");
           }
         };
 
         const handleMoveStart = () => {
           cameraMovingCallbackRef.current?.(true);
-          // A pan/zoom can introduce a new native tile before the next idle
-          // reconciliation. Never leave generated geometry over that transient,
-          // not-yet-classified source footprint.
-          suspendConceptForNativeSourceChange();
+          reconcileConceptForNativeSourceChange();
         };
 
         const handleNativeSourceLoading = (event: MapSourceDataEvent) => {
@@ -2000,7 +2107,7 @@ export function LiveObjectMap({
             const layer = map.getLayer(id);
             return Boolean(layer && "source" in layer && layer.source === event.sourceId);
           });
-          if (isBuildingSource) suspendConceptForNativeSourceChange();
+          if (isBuildingSource) reconcileConceptForNativeSourceChange();
         };
 
         let retainedReadyQueued = false;
@@ -2059,7 +2166,14 @@ export function LiveObjectMap({
           }
           publishReadyBuildingReplacement();
           const geometry = currentNativeSelectionGeometry(map, selectionRef.current);
-          const signature = JSON.stringify([geometry, viewModeRef.current, showSelectedVolumeRef.current]);
+          const signature = JSON.stringify([geometry, viewModeRef.current, showSelectedVolumeRef.current, map.getZoom() >= 14]);
+          if (selectionRef.current?.object.geometryProvenance === "rendered_tile_polygon_member") {
+            // The retained sibling source becomes ready asynchronously after
+            // a tile/style change; recheck the exact member at each settled idle.
+            setSelectedVolumeVisibility(map, selectionRef.current, viewModeRef.current, showSelectedVolumeRef.current);
+            nativeHighlightSignature = signature;
+            return;
+          }
           if (signature === nativeHighlightSignature) return;
           nativeHighlightSignature = signature;
           setSelectedVolumeVisibility(map, selectionRef.current, viewModeRef.current, showSelectedVolumeRef.current);

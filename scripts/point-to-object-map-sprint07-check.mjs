@@ -10,7 +10,7 @@ registerHooks({ resolve(specifier, context, next) {
 const { buildPointObjectBuildingReplacementFilter, buildPointObjectKnownFootprintFilter, pointObjectNativeBuilding3dFilter, validatePointObjectReplacementAoi, snapshotPointObjectMapFilter } = await import("../src/lib/prototype/point-to-object-map-replacement.ts");
 const { findResultCoordinateBounds } = await import("../src/lib/prototype/point-to-object-find-viewport.ts");
 const { partitionPointObjectMapBuilding, planPointObjectBuildingReplacement, pointObjectPreparedPartitionPredicate } = await import("../src/lib/prototype/point-to-object-map-partition.ts");
-const { reconcilePointObjectPartitionRenderer, clearPointObjectPartitionRenderer } = await import("../src/lib/prototype/point-to-object-map-partition-renderer.ts");
+const { reconcilePointObjectPartitionRenderer, reconcilePointObjectCompleteFootprintRenderer, clearPointObjectPartitionRenderer } = await import("../src/lib/prototype/point-to-object-map-partition-renderer.ts");
 const { pointObjectTilePolygonMemberAt } = await import("../src/lib/prototype/point-to-object-map-selection.ts");
 const { createPointObjectMapResultOpenGuard, groupExactPointObjectProjectResults } = await import("../src/lib/prototype/point-to-object-map-project-groups.ts");
 
@@ -140,6 +140,8 @@ const fakeMap = {
   getStyle: () => ({ layers }),
   getLayer: id => layers.find(layer => layer.id === id),
   getFilter: id => layers.find(layer => layer.id === id)?.filter,
+  getLayoutProperty: (id, key) => fakeMap.getLayer(id)?.layout?.[key],
+  getPaintProperty: (id, key) => fakeMap.getLayer(id)?.paint?.[key],
   setFilter: (id, filter) => { rendererFilterWrites++; fakeMap.getLayer(id).filter = filter; },
   querySourceFeatures: () => [nativeMixed],
   getSource: id => sources.get(id),
@@ -169,6 +171,27 @@ const copiedLayer = fakeMap.getLayer("geoai-existing-partition-layer:building");
 assert.deepEqual(copiedLayer.paint["fill-extrusion-height"], ["get", "render_height"]);
 assert.deepEqual(copiedLayer.filter, pointObjectNativeBuilding3dFilter, "Original outline policy must survive source replacement");
 assert.deepEqual(sources.get(retainedSourceId).data.features[0], planPointObjectBuildingReplacement([nativeMixed], aoi).retained.features[0], "The visual renderer uses positive overlap while preserving exact non-overlap siblings");
+sources.set("openmaptiles", { loaded: true });
+const confirmed = reconcilePointObjectCompleteFootprintRenderer(fakeMap, aoi, ["building"], originals);
+assert(confirmed.hiddenParents > 0 && confirmed.coverage !== "pending", "The AOI partition is confirmed before a later tile load");
+const confirmedFilter = JSON.stringify(fakeMap.getFilter("building"));
+sources.get("openmaptiles").loaded = false;
+const pendingSameTopology = reconcilePointObjectCompleteFootprintRenderer(fakeMap, aoi, ["building"], originals);
+assert.equal(pendingSameTopology.reason, "building_source_loading_previous_partition_retained");
+assert.equal(JSON.stringify(fakeMap.getFilter("building")), confirmedFilter, "Same-AOI source loading retains the last safe native filter");
+fakeMap.setLayoutProperty("building", "visibility", "none");
+reconcilePointObjectCompleteFootprintRenderer(fakeMap, aoi, ["building"], originals);
+assert.equal(copiedLayer.layout.visibility, "none", "A retained sibling extrusion follows 2D visibility even while source tiles are pending");
+fakeMap.setLayoutProperty("building", "visibility", "visible");
+reconcilePointObjectCompleteFootprintRenderer(fakeMap, aoi, ["building"], originals);
+assert.equal(copiedLayer.layout.visibility, "visible", "The same retained sibling returns with native 3D visibility");
+layers.push({ id: "late-building", type: "fill-extrusion", source: "openmaptiles", "source-layer": "building", filter: pointObjectNativeBuilding3dFilter,
+  paint: { "fill-extrusion-color": "#d6dcdf" } });
+const lateOriginals = new Map([...originals, ["late-building", snapshotPointObjectMapFilter(pointObjectNativeBuilding3dFilter)]]);
+const pendingChangedTopology = reconcilePointObjectCompleteFootprintRenderer(fakeMap, aoi, ["building", "late-building"], lateOriginals);
+assert.equal(pendingChangedTopology.reason, "building_source_loading", "A newly added native layer cannot reuse the old AOI partition");
+assert.deepEqual(fakeMap.getFilter("building"), pointObjectNativeBuilding3dFilter, "Changed topology restores the original filter while tiles are unavailable");
+assert.equal(copiedLayer.layout.visibility, "none", "Changed topology removes the stale retained copy");
 const nextAoi = rectangle(55.320,25.224,55.322,25.226);
 reconcilePointObjectPartitionRenderer(fakeMap, nextAoi, ["building"], originals);
 assert.equal(sources.get(retainedSourceId).loaded, false);

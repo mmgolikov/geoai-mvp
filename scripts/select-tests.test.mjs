@@ -22,6 +22,7 @@ test("Real point-to-object component paths map to their owners", () => {
   for (const [path, owner] of [
     ["components/point-to-object/create-panel.tsx", "CREATE"],
     ["components/point-to-object/analysis-client.tsx", "ANALYSE"],
+    ["components/point-to-object/express-overview.tsx", "ANALYSE"],
     ["components/point-to-object/find-comparison-dashboard.tsx", "COMPARE"],
     ["components/point-to-object/use-point-object-cloud-sync.ts", "STORAGE"]
   ]) {

@@ -21,6 +21,7 @@ type RendererState = {
 const states = new WeakMap<MapLibreMap, RendererState>();
 type CompleteRendererState = {
   aoiSignature: string;
+  layerSignature: string;
   filterSignature: string;
   result: PointObjectCompleteFootprintRendererResult;
 };
@@ -30,6 +31,21 @@ const LAYER_PREFIX = "geoai-existing-partition-layer:";
 
 function setFilterIfChanged(map: MapLibreMap, id: string, filter: FilterSpecification | null) {
   if (JSON.stringify(map.getFilter(id) ?? null) !== JSON.stringify(filter)) map.setFilter(id, filter);
+}
+
+function syncRetainedLayerPresentation(map: MapLibreMap, layerIds: readonly string[]) {
+  for (const id of layerIds) {
+    const copyId = `${LAYER_PREFIX}${id}`;
+    if (!map.getLayer(id) || !map.getLayer(copyId)) continue;
+    const original = map.getStyle().layers?.find(layer => layer.id === id);
+    const visibility = map.getLayoutProperty(id, "visibility") ?? "visible";
+    if (map.getLayoutProperty(copyId, "visibility") !== visibility) map.setLayoutProperty(copyId, "visibility", visibility);
+    for (const [name, value] of Object.entries(original?.paint ?? {})) {
+      if (JSON.stringify(map.getPaintProperty(copyId, name as Parameters<MapLibreMap["getPaintProperty"]>[1])) !== JSON.stringify(value)) {
+        map.setPaintProperty(copyId, name as Parameters<MapLibreMap["setPaintProperty"]>[1], value);
+      }
+    }
+  }
 }
 
 /** Cancel pending applies before a restore, source update or style replacement. */
@@ -202,12 +218,25 @@ export function reconcilePointObjectCompleteFootprintRenderer(
     const layer = map.getLayer(id);
     return layer && "source" in layer && typeof layer.source === "string" ? [{ id, source: layer.source }] : [];
   });
+  const layerSignature = JSON.stringify(layers);
   const sources = [...new Set(layers.map(({ source }) => source))];
   if (!layers.length || layers.some(({ id }) => !originals.has(id))) {
     clearPointObjectPartitionRenderer(map);
     return { ...pendingResult("building_layers_unavailable"), coverage: "error" };
   }
   if (sources.some((source) => !map.isSourceLoaded(source))) {
+    // A camera move can mark the vector source loading even though the last
+    // confirmed AOI partition (native filter plus retained sibling copy) is
+    // still installed. Keep that reversible render state until the new tiles
+    // can be inspected; clearing it here briefly exposes the original tower
+    // over a committed concept. A different AOI or an unready copy cannot
+    // inherit this protection.
+    const previous = completeStates.get(map);
+    if (previous?.aoiSignature === aoiSignature && previous.layerSignature === layerSignature && states.get(map)?.ready &&
+      (previous.result.coverage === "complete" || previous.result.coverage === "partial")) {
+      syncRetainedLayerPresentation(map, layerIds);
+      return pendingResult("building_source_loading_previous_partition_retained");
+    }
     clearPointObjectPartitionRenderer(map);
     for (const { id } of layers) setFilterIfChanged(map, id, restorePointObjectMapFilter(originals.get(id)!));
     return pendingResult("building_source_loading");
@@ -251,7 +280,7 @@ export function reconcilePointObjectCompleteFootprintRenderer(
     predicates: plan.predicates
   }] : []);
   let partitionReady = states.get(map)?.ready ?? false;
-  if (force || !current || current.aoiSignature !== aoiSignature || current.filterSignature !== filterSignature) {
+  if (force || !current || current.aoiSignature !== aoiSignature || current.layerSignature !== layerSignature || current.filterSignature !== filterSignature) {
     try {
       partitionReady = reconcilePointObjectPartitionRenderer(map, aoi, layerIds, originals, force, preparedSourcePlans);
     } catch {
@@ -259,10 +288,14 @@ export function reconcilePointObjectCompleteFootprintRenderer(
       for (const { id } of layers) if (map.getLayer(id)) setFilterIfChanged(map, id, restorePointObjectMapFilter(originals.get(id)!));
       return { ...result, coverage: "error", reason: "building_partition_apply_failed" };
     }
+  } else {
+    // 2D/3D and basemap paint may change without changing AOI/source filters.
+    // The retained sibling must follow its native layer on this fast path.
+    syncRetainedLayerPresentation(map, layerIds);
   }
   const reportedResult: PointObjectCompleteFootprintRendererResult = partitionReady
     ? result
     : { ...result, coverage: "pending", reason: "retained_source_loading" };
-  completeStates.set(map, { aoiSignature, filterSignature, result: reportedResult });
+  completeStates.set(map, { aoiSignature, layerSignature, filterSignature, result: reportedResult });
   return reportedResult;
 }

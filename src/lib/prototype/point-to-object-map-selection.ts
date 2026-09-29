@@ -1,5 +1,7 @@
 import type { MultiPolygon, Polygon, Position } from "geojson";
-import { validatePointObjectReplacementAoi } from "./point-to-object-map-replacement";
+import type { ExpressionSpecification } from "maplibre-gl";
+import type { GeoJsonGeometry } from "../point-to-object/contracts";
+import { buildPointObjectNativeSelectionOutside, validatePointObjectReplacementAoi } from "./point-to-object-map-replacement";
 
 export type PointObjectFindPresentationState = "result" | "shortlist" | "hover" | "active";
 
@@ -60,4 +62,28 @@ export function pointObjectTilePolygonMemberAt(geometry: MultiPolygon, point: Po
     selected = polygon;
   }
   return selected ? structuredClone(selected) : null;
+}
+
+/** Match only a complete native member with the same map-rendered identity and
+ * height. Tile-backed relation members are partitioned separately so this
+ * predicate is never used to suppress all siblings sharing one source ID. */
+export function pointObjectNativeSelectedBuildingPredicate(
+  sourceFeatureId: string | null,
+  renderHeightM: number | null,
+  renderMinHeightM: number | null,
+  geometries: readonly GeoJsonGeometry[]
+): ExpressionSpecification | null {
+  if (!sourceFeatureId || !Number.isFinite(renderHeightM) || renderHeightM === null || renderHeightM <= 0) return null;
+  const spatial = geometries.flatMap(geometry => {
+    if (geometry.type !== "Polygon" && geometry.type !== "MultiPolygon") return [];
+    const outside = buildPointObjectNativeSelectionOutside(geometry);
+    return outside ? [["all", ["==", ["distance", geometry], 0], [">", ["distance", outside], 0]] as ExpressionSpecification] : [];
+  });
+  if (!spatial.length) return null;
+  return ["all",
+    ["==", ["to-string", ["coalesce", ["id"], ["get", "osm_id"], ["get", "id"], ""]], sourceFeatureId],
+    ["==", ["case", ["has", "render_height"], ["to-number", ["get", "render_height"], -1], ["has", "height"], ["to-number", ["get", "height"], -1], -1], renderHeightM],
+    ["==", ["case", ["has", "render_min_height"], ["to-number", ["get", "render_min_height"], -1], ["has", "min_height"], ["to-number", ["get", "min_height"], -1], -1], renderMinHeightM ?? -1],
+    ["any", ...spatial]
+  ];
 }

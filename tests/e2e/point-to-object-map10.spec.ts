@@ -3,7 +3,6 @@ import { externalHttpUrlPattern, installLoopbackBrowserHarness } from "./helpers
 import { fromGeojsonVt } from "@maplibre/vt-pbf";
 import type { FeatureCollection, Polygon, Position } from "geojson";
 import difcFixture from "../fixtures/difc-native-building-sept10.json";
-import { featureFilter } from "@maplibre/maplibre-gl-style-spec";
 
 type MultipartClickCapture =
   | { status: "armed" }
@@ -92,7 +91,7 @@ test("MAP10 native complex/multipart highlight preserves geometry without duplic
   page.on("pageerror", error => pageErrors.push(error.message));
   await page.setViewportSize({ width: 1440, height: 900 });
   await installLoopbackBrowserHarness(page, testInfo.project.use.browserName, testInfo.project.use.baseURL);
-  const index = await installMapFixture(page);
+  await installMapFixture(page);
   await page.goto("/prototype/point-to-object");
   await exposeFixtureMap(page);
   await page.evaluate(() => (window as unknown as { map10: import("maplibre-gl").Map }).map10.jumpTo({ center: [55.2831, 25.214], zoom: 20, pitch: 0, bearing: 0 }));
@@ -110,68 +109,43 @@ test("MAP10 native complex/multipart highlight preserves geometry without duplic
   expect(selected.object.geometry.coordinates).toHaveLength(2);
   await page.getByRole("button", { name: "3d", exact: true }).click();
   await expect(page.getByRole("button", { name: "3D volume", exact: true })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => {
+    const map = (window as unknown as { map10: import("maplibre-gl").Map }).map10;
+    return map.getLayoutProperty("geoai-live-selection-volume", "visibility");
+  })).toBe("visible");
   const render = await page.evaluate(() => {
     const map = (window as unknown as { map10: import("maplibre-gl").Map }).map10;
-    return { duplicate: !!map.getLayer("geoai-live-selection-volume"), color: map.getPaintProperty("geoai-buildings-3d", "fill-extrusion-color"), height: map.getPaintProperty("geoai-buildings-3d", "fill-extrusion-height"), base: map.getPaintProperty("geoai-buildings-3d", "fill-extrusion-base") };
+    return { selectedOpacity: map.getPaintProperty("geoai-live-selection-volume", "fill-extrusion-opacity"),
+      nativeOpacity: map.getPaintProperty("geoai-buildings-3d", "fill-extrusion-opacity"),
+      nativeFilter: JSON.stringify(map.getFilter("geoai-buildings-3d")),
+      height: map.getPaintProperty("geoai-live-selection-volume", "fill-extrusion-height"),
+      base: map.getPaintProperty("geoai-live-selection-volume", "fill-extrusion-base") };
   });
-  expect(render.duplicate).toBe(false);
-  expect(JSON.stringify(render.color)).toContain("901");
-  expect(render.height).toEqual(["coalesce", ["to-number", ["get", "render_height"]], 0]);
-  expect(render.base).toEqual(["coalesce", ["to-number", ["get", "render_min_height"]], 0]);
-  const z = 18; const scale = 2 ** z;
-  const x = Math.floor((coordinate[0] + 180) / 360 * scale);
-  const y = Math.floor((1 - Math.asinh(Math.tan(coordinate[1] * Math.PI / 180)) / Math.PI) / 2 * scale);
-  const predicate = featureFilter((render.color as unknown[])[1] as Parameters<typeof featureFilter>[0], "layers.selection.filter");
-  const outcomes = new Map<string, boolean[]>();
-  for (let tx = x - 1; tx <= x + 1; tx++) for (let ty = y - 1; ty <= y + 1; ty++) {
-    for (const feature of index.getTile(z, tx, ty)?.features ?? []) {
-      const name = String(feature.tags?.name);
-      const canonical = { z, x: tx, y: ty } as Parameters<typeof predicate.filter>[2];
-      const selected = predicate.filter({ zoom: 20 }, { type: 3, id: feature.id, properties: feature.tags ?? {}, geometry: (feature.geometry as number[][][]).map(ring => ring.map(([x, y]) => ({ x, y }))) }, canonical);
-      outcomes.set(name, [...(outcomes.get(name) ?? []), selected]);
-    }
-  }
-  expect(outcomes.get("Complex courtyard")).toContain(true);
-  expect(outcomes.get("Touching reused ID")).toBeDefined();
-  expect(outcomes.get("Touching reused ID")).not.toContain(true);
-  expect(outcomes.get("Mixed reused ID")).toBeDefined();
-  expect(outcomes.get("Mixed reused ID")).not.toContain(true);
+  expect(render.selectedOpacity).toBe(0.5);
+  expect(render.nativeOpacity).toBe(1);
+  expect(render.nativeFilter).toContain("901");
+  expect(render.height).toEqual(["get", "renderHeightM"]);
+  expect(render.base).toEqual(["get", "renderMinHeightM"]);
   await page.evaluate(() => {
     const map = (window as unknown as { map10: import("maplibre-gl").Map }).map10;
     map.stop();
     map.jumpTo({ center: [55.28315, 25.21405], zoom: 17.5, pitch: 55, bearing: -25 });
   });
   await expect.poll(() => page.evaluate(() => (window as unknown as { map10: import("maplibre-gl").Map }).map10.isStyleLoaded())).toBe(true);
-  const highlightedNames = () => page.evaluate(() => {
+  const selectedVisible = () => page.evaluate(() => {
     const map = (window as unknown as { map10: import("maplibre-gl").Map }).map10;
-    const color = map.getPaintProperty("geoai-buildings-3d", "fill-extrusion-color") as unknown[];
-    if (!Array.isArray(color) || color[0] !== "case") return [];
-    return map.queryRenderedFeatures(undefined, { layers: ["geoai-buildings-3d"], filter: color[1] as import("maplibre-gl").FilterSpecification }).map(feature => feature.properties.name);
+    return map.getLayoutProperty("geoai-live-selection-volume", "visibility") === "visible" &&
+      map.queryRenderedFeatures(undefined, { layers: ["geoai-live-selection-volume"] }).length > 0;
   });
-  await expect.poll(highlightedNames).toContain("Complex courtyard");
-  expect(await highlightedNames()).not.toContain("Touching reused ID");
-  expect(await highlightedNames()).not.toContain("Mixed reused ID");
+  await expect.poll(selectedVisible).toBe(true);
   await page.evaluate(() => (window as unknown as { map10: import("maplibre-gl").Map }).map10.jumpTo({ zoom: 18 }));
-  await expect.poll(highlightedNames).toContain("Complex courtyard");
+  await expect.poll(selectedVisible).toBe(true);
   await page.evaluate(() => (window as unknown as { map10: import("maplibre-gl").Map }).map10.jumpTo({ zoom: 17 }));
-  await expect.poll(highlightedNames).toContain("Complex courtyard");
-  await expect.poll(() => page.evaluate(() => {
-    const map = (window as unknown as { map10: import("maplibre-gl").Map }).map10;
-    const color = map.getPaintProperty("geoai-buildings-3d", "fill-extrusion-color") as unknown[];
-    const targetCount = map.queryRenderedFeatures(undefined, { layers: ["geoai-buildings-3d"] }).filter(feature => feature.properties.name === "Complex courtyard").length;
-    const coloredCount = map.queryRenderedFeatures(undefined, { layers: ["geoai-buildings-3d"], filter: color[1] as import("maplibre-gl").FilterSpecification }).filter(feature => feature.properties.name === "Complex courtyard").length;
-    return targetCount > 0 && targetCount === coloredCount;
-  })).toBe(true).catch(async error => {
-    await testInfo.attach("native-fragment-diagnostic", { contentType: "application/json", body: JSON.stringify(await page.evaluate(() => {
-      const map = (window as unknown as { map10: import("maplibre-gl").Map }).map10;
-      return { selection: sessionStorage.getItem("geoai:point-to-object:selection:v3"), source: map.querySourceFeatures("openmaptiles", { sourceLayer: "building" }).filter(feature => feature.properties.name === "Complex courtyard").map(feature => feature.geometry), color: map.getPaintProperty("geoai-buildings-3d", "fill-extrusion-color") };
-    })) });
-    throw error;
-  });
+  await expect.poll(selectedVisible).toBe(true);
   // Query filters update before asynchronous native paint/tile transitions.
   // Capture only after MapLibre reports the rendered map fully settled.
   await expect.poll(() => page.evaluate(() => (window as unknown as { map10: import("maplibre-gl").Map }).map10.loaded())).toBe(true);
-  await page.screenshot({ path: testInfo.outputPath("complex-native-highlight-desktop.png") });
+  await page.screenshot({ path: testInfo.outputPath("complex-translucent-selection-desktop.png") });
   // The complete courtyard Polygon supports native 3D emphasis. Preserve the
   // founder's mobile control-size/alignment coverage on this eligible object.
   await page.setViewportSize({ width: 430, height: 932 });
@@ -184,7 +158,7 @@ test("MAP10 native complex/multipart highlight preserves geometry without duplic
   await page.getByRole("button", { name: "Camera", exact: true }).click();
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.getByRole("button", { name: "3D volume", exact: true }).click();
-  await expect.poll(() => page.evaluate(() => (window as unknown as { map10: import("maplibre-gl").Map }).map10.getPaintProperty("geoai-buildings-3d", "fill-extrusion-color"))).toBe("#d6dcdf");
+  await expect.poll(() => page.evaluate(() => (window as unknown as { map10: import("maplibre-gl").Map }).map10.getLayoutProperty("geoai-live-selection-volume", "visibility"))).toBe("none");
   await page.getByRole("button", { name: "2d", exact: true }).press("Enter");
   await page.evaluate(() => {
     const map = (window as unknown as { map10: import("maplibre-gl").Map }).map10;
@@ -240,9 +214,12 @@ test("MAP10 native complex/multipart highlight preserves geometry without duplic
   await expect(page.getByRole("button", { name: "Open task", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Camera", exact: true }).click();
   await page.getByRole("button", { name: "3d", exact: true }).press("Enter");
-  // A tile Polygon member remains a flat, provenance-labelled selection even
-  // when the surrounding native map switches to 3D.
-  await expect(volumeButton).toHaveCount(0);
+  // A selected tile Polygon member now receives a translucent volume after
+  // its sibling-preserving partition source is ready.
+  await expect(volumeButton).toBeVisible();
+  // The prior part of this test deliberately turned volume off; enabling it
+  // here tests the newly selected member rather than the persisted off state.
+  if (await volumeButton.getAttribute("aria-pressed") === "false") await volumeButton.click();
   await page.evaluate(() => {
     const map = (window as unknown as { map10: import("maplibre-gl").Map }).map10;
     map.stop(); map.jumpTo({ center: [55.2842, 25.214], zoom: 16.5, pitch: 55, bearing: -25 });
@@ -250,14 +227,21 @@ test("MAP10 native complex/multipart highlight preserves geometry without duplic
   await expect.poll(() => page.evaluate(() => (window as unknown as { map10: import("maplibre-gl").Map }).map10.isStyleLoaded())).toBe(true);
   await expect.poll(() => page.evaluate(() => {
     const map = (window as unknown as { map10: import("maplibre-gl").Map }).map10;
-    return map.queryRenderedFeatures(undefined, { layers: ["geoai-live-selection-fill"] })
-      .some(feature => feature.geometry.type === "Polygon" && feature.properties.geometryProvenance === "rendered_tile_polygon_member");
-  })).toBe(true);
+    return map.getLayoutProperty("geoai-live-selection-volume", "visibility");
+  })).toBe("visible");
   expect(await page.evaluate(() => {
     const map = (window as unknown as { map10: import("maplibre-gl").Map }).map10;
-    return { color: map.getPaintProperty("geoai-buildings-3d", "fill-extrusion-color"), duplicate: !!map.getLayer("geoai-live-selection-volume") };
-  })).toEqual({ color: "#d6dcdf", duplicate: false });
-  await expect.poll(otherMultipartMemberVisible).toBe(true);
+    return { selectedOpacity: map.getPaintProperty("geoai-live-selection-volume", "fill-extrusion-opacity"),
+      nativeOpacity: map.getPaintProperty("geoai-buildings-3d", "fill-extrusion-opacity") };
+  })).toEqual({ selectedOpacity: 0.5, nativeOpacity: 1 });
+  await expect.poll(() => page.evaluate(() => {
+    const map = (window as unknown as { map10: import("maplibre-gl").Map }).map10;
+    const retainedLayer = "geoai-existing-partition-layer:geoai-buildings-3d";
+    return map.getLayer(retainedLayer) && map.queryRenderedFeatures(undefined, { layers: [retainedLayer] })
+      .some(feature => feature.properties.name === "Multipart neighbour");
+  })).toBe(true);
+  expect(await page.evaluate(() => (window as unknown as { map10: import("maplibre-gl").Map }).map10.getPaintProperty(
+    "geoai-existing-partition-layer:geoai-buildings-3d", "fill-extrusion-opacity"))).toBe(1);
   await page.getByRole("button", { name: "Camera", exact: true }).click();
   await page.screenshot({ path: testInfo.outputPath("multipart-native-highlight-mobile-430.png") });
   expect(pageErrors).toEqual([]);

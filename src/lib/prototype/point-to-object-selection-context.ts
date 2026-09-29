@@ -5,8 +5,11 @@ import type { LiveMapSelection, LiveResolvedObjectContext } from "../../../compo
 export function mergePointObjectContextGeometry(object: LiveMapSelection["object"], resolved: LiveResolvedObjectContext): LiveMapSelection["object"] {
   if (resolved.geometryProvenance !== "confirmed_complete_footprint" || !resolved.displayGeometry ||
       resolved.sourceFeatureId !== object.sourceFeatureId || resolved.coordinateAssociation !== "trusted_open_map_identity") return object;
-  const retainHeight = object.geometryProvenance !== "rendered_tile_polygon_member" &&
-    (object.geometry?.type === "Polygon" || object.geometry?.type === "MultiPolygon");
+  // Parent identity alone does not identify the clicked tile member. Preserve
+  // its geometry and rendered height until member-level matching is available;
+  // the separately retained source context may still enrich the overview.
+  if (object.geometryProvenance === "rendered_tile_polygon_member") return object;
+  const retainHeight = object.geometry?.type === "Polygon" || object.geometry?.type === "MultiPolygon";
   const suppliedHeight = resolved.renderHeightM;
   const hasHeight = typeof suppliedHeight === "number" && Number.isFinite(suppliedHeight) && suppliedHeight > 0;
   return {

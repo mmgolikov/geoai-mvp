@@ -160,10 +160,12 @@ test("Sprint07 selects a complete tile member without colouring the aggregate an
     }, coordinate);
     await page.mouse.click(pixel.x, pixel.y);
   };
-  const selectedMember = () => page.evaluate(() => {
+  const selectedMember = () => page.evaluate(async () => {
     const map = (window as unknown as { sprint07map: import("maplibre-gl").Map }).sprint07map;
-    if (!map.getLayer("geoai-live-selection-fill")) return false;
-    return map.queryRenderedFeatures({ layers: ["geoai-live-selection-fill"] }).some(feature => feature.geometry.type === "Polygon" && feature.properties?.geometryProvenance === "rendered_tile_polygon_member");
+    const source = map.getSource("geoai-live-selection") as import("maplibre-gl").GeoJSONSource | undefined;
+    if (!source) return false;
+    const data = await source.getData();
+    return data.type === "Feature" && data.geometry.type === "Polygon" && data.properties?.geometryProvenance === "rendered_tile_polygon_member";
   });
   await clickCoordinate([55.3212,25.2252]);
   await expect.poll(selectedMember).toBe(true);
@@ -178,7 +180,8 @@ test("Sprint07 selects a complete tile member without colouring the aggregate an
     return nativeParts.some(part => JSON.stringify(part) === JSON.stringify(data.geometry.coordinates));
   })).toBe(true);
   await page.getByRole("button", { name: "3d", exact: true }).press("Enter");
-  await expect.poll(() => page.evaluate(() => (window as unknown as { sprint07map: import("maplibre-gl").Map }).sprint07map.getPaintProperty("geoai-buildings-3d", "fill-extrusion-color"))).toBe("#d6dcdf");
+  await expect.poll(() => page.evaluate(() => (window as unknown as { sprint07map: import("maplibre-gl").Map }).sprint07map.getLayoutProperty("geoai-live-selection-volume", "visibility"))).toBe("visible");
+  await expect.poll(() => page.evaluate(() => (window as unknown as { sprint07map: import("maplibre-gl").Map }).sprint07map.getPaintProperty("geoai-buildings-3d", "fill-extrusion-opacity"))).toBe(1);
   await page.getByLabel("Map style", { exact: true }).selectOption("light");
   await expect.poll(selectedMember).toBe(true);
   await page.reload();

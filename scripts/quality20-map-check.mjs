@@ -18,10 +18,16 @@ const shape=result.candidates[0].geometry;
 const selected={name:'Known tower',featureClass:'building',sourceFeatureId:'way/12',geometry:shape,geometryProvenance:'confirmed_complete_footprint',renderHeightM:42,renderMinHeightM:3};
 const resolved={sourceFeatureId:'way/12',coordinateAssociation:'trusted_open_map_identity',displayGeometry:shape,geometryProvenance:'confirmed_complete_footprint',renderHeightM:null,renderMinHeightM:null};
 assert.equal(mergePointObjectContextGeometry(selected,resolved).renderHeightM,42,'Q01 preserve known exact-object height');
-assert.equal(mergePointObjectContextGeometry({...selected,geometryProvenance:'rendered_tile_polygon_member'},resolved).renderHeightM,null,'tile member may not lend height to a whole building');
+assert.deepEqual(mergePointObjectContextGeometry({...selected,geometryProvenance:'rendered_tile_polygon_member'},resolved),{...selected,geometryProvenance:'rendered_tile_polygon_member'},'tile member geometry and height remain bound to that member, not expanded to a parent');
 assert.deepEqual(mergePointObjectContextGeometry(selected,{...resolved,sourceFeatureId:'node/99'}),selected,'Q02 neighbour must not replace selected object');
 assert.equal(mergePointObjectContextGeometry({...selected,renderHeightM:null},resolved).renderHeightM,null,'unknown stays unknown');
 assert.equal(mergePointObjectContextGeometry(selected,{...resolved,renderHeightM:60,renderMinHeightM:5}).renderHeightM,60);
+const selectedMember={...selected,sourceFeatureId:'relation/12',geometryProvenance:'rendered_tile_polygon_member'};
+const lateParent={...resolved,sourceFeatureId:'relation/12',renderHeightM:60,displayGeometry:{type:'MultiPolygon',coordinates:[shape.coordinates,shape.coordinates.map(ring=>ring.map(([x,y])=>[x+0.003,y]))]}};
+assert.deepEqual(mergePointObjectContextGeometry(selectedMember,lateParent),selectedMember,'Review29 late parent relation context cannot widen clicked member or transfer parent height');
+for (const displayGeometry of [shape,{type:'MultiPolygon',coordinates:[shape.coordinates]}]) {
+  assert.deepEqual(mergePointObjectContextGeometry(selectedMember,{...lateParent,displayGeometry}),selectedMember,'Review29 parent ID with single geometry does not prove member-level identity');
+}
 assert.deepEqual(explicitSourceHeight({'building:levels':'10'}),{renderHeightM:null,renderMinHeightM:null},'no invented height from storeys');
 assert.equal(explicitSourceHeight({height:'100 ft'}).renderHeightM,30.48);
 assert.equal(sourceElementFootprint({type:'way',tags:{building:'office'},geometry:geometry.slice(0,-1)}),null,'open way must not become a polygon');
