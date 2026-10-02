@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import {
   conceptTemplates,
+  conceptSiteDefaults,
   type ConceptTemplateId,
   type PointObjectCreateAoi,
   type RedevelopmentProgramInput
@@ -166,6 +167,7 @@ function RangeControl({
   minimum,
   maximum,
   suffix,
+  error,
   onChange
 }: {
   label: string;
@@ -173,22 +175,28 @@ function RangeControl({
   minimum: number;
   maximum: number;
   suffix?: string;
+  error?: string | null;
   onChange: (value: number) => void;
 }) {
+  const errorId = useId();
   return (
-    <label className="rounded-xl border border-[#d7dee4] bg-white p-3 text-xs font-semibold text-[#344054]">
+    <label className={`rounded-xl border p-3 text-xs font-semibold ${error ? "border-[#f04438] bg-[#fff5f3] text-[#b42318]" : "border-[#d7dee4] bg-white text-[#344054]"}`}>
       <span className="flex items-center justify-between gap-3">
         <span className="min-w-0">{label}</span>
-        <span className="tabular-nums text-[#087f8c]">{value}{suffix}</span>
+        <span className={`tabular-nums ${error ? "text-[#b42318]" : "text-[#087f8c]"}`}>{value}{suffix}</span>
       </span>
       <input
         type="range"
+        aria-label={label}
         min={minimum}
         max={maximum}
         value={value}
+        aria-invalid={Boolean(error)}
+        aria-describedby={error ? errorId : undefined}
         onChange={(event) => onChange(Number(event.target.value))}
-        className="mt-3 w-full accent-[#087f8c]"
+        className={`mt-3 w-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${error ? "accent-[#b42318] focus-visible:outline-[#b42318]" : "accent-[#087f8c] focus-visible:outline-[#087f8c]"}`}
       />
+      {error ? <span id={errorId} className="mt-2 block text-[11px] leading-4">{error}</span> : null}
     </label>
   );
 }
@@ -199,7 +207,7 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
   const restoredEditor = restorePointObjectCreateEditorSnapshot(editorSnapshot, editorScopeKey);
   const [templateId, setTemplateId] = useState<ConceptTemplateId>(() => restoredEditor?.templateId ?? "residential_mixed_use");
   const activeTemplate = templates.find((item) => item.templateId === templateId) ?? templates[0];
-  const [controls, setControls] = useState<Controls>(() => restoredEditor?.controls ?? controlsFrom(activeTemplate));
+  const [controls, setControls] = useState<Controls>(() => restoredEditor?.controls ?? controlsFrom(conceptSiteDefaults(activeTemplate, aoi.coordinates)));
   const [lockedControlKeys, setLockedControlKeys] = useState<Set<ControlKey>>(() => new Set(restoredEditor?.lockedControlKeys ?? POINT_OBJECT_CREATE_EDITOR_CONTROL_KEYS));
   const [customPrompt, setCustomPrompt] = useState(() => restoredEditor?.customPrompt ?? "");
   const [loading, setLoading] = useState(false);
@@ -217,6 +225,10 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
   } | null>(null);
   const [committedDraftKey, setCommittedDraftKey] = useState<string | null>(() => restoredEditor?.committedDraftKey ?? null);
   const requestRef = useRef<AbortController | null>(null);
+  // Restored or manually edited controls are never silently reduced. Only a
+  // fresh/reset geometric default may adopt the worker's validated coverage.
+  const explicitControlsRef = useRef(Boolean(restoredEditor));
+  const [defaultAdjustment, setDefaultAdjustment] = useState<{ from: number; to: number } | null>(null);
   const requestIdRef = useRef(0);
   const editorScopeKeyRef = useRef(editorScopeKey);
   const editorSnapshotCallbackRef = useRef(onEditorSnapshotChange);
@@ -232,12 +244,26 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
     lockedControlKeys
   }), [controls, customPrompt, depth, editorScopeKey, locale, lockedControlKeys, templateId]);
   const generatedFromCurrentDraft = Boolean(generated && committedDraftKey === draftKey);
+  const currentDraftKeyRef = useRef(draftKey);
+  currentDraftKeyRef.current = draftKey;
   const draftChangedAfterGeneration = Boolean(generated && !generatedFromCurrentDraft);
   const generatedLanguageMatches = Boolean(generated && generatedLocale === locale);
   const preflightCurrent = localPreflight?.key === draftKey ? localPreflight : null;
-  const preflightBlocked = !preflightCurrent || ["checking", "failed", "suggestion"].includes(preflightCurrent.kind);
+  const coverageError = controls.targetSiteCoveragePct + controls.openSpacePct > 100
+    ? (locale === "ru" ? "Застройка + открытые пространства должны быть ≤100%." : "Coverage + open space must be ≤100%.")
+    : null;
+  const blockError = !customPrompt.trim() && activeTemplate.massingStyle === "courtyard" && controls.blockCount < 4
+    ? (locale === "ru" ? "Для двора нужно минимум 4 корпуса." : "A courtyard requires at least 4 blocks.") : null;
+  const levelsError = !customPrompt.trim() && activeTemplate.massingStyle === "towers_on_podium" && controls.levelsMin < 2
+    ? (locale === "ru" ? "Для башен на подиуме нужно минимум 2 этажа." : "Towers on a podium require at least 2 levels.") : null;
+  const parameterError = [coverageError, blockError, levelsError].filter(Boolean).join(" ") || null;
+  const preflightBlocked = Boolean(parameterError) || !preflightCurrent || ["checking", "failed", "suggestion"].includes(preflightCurrent.kind);
 
   useEffect(() => {
+    if (parameterError) {
+      setLocalPreflight({ key: draftKey, kind: "failed", code: "program_invalid" });
+      return;
+    }
     setLocalPreflight({ key: draftKey, kind: "checking" });
     let worker: Worker | null = null;
     let deadline: number | undefined;
@@ -246,7 +272,16 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
         worker = new Worker(new URL("./create-preflight.worker.ts", import.meta.url));
         worker.onmessage = (event) => {
           window.clearTimeout(deadline);
-          setLocalPreflight({ ...event.data, key: draftKey });
+          if (currentDraftKeyRef.current !== draftKey) { worker?.terminate(); return; }
+          if (event.data.kind === "suggestion" && !explicitControlsRef.current && !customPrompt.trim()) {
+            // Validate the message before adopting anything, even from the local
+            // worker. Never use a solver failure as permission to lower controls.
+            const validated = coverageSuggestionResponse({ mode: "programme_adjustment_required", error: "Default placement", suggestion: event.data.suggestion });
+            if (validated && validated.suggestion.requestedValue === controls.targetSiteCoveragePct) {
+              setDefaultAdjustment({ from: controls.targetSiteCoveragePct, to: validated.suggestion.suggestedValue });
+              setControls(current => ({ ...current, targetSiteCoveragePct: validated.suggestion.suggestedValue }));
+            } else setLocalPreflight({ key: draftKey, kind: "failed", code: "geometry_validation_failed" });
+          } else setLocalPreflight({ ...event.data, key: draftKey });
           worker?.terminate();
         };
         worker.onerror = () => {
@@ -263,7 +298,7 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
       } catch { setLocalPreflight({ key: draftKey, kind: "failed", code: "worker_unavailable" }); }
     }, 250);
     return () => { window.clearTimeout(timer); window.clearTimeout(deadline); worker?.terminate(); };
-  }, [draftKey, aoi.coordinates, aoi.id, controls, customPrompt, locale, lockedControlKeys, preflightAttempt, templateId]);
+  }, [draftKey, aoi.coordinates, aoi.id, controls, customPrompt, locale, lockedControlKeys, parameterError, preflightAttempt, templateId]);
 
   useEffect(() => {
     editorSnapshotCallbackRef.current = onEditorSnapshotChange;
@@ -280,7 +315,9 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
       const nextTemplateId = nextRestored?.templateId ?? "residential_mixed_use";
       const nextTemplate = templates.find((item) => item.templateId === nextTemplateId) ?? templates[0];
       setTemplateId(nextTemplateId);
-      setControls(nextRestored?.controls ?? controlsFrom(nextTemplate));
+      setControls(nextRestored?.controls ?? controlsFrom(conceptSiteDefaults(nextTemplate, aoi.coordinates)));
+      explicitControlsRef.current = Boolean(nextRestored);
+      setDefaultAdjustment(null);
       setLockedControlKeys(new Set(nextRestored?.lockedControlKeys ?? POINT_OBJECT_CREATE_EDITOR_CONTROL_KEYS));
       setCustomPrompt(nextRestored?.customPrompt ?? "");
       setCommittedDraftKey(nextRestored?.committedDraftKey ?? null);
@@ -323,12 +360,16 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
     if (!template) return;
     invalidatePendingRequest();
     setTemplateId(nextId);
-    setControls(controlsFrom(template));
+    setControls(controlsFrom(conceptSiteDefaults(template, aoi.coordinates)));
+    explicitControlsRef.current = false;
+    setDefaultAdjustment(null);
     setLockedControlKeys(new Set(POINT_OBJECT_CREATE_EDITOR_CONTROL_KEYS));
   }
 
   function updateControl<Key extends keyof Controls>(key: Key, value: Controls[Key]) {
     invalidatePendingRequest();
+    explicitControlsRef.current = true;
+    setDefaultAdjustment(null);
     const next = { ...controls, [key]: value };
     let correctedPair = false;
     if (key === "levelsMin" && next.levelsMax < next.levelsMin) {
@@ -353,7 +394,9 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
 
   function resetEditedControls() {
     invalidatePendingRequest();
-    setControls(controlsFrom(activeTemplate));
+    setControls(controlsFrom(conceptSiteDefaults(activeTemplate, aoi.coordinates)));
+    explicitControlsRef.current = false;
+    setDefaultAdjustment(null);
     setLockedControlKeys(new Set(POINT_OBJECT_CREATE_EDITOR_CONTROL_KEYS));
   }
 
@@ -446,7 +489,7 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
   const generatedLevelsMin = activeMassing?.minGeneratedLevels ?? generated?.program.levelsMin ?? 0;
   const generatedLevelsMax = activeMassing?.maxGeneratedLevels ?? generated?.program.levelsMax ?? 0;
   const generatedLevels = generatedLevelsMin === generatedLevelsMax ? String(generatedLevelsMin) : `${generatedLevelsMin}–${generatedLevelsMax}`;
-  const activeTemplateControls = controlsFrom(activeTemplate);
+  const activeTemplateControls = controlsFrom(conceptSiteDefaults(activeTemplate, aoi.coordinates));
   const controlsDifferFromTemplate = POINT_OBJECT_CREATE_EDITOR_CONTROL_KEYS.some((key) => controls[key] !== activeTemplateControls[key]);
 
   function applySuggestedCoverage() {
@@ -489,14 +532,16 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
         <summary className="cursor-pointer text-xs font-bold text-[#344054]">{locale === "ru" ? "Параметры концепции" : "Concept parameters"}</summary>
         {controlsDifferFromTemplate ? <div className="mt-3 flex justify-end"><button type="button" onClick={resetEditedControls} className="min-h-11 rounded-lg px-2 text-[11px] font-bold text-[#087f8c] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]" data-testid="reset-edited-create-controls">{copy.resetParameters}</button></div> : null}
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          <RangeControl label={copy.blocks} value={controls.blockCount} minimum={1} maximum={12} onChange={(value) => updateControl("blockCount", value)} />
-          <RangeControl label={copy.coverage} value={controls.targetSiteCoveragePct} minimum={8} maximum={60} suffix="%" onChange={(value) => updateControl("targetSiteCoveragePct", value)} />
-          <RangeControl label={copy.levelsMin} value={controls.levelsMin} minimum={1} maximum={40} onChange={(value) => updateControl("levelsMin", value)} />
+          <RangeControl label={copy.blocks} value={controls.blockCount} minimum={1} maximum={12} error={blockError} onChange={(value) => updateControl("blockCount", value)} />
+          <RangeControl label={copy.coverage} value={controls.targetSiteCoveragePct} minimum={8} maximum={60} suffix="%" error={coverageError} onChange={(value) => updateControl("targetSiteCoveragePct", value)} />
+          <RangeControl label={copy.levelsMin} value={controls.levelsMin} minimum={1} maximum={40} error={levelsError} onChange={(value) => updateControl("levelsMin", value)} />
           <RangeControl label={copy.levelsMax} value={controls.levelsMax} minimum={1} maximum={80} onChange={(value) => updateControl("levelsMax", value)} />
-          <RangeControl label={copy.openSpace} value={controls.openSpacePct} minimum={15} maximum={75} suffix="%" onChange={(value) => updateControl("openSpacePct", value)} />
+          <RangeControl label={copy.openSpace} value={controls.openSpacePct} minimum={15} maximum={75} suffix="%" error={coverageError} onChange={(value) => updateControl("openSpacePct", value)} />
           <RangeControl label={copy.setback} value={controls.setbackM} minimum={2} maximum={30} suffix={locale === "ru" ? " м" : " m"} onChange={(value) => updateControl("setbackM", value)} />
         </div>
       </details>
+      {parameterError ? <p className="mt-2 text-xs font-semibold text-[#b42318]" role="alert" data-testid="create-parameter-error">{parameterError}</p> : null}
+      {defaultAdjustment ? <p className="mt-2 text-xs text-[#475467]" role="status" data-testid="create-default-adjustment">{locale === "ru" ? "Базовое покрытие подобрано по геометрии участка" : "Default coverage fitted to the site geometry"}: {defaultAdjustment.from}% → {defaultAdjustment.to}%. {locale === "ru" ? "Это не норматив и не оценка спроса." : "Not a planning rule or demand estimate."}</p> : null}
 
       <label className="mt-4 block text-xs font-bold text-[#344054]" htmlFor="point-object-create-prompt">{copy.prompt}</label>
       <textarea
@@ -512,15 +557,15 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
       />
 
       {draftChangedAfterGeneration ? <p className="mt-3 text-[11px] font-bold text-[#79520d]" data-testid="create-draft-status">{copy.draftChanged}</p> : null}
-      <div className="mt-3 rounded-xl border border-[#d7dee4] bg-white p-3 text-xs leading-5 text-[#475467]" role="status" data-testid="create-local-preflight" data-preflight-kind={preflightCurrent?.kind ?? "checking"}>
-        {!preflightCurrent || preflightCurrent.kind === "checking" ? (locale === "ru" ? "Проверяем размещение до генерации…" : "Checking placement before generation…")
+      <div className={`mt-3 rounded-xl border bg-white p-3 text-xs leading-5 ${preflightCurrent?.kind === "failed" || preflightCurrent?.kind === "suggestion" ? "border-[#fecdca] text-[#b42318]" : "border-[#d7dee4] text-[#475467]"}`} role="status" data-testid="create-local-preflight" data-preflight-kind={preflightCurrent?.kind ?? "checking"}>
+        {parameterError ?? (!preflightCurrent || preflightCurrent.kind === "checking" ? (locale === "ru" ? "Проверяем размещение до генерации…" : "Checking placement before generation…")
           : preflightCurrent.kind === "ready" ? (locale === "ru" ? "Размещение найдено с заданными параметрами. Это геометрическая проверка, не согласование проекта." : "A layout fits the requested parameters. This checks geometry, not project approval.")
           : preflightCurrent.kind === "not_applicable" ? (locale === "ru" ? "Свободный запрос требует уточнения программы; геометрия будет проверена после её получения." : "The custom request needs programme resolution; geometry will be checked once the programme is defined.")
           : preflightCurrent.code === "program_invalid" ? (locale === "ru" ? "Параметры противоречат друг другу: проверьте диапазон этажности и сумму застройки с открытым пространством (не более 100%)." : "The parameters conflict: check the level range and coverage plus open-space target (at most 100%).")
           : preflightCurrent.code === "worker_unavailable" ? (locale === "ru" ? "Проверка размещения сейчас недоступна. Параметры и предыдущий результат сохранены; повторите проверку." : "The placement check is unavailable. Your parameters and previous result are preserved; retry the check.")
           : preflightCurrent.code === "solver_timeout" ? (locale === "ru" ? "Время проверки размещения истекло. Это не означает, что размещение невозможно. Параметры и предыдущий результат сохранены; повторите проверку." : "The placement check timed out. This does not mean the layout is impossible. Your parameters and previous result are preserved; retry the check.")
           : preflightCurrent.code === "geometry_validation_failed" ? (locale === "ru" ? "Проверку размещения не удалось завершить из-за ошибки обработки геометрии. Это не вывод о возможности размещения; повторите проверку." : "The placement check could not complete because geometry processing failed. This is not a conclusion about layout feasibility; retry the check.")
-          : (locale === "ru" ? "Ограниченный поиск не нашёл размещение с этими параметрами. Это не доказанный предел участка; измените число корпусов, отступ или программу." : "The bounded search found no layout for these parameters. This is not a proven site limit; adjust block count, setback or programme.")}
+          : (locale === "ru" ? "Размещение не найдено: уменьшите число корпусов или отступ. Это ограниченный поиск, не предел участка." : "No layout found: reduce block count or setback. This is a bounded search, not a site limit."))}
         {preflightCurrent?.suggestion ? <button type="button" className="mt-2 block min-h-11 rounded-lg border border-[#d7dee4] px-3 font-bold" data-testid="create-local-apply-preset" onClick={() => updateControl("targetSiteCoveragePct", preflightCurrent.suggestion!.suggestedValue)}>{locale === "ru" ? "Применить проверенный вариант" : "Apply validated preset"}: {controls.targetSiteCoveragePct}% → {preflightCurrent.suggestion.suggestedValue}%</button> : null}
         {preflightCurrent?.kind === "failed" && ["worker_unavailable", "solver_timeout", "geometry_validation_failed"].includes(preflightCurrent.code ?? "") ? <button type="button" className="mt-2 block min-h-11 rounded-lg border border-[#d7dee4] px-3 font-bold" data-testid="create-local-preflight-retry" onClick={retryLocalPreflight}>{locale === "ru" ? "Повторить проверку" : "Retry check"}</button> : null}
       </div>

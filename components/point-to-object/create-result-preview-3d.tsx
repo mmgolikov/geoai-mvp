@@ -9,6 +9,7 @@ import { buildPointObjectCreatePreviewModel } from "@/src/lib/prototype/point-to
 import { conceptMaterialColor } from "@/src/lib/prototype/point-to-object-create-appearance";
 import { CONCEPT_ENVIRONMENT_SOURCE, ensureConceptEnvironmentLayers, updateConceptEnvironment } from "@/src/lib/prototype/point-to-object-create-environment-renderer";
 import { fitConceptCamera } from "@/src/lib/prototype/point-to-object-create-camera";
+import { ensureVolumeEdgeLayer, setVolumeEdges } from "@/src/lib/prototype/point-to-object-volume-edges";
 
 type Props = {
   locale: "en" | "ru";
@@ -22,6 +23,7 @@ type PreviewStatus = "initializing" | "ready" | "unsupported" | "invalid" | "err
 
 const AOI_SOURCE_ID = "create-result-preview-aoi";
 const MASSING_SOURCE_ID = "create-result-preview-massing";
+const MASSING_EDGES_ID = "create-result-preview-edges";
 const BASEMAP_STYLE = "https://tiles.openfreemap.org/styles/positron";
 
 const BLANK_STYLE: StyleSpecification = {
@@ -204,6 +206,10 @@ export function CreateResultPreview3D({ locale, aoi, massing, fallback, dimensio
                 "fill-extrusion-vertical-gradient": true
               }
             });
+            ensureVolumeEdgeLayer(map, MASSING_EDGES_ID, "create-result-preview-volumes");
+            setVolumeEdges(map, MASSING_EDGES_ID, loaded.massingFeatureCollection.features.map(feature => ({
+              geometry: feature.geometry, heightM: feature.properties.heightM, baseM: feature.properties.baseM
+            })));
             appliedGeometryKeyRef.current = loaded.geometryKey;
             resetCamera(0, true);
             setStatus("ready");
@@ -245,7 +251,12 @@ export function CreateResultPreview3D({ locale, aoi, massing, fallback, dimensio
     if (appliedGeometryKeyRef.current === model.geometryKey) return;
     (mapRef.current?.getSource(AOI_SOURCE_ID) as GeoJSONSource | undefined)?.setData(model.aoiFeature);
     (mapRef.current?.getSource(MASSING_SOURCE_ID) as GeoJSONSource | undefined)?.setData(model.massingFeatureCollection);
-    if (mapRef.current) updateConceptEnvironment(mapRef.current, model.environment);
+    if (mapRef.current) {
+      updateConceptEnvironment(mapRef.current, model.environment);
+      setVolumeEdges(mapRef.current, MASSING_EDGES_ID, model.massingFeatureCollection.features.map(feature => ({
+        geometry: feature.geometry, heightM: feature.properties.heightM, baseM: feature.properties.baseM
+      })));
+    }
     appliedGeometryKeyRef.current = model.geometryKey;
     resetCamera(180, true);
   }, [model, resetCamera, status]);

@@ -56,7 +56,9 @@ function massing(variantId: "A" | "B", generation: number, controls: Record<stri
     const orderedIndex = variantId === "A" ? index : count - index - 1;
     const longitude = 55.27019 + (orderedIndex % 3) * 0.00012 + generation * 0.000002;
     const latitude = 25.20519 + Math.floor(orderedIndex / 3) * 0.00012 + (variantId === "B" ? 0.000035 : 0);
-    const levels = controls.levelsMin + index % Math.max(1, controls.levelsMax - controls.levelsMin + 1);
+    // A site-aware count can be shorter than the level range. The offline
+    // producer must report real feature extrema, not a nonexistent top floor.
+    const levels = Math.round(controls.levelsMin + (count > 1 ? index / (count - 1) : 0) * (controls.levelsMax - controls.levelsMin));
     const id = `concept-${variantId.toLowerCase()}-${generation}-${index + 1}`;
     return {
       type: "Feature" as const,
@@ -98,8 +100,8 @@ function massing(variantId: "A" | "B", generation: number, controls: Record<stri
     generatedFootprintAreaSqM: controls.targetSiteCoveragePct * aoiAreaSqM / 100,
     achievedSiteCoveragePct: controls.targetSiteCoveragePct,
     estimatedFloorAreaSqM: generation * 1_000 + (variantId === "B" ? 500 : 0),
-    minGeneratedLevels: controls.levelsMin,
-    maxGeneratedLevels: controls.levelsMax,
+    minGeneratedLevels: Math.min(...features.map(feature => feature.properties.levels)),
+    maxGeneratedLevels: Math.max(...features.map(feature => feature.properties.levels)),
     seed: `offline-${generation}-${variantId}`
   };
 }
@@ -561,7 +563,7 @@ for (const width of [390, 430]) {
     await expect(resultPreview).toBeVisible();
     await expect(resultPreview).toHaveAttribute("data-preview-status", "ready");
     await expect(resultPreview).toHaveAttribute("data-preview-variant", "A");
-    await expect(resultPreview).toHaveAttribute("data-preview-feature-count", "6");
+    await expect(resultPreview).toHaveAttribute("data-preview-feature-count", String((createPosts[0].controls as Record<string, number>).blockCount));
     await expect(resultPreview).toHaveAttribute("data-preview-max-height-m", "27.2");
     const previewCanvas = page.getByTestId("create-result-preview-3d-canvas");
     await expect(previewCanvas).toBeVisible();

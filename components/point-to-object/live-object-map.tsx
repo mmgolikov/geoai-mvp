@@ -34,7 +34,8 @@ import {
 import { pointObjectMarket } from "@/src/lib/prototype/point-to-object-markets";
 import { clearPointObjectPartitionRenderer, reconcilePointObjectCompleteFootprintRenderer } from "@/src/lib/prototype/point-to-object-map-partition-renderer";
 import { pointObjectCompleteFootprintOverlap } from "@/src/lib/prototype/point-to-object-map-partition";
-import { pointObjectFindPresentationState, pointObjectFindVerifiedFootprint, pointObjectNativeSelectedBuildingPredicate, pointObjectTilePolygonMemberAt } from "@/src/lib/prototype/point-to-object-map-selection";
+import { pointObjectFindPresentationState, pointObjectFindVerifiedFootprint, pointObjectNativeSelectedBuildingPredicate, pointObjectTilePolygonMemberAt, pointObjectRenderedTileMemberAt } from "@/src/lib/prototype/point-to-object-map-selection";
+import { ensureVolumeEdgeLayer, setVolumeEdges, projectRenderedVolumePoint } from "@/src/lib/prototype/point-to-object-volume-edges";
 import { createPointObjectMapResultOpenGuard, groupExactPointObjectProjectResults } from "@/src/lib/prototype/point-to-object-map-project-groups";
 
 const BASEMAPS: Array<{ id: LiveMapBasemapId; labelKey: "map.style.street" | "map.style.light" | "map.style.contrast"; styleUrl: string }> = [
@@ -51,11 +52,13 @@ const CAMERA: Record<MapViewMode, { pitch: number; bearing: number }> = {
   "3d": { pitch: 55, bearing: -25 }
 };
 const BUILDINGS_3D_LAYER_ID = "geoai-buildings-3d";
+const NATIVE_VOLUME_MIN_ZOOM = 14;
 const HIGHLIGHT_SOURCE_ID = "geoai-live-selection";
 const HIGHLIGHT_FILL_LAYER_ID = "geoai-live-selection-fill";
 const HIGHLIGHT_NATIVE_FILL_LAYER_ID = "geoai-live-native-selection-fill";
 const HIGHLIGHT_VOLUME_LAYER_ID = "geoai-live-selection-volume";
 const HIGHLIGHT_LINE_LAYER_ID = "geoai-live-selection-line";
+const HIGHLIGHT_EDGE_LAYER_ID = "geoai-live-selection-edges";
 const HIGHLIGHT_POINT_LAYER_ID = "geoai-live-selection-point";
 const CREATE_AOI_SOURCE_ID = "geoai-create-aoi";
 const CREATE_AOI_MASK_LAYER_ID = "geoai-create-aoi-low-zoom-mask";
@@ -539,15 +542,23 @@ function selectFeature(
   features: MapGeoJSONFeature[],
   zoom: number,
   viewportBounds: [west: number, south: number, east: number, north: number],
-  clicked: Wgs84Position
+  clicked: Wgs84Position,
+  renderedMember?: (feature: MapGeoJSONFeature) => Polygon | null
 ) {
+  const renderedBuildingHit = features.some(feature => sourceLayerOf(feature) === "building" &&
+    (feature.geometry.type === "Polygon" || feature.geometry.type === "MultiPolygon"));
   return features
     .map((feature, index) => {
       const isTileMember = sourceLayerOf(feature) === "building" && feature.geometry.type === "MultiPolygon" && feature.geometry.coordinates.length > 1;
-      const geometry = isTileMember && feature.geometry.type === "MultiPolygon" ? pointObjectTilePolygonMemberAt(feature.geometry, clicked) : feature.geometry;
+      const geometry = isTileMember && feature.geometry.type === "MultiPolygon"
+        ? feature.layer.type === "fill-extrusion" && renderedMember
+          ? renderedMember(feature)
+          : pointObjectTilePolygonMemberAt(feature.geometry, clicked) : feature.geometry;
       return { feature, index, geometry, isTileMember, score: geometry ? featureScore(feature, zoom, viewportBounds, geometry) : -1 };
     })
-    .filter(({ score }) => score >= 0)
+    // An unresolved physical building hit must not become a nearby POI merely
+    // because a label shares that pixel. Leave identity unresolved instead.
+    .filter(({ score, feature }) => score >= 0 && (!renderedBuildingHit || sourceLayerOf(feature) === "building"))
     .sort((left, right) => right.score - left.score || left.index - right.index)[0] ?? null;
 }
 
@@ -893,6 +904,8 @@ function setHighlight(
       }
     : { type: "FeatureCollection", features: [] };
   source.setData(data);
+  setVolumeEdges(map, HIGHLIGHT_EDGE_LAYER_ID, geometry && (geometry.type === "Polygon" || geometry.type === "MultiPolygon")
+    ? [{ geometry, heightM: selection?.object.renderHeightM ?? 0, baseM: selection?.object.renderMinHeightM ?? 0 }] : []);
   setSelectedVolumeVisibility(map, selection, viewMode, showVolume);
 }
 
@@ -1009,7 +1022,9 @@ function setCreateLayers(
   // can temporarily make replacement pending without invalidating the result.
   // At low zoom the dedicated site mask covers generalized native footprints;
   // at detailed zoom a real native collision still takes precedence.
-  const lowZoom = map.getZoom() < pointObjectReplacementMinimumReliableZoom;
+  // Replacement is reliable from z13, but native extrusions start at z14.
+  // Keep the AOI surface through that flat/generalized transition as well.
+  const lowZoom = map.getZoom() < NATIVE_VOLUME_MIN_ZOOM;
   const canShowConcept = Boolean(massing && aoi && suppressExistingBuildings &&
     (lowZoom || !visibleNativeConceptConflict(map, massing)));
   setPointObjectLayerVisibilityIfChanged(map, CREATE_AOI_MASK_LAYER_ID,
@@ -1097,7 +1112,7 @@ function installGeoAiLayers(map: MapLibreMap, viewMode: MapViewMode) {
       type: "fill-extrusion",
       source: "openmaptiles",
       "source-layer": "building",
-      minzoom: 14,
+      minzoom: NATIVE_VOLUME_MIN_ZOOM,
       filter: pointObjectNativeBuilding3dFilter,
       layout: { visibility: viewMode === "3d" ? "visible" : "none" },
       paint: {
@@ -1189,7 +1204,8 @@ function installGeoAiLayers(map: MapLibreMap, viewMode: MapViewMode) {
     filter: ["in", ["geometry-type"], ["literal", ["LineString", "Polygon"]]],
     paint: {
       "line-color": "#087f8c",
-      "line-width": 3.5
+      "line-width": 1.3,
+      "line-opacity": 0.8
     }
   }, labelLayer);
   if (!map.getLayer(HIGHLIGHT_POINT_LAYER_ID)) map.addLayer({
@@ -1204,6 +1220,7 @@ function installGeoAiLayers(map: MapLibreMap, viewMode: MapViewMode) {
       "circle-stroke-width": 3
     }
   }, labelLayer);
+  ensureVolumeEdgeLayer(map, HIGHLIGHT_EDGE_LAYER_ID, HIGHLIGHT_VOLUME_LAYER_ID, NATIVE_VOLUME_MIN_ZOOM);
   if (!map.getSource(CREATE_AOI_SOURCE_ID)) map.addSource(CREATE_AOI_SOURCE_ID, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
   if (!map.getLayer(CREATE_AOI_MASK_LAYER_ID)) map.addLayer({
     id: CREATE_AOI_MASK_LAYER_ID,
@@ -1882,6 +1899,7 @@ export function LiveObjectMap({
         let buildingLayerReconciliationReady = false;
         let reconcilingBuildingLayers = false;
         let replacementZoomEligible = map.getZoom() >= pointObjectReplacementMinimumReliableZoom;
+        let flatNativePresentation = map.getZoom() < NATIVE_VOLUME_MIN_ZOOM;
 
         handleStyleData = () => {
           if (disposed || reconcilingBuildingLayers || !buildingLayerReconciliationReady || styleChangeInProgressRef.current) return;
@@ -1928,6 +1946,7 @@ export function LiveObjectMap({
           replacementStatusCallbackRef.current?.(replacementStatus);
           pendingViewModeLayersRef.current = false;
           replacementZoomEligible = map.getZoom() >= pointObjectReplacementMinimumReliableZoom;
+          flatNativePresentation = map.getZoom() < NATIVE_VOLUME_MIN_ZOOM;
           observedBuildingLayerIds = new Set(buildingLayerIds(map));
           buildingLayerReconciliationReady = true;
           styleChangeInProgressRef.current = false;
@@ -1950,7 +1969,14 @@ export function LiveObjectMap({
             map.queryRenderedFeatures([point.x, point.y]),
             map.getZoom(),
             [visibleBounds.getWest(), visibleBounds.getSouth(), visibleBounds.getEast(), visibleBounds.getNorth()],
-            clicked
+            clicked,
+            map.getPitch() > 0 ? feature => {
+              if (feature.geometry.type !== "MultiPolygon" || feature.layer.type !== "fill-extrusion") return null;
+              const height = safeNumericProperty(feature.properties, ["render_height", "height"]);
+              const base = safeNumericProperty(feature.properties, ["render_min_height", "min_height"]);
+              return height !== null ? pointObjectRenderedTileMemberAt(feature.geometry, [point.x, point.y], height, base ?? 0,
+                (position, altitude) => projectRenderedVolumePoint(map, position, altitude)) : null;
+            } : undefined
           );
           const selectedFeature = selected?.feature ?? null;
           const selectedGeometry = selected?.geometry ? sanitizeGeometry(selected.geometry) : null;
@@ -2041,14 +2067,16 @@ export function LiveObjectMap({
                 ? "idle"
                 : "error";
           replacementStatusCallbackRef.current?.(status);
+          const flatNative = map.getZoom() < NATIVE_VOLUME_MIN_ZOOM;
           const conceptVisible = Boolean(conceptMassingRef.current &&
-            !visibleNativeConceptConflict(map, conceptMassingRef.current));
+            (flatNative || !visibleNativeConceptConflict(map, conceptMassingRef.current)));
+          setPointObjectLayerVisibilityIfChanged(map, CREATE_AOI_MASK_LAYER_ID, conceptVisible && flatNative ? "visible" : "none");
           setPointObjectLayerVisibilityIfChanged(map, CONCEPT_FILL_LAYER_ID, conceptVisible && viewModeRef.current === "2d" ? "visible" : "none");
           setPointObjectLayerVisibilityIfChanged(map, CONCEPT_VOLUME_LAYER_ID, conceptVisible && viewModeRef.current === "3d" ? "visible" : "none");
           const environment = conceptMassingRef.current
             ? buildConceptEnvironment(createAoiRef.current, conceptMassingRef.current) : null;
           const environmentVisible = Boolean(conceptVisible && environment?.featureCollection.features.length &&
-            !visibleNativeConceptConflict(map, environment, 256));
+            (flatNative || !visibleNativeConceptConflict(map, environment, 256)));
           setConceptEnvironmentVisibility(map, environmentVisible);
         };
 
@@ -2061,8 +2089,10 @@ export function LiveObjectMap({
           visibleBoundsCallbackRef.current?.([visibleBounds.getWest(), visibleBounds.getSouth(), visibleBounds.getEast(), visibleBounds.getNorth()], completedRequestId);
           cameraMovingCallbackRef.current?.(false);
           const nextReplacementZoomEligible = map.getZoom() >= pointObjectReplacementMinimumReliableZoom;
-          if (nextReplacementZoomEligible !== replacementZoomEligible) {
+          const nextFlatNativePresentation = map.getZoom() < NATIVE_VOLUME_MIN_ZOOM;
+          if (nextReplacementZoomEligible !== replacementZoomEligible || nextFlatNativePresentation !== flatNativePresentation) {
             replacementZoomEligible = nextReplacementZoomEligible;
+            flatNativePresentation = nextFlatNativePresentation;
             // Source loading makes isStyleLoaded false during many zoom ends.
             // The installed style is still writable; do not consume the zoom
             // transition without restoring/reapplying its layer filters.

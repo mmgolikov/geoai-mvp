@@ -3,8 +3,9 @@ import { fromGeojsonVt } from "@maplibre/vt-pbf";
 import type { FeatureCollection, Polygon } from "geojson";
 import type { GeoJSONSource, Map as MapLibreMap, VectorTileSource } from "maplibre-gl";
 import { externalHttpUrlPattern, installLoopbackBrowserHarness } from "./helpers/local-webkit-csp";
+import { conceptTemplate, generateConceptMassingAlternatives, validateRedevelopmentProgram, type ConceptTemplateId } from "../../src/lib/prototype/point-to-object-create";
 
-type BrowserMap = Window & { review29Map?: MapLibreMap; review29HighZoomSamples?: { total: number; hidden: number } };
+type BrowserMap = Window & { review29Map?: MapLibreMap; review29HighZoomSamples?: { total: number; hidden: number }; review02RoofPoint?: { x:number;y:number } };
 type Hook = { memoizedState: unknown; next: Hook | null };
 type Fiber = { memoizedState: Hook | null; return: Fiber | null };
 type Position = [number, number];
@@ -32,7 +33,9 @@ function massing(variantId: "A" | "B", controls: Record<string, number>, templat
     const id = `${variantId}-${index + 1}`;
     const longitude = 55.26935 + (index % 3) * 0.00048 + (variantId === "B" ? 0.00006 : 0);
     const latitude = 25.2044 + Math.floor(index / 3) * 0.00055;
-    const levels = controls.levelsMin + index % Math.max(1, controls.levelsMax - controls.levelsMin + 1);
+    // Adapt fixture extrema to the requested count, just like the real producer.
+    // A smaller site-aware default must not create a malformed saved response.
+    const levels = Math.round(controls.levelsMin + (count > 1 ? index / (count - 1) : 0) * (controls.levelsMax - controls.levelsMin));
     return { type: "Feature" as const, id, properties: {
       id, kind: "concept_massing", templateId, variantId, massingStyle: "campus", volumeRole: "campus_block",
       primaryBlock: true, use: "civic", levels, heightM: levels * 3.4, baseM: 0,
@@ -41,12 +44,12 @@ function massing(variantId: "A" | "B", controls: Record<string, number>, templat
   });
   return { variantId, massingStyle: "campus", requestedBlockCount: count, generatedBlockCount: count,
     generatedFeatureCount: count, aoiAreaSqM: 49_000, generatedFootprintAreaSqM: 18_620,
-    achievedSiteCoveragePct: 38, estimatedFloorAreaSqM: 80_000, minGeneratedLevels: controls.levelsMin,
-    maxGeneratedLevels: controls.levelsMax, seed: `review29-${variantId}`,
+    achievedSiteCoveragePct: 38, estimatedFloorAreaSqM: 80_000, minGeneratedLevels: Math.min(...features.map(f => f.properties.levels)),
+    maxGeneratedLevels: Math.max(...features.map(f => f.properties.levels)), seed: `review29-${variantId}`,
     featureCollection: { type: "FeatureCollection", features } };
 }
 
-async function installOfflineMap(page: Page, createPosts: string[]) {
+async function installOfflineMap(page: Page, createPosts: string[], validatedCreate = false) {
   const { GeoJSONVT } = await import("@maplibre/geojson-vt");
   const index = new GeoJSONVT(native, { maxZoom: 14, tolerance: 0, extent: 8192, buffer: 64 });
   let releaseDelayedTiles: (() => void) | undefined;
@@ -74,7 +77,15 @@ async function installOfflineMap(page: Page, createPosts: string[]) {
     if (url.pathname.endsWith("/create")) {
       if (route.request().method() === "GET") return route.fulfill({ json: { mode: "ready", challenge: "P".repeat(43) } });
       createPosts.push(route.request().postData() ?? "");
-      const request = route.request().postDataJSON() as { controls: Record<string, number>; templateId: string };
+      const request = route.request().postDataJSON() as { controls: Record<string, number>; templateId: ConceptTemplateId; aoiCoordinates: Position[][]; locale: "en" | "ru" };
+      if (validatedCreate) {
+        const v=validateRedevelopmentProgram({...conceptTemplate(request.templateId,request.locale),...request.controls});
+        if(!v.ok)throw new Error(v.errors.join(";"));
+        const alternatives=generateConceptMassingAlternatives(request.aoiCoordinates,v.value,"review02-offline",request.locale);
+        return route.fulfill({json:{mode:"openai_concept",generatedAt:"2026-10-02T19:00:00.000Z",promptVersion:"POINT_OBJECT_CREATE_REVIEW02_OFFLINE",program:v.value,
+          massing:alternatives[0].massing,alternatives,telemetry:{model:"offline",reasoningEffort:"none",latencyMs:1,attempts:1,estimatedCostUsd:0},
+          caveat:"Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."}});
+      }
       const a = massing("A", request.controls, request.templateId), b = massing("B", request.controls, request.templateId);
       return route.fulfill({ json: { mode: "openai_concept", generatedAt: "2026-09-29T11:42:00.000Z", promptVersion: "POINT_OBJECT_CREATE_REVIEW29_OFFLINE",
         program: { schemaVersion: 1, templateId: request.templateId, title: "Offline proposal", summary: "Offline proposal",
@@ -119,6 +130,126 @@ async function clickMapCoordinate(page: Page, coordinate: Position) {
   }, coordinate);
   await page.mouse.click(pixel.x, pixel.y);
 }
+
+test.afterEach(async ({ page }, info) => {
+  if (info.status === info.expectedStatus) return;
+  const state = await page.evaluate(async () => {
+    const map = (window as BrowserMap).review29Map;
+    if (!map) return { map: "unavailable" };
+    const sources = ["geoai-live-selection", "geoai-existing-partition-source:openmaptiles"];
+    const data = await Promise.all(sources.map(async id => {
+      const source = map.getSource(id) as GeoJSONSource | undefined;
+      return { id, loaded: source ? map.isSourceLoaded(id) : false, data: source && map.isSourceLoaded(id) ? await source.getData() : null };
+    }));
+    return { zoom: map.getZoom(), pitch: map.getPitch(), data,
+      selection: sessionStorage.getItem("geoai:point-to-object:selection:v3"),
+      layers: map.getStyle().layers?.filter(l => /building|selection|partition/.test(l.id)),
+      visible: map.queryRenderedFeatures().filter(f => f.source === "openmaptiles").map(f => ({id:f.id,layer:f.layer.id,geometry:f.geometry})) };
+  });
+  await info.attach("review02-map-diagnostic", { body: JSON.stringify(state,null,2), contentType: "application/json" });
+});
+
+test("REVIEW02 pitched roof click selects exact tile member; transparent volume and siblings remain", async ({ page, browserName }, info) => {
+  const errors: string[]=[];
+  page.on("pageerror",error=>errors.push(error.message));
+  await installLoopbackBrowserHarness(page,browserName,info.project.use.baseURL);
+  await installOfflineMap(page,[]);
+  await page.setViewportSize({width:1440,height:900});
+  await page.goto("/prototype/point-to-object?mode=analyse");
+  await exposeMap(page);
+  await page.evaluate(() => {
+    const map=(window as BrowserMap).review29Map!;
+    map.jumpTo({center:[55.2842,25.2144],zoom:18,pitch:55,bearing:0});
+    // Independent oracle uses MapLibre's public custom-layer render matrix.
+    map.addLayer({id:"review02-pick-oracle",type:"custom",renderingMode:"3d",render(_gl,options){
+      const lng=55.2842,lat=25.2147,height=36;
+      const p=[(lng+180)/360,(1-Math.log(Math.tan(Math.PI/4+lat*Math.PI/360))/Math.PI)/2,height/(40075016.68557849*Math.cos(lat*Math.PI/180)),1];
+      const m=options.defaultProjectionData.mainMatrix;
+      const c=[0,1,2,3].map(row=>p.reduce((sum,v,col)=>sum+v*m[col*4+row],0));
+      (window as BrowserMap).review02RoofPoint={x:(c[0]/c[3]+1)*map.getCanvas().clientWidth/2,y:(1-c[1]/c[3])*map.getCanvas().clientHeight/2};
+    }});
+  });
+  await expect.poll(()=>page.evaluate(()=>Boolean((window as BrowserMap).review02RoofPoint))).toBe(true);
+  await expect.poll(()=>page.evaluate(()=>(window as BrowserMap).review29Map!.isSourceLoaded("openmaptiles"))).toBe(true);
+  const pixel=await page.evaluate(()=>{const m=(window as BrowserMap).review29Map!,p=(window as BrowserMap).review02RoofPoint!,r=m.getCanvas().getBoundingClientRect();return{x:r.left+p.x,y:r.top+p.y};});
+  await page.mouse.click(pixel.x,pixel.y);
+  await expect(page.getByTestId("selected-object")).toContainText("Mapped hotel relation");
+  await expect.poll(()=>page.evaluate(()=>(window as BrowserMap).review29Map!.getLayoutProperty("geoai-live-selection-volume","visibility"))).toBe("visible");
+  const selected=await page.evaluate(async()=>{const map=(window as BrowserMap).review29Map!,data=await(map.getSource("geoai-live-selection") as GeoJSONSource).getData();return{data,line:map.getPaintProperty("geoai-live-selection-line","line-width"),opacity:map.getPaintProperty("geoai-live-selection-volume","fill-extrusion-opacity"),edges:Boolean(map.getLayer("geoai-live-selection-edges")),stored:JSON.parse(sessionStorage.getItem("geoai:point-to-object:selection:v3")!)};});
+  expect(selected.line).toBe(1.3); expect(selected.opacity).toBe(0.5);expect(selected.edges).toBe(true);
+  expect(selected.data.type).toBe("Feature");
+  if(selected.data.type!=="Feature"||selected.data.geometry.type!=="Polygon")throw new Error("Exact member required");
+  expect(selected.data.geometry.coordinates[0].every(p=>p[1]>25.2143)).toBe(true);
+  expect(selected.stored.object.geometryProvenance).toBe("rendered_tile_polygon_member");
+  expect(errors).toEqual([]);
+  await page.screenshot({path:info.outputPath("review02-pitched-roof-selected.png")});
+});
+
+async function savedCreateGeometry(page: Page): Promise<string | null> {
+  return page.evaluate(() => {
+    const identity = localStorage.getItem("geoai:point-to-object:browser-identity:v1");
+    const raw = identity && localStorage.getItem(`geoai:point-to-object:projects:v1:${encodeURIComponent(identity)}`);
+    if (!raw) return null;
+    const store = JSON.parse(raw) as { projects: { artifacts: { kind: string; payload: { generated: unknown } }[] }[] };
+    const artifact = store.projects.flatMap(project => project.artifacts).find(item => item.kind === "create");
+    return artifact ? JSON.stringify(artifact.payload.generated) : null;
+  });
+}
+
+for (const locale of ["en","ru"] as const) test(`REVIEW02 ${locale} invalid controls block generation immediately and preserve committed result`,async({page,browserName},info)=>{
+  const posts:string[]=[];
+  await installLoopbackBrowserHarness(page,browserName,info.project.use.baseURL);await installOfflineMap(page,posts,true);
+  await page.setViewportSize({width:locale==="ru"?390:1440,height:900});
+  await page.goto("/prototype/point-to-object?mode=create");await exposeMap(page);
+  if(locale==="ru")await page.getByRole("button",{name:"ru",exact:true}).click();
+  await page.getByLabel(locale==="ru"?"Загрузить GeoJSON":"Upload GeoJSON").setInputFiles({name:"review02-area.geojson",mimeType:"application/geo+json",buffer:Buffer.from(JSON.stringify(createSite))});
+  await page.getByTestId("create-programme-civic_green").click();
+  await expect(page.getByTestId("create-local-apply-preset")).toHaveCount(0);
+  await page.getByTestId("create-generate-action").click();await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
+  await expect.poll(()=>savedCreateGeometry(page)).not.toBeNull();
+  const saved=await savedCreateGeometry(page);
+  await page.getByText(locale==="ru"?"Параметры концепции":"Concept parameters",{exact:true}).click();
+  const slider=page.getByLabel(locale==="ru"?"Открытые пространства":"Open space",{exact:false});
+  await slider.fill("75");
+  await expect(page.getByTestId("create-parameter-error")).toContainText("≤100%");
+  await expect(slider).toHaveAttribute("aria-invalid","true");
+  await expect(slider).toHaveAttribute("aria-describedby",/.+/);
+  const coverage=page.getByRole("slider",{name:locale==="ru"?/^Плотность застройки/:/^Site coverage/});
+  await expect(coverage).toHaveAttribute("aria-invalid","true");
+  expect(await slider.evaluate(el=>getComputedStyle(el.parentElement!).borderColor)).toBe("rgb(240, 68, 56)");
+  await expect(slider).toHaveValue("75");
+  await expect(page.getByTestId("create-generate-action")).toBeDisabled();
+  await expect(page.getByTestId("generated-concept-summary")).toBeVisible();expect(posts).toHaveLength(1);
+  expect(await savedCreateGeometry(page)).toBe(saved);
+  await page.screenshot({path:info.outputPath(`review02-${locale}-invalid-controls.png`)});
+  // Reopen the persisted artifact through the same two Show-on-map actions as
+  // the founder. This is a synthetic restore-path receipt, not their exact AOI.
+  await page.goto("/projects?view=spatial");
+  await page.getByRole("button",{name:/^(Show on map|Показать на карте)$/}).first().click();
+  const dashboard=page.getByTestId("create-full-result-dashboard");
+  await expect(dashboard).toBeVisible();
+  await dashboard.getByRole("button",{name:/^(Show on map|Показать на карте)$/}).click();
+  await exposeMap(page);
+  const expectedGeometry=JSON.parse(saved!).massing.featureCollection;
+  for(const zoom of [13.25,14.25,16,17]) {
+    await page.evaluate(zoom=>(window as BrowserMap).review29Map!.jumpTo({center:[55.2701,25.205],zoom,pitch:55,bearing:30}),zoom);
+    await expect.poll(()=>page.evaluate(()=>(window as BrowserMap).review29Map!.queryRenderedFeatures({layers:["geoai-concept-volume"]}).length)).toBeGreaterThan(0);
+    expect(await page.evaluate(async()=>(await((window as BrowserMap).review29Map!.getSource("geoai-concept-massing") as GeoJSONSource).getData()))).toEqual(expectedGeometry);
+  }
+  expect(await savedCreateGeometry(page)).toBe(saved);expect(posts).toHaveLength(1);
+  await page.screenshot({path:info.outputPath(`review02-${locale}-saved-show-on-map.png`)});
+  if(locale==="ru")await page.getByRole("button",{name:"Open task",exact:true}).or(page.getByRole("button",{name:"Открыть задачу",exact:true})).click();
+  await page.getByTestId("create-programme-residential_mixed_use").click();
+  await page.getByText(locale==="ru"?"Параметры концепции":"Concept parameters",{exact:true}).click();
+  const blocks=page.getByRole("slider",{name:locale==="ru"?/^Корпуса/:/^Blocks/});
+  await blocks.fill("3");await expect(blocks).toHaveAttribute("aria-invalid","true");await expect(blocks).toHaveValue("3");
+  await expect(page.getByTestId("create-generate-action")).toBeDisabled();
+  await page.getByTestId("create-programme-commercial_hub").click();
+  const levels=page.getByRole("slider",{name:locale==="ru"?/^Минимум этажей/:/^Minimum levels/});
+  await levels.fill("1");await expect(levels).toHaveAttribute("aria-invalid","true");await expect(levels).toHaveValue("1");
+  await expect(page.getByTestId("create-generate-action")).toBeDisabled();
+  expect(await savedCreateGeometry(page)).toBe(saved);expect(posts).toHaveLength(1);
+});
 
 test("Review29 selected source volume is translucent; relation member keeps siblings through style and mode changes", async ({ page, browserName }, info) => {
   await installLoopbackBrowserHarness(page, browserName, info.project.use.baseURL);
@@ -366,6 +497,16 @@ test("Review29 committed Create massing survives zoom 18→10→18, pan, style, 
   await expect.poll(() => page.evaluate(() => (window as BrowserMap).review29Map!.isSourceLoaded("openmaptiles"))).toBe(true);
   await expect.poll(async () => (await state()).volumeCount).toBeGreaterThan(0);
   expect((await page.evaluate(() => (window as BrowserMap).review29HighZoomSamples!)).hidden).toBe(0);
+  // REVIEW02: the previous 18 → 10 → 18 receipt skipped the 13–14
+  // generalized/native transition. That omission is not proof of the exact
+  // founder defect; their unchanged saved artifact remains a hosted gate.
+  for (const zoom of [13.25, 13.75, 14, 12.75]) {
+    await page.evaluate(zoom => (window as BrowserMap).review29Map!.jumpTo({ center: [55.2701, 25.205], zoom, pitch: 55, bearing: 30 }), zoom);
+    await expect.poll(async () => (await state()).volume).toBe("visible");
+    await expect.poll(async () => (await state()).volumeCount).toBeGreaterThan(0);
+    expect((await state()).ids).toEqual(initial.ids);
+    await page.screenshot({ path: info.outputPath(`review02-create-zoom${zoom}.png`) });
+  }
   await page.evaluate(() => (window as BrowserMap).review29Map!.jumpTo({ center: [55.2701, 25.205], zoom: 10, pitch: 55, bearing: 30 }));
   await expect.poll(async () => (await state()).mask).toBe("visible");
   await expect.poll(async () => (await state()).volume).toBe("visible");

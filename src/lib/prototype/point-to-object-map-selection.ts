@@ -64,6 +64,33 @@ export function pointObjectTilePolygonMemberAt(geometry: MultiPolygon, point: Po
   return selected ? structuredClone(selected) : null;
 }
 
+/** Resolve only a uniquely hit rendered roof/wall of the same tile feature.
+ * No nearest-neighbour heuristic, canonical-footprint upgrade or POI fallback. */
+export function pointObjectRenderedTileMemberAt(
+  geometry: MultiPolygon, screenPoint: Position, heightM: number, baseM: number,
+  project: (position: Position, altitudeM: number) => Position | null
+): Polygon | null {
+  if (!Number.isFinite(heightM) || !Number.isFinite(baseM) || heightM <= baseM || baseM < 0 ||
+      geometry.coordinates.length > 512 || geometry.coordinates.reduce((sum, part) => sum + part.reduce((n, ring) => n + ring.length, 0), 0) > 8_000) return null;
+  let selected: Polygon | null = null;
+  for (const coordinates of geometry.coordinates) {
+    const polygon: Polygon = { type: "Polygon", coordinates };
+    if (!validatePointObjectReplacementAoi(polygon).valid) return null;
+    const roof = coordinates.map(ring => ring.map(p => project(p, heightM)));
+    if (roof.some(ring => ring.some(p => p === null))) return null;
+    const rings = roof as Position[][];
+    const roofHit = ringLocation(screenPoint, rings[0]) >= 0 && !rings.slice(1).some(ring => ringLocation(screenPoint, ring) >= 0);
+    const wallHit = coordinates.some(ring => ring.slice(0, -1).some((p, i) => {
+      const quad = [project(p, baseM), project(ring[i + 1], baseM), project(ring[i + 1], heightM), project(p, heightM), project(p, baseM)];
+      return quad.every(p => p !== null) && ringLocation(screenPoint, quad as Position[]) >= 0;
+    }));
+    if (!roofHit && !wallHit) continue;
+    if (selected) return null;
+    selected = polygon;
+  }
+  return selected ? structuredClone(selected) : null;
+}
+
 /** Match only a complete native member with the same map-rendered identity and
  * height. Tile-backed relation members are partitioned separately so this
  * predicate is never used to suppress all siblings sharing one source ID. */

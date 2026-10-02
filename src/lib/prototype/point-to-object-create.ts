@@ -370,6 +370,28 @@ export function conceptTemplate(templateId: ConceptTemplateId, locale: ConceptLo
   return cloneProgram(TEMPLATE_COPY[locale][templateId]);
 }
 
+/** Geometric starting values, not programme demand, capacity or planning rules.
+ * Only fresh/reset drafts use these. Explicit controls and persisted concepts
+ * remain unchanged; the worker must validate both alternatives before generation. */
+export function conceptSiteDefaults(template: RedevelopmentProgramInput, coordinates: Point[][]): RedevelopmentProgramInput {
+  const outer = coordinates[0];
+  if (!outer || coordinates.length !== 1) return cloneProgram(template);
+  const area = calculatePolygonMeasurements(outer).areaSqM;
+  if (!Number.isFinite(area) || area < pointObjectCreateMinAreaSqM) return cloneProgram(template);
+  const projection = metricProjection(outer);
+  const points = geoJsonRingToMetric(outer, projection.forward);
+  const angle = dominantEdgeAngle(points);
+  const local = points.map(p => localToWorld({ x: 0, y: 0 }, -angle, p));
+  const bounds = metricBounds(local);
+  const shortSpan = Math.min(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY);
+  const minimumCount = template.massingStyle === "courtyard" ? 4 : 1;
+  return {
+    ...cloneProgram(template),
+    blockCount: Math.max(minimumCount, Math.min(MAX_CONCEPT_BLOCKS, Math.round(template.blockCount * Math.sqrt(area / 66_300)))),
+    setbackM: Math.min(template.setbackM, Math.max(2, Math.floor(shortSpan * 0.04)))
+  };
+}
+
 const UNSAFE_TEXT_CONTROLS = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/;
 const URL_LIKE_TEXT = /(?:https?:\/\/|www\.)/i;
 const PROHIBITED_CREATE_CLAIMS = [
@@ -2181,6 +2203,7 @@ export function generateConceptMassing(
     : outer;
   const validation = validatePolygonVertices(openOuter);
   if (!validation.valid || !validation.measurements) throw new Error(validation.message);
+  const aoiAreaSqM = validation.measurements.areaSqM;
   if (validation.measurements.areaSqM > 1_000_000) throw new Error("Create prototype AOI must not exceed 1 sq km.");
   if (openOuter.length > 25) throw new Error("Create prototype AOI must not exceed 25 exterior vertices.");
 
@@ -2200,26 +2223,63 @@ export function generateConceptMassing(
     useMix: program.useMix
   });
   const variantSeed = `${geometrySeed}:${variantId}`;
-  // The new quarter/pavilion programmes use distributed articulated site cells
-  // at neighbourhood scale too. Keep the three original programme paths stable
-  // for saved-result compatibility; every candidate still passes exact validation.
+  // Preserve successful, well-spread local layouts (including oriented campus
+  // footprints and the small-site single-podium tower contract). Below 15 ha,
+  // the original programmes previously had no cell-allocation recovery for a
+  // concave/rotated no-fit or a clustered layout. Try that bounded recovery from
+  // 5 ha without reducing requested controls or bypassing exact validators.
+  // Saved results keep their persisted geometry; only new proposals change.
   const distributedProgramme = program.templateId === "residential_quarter" || program.templateId === "hospitality_recreation";
   const allocated = validation.measurements.areaSqM >= 150_000 || distributedProgramme
     ? planSiteCells(rings, program, variantId, variantSeed, desiredTotalArea) : null;
-  const volumes = allocated ?? (program.massingStyle === "perimeter" || program.massingStyle === "courtyard"
+  const localPlan = () => program.massingStyle === "perimeter" || program.massingStyle === "courtyard"
     ? planPerimeterOrCourtyard(rings, program, variantId, variantSeed, desiredTotalArea)
     : program.massingStyle === "towers_on_podium"
       ? planTowersOnPodium(rings, program, variantId, variantSeed, desiredTotalArea)
-      : planCampus(rings, program, variantId, variantSeed, desiredTotalArea));
-  return buildMassingResult(
+      : planCampus(rings, program, variantId, variantSeed, desiredTotalArea);
+  const canRecover = validation.measurements.areaSqM >= 50_000 &&
+    validation.measurements.areaSqM < 150_000 && program.massingStyle !== "towers_on_podium";
+  let volumes = allocated;
+  if (!volumes) {
+    try {
+      volumes = localPlan();
+      if (canRecover) {
+        const bounds = metricBounds(rings[0]);
+        const centers = volumes.filter(volume => volume.primaryBlock).map(volume => centroidOfPolygon(volume.footprint));
+        const spans = ["x", "y"].map(axis => {
+          const values = centers.map(center => axis === "x" ? center.x : center.y);
+          const siteSpan = axis === "x" ? bounds.maxX - bounds.minX : bounds.maxY - bounds.minY;
+          return (Math.max(...values) - Math.min(...values)) / Math.max(1, siteSpan);
+        });
+        if (centers.length > 1 && Math.min(...spans) < 0.35) {
+          volumes = planSiteCells(rings, program, variantId, variantSeed, desiredTotalArea) ?? volumes;
+        }
+      }
+    } catch (error) {
+      if (!(canRecover && error instanceof ConceptMassingError && error.code === "programme_does_not_fit")) throw error;
+      volumes = planSiteCells(rings, program, variantId, variantSeed, desiredTotalArea);
+      if (!volumes) throw error;
+    }
+  }
+  const build = (planned: PlannedVolume[]) => buildMassingResult(
     aoiCoordinates,
     program,
     variantSeed,
     variantId,
-    volumes,
-    validation.measurements.areaSqM,
+    planned,
+    aoiAreaSqM,
     projection.inverse
   );
+  try {
+    return build(volumes);
+  } catch (error) {
+    // A legacy shaped layout can be rejected only by the final exact geometry
+    // check (e.g. rotated clearance). Recovery must pass that same check.
+    if (!(canRecover && !allocated && error instanceof ConceptMassingError && error.code === "programme_does_not_fit")) throw error;
+    const recovered = planSiteCells(rings, program, variantId, variantSeed, desiredTotalArea);
+    if (!recovered) throw error;
+    return build(recovered);
+  }
 }
 
 function conceptGeometrySignature(result: ConceptMassingResult): string {
