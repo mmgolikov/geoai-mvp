@@ -26,6 +26,10 @@ const fixtureGlobal = globalThis as typeof globalThis & {
   __geoaiAiProviderCalls?: number;
   __geoaiAiIdentityDenial?: 401 | 403 | 503 | null;
   __geoaiAiOriginDenied?: boolean;
+  __geoaiAiComparisonActive?: boolean;
+  __geoaiAiLeaseMiss?: boolean;
+  __geoaiAiSubjectMismatch?: boolean;
+  __geoaiAiComparisonCalls?: number;
 };
 
 fixtureGlobal.__geoaiAiRuntimeStatus = () => ({
@@ -36,6 +40,7 @@ fixtureGlobal.__geoaiAiRuntimeStatus = () => ({
 });
 fixtureGlobal.__geoaiAiEvidenceCalls = 0;
 fixtureGlobal.__geoaiAiProviderCalls = 0;
+fixtureGlobal.__geoaiAiComparisonCalls = 0;
 
 // Execute the actual route handler. Evidence and AI services are deterministic
 // offline fixtures, so the test never reads an environment file or calls a provider.
@@ -57,15 +62,16 @@ const source = readFileSync(new URL("app/api/prototype/point-to-object/ai/route.
     const requirePilotMutationOrigin = () => globalThis.__geoaiAiOriginDenied
       ? new Response(JSON.stringify({ code: "fixture_origin_denied" }), { status: 403 }) : null;
   `)
-  .replace(/import \{\s*generatePointObjectAiAnalysis,\s*PointObjectAiServiceError\s*\} from "@\/src\/lib\/prototype\/point-to-object-ai";/,
+  .replace(/import \{\s*generatePointObjectAiAnalysis,\s*generatePointObjectAiComparison,\s*PointObjectAiServiceError\s*\} from "@\/src\/lib\/prototype\/point-to-object-ai";/,
     `class PointObjectAiServiceError extends Error { constructor(code, httpStatus, message) { super(message); this.code = code; this.httpStatus = httpStatus; } }
-     const generatePointObjectAiAnalysis = async () => { globalThis.__geoaiAiProviderCalls += 1; return { mode: "openai_analysis", analysis: { summary: "Offline grounded result" } }; };`)
+     const generatePointObjectAiAnalysis = async () => { globalThis.__geoaiAiProviderCalls += 1; return { mode: "openai_analysis", analysis: { summary: "Offline grounded result" } }; };
+     const generatePointObjectAiComparison = async packs => { globalThis.__geoaiAiProviderCalls += 1; globalThis.__geoaiAiComparisonCalls += 1; return { mode: "openai_comparison", candidates: packs.map(pack => pack.selectedObject.sourceFeatureId) }; };`)
   .replace(/import \{ LivePointEvidenceError \} from "@\/src\/lib\/prototype\/point-to-object-live-evidence";/,
     `class LivePointEvidenceError extends Error {}`)
   .replace(/import \{ reusePublicEvidenceLease, PublicEvidenceLeaseError \} from "@\/src\/lib\/prototype\/point-to-object-evidence-lease";/,
     `class PublicEvidenceLeaseError extends Error { code = "AI_EVIDENCE_REFRESH_REQUIRED"; }
-     const reusePublicEvidenceLease = async () => { globalThis.__geoaiAiEvidenceCalls += 1; return { pack: {
-       selectedObject: { name: "Offline object", displayAddress: "Offline address", featureClass: "building", sourceFeatureId: "way/123", geometryType: "Polygon", addressParts: {}, tags: {}, metrics: {} },
+     const reusePublicEvidenceLease = async input => { globalThis.__geoaiAiEvidenceCalls += 1; if (globalThis.__geoaiAiLeaseMiss) throw new PublicEvidenceLeaseError(); return { pack: {
+       selectedObject: { name: "Offline object", displayAddress: "Offline address", featureClass: "building", sourceFeatureId: globalThis.__geoaiAiComparisonActive ? globalThis.__geoaiAiSubjectMismatch ? "way/999" : input.osmFeatureId : "way/123", geometryType: "Polygon", addressParts: {}, tags: {}, metrics: {} },
        resolution: { matchMethod: "explicit_osm_feature", coordinateAssociation: "inside", resultCentroidDistanceM: 0 },
        source: { attribution: "Offline open-map fixture" }, geoContext: null, linkedEntity: null
      } }; };`)
@@ -192,4 +198,51 @@ assert.equal(fixtureGlobal.__geoaiAiProviderCalls, 2);
 assert.equal((await execute(origin, false, null, "way/999")).status, 409, "Reverse receipt must never downgrade the expected subject guard.");
 assert.equal(fixtureGlobal.__geoaiAiProviderCalls, 2);
 
-console.log("AI actual-route offline checks passed: identity/origin before body and upstream, zero denied challenge/provider calls, Production flag/key denial matrix, Preview compatibility and one bounded generated result.");
+// Comparison uses the same actual handler, challenge and paid rate buckets.
+// Its source lane is cache-only; service grounding has separate injected tests.
+fixtureGlobal.__geoaiAiComparisonActive = true;
+const receiptTime = Date.now();
+const comparisonBody = {
+  caseKey: "moscow", longitude: 37.62, latitude: 55.75, locale: "en", depth: "standard",
+  role: "developer", scenario: "b2b_redevelopment_selected_aoi", goal: "development_screening", perspective: "developer", horizon: "current", question: null,
+  expectedSourceFeatureId: "way/123", consent: true,
+  comparison: [123, 124].map(id => ({ longitude: 37.62, latitude: 55.75, expectedSourceFeatureId: `way/${id}`, evidenceReceipt: {
+    version: "PUBLIC_EVIDENCE_LEASE_V1", evidencePackHash: "a".repeat(64), sourceResponseHash: "b".repeat(64),
+    acquiredAt: new Date(receiptTime).toISOString(), createdAt: new Date(receiptTime).toISOString(), expiresAt: new Date(receiptTime + 900_000).toISOString(),
+    cacheWindow: Math.floor(receiptTime / 900_000), sourceLocale: "en", lookupSourceFeatureId: `way/${id}`
+  } }))
+};
+async function compare(body: typeof comparisonBody, address = "203.0.113.55") {
+  const issued = await challenge();
+  return route.POST(new Request(url, { method: "POST", headers: { "Content-Type": "application/json", Origin: origin, Cookie: issued.cookie!, "x-forwarded-for": address }, body: JSON.stringify({ ...body, challenge: issued.challenge }) }));
+}
+const comparisonSuccess = await compare(comparisonBody);
+assert.equal(comparisonSuccess.status, 200);
+assert.deepEqual((await comparisonSuccess.json()).candidates, ["way/123", "way/124"]);
+assert.equal(fixtureGlobal.__geoaiAiComparisonCalls, 1, "Two snapshots produce one comparison dispatch.");
+const providerBeforeNegatives = fixtureGlobal.__geoaiAiProviderCalls;
+const leaseBeforeInvalid = fixtureGlobal.__geoaiAiEvidenceCalls;
+for (const mutate of [
+  (body: typeof comparisonBody) => { body.comparison[1] = structuredClone(body.comparison[0]); },
+  (body: typeof comparisonBody) => { body.comparison[0].evidenceReceipt.lookupSourceFeatureId = "way/999"; },
+  (body: typeof comparisonBody) => { body.comparison[0].evidenceReceipt.evidencePackHash = "invalid"; },
+  (body: typeof comparisonBody) => { body.comparison.push(...[125, 126].map(id => ({ ...structuredClone(body.comparison[0]), expectedSourceFeatureId: `way/${id}`, evidenceReceipt: { ...body.comparison[0].evidenceReceipt, lookupSourceFeatureId: `way/${id}` } }))); }
+]) {
+  const malformed = structuredClone(comparisonBody); mutate(malformed);
+  assert.equal((await compare(malformed)).status, 400, "Malformed, duplicate or oversized comparison fails before cache/provider.");
+}
+assert.equal(fixtureGlobal.__geoaiAiEvidenceCalls, leaseBeforeInvalid);
+const wrongLocale = structuredClone(comparisonBody); wrongLocale.comparison[0].evidenceReceipt.sourceLocale = "ru,en";
+assert.equal((await compare(wrongLocale)).status, 409, "Frozen source locale cannot be changed by a comparison request.");
+fixtureGlobal.__geoaiAiLeaseMiss = true;
+assert.equal((await compare(comparisonBody)).status, 409, "Cache miss fails closed without source reacquisition.");
+fixtureGlobal.__geoaiAiLeaseMiss = false;
+fixtureGlobal.__geoaiAiSubjectMismatch = true;
+assert.equal((await compare(comparisonBody)).status, 409, "Actual server subject identity must match the candidate.");
+fixtureGlobal.__geoaiAiSubjectMismatch = false;
+assert.equal(fixtureGlobal.__geoaiAiProviderCalls, providerBeforeNegatives, "Every rejected comparison made zero paid dispatches.");
+assert.equal((await compare(comparisonBody)).status, 429, "Comparison cannot bypass the existing four-request paid admission bucket.");
+const three = structuredClone(comparisonBody); three.comparison.push({ ...structuredClone(three.comparison[0]), expectedSourceFeatureId: "way/125", evidenceReceipt: { ...three.comparison[0].evidenceReceipt, lookupSourceFeatureId: "way/125" } });
+assert.equal((await compare(three, "203.0.113.56")).status, 200, "Three frozen candidates remain within the bounded comparison contract.");
+assert.equal(fixtureGlobal.__geoaiAiComparisonCalls, 2);
+console.log("AI actual-route offline checks passed: all legacy gates retained plus comparison identity/locale/hash/duplicate/max3/cache-miss negatives, shared four-request paid admission and one dispatch per valid comparison; network/provider calls=0 (services injected).");

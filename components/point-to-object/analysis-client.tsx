@@ -10,6 +10,8 @@ import { PointObjectHeader } from "@/components/point-to-object/prototype-header
 import { PointObjectDecisionCards } from "@/components/point-to-object/decision-cards";
 import { PointObjectClimateContext } from "@/components/point-to-object/climate-context";
 import { PointObjectExpressOverview } from "@/components/point-to-object/express-overview";
+import { PointObjectContextDashboard } from "@/components/point-to-object/context-dashboard";
+import { normalizedResolvedContext } from "@/src/lib/prototype/point-to-object-normalized-context";
 import {
   parsePointObjectAiResponse,
   writePointObjectSelection,
@@ -635,6 +637,8 @@ export function PointToObjectAnalysis() {
   const localizedPriority = (value: "critical" | "high" | "medium") => locale === "ru" ? (value === "critical" ? "Критический" : value === "high" ? "Высокий" : "Средний") : value;
   const evidenceClassLabel = (value: "observed" | "derived" | "hypothesis") => value === "observed" ? t("analysis.observed") : value === "derived" ? t("analysis.derived") : t("analysis.hypothesis");
   const geoContext = content?.geoContext ?? subject?.geoContext ?? null;
+  const frozenSourceContext = analysis?.mode === "openai" && selection?.resolvedObject && analysis.evidencePackHash === selection.resolvedObject.evidenceReceipt?.evidencePackHash
+    ? normalizedResolvedContext(selection.resolvedObject) : null;
   const lowValueStandaloneReceipts = new Set([
     "EVD-OSM-OBJECT", "EVD-OBJECT", "EVD-CLASSIFICATION", "EVD-ADDRESS", "EVD-GEOMETRY",
     "EVD-CONTEXT-SUMMARY", "EVD-DISTRICT-PROFILE", "EVD-SOURCE", "EVD-SNAPSHOT", "EVD-RIGHTS"
@@ -750,6 +754,7 @@ export function PointToObjectAnalysis() {
                 {analysis?.mode === "openai" ? <PointObjectClimateContext climate={analysis.subject?.climate} /> : null}
                 {content.depthReview ? <DepthReviewPanel review={content.depthReview} /> : null}
 
+                {frozenSourceContext ? <PointObjectContextDashboard context={frozenSourceContext} locale={locale} /> : null}
                 {geoContext ? <details className="rounded-[20px] border border-line bg-white p-5 shadow-soft sm:p-7" data-testid="analysis-geocontext">
                   <summary className="cursor-pointer text-sm font-bold text-[#087f8c]">{locale === "ru" ? "Измерения и состав выборки" : "Measurements & sample details"}</summary>
                   <section className="mt-4">

@@ -711,11 +711,19 @@ function updateArtifactViewState(
 export function updatePointObjectFindViewState(
   identityKey: PointObjectProjectIdentity,
   artifactId: string,
-  view: Pick<PointObjectFindProjectPayload["session"], "shortlist" | "comparisonOpen" | "comparisonView" | "analysisTargetSourceFeatureId">
+  view: Pick<PointObjectFindProjectPayload["session"], "shortlist" | "comparisonOpen" | "comparisonView" | "analysisTargetSourceFeatureId" | "comparisonContexts" | "comparisonInsight">
 ): Promise<PointObjectProjectSaveResult> {
   return updateArtifactViewState(identityKey, artifactId, (artifact) => {
     if (artifact.kind !== "find") return null;
-    const session = parsePointObjectFindSessionState({ ...artifact.payload.session, ...view, updatedAt: new Date().toISOString() });
+    const ids = new Set<string>(view.shortlist.map(candidate => candidate.sourceFeatureId));
+    const comparisonContexts = view.comparisonContexts ?? Object.fromEntries(Object.entries(artifact.payload.session.comparisonContexts ?? {}).filter(([id]) => ids.has(id)));
+    const previousInsight = artifact.payload.session.comparisonInsight;
+    const comparisonInsight = view.comparisonInsight === undefined
+      ? previousInsight && previousInsight.snapshots.length === ids.size && previousInsight.snapshots.every(snapshot => ids.has(snapshot.sourceFeatureId) && comparisonContexts[snapshot.sourceFeatureId]?.evidenceReceipt?.evidencePackHash === snapshot.evidencePackHash) ? previousInsight : null
+      : view.comparisonInsight;
+    const session = parsePointObjectFindSessionState({ ...artifact.payload.session, ...view,
+      ...(view.comparisonContexts === undefined && artifact.payload.session.comparisonContexts === undefined ? {} : { comparisonContexts }),
+      ...(view.comparisonInsight === undefined && artifact.payload.session.comparisonInsight === undefined ? {} : { comparisonInsight }), updatedAt: new Date().toISOString() });
     if (!session?.result) return null;
     return { kind: "find", locale: artifact.locale, marketKey: artifact.marketKey, label: artifact.label, payload: { session: { ...session, result: session.result } } };
   });

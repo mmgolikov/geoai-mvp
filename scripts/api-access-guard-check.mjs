@@ -2,6 +2,7 @@ import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
 const apiRoot = path.resolve(process.cwd(), "app/api");
+const publicLeaseSource = await readFile(path.resolve(process.cwd(), "src/lib/prototype/point-to-object-evidence-lease.ts"), "utf8");
 
 async function collectRouteFiles(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -116,12 +117,16 @@ for (const file of await collectRouteFiles(apiRoot)) {
 
       if (policy.action === "prototype.ai.run" && handler.method === "POST") {
         const originIndex = handler.body.indexOf("if (!sameOrigin(request))");
-        const bodyIndex = handler.body.indexOf("await readBoundedJson(request, 4 * 1024)");
+        const bodyIndex = handler.body.indexOf("await readBoundedJson(request, 8 * 1024)");
         const challengeIndex = handler.body.indexOf("if (!challengeIsValid(request, body.challenge))");
         const rateIndex = handler.body.indexOf("consumeRateLimit(request)");
         const receiptIndex = handler.body.indexOf("parsePublicEvidenceReceipt(body.evidenceReceipt)", rateIndex);
         const evidenceIndex = handler.body.indexOf("reusePublicEvidenceLease(", receiptIndex);
         const providerIndex = handler.body.indexOf("generatePointObjectAiAnalysis(");
+        const comparisonIndex = handler.body.indexOf("if (body.comparison)");
+        const comparisonReceiptIndex = handler.body.indexOf("parsePublicEvidenceReceipt(candidate.evidenceReceipt)", comparisonIndex);
+        const comparisonEvidenceIndex = handler.body.indexOf("reusePublicEvidenceLease(", comparisonReceiptIndex);
+        const comparisonProviderIndex = handler.body.indexOf("generatePointObjectAiComparison(", comparisonEvidenceIndex);
         if (
           originIndex < runtimeIndex ||
           bodyIndex < originIndex ||
@@ -130,6 +135,9 @@ for (const file of await collectRouteFiles(apiRoot)) {
           receiptIndex < rateIndex ||
           evidenceIndex < receiptIndex ||
           providerIndex < evidenceIndex ||
+          (comparisonIndex >= 0 && (comparisonIndex < rateIndex ||
+            comparisonReceiptIndex < comparisonIndex || comparisonEvidenceIndex < comparisonReceiptIndex ||
+            comparisonProviderIndex < comparisonEvidenceIndex)) ||
           handler.body.includes("buildLivePointObjectEvidencePack(") ||
           handler.body.includes("buildPointObjectEvidencePack(") ||
           !handler.body.includes("clearChallengeHeader(request)")
@@ -143,16 +151,22 @@ for (const file of await collectRouteFiles(apiRoot)) {
       if (policy.action === "prototype.context.resolve" && handler.method === "POST") {
         const originIndex = handler.body.indexOf("if (!sameOrigin(request))");
         const bodyIndex = handler.body.indexOf("await readBoundedJson(request, 1_024)");
-        const rateIndex = handler.body.indexOf("consumeRateLimit(request)");
-        const evidenceIndex = handler.body.indexOf("acquirePublicEvidenceLease(", rateIndex);
+        const evidenceIndex = handler.body.indexOf("acquirePublicEvidenceLease(", bodyIndex);
+        const admissionIndex = handler.body.indexOf("() => admitPointObjectContextSourceAcquisition(identity, {", evidenceIndex);
+        const leaseMissIndex = publicLeaseSource.indexOf("if (!allowFill) throw new PublicEvidenceLeaseError()");
+        const leaseAdmissionIndex = publicLeaseSource.indexOf("admitSourceAcquisition?.();", leaseMissIndex);
+        const leaseSourceIndex = publicLeaseSource.indexOf("validatedPublicPack(await boundedSource(", leaseAdmissionIndex);
         if (
           originIndex < runtimeIndex ||
           bodyIndex < originIndex ||
-          rateIndex < bodyIndex ||
-          evidenceIndex < rateIndex ||
+          evidenceIndex < bodyIndex ||
+          admissionIndex < evidenceIndex ||
+          !handler.body.includes("environment: process.env, surfaceEnabled: runtimeAllowed()") ||
+          leaseMissIndex < 0 || leaseAdmissionIndex < leaseMissIndex || leaseSourceIndex < leaseAdmissionIndex ||
+          handler.body.includes("consumeRateLimit(request)") ||
           !handler.body.includes("noStoreHeaders")
         ) {
-          failures.push(`${relative} ${handler.method}: bounded context resolution must enforce runtime, origin, bounded body and rate limit before acquiring public evidence`);
+          failures.push(`${relative} ${handler.method}: bounded context resolution must enforce identity/runtime/origin/body and bind server-only source admission to the lease cache-miss branch before provider acquisition; verified cache reuse must not consume acquisition quota`);
         }
         protectedHandlers += 1;
         continue;

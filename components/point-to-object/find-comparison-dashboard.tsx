@@ -1,11 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { LiveObjectMap } from "./live-object-map";
 
 import { PointObjectIcon } from "@/components/point-to-object/point-object-icons";
 import { useModalShell } from "@/components/point-to-object/use-modal-shell";
 import { pointObjectFindCandidateResultKind, type PointObjectFindCandidate, type PointObjectFindResult } from "@/src/lib/prototype/point-to-object-find-contract";
+import type { LiveResolvedObjectContext } from "./live-types";
+import { parseLiveResolvedObject } from "./live-session";
+import { CONTEXT_GROUP_LABELS, normalizedResolvedContext } from "@/src/lib/prototype/point-to-object-normalized-context";
+import { publicEvidenceReceiptIsCurrent } from "@/src/lib/prototype/point-to-object-evidence-receipt";
+import { nominatimLocale } from "@/src/lib/prototype/point-to-object-markets";
+import { parsePointObjectComparisonInsight, type PointObjectComparisonInsight } from "@/src/lib/prototype/point-to-object-comparison-core";
+import { pointObjectSourceFailure, sourceFailureMessage, sourceRetryAfterSeconds } from "@/src/lib/prototype/point-to-object-source-recovery";
+import { PointObjectContextDashboard } from "./context-dashboard";
 
 type Props = {
   locale: "en" | "ru";
@@ -13,6 +21,13 @@ type Props = {
   candidates: PointObjectFindCandidate[];
   roleLabel: string;
   scenarioLabel: string;
+  role: string;
+  scenario: string;
+  contexts: Record<string, LiveResolvedObjectContext>;
+  insight: PointObjectComparisonInsight | null;
+  stale?: boolean;
+  onContextResolved: (id: string, context: LiveResolvedObjectContext) => void;
+  onInsight: (insight: PointObjectComparisonInsight) => void;
   groupLabel: (candidate: PointObjectFindCandidate) => string;
   onBackToComparison: () => void;
   onBackToResults: () => void;
@@ -62,11 +77,67 @@ function CandidateMapContext({ candidates, locale, marketKey, activeId, onSelect
 }
 const ignoreSelection = () => undefined;
 
-export function FindComparisonDashboard({ locale, result, candidates, roleLabel, scenarioLabel, groupLabel, onBackToComparison, onBackToResults, onShowMap, onOpenAnalysis }: Props) {
+export function FindComparisonDashboard({ locale, result, candidates, roleLabel, scenarioLabel, role, scenario, contexts, insight, stale, onContextResolved, onInsight, groupLabel, onBackToComparison, onBackToResults, onShowMap, onOpenAnalysis }: Props) {
   const dialogRef = useModalShell(onBackToComparison);
   const ru = locale === "ru";
   const [activeId, setActiveId] = useState<string | null>(candidates[0]?.sourceFeatureId ?? null);
   const levelsCoverage = candidates.filter((candidate) => candidate.mappedBuildingLevels !== null).length;
+  const [phase, setPhase] = useState<"idle" | "sources" | "ai">("idle");
+  const [error, setError] = useState<string | null>(null);
+  const [cooldownUntil, setCooldownUntil] = useState(0);
+  const controllerRef = useRef<AbortController | null>(null);
+  useEffect(() => () => { controllerRef.current?.abort(); }, [locale, role, scenario, candidates]);
+  const currentContext = (candidate: PointObjectFindCandidate) => {
+    const context = contexts[candidate.sourceFeatureId];
+    return context?.sourceFeatureId === candidate.sourceFeatureId && context.coordinateAssociation === "trusted_open_map_identity" ? context : null;
+  };
+  const readyContext = (candidate: PointObjectFindCandidate) => {
+    const context = currentContext(candidate);
+    return context && publicEvidenceReceiptIsCurrent(context.evidenceReceipt) && context.evidenceReceipt?.sourceLocale === nominatimLocale(locale) && context.evidenceReceipt.lookupSourceFeatureId === candidate.sourceFeatureId && context.geoContext.coverage === "available" && context.geoContext.sampleSize > 0 && !context.geoContext.capReached && context.normalizedContext?.source.acquiredAt && Number.isFinite(Date.parse(context.normalizedContext.source.acquiredAt)) ? context : null;
+  };
+  const ready = !stale && candidates.every(candidate => readyContext(candidate));
+  const matchedInsight = !stale && insight?.locale === locale && insight.role === role && insight.scenario === scenario && insight.snapshots.length === candidates.length && insight.snapshots.every(snapshot => candidates.some(c => c.sourceFeatureId === snapshot.sourceFeatureId) && contexts[snapshot.sourceFeatureId]?.evidenceReceipt?.evidencePackHash === snapshot.evidencePackHash && contexts[snapshot.sourceFeatureId]?.name === snapshot.label) ? insight : null;
+
+  async function loadContexts() {
+    if (controllerRef.current || stale || Date.now() < cooldownUntil) return;
+    const controller = new AbortController(); controllerRef.current = controller; setPhase("sources"); setError(null);
+    try {
+      for (const candidate of candidates) {
+        // This is an explicit refresh, including after a server cache miss.
+        // A current browser receipt does not prove the server still has its pack.
+        const response = await fetch("/api/prototype/point-to-object/context", { method: "POST", headers: {"Content-Type":"application/json"}, signal: AbortSignal.any([controller.signal, AbortSignal.timeout(18_000)]), body: JSON.stringify({caseKey:result.criteria.marketKey,longitude:candidate.longitude,latitude:candidate.latitude,locale,expectedSourceFeatureId:candidate.sourceFeatureId}) });
+        const payload: unknown = await response.json();
+        if (controller.signal.aborted) return;
+        if (!response.ok) {
+          const seconds = response.status === 429 ? sourceRetryAfterSeconds(response.headers.get("retry-after")) : 0;
+          if (seconds) setCooldownUntil(Date.now()+seconds*1_000);
+          throw new Error(sourceFailureMessage(pointObjectSourceFailure(response.status,payload),seconds,locale));
+        }
+        const context = payload && typeof payload === "object" && "mode" in payload && payload.mode === "resolved" && "subject" in payload ? parseLiveResolvedObject(payload.subject) : null;
+        if (!context || context.sourceFeatureId !== candidate.sourceFeatureId || context.coordinateAssociation !== "trusted_open_map_identity" || context.evidenceReceipt?.lookupSourceFeatureId !== candidate.sourceFeatureId) throw new Error(ru ? "Точная запись кандидата не подтверждена." : "The candidate's exact source record was not confirmed.");
+        onContextResolved(candidate.sourceFeatureId,context);
+      }
+    } catch (cause) { if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : (ru ? "Не удалось получить окружение." : "Could not load surroundings.")); }
+    finally { if (controllerRef.current === controller) { controllerRef.current=null; setPhase("idle"); } }
+  }
+
+  async function runComparison() {
+    if (!ready || controllerRef.current || matchedInsight) return;
+    const controller=new AbortController(); controllerRef.current=controller; setPhase("ai"); setError(null);
+    try {
+      const frozen=candidates.map(candidate => ({longitude:candidate.longitude,latitude:candidate.latitude,expectedSourceFeatureId:candidate.sourceFeatureId,evidenceReceipt:readyContext(candidate)!.evidenceReceipt!}));
+      const challengeResponse=await fetch("/api/prototype/point-to-object/ai",{method:"GET",cache:"no-store",signal:controller.signal});
+      const challenge=await challengeResponse.json() as {mode?:string;challenge?:string};
+      if (!challengeResponse.ok || challenge.mode!=="ready" || !challenge.challenge) throw new Error(ru ? "AI-сравнение сейчас недоступно." : "AI comparison is unavailable.");
+      const response=await fetch("/api/prototype/point-to-object/ai",{method:"POST",headers:{"Content-Type":"application/json"},signal:AbortSignal.any([controller.signal,AbortSignal.timeout(75_000)]),body:JSON.stringify({caseKey:result.criteria.marketKey,longitude:frozen[0].longitude,latitude:frozen[0].latitude,locale,role,scenario,depth:"standard",goal:"development_screening",perspective:"developer",horizon:"current",question:null,expectedSourceFeatureId:frozen[0].expectedSourceFeatureId,evidenceReceipt:frozen[0].evidenceReceipt,comparison:frozen,consent:true,challenge:challenge.challenge})});
+      const raw: unknown=await response.json();
+      if (controller.signal.aborted) return;
+      const parsed=response.ok ? parsePointObjectComparisonInsight(raw) : null;
+      if (!parsed || parsed.locale!==locale || parsed.role!==role || parsed.scenario!==scenario || parsed.snapshots.length!==frozen.length || !parsed.snapshots.every(snapshot=>frozen.some(candidate=>candidate.expectedSourceFeatureId===snapshot.sourceFeatureId && candidate.evidenceReceipt.evidencePackHash===snapshot.evidencePackHash && contexts[candidate.expectedSourceFeatureId]?.name === snapshot.label))) throw new Error(response.status===409 ? (ru ? "Обновите снимки кандидатов перед AI-сравнением." : "Refresh candidate snapshots before AI comparison.") : (ru ? "AI-сравнение не завершилось; исходные данные сохранены." : "AI comparison did not complete; source data is preserved."));
+      onInsight(parsed);
+    } catch(cause) { if(!controller.signal.aborted) setError(cause instanceof Error ? cause.message : (ru ? "AI-сравнение недоступно." : "AI comparison unavailable.")); }
+    finally { if(controllerRef.current===controller){controllerRef.current=null;setPhase("idle");} }
+  }
   const sourceTime = useMemo(() => {
     const timestamp = new Date(result.source.acquiredAt);
     return Number.isFinite(timestamp.getTime()) ? timestamp.toLocaleString(locale, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "—";
@@ -86,7 +157,10 @@ export function FindComparisonDashboard({ locale, result, candidates, roleLabel,
           <p className="text-xs font-bold uppercase tracking-[0.11em] text-[#087f8c]">{ru ? "СРАВНИТЕЛЬНЫЙ СКРИНИНГ" : "COMPARATIVE SCREENING"}</p>
           <h1 id="find-comparison-dashboard-title" className="mt-2 text-3xl font-bold tracking-[-0.04em] sm:text-4xl">{ru ? "Сравнение выбранных объектов" : "Compare selected candidates"}</h1>
           <p className="mt-3 max-w-4xl text-sm leading-6 text-muted">{roleLabel} · {scenarioLabel}.</p>
-          <p className="mt-3 inline-flex rounded-full bg-[#e5fafa] px-3 py-1.5 text-xs font-bold text-[#344054]" data-testid="find-comparison-basis">{ru ? "Основа: наблюдаемые атрибуты текущей выборки OSM · без отдельного AI-сравнения" : "Basis: observed attributes in this OSM sample · no separate comparison AI run"}</p>
+          <p className="mt-3 inline-flex rounded-full bg-[#e5fafa] px-3 py-1.5 text-xs font-bold text-[#344054]" data-testid="find-comparison-basis">{ru ? "Основа: наблюдаемые данные OSM · AI-синтез запускается отдельно" : "Basis: observed OSM data · AI synthesis runs separately"}</p>
+          <div className="mt-4 flex flex-wrap gap-3"><button type="button" onClick={()=>void loadContexts()} disabled={phase!=="idle" || stale} data-testid="comparison-load-context" className="min-h-11 rounded-xl border border-[#d7dee4] bg-white px-4 text-sm font-bold text-[#087f8c] disabled:opacity-50">{phase==="sources" ? (ru ? "Получаем окружение…" : "Loading surroundings…") : (ru ? "Обновить данные окружения" : "Refresh surroundings data")}</button><button type="button" onClick={()=>void runComparison()} disabled={!ready || phase!=="idle" || Boolean(matchedInsight)} data-testid="comparison-run-ai" className="min-h-11 rounded-xl bg-[#087f8c] px-4 text-sm font-bold text-white disabled:bg-[#b7c4d7]">{phase==="ai" ? (ru ? "Выполняем AI-сравнение…" : "Running AI comparison…") : matchedInsight ? (ru ? "AI-сравнение сохранено" : "AI comparison saved") : (ru ? "Запустить AI-сравнение" : "Run AI comparison")}</button></div>
+          {!ready ? <p className="mt-2 text-xs leading-5 text-muted">{stale ? (ru ? "Обновите поиск после изменения условий." : "Update the search after changing criteria.") : (ru ? "Для AI нужны точные записи и непустые снимки окружения всех кандидатов без достигнутого предела выборки. Получение данных не запускает AI." : "AI needs exact records and nonempty, uncapped surroundings snapshots for every candidate. Loading data does not run AI.")}</p> : null}
+          {error ? <p className="mt-3 text-sm text-[#79520d]" role="alert">{error}</p> : null}
           <dl className="mt-5 grid gap-3 sm:grid-cols-3">
             <div className="rounded-2xl bg-[#f4fbfb] p-4"><dt className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#667085]">{ru ? "Объекты" : "Candidates"}</dt><dd className="mt-1 text-3xl font-bold tabular-nums text-[#087f8c]">{candidates.length}</dd></div>
             <div className="rounded-2xl bg-[#f4fbfb] p-4"><dt className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#667085]">{ru ? "Область выборки" : "Sample area"}</dt><dd className="mt-1 text-3xl font-bold tabular-nums text-[#087f8c]">{result.coverage.approximateAreaSqKm.toLocaleString(locale, { maximumFractionDigits: 2 })}<span className="ml-1 text-sm">{ru ? "км²" : "km²"}</span></dd></div>
@@ -109,7 +183,9 @@ export function FindComparisonDashboard({ locale, result, candidates, roleLabel,
                       return kind === "mapped_building_or_landuse" ? (ru ? "Здание / землепользование на карте" : "Mapped building / land use") : kind === "mapped_poi" ? (ru ? "Точка функции на карте" : "Mapped function / POI") : (ru ? "Не определено" : "Not determined");
                     } },
                     { label: ru ? "Этажность на карте" : "Mapped levels", value: (candidate: PointObjectFindCandidate) => candidate.mappedBuildingLevels?.toLocaleString(locale) ?? "—" },
-                    { label: ru ? "Район" : "Locality", value: (candidate: PointObjectFindCandidate) => locality(candidate) ?? "—" }
+                    { label: ru ? "Район" : "Locality", value: (candidate: PointObjectFindCandidate) => locality(candidate) ?? "—" },
+                    { label: ru ? "Покрытие окружения" : "Surroundings coverage", value: (candidate: PointObjectFindCandidate) => { const context=currentContext(candidate); return !context || context.geoContext.coverage!=="available" ? (ru ? "Недоступно" : "Unavailable") : context.geoContext.capReached ? (ru ? "Частично · предел выборки" : "Partial · sample cap") : `${context.geoContext.sampleSize} ${ru ? "записей · 400 м" : "records · 400 m"}`; } },
+                    ...(["transport","retail_daily_needs","education","healthcare","open_space"] as const).map(group=>({label:CONTEXT_GROUP_LABELS[locale][group],value:(candidate:PointObjectFindCandidate)=>{const context=currentContext(candidate); if(!context || context.geoContext.coverage!=="available") return "—"; const metrics=normalizedResolvedContext(context).metrics; const count=metrics.find(m=>m.id===`${group}.count`)?.value; const distance=metrics.find(m=>m.id===`${group}.nearest`)?.value; return `${count ?? "—"} ${ru ? "зап." : "records"}${distance==null ? "" : ` · ${distance} ${ru ? "м по прямой" : "m straight-line"}`}`;}}))
                   ].map((row) => <tr key={row.label} className="border-b border-line last:border-b-0"><th scope="row" className="p-3 text-xs font-semibold text-muted">{row.label}</th>{candidates.map((candidate) => <td key={candidate.sourceFeatureId} className="p-3 font-semibold text-[#344054]">{row.value(candidate)}</td>)}</tr>)}
                 </tbody>
               </table>
@@ -118,6 +194,8 @@ export function FindComparisonDashboard({ locale, result, candidates, roleLabel,
           <CandidateMapContext candidates={candidates} marketKey={result.criteria.marketKey} locale={locale} activeId={activeId} onSelect={setActiveId} />
         </div>
 
+        {matchedInsight ? <section className="rounded-[24px] border border-line bg-white p-5 sm:p-7" data-testid="comparison-ai-insight"><h2 className="text-xl font-bold">{ru ? "AI-синтез по сценарию" : "Scenario AI synthesis"}</h2><p className="mt-3 text-sm leading-6 text-[#344054]">{matchedInsight.summary.statement}</p><ul className="mt-4 space-y-3">{matchedInsight.differences.map((difference,index)=><li key={index} className="rounded-xl bg-[#f4fbfb] p-3 text-sm leading-6">{difference.statement}<span className="mt-1 block break-all text-[11px] text-muted">{difference.evidenceRefs.join(" · ")}</span></li>)}</ul><div className="mt-4 grid gap-3 md:grid-cols-3">{matchedInsight.checks.map((check,index)=><article key={index} className="rounded-xl border border-line p-3"><h3 className="text-xs font-bold text-[#087f8c]">{candidates.find(c=>c.sourceFeatureId===check.candidateId)?.label ?? check.candidateId}</h3><p className="mt-2 text-sm leading-6">{check.action}</p></article>)}</div><p className="mt-3 text-[11px] text-muted">{matchedInsight.telemetry.model} · {new Date(matchedInsight.generatedAt).toLocaleString(locale)} · {ru ? "Один явный запрос на зафиксированных снимках" : "One explicit request on frozen snapshots"}</p></section> : null}
+        {currentContext(candidates.find(c=>c.sourceFeatureId===activeId) ?? candidates[0]) ? <PointObjectContextDashboard locale={locale} context={normalizedResolvedContext(currentContext(candidates.find(c=>c.sourceFeatureId===activeId) ?? candidates[0])!)} /> : null}
         <section className="rounded-[24px] border border-line bg-white p-5 shadow-soft sm:p-7" aria-labelledby="candidate-tradeoffs-title">
           <h2 id="candidate-tradeoffs-title" className="text-xl font-bold">{ru ? "Что различает объекты — и чего не хватает" : "Observed trade-offs and evidence gaps"}</h2>
           <div className="mt-4 grid gap-4 lg:grid-cols-3">{candidates.map((candidate, index) => {

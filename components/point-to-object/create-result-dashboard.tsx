@@ -9,6 +9,9 @@ import type { PointObjectCreateAoi } from "@/src/lib/prototype/point-to-object-c
 import type { PointObjectGeneratedConcept } from "@/src/lib/prototype/point-to-object-create-result";
 import { buildConceptEnvironment } from "@/src/lib/prototype/point-to-object-create-environment";
 import { conceptWallColor } from "@/src/lib/prototype/point-to-object-create-appearance";
+import { normalizePointObjectAreaContext } from "@/src/lib/prototype/point-to-object-normalized-context";
+import type { PointObjectAreaContextResult } from "@/src/lib/prototype/point-to-object-area-context-contract";
+import { PointObjectContextDashboard } from "./context-dashboard";
 
 const CreateResultPreview3D = dynamic(
   () => import("@/components/point-to-object/create-result-preview-3d").then((module) => module.CreateResultPreview3D),
@@ -23,6 +26,7 @@ type Props = {
   aoi: PointObjectCreateAoi;
   generated: PointObjectGeneratedConcept;
   generatedLocale: "en" | "ru" | null;
+  areaContext?: PointObjectAreaContextResult | null;
   activeAlternativeId: "A" | "B";
   onAlternativeChange: (id: "A" | "B") => void;
   onBackToEditor: () => void;
@@ -77,7 +81,7 @@ function ConceptPlanPreview({ aoi, generated, activeAlternativeId, locale }: Pic
   );
 }
 
-export function CreateResultDashboard({ locale, aoi, generated, generatedLocale, activeAlternativeId, onAlternativeChange, onBackToEditor, onShowMap }: Props) {
+export function CreateResultDashboard({ locale, aoi, generated, generatedLocale, areaContext, activeAlternativeId, onAlternativeChange, onBackToEditor, onShowMap }: Props) {
   const dialogRef = useModalShell(onBackToEditor);
   const ru = locale === "ru";
   const [previewMode, setPreviewMode] = useState<"2d" | "3d">("2d");
@@ -129,6 +133,7 @@ export function CreateResultDashboard({ locale, aoi, generated, generatedLocale,
           </section>
         </div>
 
+        {areaContext ? <PointObjectContextDashboard context={normalizePointObjectAreaContext(areaContext)} locale={locale} programme /> : <section className="rounded-[20px] border border-line bg-white p-5" data-testid="create-context-unavailable"><h2 className="text-lg font-bold">{ru ? "Контекст программы" : "Programme context"}</h2><p className="mt-2 text-sm leading-6 text-muted">{ru ? "Снимок окружения не сохранён. Школы, медицина, сервисы и транспорт не оценены; состав программы пока является сценарной гипотезой." : "No context snapshot is saved. Education, health, services and transit have not been assessed; programme composition remains a scenario hypothesis."}</p></section>}
         <section className="grid gap-4 rounded-[24px] border border-line bg-white p-5 shadow-soft sm:p-7 lg:grid-cols-2">
           <div><h2 className="text-lg font-bold">{ru ? "Программа варианта" : "Option programme"}</h2><dl className="mt-3 grid grid-cols-[minmax(120px,auto)_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm"><dt className="text-muted">{ru ? "Стиль" : "Massing style"}</dt><dd className="font-semibold">{generated.program.massingStyle.replaceAll("_", " ")}</dd><dt className="text-muted">{ru ? "Целевая застройка" : "Target coverage"}</dt><dd className="font-semibold">{generated.program.targetSiteCoveragePct}%</dd><dt className="text-muted">{ru ? "Открытое пространство" : "Open space"}</dt><dd className="font-semibold">{generated.program.openSpacePct}%</dd><dt className="text-muted">{ru ? "Отступ" : "Setback"}</dt><dd className="font-semibold">{generated.program.setbackM} {ru ? "м" : "m"}</dd></dl></div>
           <div><h2 className="text-lg font-bold">{ru ? "Границы результата" : "Result boundaries"}</h2><ul className="mt-3 space-y-2 text-sm leading-6 text-[#475467]"><li>• {ru ? "A/B — сохранённые варианты одной генерации; переключение бесплатно." : "A/B are saved options from one generation; switching is free."}</li><li>• {ru ? "Новые альтернативы требуют отдельного явного запуска генерации." : "New alternatives require a separate explicit generation action."}</li><li>• {ru ? "Изменение параметров не удаляет этот последний корректный результат." : "Editing parameters does not delete this last valid result."}</li></ul></div>

@@ -1,4 +1,9 @@
 import type { ExploreAudience, ExploreRole, ExploreScenarioId } from "@/src/lib/explore/types";
+import { parseLiveResolvedObject } from "../../../components/point-to-object/live-session";
+import type { LiveResolvedObjectContext } from "../../../components/point-to-object/live-types";
+import { parsePointObjectComparisonContent, parsePointObjectComparisonInsight, type PointObjectComparisonInput, type PointObjectComparisonInsight } from "./point-to-object-comparison-core";
+import { normalizedResolvedContext } from "./point-to-object-normalized-context";
+import { nominatimLocale } from "./point-to-object-markets";
 import {
   POINT_OBJECT_FIND_CAVEAT,
   POINT_OBJECT_FIND_GROUPS,
@@ -45,6 +50,8 @@ export type PointObjectFindSessionState = {
   comparisonOpen: boolean;
   /** Optional for backward compatibility with previously saved v1 artifacts. */
   comparisonView?: PointObjectFindComparisonView;
+  comparisonContexts?: Record<string, LiveResolvedObjectContext>;
+  comparisonInsight?: PointObjectComparisonInsight | null;
   analysisTargetSourceFeatureId: PointObjectFindCandidate["sourceFeatureId"] | null;
   updatedAt: string;
 };
@@ -153,6 +160,23 @@ export function parsePointObjectFindSessionState(value: unknown): PointObjectFin
   })) return null;
   if (value.analysisTargetSourceFeatureId !== null && !candidateIds.has(value.analysisTargetSourceFeatureId as PointObjectFindCandidate["sourceFeatureId"])) return null;
   const comparisonView = value.comparisonView as PointObjectFindComparisonView | undefined;
+  const comparisonContexts: Record<string, LiveResolvedObjectContext> = {};
+  if (value.comparisonContexts !== undefined) {
+    if (!isRecord(value.comparisonContexts) || Object.keys(value.comparisonContexts).length > 3) return null;
+    for (const [id, raw] of Object.entries(value.comparisonContexts)) {
+      const context = parseLiveResolvedObject(raw);
+      const candidate = candidateById.get(id as PointObjectFindCandidate["sourceFeatureId"]);
+      if (!context || !candidate || !shortlistIds.has(candidate.sourceFeatureId) || context.sourceFeatureId !== id || context.coordinateAssociation !== "trusted_open_map_identity" || context.evidenceReceipt?.lookupSourceFeatureId !== id || context.evidenceReceipt.sourceLocale !== nominatimLocale(value.locale) || context.normalizedContext?.scope.anchor && (Math.abs(context.normalizedContext.scope.anchor[0] - candidate.longitude) > 0.000002 || Math.abs(context.normalizedContext.scope.anchor[1] - candidate.latitude) > 0.000002)) return null;
+      comparisonContexts[id] = context;
+    }
+  }
+  const comparisonInsight = value.comparisonInsight == null ? null : parsePointObjectComparisonInsight(value.comparisonInsight);
+  if (value.comparisonInsight != null) {
+    if (!comparisonInsight || comparisonInsight.locale !== value.locale || comparisonInsight.role !== role || comparisonInsight.scenario !== scenario || comparisonInsight.snapshots.length !== shortlist.length || !comparisonInsight.snapshots.every(snapshot => shortlistIds.has(snapshot.sourceFeatureId as PointObjectFindCandidate["sourceFeatureId"]) && comparisonContexts[snapshot.sourceFeatureId]?.evidenceReceipt?.evidencePackHash === snapshot.evidencePackHash && comparisonContexts[snapshot.sourceFeatureId]?.name === snapshot.label)) return null;
+    const boundCandidates = comparisonInsight.snapshots.map(snapshot => ({ id: snapshot.sourceFeatureId, label: snapshot.label }));
+    const allowedEvidenceRefs = boundCandidates.flatMap(candidate => [`${candidate.id}:identity`, ...normalizedResolvedContext(comparisonContexts[candidate.id]).metrics.filter(metric => metric.value !== null).map(metric => `${candidate.id}:${metric.id}`)]);
+    if (!parsePointObjectComparisonContent({ summary: comparisonInsight.summary, differences: comparisonInsight.differences, checks: comparisonInsight.checks }, { candidates: boundCandidates, allowedEvidenceRefs } as PointObjectComparisonInput)) return null;
+  }
   if (comparisonView !== undefined && (
     (shortlist.length < 2 && comparisonView !== "results") ||
     value.comparisonOpen !== (comparisonView !== "results")
@@ -174,6 +198,8 @@ export function parsePointObjectFindSessionState(value: unknown): PointObjectFin
     // v1 session. Saved-project verification hashes the strictly parsed
     // payload, so preserving absence is part of the historical byte contract.
     ...(comparisonView === undefined ? {} : { comparisonView }),
+    ...(value.comparisonContexts === undefined ? {} : { comparisonContexts }),
+    ...(value.comparisonInsight === undefined ? {} : { comparisonInsight }),
     analysisTargetSourceFeatureId: value.analysisTargetSourceFeatureId as PointObjectFindCandidate["sourceFeatureId"] | null,
     updatedAt: value.updatedAt
   };

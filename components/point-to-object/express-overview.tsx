@@ -1,5 +1,7 @@
 import type { LiveMapSelection } from "@/components/point-to-object/live-types";
 import { pointObjectHasSelectedIdentity, pointObjectSelectedLookupId } from "@/src/lib/prototype/point-to-object-trusted-identity";
+import { normalizedResolvedContext } from "@/src/lib/prototype/point-to-object-normalized-context";
+import { PointObjectContextDashboard } from "./context-dashboard";
 
 type Locale = "en" | "ru";
 
@@ -224,6 +226,7 @@ export function PointObjectExpressOverview({ selection, locale }: { selection: L
           : "Check identity and dimensions against official or owner records. Focused AI analysis is a separate action."}</p>
       </article>
     </div>
+    {selection.resolvedObject ? <div className="mt-5"><PointObjectContextDashboard context={normalizedResolvedContext(selection.resolvedObject, [selection.longitude, selection.latitude])} locale={locale} /></div> : null}
     <p className="mt-4 text-xs leading-5 text-[#52657a]" data-testid="express-unavailable"><span className="font-semibold">{ru ? "Не установлено этой картой:" : "Not established by this map:"}</span> {ru
       ? "права и ограничения, допустимое использование, спрос, стоимость и экономика проекта."
       : "rights and constraints, permitted use, demand, costs and project economics."}</p>

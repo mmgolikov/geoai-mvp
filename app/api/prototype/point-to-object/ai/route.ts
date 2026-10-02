@@ -7,6 +7,7 @@ import { requirePilotIdentity, requirePilotMutationOrigin } from "@/src/lib/auth
 import { readBoundedJson } from "@/src/lib/http/bounded-json";
 import {
   generatePointObjectAiAnalysis,
+  generatePointObjectAiComparison,
   PointObjectAiServiceError
 } from "@/src/lib/prototype/point-to-object-ai";
 import type {
@@ -196,9 +197,16 @@ function validBody(value: unknown): value is {
   evidenceReceipt?: PublicEvidenceReceipt | null;
   consent: true;
   challenge: string;
+  comparison?: Array<{ longitude: number; latitude: number; expectedSourceFeatureId: string; evidenceReceipt: PublicEvidenceReceipt }>;
 } {
   if (!isRecord(value) || Object.keys(value).some((key) =>
-    !["caseKey", "longitude", "latitude", "locale", "role", "scenario", "depth", "goal", "perspective", "horizon", "question", "expectedSourceFeatureId", "evidenceReceipt", "consent", "challenge"].includes(key))) return false;
+    !["caseKey", "longitude", "latitude", "locale", "role", "scenario", "depth", "goal", "perspective", "horizon", "question", "expectedSourceFeatureId", "evidenceReceipt", "consent", "challenge", "comparison"].includes(key))) return false;
+  if (!isPointObjectMarketKey(value.caseKey)) return false;
+  if (value.comparison !== undefined && (!Array.isArray(value.comparison) || value.comparison.length < 2 || value.comparison.length > 3 ||
+    !value.comparison.every(c => isRecord(c) && Object.keys(c).sort().join(",") === "evidenceReceipt,expectedSourceFeatureId,latitude,longitude" &&
+      typeof c.longitude === "number" && typeof c.latitude === "number" && Number.isFinite(c.longitude) && Number.isFinite(c.latitude) &&
+      coordinatesMatchPointObjectMarket(value.caseKey as PointObjectMarketKey, c.longitude, c.latitude) && typeof c.expectedSourceFeatureId === "string" && /^(node|way|relation)\/[1-9]\d{0,19}$/.test(c.expectedSourceFeatureId) && parsePublicEvidenceReceipt(c.evidenceReceipt)?.lookupSourceFeatureId === c.expectedSourceFeatureId) ||
+    new Set(value.comparison.map(c => c.expectedSourceFeatureId)).size !== value.comparison.length)) return false;
   const questionValid = value.question === null || (
     typeof value.question === "string" &&
     value.question.trim().length >= 1 &&
@@ -267,7 +275,7 @@ export async function POST(request: Request) {
       headers: clearChallengeHeader(request)
     });
   }
-  const parsed = await readBoundedJson(request, 4 * 1024);
+  const parsed = await readBoundedJson(request, 8 * 1024);
   if (!parsed.ok || !validBody(parsed.value)) {
     return NextResponse.json({ mode: "unavailable", code: "AI_REQUEST_INVALID", error: "A bounded resolved point, explicit consent and browser challenge are required." }, {
       status: parsed.ok ? 400 : parsed.status,
@@ -300,6 +308,23 @@ export async function POST(request: Request) {
   }
 
   try {
+    const analysisRequest: PointObjectAnalysisRequest = {
+      role: roleScenario.role, scenario: roleScenario.scenario, depth: body.depth, goal: body.goal,
+      perspective: body.perspective, horizon: body.horizon, question: body.question?.trim() || null, locale: body.locale
+    };
+    if (body.comparison) {
+      // No Context fallback: every candidate is replayed from its exact frozen lease.
+      const packs = await Promise.all(body.comparison.map(async candidate => {
+        const receipt = parsePublicEvidenceReceipt(candidate.evidenceReceipt);
+        if (!receipt || receipt.sourceLocale !== nominatimLocale(body.locale) || receipt.lookupSourceFeatureId !== candidate.expectedSourceFeatureId) throw new PublicEvidenceLeaseError();
+        const lease = await reusePublicEvidenceLease({ longitude: candidate.longitude, latitude: candidate.latitude,
+          locale: nominatimLocale(body.locale), osmFeatureId: candidate.expectedSourceFeatureId,
+          expectedCountryCode: pointObjectMarket(body.caseKey).countryCode }, receipt);
+        if (lease.pack.selectedObject.sourceFeatureId !== candidate.expectedSourceFeatureId) throw new PublicEvidenceLeaseError();
+        return lease.pack;
+      }));
+      return NextResponse.json(await generatePointObjectAiComparison(packs, analysisRequest, routeDeadline), { headers: clearChallengeHeader(request) });
+    }
     const receipt = parsePublicEvidenceReceipt(body.evidenceReceipt);
     if (!receipt) throw new PublicEvidenceLeaseError();
     const { pack: evidencePack } = await reusePublicEvidenceLease({
@@ -320,16 +345,6 @@ export async function POST(request: Request) {
         headers: clearChallengeHeader(request)
       });
     }
-    const analysisRequest: PointObjectAnalysisRequest = {
-      role: roleScenario.role,
-      scenario: roleScenario.scenario,
-      depth: body.depth,
-      goal: body.goal,
-      perspective: body.perspective,
-      horizon: body.horizon,
-      question: body.question?.trim() || null,
-      locale: body.locale
-    };
     const result = await generatePointObjectAiAnalysis(evidencePack, analysisRequest, routeDeadline);
     return NextResponse.json({
       ...result,
@@ -352,6 +367,9 @@ export async function POST(request: Request) {
       }
     }, { headers: clearChallengeHeader(request) });
   } catch (error) {
+    if (error instanceof Error && /^COMPARISON_(?:EVIDENCE_INSUFFICIENT|SNAPSHOTS_NOT_ALIGNED)$/.test(error.message)) {
+      return NextResponse.json({ mode: "unavailable", code: error.message, error: "Comparison needs exact, non-truncated neighbourhood snapshots for every candidate from one acquisition window.", retryable: true }, { status: 409, headers: clearChallengeHeader(request) });
+    }
     if (error instanceof PublicEvidenceLeaseError) {
       return NextResponse.json({ mode: "unavailable", code: error.code, error: error.message, retryable: true }, {
         status: 409, headers: clearChallengeHeader(request)
