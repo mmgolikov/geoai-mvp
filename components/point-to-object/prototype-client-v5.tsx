@@ -391,6 +391,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
   const [areaContextRetryAfterSeconds, setAreaContextRetryAfterSeconds] = useState(0);
   const areaContextCooldownRef = useRef(0);
   const areaContextRequestIdRef = useRef(0);
+  const areaContextAdmissionRef = useRef<{ aoiKey: string; retryVersion: number; identity: PointObjectProjectIdentity | null; hasSnapshot: boolean } | null>(null);
   const [areaContextFailure, setAreaContextFailure] = useState<PointObjectSourceFailure>("unavailable");
   const [visibleBounds, setVisibleBounds] = useState<PointObjectFindBounds | null>(null);
   const [findExplicitSearchBounds, setFindExplicitSearchBounds] = useState<PointObjectFindBounds | null>(null);
@@ -841,9 +842,8 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     if (!sessionReady || previousLocaleRef.current === locale) return;
     previousLocaleRef.current = locale;
     contextRequestId.current += 1;
-    // A Find/Create draft locale is not permission to erase or reacquire the
-    // held Analyse snapshot. Its original source locale/lease remains binding.
-    if (mode === "analyse") setSelection((current) => current ? { ...current, resolvedObject: null } : current);
+    // Presentation language is not source intent, in any mode. Preserve the
+    // held snapshot's original facts, source locale and evidence lease.
     setSearchResults([]);
     setSearchStatus("idle");
     setSuggestionStatus("idle");
@@ -910,6 +910,9 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
   const unresolvedContextKey = selection?.resolvedObject ? null : contextRequestKey(selection, locale);
   const contextSelectionKey = selection ? `${contextRequestKey(selection, "en")}:${selection.clickedAt}` : null;
   useEffect(() => {
+    if (selection?.resolvedObject && contextSelectionKey) {
+      contextAdmissionRef.current = { selectionKey: contextSelectionKey, retryVersion: contextRetryVersion, identity: projectIdentity };
+    }
     if (mode !== "analyse" || !unresolvedContextKey || !contextSelectionKey) {
       setContextStatus("idle");
       return;
@@ -1011,6 +1014,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     };
   }, [mode, unresolvedContextKey, contextSelectionKey, contextRetryVersion, locale, projectIdentity]);
 
+  const areaContextAoiKey = createAoi ? JSON.stringify({ marketKey: locationKey, aoiId: createAoi.id, coordinates: createAoi.coordinates }) : null;
   useEffect(() => {
     const timer = window.setInterval(() => {
       setContextRetrySeconds(Math.max(0, Math.ceil((contextCooldownRef.current - Date.now()) / 1_000)));
@@ -1031,12 +1035,12 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
   useEffect(() => {
     areaContextRequestIdRef.current += 1;
     const requestId = areaContextRequestIdRef.current;
-    if (!projectRestorationReady) {
+    if (!projectRestorationReady || mode !== "create") {
       setAreaContextStatus("idle");
       setAreaContextRetryAfterSeconds(0);
       return;
     }
-    if (!createAoi) {
+    if (!createAoi || !areaContextAoiKey) {
       setAreaContext(null);
       setAreaContextStatus("idle");
       setAreaContextRetryAfterSeconds(0);
@@ -1044,13 +1048,23 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     }
     if (suppressRestoredAreaContextRequestRef.current) {
       suppressRestoredAreaContextRequestRef.current = false;
+      areaContextAdmissionRef.current = { aoiKey: areaContextAoiKey, retryVersion: areaContextRetryVersion, identity: projectIdentity, hasSnapshot: Boolean(areaContext) };
       setAreaContextStatus("idle");
       setAreaContextRetryAfterSeconds(0);
       return;
     }
     const areaRequest = { marketKey: locationKey, locale, aoiCoordinates: createAoi.coordinates };
+    const admitted = areaContextAdmissionRef.current;
+    if (admitted?.aoiKey === areaContextAoiKey && admitted.retryVersion === areaContextRetryVersion && admitted.identity === projectIdentity) {
+      // Restoring a snapshot also consumes admission for this AOI. Locale,
+      // draft, A/B and view changes never refresh its original source facts.
+      setAreaContextStatus(admitted.hasSnapshot ? "idle" : areaContextCooldownRef.current > Date.now() ? "rate" : "error");
+      return;
+    }
+    const retainHeldSnapshot = (current: PointObjectAreaContextResult | null) => current &&
+      samePointObjectAreaRequest(current.request, { ...areaRequest, locale: current.request.locale }) ? current : null;
     if (areaContextCooldownRef.current > Date.now()) {
-      setAreaContext((current) => current && samePointObjectAreaRequest(current.request, areaRequest) ? current : null);
+      setAreaContext(retainHeldSnapshot);
       setAreaContextStatus("rate");
       setAreaContextRetryAfterSeconds(Math.ceil((areaContextCooldownRef.current - Date.now()) / 1_000));
       return;
@@ -1066,7 +1080,9 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     timeoutSignal.addEventListener("abort", onDeadline, { once: true });
     setAreaContextStatus("loading");
     setAreaContextRetryAfterSeconds(0);
-    setAreaContext((current) => current && samePointObjectAreaRequest(current.request, areaRequest) ? current : null);
+    setAreaContext(retainHeldSnapshot);
+    const admission = { aoiKey: areaContextAoiKey, retryVersion: areaContextRetryVersion, identity: projectIdentity, hasSnapshot: false };
+    areaContextAdmissionRef.current = admission;
     void fetch("/api/prototype/point-to-object/area-context", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1083,11 +1099,12 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
         setAreaContextRetryAfterSeconds(seconds);
         return;
       }
-      if (!response.ok || !isPointObjectAreaContextResult(payload)) {
+      if (!response.ok || !isPointObjectAreaContextResult(payload) || !samePointObjectAreaRequest(payload.request, areaRequest)) {
         setAreaContextFailure(pointObjectSourceFailure(response.status, payload));
         setAreaContextStatus("error");
         return;
       }
+      admission.hasSnapshot = true;
       setAreaContext(payload);
       setAreaContextStatus("idle");
     }).catch((error: unknown) => {
@@ -1101,7 +1118,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
       timeoutSignal.removeEventListener("abort", onDeadline);
       controller.abort();
     };
-  }, [areaContextRetryVersion, createAoi, locale, locationKey, projectRestorationReady]);
+  }, [areaContextRetryVersion, createAoi, areaContextAoiKey, locale, locationKey, mode, projectIdentity, projectRestorationReady]);
 
   const handleSelection = useCallback((nextSelection: LiveMapSelection | null) => {
     clearPointObjectProjectRestore();

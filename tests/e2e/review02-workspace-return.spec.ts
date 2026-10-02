@@ -17,13 +17,38 @@ import { parsePointObjectComparisonInsight } from "../../src/lib/prototype/point
 import { sprint10Selection, sprint10PublicEvidenceReceipt, SPRINT10_CAVEAT } from "./helpers/sprint10-analysis-fixture";
 import { installLoopbackBrowserHarness, externalHttpUrlPattern } from "./helpers/local-webkit-csp";
 import { sessionMissingFixture } from "./helpers/auth-persona";
+import { isPointObjectAreaContextResult } from "../../src/lib/prototype/point-to-object-create-result";
+import type { PointObjectAreaContextResult } from "../../src/lib/prototype/point-to-object-area-context-contract";
 
 const identity = "demo:demo-user-geoai" as const;
 const storeKey = `geoai:point-to-object:projects:v1:${encodeURIComponent(identity)}`;
 const stamp = "2026-10-02T20:50:00.000Z";
+// Exact frozen AOI/features/source receipt from test_1/final-ceecad2's healthy
+// fixture. Test-only copies; no real source call or current/live certification.
+const heldVertices: [number,number][] = [[55.269,25.204],[55.2718,25.204],[55.2718,25.2064],[55.269,25.2064]];
+function heldAreaContext(coordinates:number[][][],locale:"en"|"ru"):PointObjectAreaContextResult {
+  const vertices=coordinates[0].slice(0,-1) as [number,number][];
+  const valid=validatePointObjectCreateAoiVertices(vertices);
+  if(!valid.ok)throw new Error(valid.message);
+  const dx=vertices[0][0]-heldVertices[0][0],dy=vertices[0][1]-heldVertices[0][1];
+  const payload={protocol:"POINT_TO_OBJECT_001_AREA_CONTEXT_V1",mode:"results",
+    request:{marketKey:"dubai",locale,aoiCoordinates:coordinates},
+    area:{areaSqM:Math.round(valid.measurements.areaSqM),perimeterM:Math.round(valid.measurements.perimeterM),centroid:{longitude:55.2703997870943+dx,latitude:25.20519990288+dy}},
+    features:[
+      {sourceFeatureId:"node/77",longitude:55.2704+dx,latitude:25.2052+dy,label:"Mapped residence",group:"residential",mappedBuildingLevels:null,observedTags:{building:"residential",name:"Mapped residence"},inclusionMethod:"returned_center_inside_aoi"},
+      {sourceFeatureId:"node/78",longitude:55.2703+dx,latitude:25.2051+dy,label:"Mapped school",group:"education",mappedBuildingLevels:null,observedTags:{amenity:"school",name:"Mapped school"},inclusionMethod:"returned_center_inside_aoi"},
+      {sourceFeatureId:"node/79",longitude:55.2702+dx,latitude:25.2053+dy,label:"Mapped daily-needs shop",group:"retail_daily_needs",mappedBuildingLevels:null,observedTags:{shop:"supermarket",name:"Mapped daily-needs shop"},inclusionMethod:"returned_center_inside_aoi"},
+      {sourceFeatureId:"node/80",longitude:55.2706+dx,latitude:25.2054+dy,label:"Mapped stop",group:"transport",mappedBuildingLevels:null,observedTags:{highway:"bus_stop",name:"Mapped stop"},inclusionMethod:"returned_center_inside_aoi"}],
+    summary:{sampleSize:4,namedFeatureCount:4,mappedBuildingCount:1,mappedLevelsKnownCount:0,medianMappedLevels:null,nearestTransitM:30,nearestMajorRoadM:null,groups:["education","residential","retail_daily_needs","transport"].map(group=>({group,count:1,sharePct:25}))},
+    coverage:{kind:"bounded_open_map_polygon_sample",inclusionMethod:"returned_center_inside_aoi",geometryCoverage:"centroid_proxy_not_complete_intersection",upstreamElementCount:4,normalizedInsideCount:4,returnedFeatureCount:4,upstreamQueryLimit:300,featureReturnLimit:80,capReached:false,completeInventory:false},
+    source:{name:"OpenStreetMap",service:"Overpass API",sourceResponseHash:"945a07c860e0b9d42e81c302b7ba899e841481083527d5a2818171e9eff7933d",observedAt:null,acquiredAt:"2026-10-02T21:22:46.892Z",licenceId:"ODbL-1.0",attribution:"© OpenStreetMap contributors",licenceUrl:"https://www.openstreetmap.org/copyright",officialStatus:"open_context_not_official",runtimeNetworkUsed:true,persistenceUsed:false},
+    limitations:["This is a bounded OpenStreetMap sample, not a complete inventory; missing features do not prove real-world absence.","Inclusion uses each returned node or derived feature centre inside the AOI, so large or crossing geometries may be omitted.","Mapped uses, names and levels may be incomplete, stale, generalized or incorrect; no ownership, zoning, valuation or development right is inferred."],caveat:SPRINT10_CAVEAT};
+  if(!isPointObjectAreaContextResult(payload))throw new Error("Invalid frozen area-context fixture");
+  return payload;
+}
 
 function createOperation(locale: "en" | "ru"): PointObjectProjectOperationInput {
-  const vertices: [number, number][] = [[55.2700,25.2050],[55.2720,25.2050],[55.2720,25.2065],[55.2700,25.2065]];
+  const vertices = heldVertices;
   const valid = validatePointObjectCreateAoiVertices(vertices);
   if (!valid.ok) throw new Error(valid.message);
   const aoi = { id: "create-aoi-review02-held", coordinates: [[...vertices,vertices[0]]], areaSqM: valid.measurements.areaSqM, perimeterM: valid.measurements.perimeterM, vertexCount: 4 };
@@ -35,7 +60,7 @@ function createOperation(locale: "en" | "ru"): PointObjectProjectOperationInput 
   const customPrompt = locale === "ru" ? "Сохранённый локальный черновик без новой генерации." : "Held local draft without another generation.";
   const editorSnapshot = { version:1,scopeKey,templateId:programme.value.templateId,controls,lockedControlKeys:[...POINT_OBJECT_CREATE_EDITOR_CONTROL_KEYS],customPrompt,
     committedDraftKey:createPointObjectCreateDraftKey({scopeKey,locale,depth:"standard",templateId:programme.value.templateId,controls,lockedControlKeys:POINT_OBJECT_CREATE_EDITOR_CONTROL_KEYS,customPrompt}) };
-  const input = parsePointObjectProjectOperationInput({kind:"create",locale,marketKey:"dubai",label:"Offline saved Create",payload:{aoi,editorSnapshot,generatedLocale:locale,activeAlternativeId:"A",areaContext:null,
+  const input = parsePointObjectProjectOperationInput({kind:"create",locale,marketKey:"dubai",label:"Offline saved Create",payload:{aoi,editorSnapshot,generatedLocale:locale,activeAlternativeId:"A",areaContext:heldAreaContext(aoi.coordinates,locale),
     generated:{mode:"openai_concept",generatedAt:stamp,promptVersion:"POINT_OBJECT_CREATE_REVIEW02_OFFLINE_RETURN_FIXTURE",program:programme.value,massing:alternatives[0].massing,alternatives,
       telemetry:{model:"offline-fixture",reasoningEffort:"none",latencyMs:1,attempts:1,estimatedCostUsd:0,stored:false,toolCalls:0},caveat:SPRINT10_CAVEAT}}});
   if (!input) throw new Error("Invalid saved Create fixture");
@@ -79,7 +104,7 @@ async function install(page:Page,browserName:string,baseURL:string|undefined,ope
   const artifact={...operation,schemaVersion:1,artifactId:"review02-held-artifact",idempotencyKey:"review02-offline",payloadHash:await hashPointObjectOperation(operation),completedAt:stamp,updatedAt:stamp,viewRevision:0};
   const store=parsePointObjectProjectStore({schemaVersion:1,identityKey:identity,activeProjectId:"review02-project",projects:[{schemaVersion:1,projectId:"review02-project",name:"Offline regression project",storageMode:"browser_local_on_this_device",createdAt:stamp,updatedAt:stamp,artifacts:[artifact]}]},identity,20,30);
   if(!store)throw new Error("Invalid offline saved project store");
-  const selection={...sprint10Selection,clickedAt:stamp,object:{...sprint10Selection.object,sourceFeatureId:"way/101"},resolvedObject:{...sprint10Selection.resolvedObject,sourceFeatureId:"way/101",evidenceReceipt:sprint10PublicEvidenceReceipt("way/101")}};
+  const selection={...sprint10Selection,clickedAt:stamp,object:{...sprint10Selection.object,sourceFeatureId:"way/101"},resolvedObject:{...sprint10Selection.resolvedObject,sourceFeatureId:"way/101",evidenceReceipt:sprint10PublicEvidenceReceipt("way/101",operation.locale)}};
   await page.addInitScript(({store,key,identity,selection})=>{
     if(!sessionStorage.getItem("__review02_return_seed")) {
       localStorage.setItem(key,JSON.stringify(store));localStorage.setItem("geoai-mock-demo-session-v1","active");
@@ -102,6 +127,24 @@ async function observeNoRequests(page:Page,calls:string[]) {
   await page.waitForTimeout(800);
   expect(calls,"local view/draft transitions never acquire sources or dispatch AI").toEqual([]);
 }
+
+async function openTask(page:Page,locale:"en"|"ru") {
+  const button=page.getByRole("button",{name:locale==="ru"?"Открыть задачу":"Open task",exact:true});
+  if(await button.isVisible())await button.click();
+}
+
+async function selectNewMapPoint(page:Page,locale:"en"|"ru",x:number) {
+  const showMap=page.getByRole("button",{name:locale==="ru"?"На карту":"Show map",exact:true});
+  if(await showMap.isVisible())await showMap.click();
+  await page.getByTestId("live-map-canvas").click({position:{x,y:250}});
+  // A map click intentionally leaves the mobile Task sheet at peek. Open it
+  // before checking its Retry control; this local action must add no request.
+  await openTask(page,locale);
+}
+
+// Validate saved fixture schemas during collection, before launching browsers.
+for(const locale of ["en","ru"] as const) createOperation(locale);
+findOperation();
 
 test.describe("REVIEW02 workspace return",()=>{
   for(const locale of ["en","ru"] as const) for(const width of [390,1440]) test(`${locale} ${width}: saved Create Back opens parameters and retains A/B, draft and exact geometry`,async({page,browserName},info)=>{
@@ -142,10 +185,22 @@ test.describe("REVIEW02 workspace return",()=>{
     await page.keyboard.press("Escape");
     await expect(workspace).toBeVisible();
     await expect(prompt).toHaveValue(`${operation.payload.editorSnapshot!.customPrompt} edited`);
+    await page.getByRole("button",{name:locale==="ru"?"en":"ru",exact:true}).click();
+    await page.getByRole("button",{name:locale,exact:true}).click();
+    await expect(prompt).toHaveValue(`${operation.payload.editorSnapshot!.customPrompt} edited`);
+    await observeNoRequests(page,observed.calls);
+    await page.getByTestId("create-open-result-dashboard").click();
+    await page.getByTestId("create-dashboard-alternative-a").click();
+    await expect.poll(async()=>(await saved(page)).payload.activeAlternativeId).toBe("A");
+    await page.getByTestId("create-dashboard-alternative-b").click();
+    await expect.poll(async()=>(await saved(page)).payload.activeAlternativeId).toBe("B");
+    await page.keyboard.press("Escape");
+    await expect(prompt).toHaveValue(`${operation.payload.editorSnapshot!.customPrompt} edited`);
     const after=await saved(page);
     expect(after.payload.aoi).toEqual(before.payload.aoi);
     expect(after.payload.generated).toEqual(before.payload.generated);
     expect(after.payload.editorSnapshot).toEqual(before.payload.editorSnapshot);
+    expect(after.payload.areaContext).toEqual(before.payload.areaContext);
     expect(after.payload.activeAlternativeId).toBe("B");
     expect(await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth)).toBeLessThanOrEqual(1);
     await page.screenshot({path:info.outputPath("back-to-parameters.png"),fullPage:true});
@@ -176,27 +231,97 @@ test.describe("REVIEW02 workspace return",()=>{
     await observeNoRequests(page,observed.calls);expect(observed.errors).toEqual([]);
   });
 
-  test("1440: Analyse locale/view changes are request-free but explicit Retry and a new map selection remain admitted",async({page,browserName},info)=>{
-    await page.setViewportSize({width:1440,height:900});
-    const observed=await install(page,browserName,info.project.use.baseURL,createOperation("en"));
-    await page.addInitScript(selection=>{
+  for(const locale of ["en","ru"] as const) for(const width of [390,1440]) test(`${locale} ${width}: held Analyse facts survive locale/view changes; failed source Retry and new selection remain admitted`,async({page,browserName},info)=>{
+    await page.setViewportSize({width,height:900});
+    const observed=await install(page,browserName,info.project.use.baseURL,createOperation(locale));
+    await page.addInitScript(()=>{
       sessionStorage.removeItem("geoai:point-to-object:project-restore:v1");
-      sessionStorage.setItem("geoai:point-to-object:selection:v3",JSON.stringify({...selection,resolvedObject:null}));
-    },sprint10Selection);
+    });
     await page.goto("/prototype/point-to-object?mode=analyse");
-    await expect(page.getByRole("button",{name:"Retry",exact:true})).toBeVisible();
+    await expect(page.getByTestId("live-map-canvas")).toBeVisible();
+    await openTask(page,locale);
+    const held=await page.evaluate(()=>JSON.parse(sessionStorage.getItem("geoai:point-to-object:selection:v3")!).resolvedObject);
+    expect(held.evidenceReceipt.sourceLocale).toBe(locale==="ru"?"ru,en":"en");
+    await observeNoRequests(page,observed.calls);
+    await page.getByRole("button",{name:locale==="ru"?"en":"ru",exact:true}).click();
+    await page.getByRole("button",{name:locale,exact:true}).click();
+    await page.getByRole("tab",{name:locale==="ru"?"Поиск":"Find",exact:true}).click();
+    await page.getByRole("tab",{name:locale==="ru"?"Анализ":"Analyse",exact:true}).click();
+    await observeNoRequests(page,observed.calls);
+    expect(await page.evaluate(()=>JSON.parse(sessionStorage.getItem("geoai:point-to-object:selection:v3")!).resolvedObject)).toEqual(held);
+    await selectNewMapPoint(page,locale,100);
+    const retry=page.getByRole("button",{name:locale==="ru"?"Повторить":"Retry",exact:true});
+    await expect(retry).toBeVisible();
     expect(observed.calls).toEqual(["POST /api/prototype/point-to-object/context"]);
-    await page.getByRole("button",{name:"ru",exact:true}).click();
-    await page.getByRole("button",{name:"en",exact:true}).click();
-    await page.getByRole("tab",{name:"Find",exact:true}).click();
-    await page.getByRole("tab",{name:"Analyse",exact:true}).click();
+    await page.getByRole("button",{name:locale==="ru"?"en":"ru",exact:true}).click();
+    await page.getByRole("button",{name:locale,exact:true}).click();
+    await page.getByRole("tab",{name:locale==="ru"?"Поиск":"Find",exact:true}).click();
+    await page.getByRole("tab",{name:locale==="ru"?"Анализ":"Analyse",exact:true}).click();
     await page.waitForTimeout(800);
     expect(observed.calls).toEqual(["POST /api/prototype/point-to-object/context"]);
-    await page.getByRole("button",{name:"Retry",exact:true}).click();
+    await retry.click();
     await expect.poll(()=>observed.calls.length).toBe(2);
-    await page.getByTestId("live-map-canvas").click({position:{x:100,y:250}});
+    await expect(retry).toBeVisible();
+    await selectNewMapPoint(page,locale,150);
     await expect.poll(()=>observed.calls.length).toBe(3);
+    await page.waitForTimeout(800);
+    expect(observed.calls).toHaveLength(3);
     expect(observed.calls.every(call=>call==="POST /api/prototype/point-to-object/context")).toBe(true);
     expect(observed.errors).toEqual([]);
+    await page.screenshot({path:info.outputPath("held-and-failed-analyse.png"),fullPage:true});
+  });
+
+  for(const locale of ["en","ru"] as const) for(const width of [390,1440]) test(`${locale} ${width}: new AOI and explicit area Retry acquire once; held and failed locale/view changes remain quiet`,async({page,browserName},info)=>{
+    await page.setViewportSize({width,height:900});
+    const observed=await install(page,browserName,info.project.use.baseURL,createOperation(locale));
+    let areaCalls=0;
+    await page.route("**/api/prototype/point-to-object/area-context",route=>{
+      areaCalls++;
+      if(areaCalls!==2)return route.fulfill({status:503,json:{mode:"unavailable",error:"Injected area source failure"}});
+      const request=route.request().postDataJSON();
+      return route.fulfill({json:heldAreaContext(request.aoiCoordinates,request.locale)});
+    });
+    await page.goto("/prototype/point-to-object?mode=create");
+    const dashboard=page.getByTestId("create-full-result-dashboard");
+    await expect(dashboard).toBeVisible();
+    await dashboard.getByRole("button",{name:locale==="ru"?"К параметрам":"Back to parameters",exact:true}).click();
+    await observeNoRequests(page,observed.calls);
+    const upload=async(offset:number)=>{
+      const vertices=heldVertices.map(([x,y])=>[x+offset,y+offset]);
+      const polygon={type:"Polygon",coordinates:[[...vertices,vertices[0]]]};
+      // Upload is intentionally unavailable while an AOI is selected. Remove
+      // the current area through the UI, without implicitly acquiring a source.
+      const before=areaCalls;
+      await page.getByTestId("create-delete-area").click();
+      await expect(page.getByLabel(locale==="ru"?"Загрузить GeoJSON":"Upload GeoJSON")).toBeAttached();
+      expect(areaCalls).toBe(before);
+      await page.getByLabel(locale==="ru"?"Загрузить GeoJSON":"Upload GeoJSON").setInputFiles({name:"synthetic-new-aoi.geojson",mimeType:"application/geo+json",buffer:Buffer.from(JSON.stringify(polygon))});
+    };
+    await upload(.002);
+    const retry=page.getByRole("button",{name:locale==="ru"?"Повторить":"Retry",exact:true});
+    await expect(retry).toBeVisible();
+    expect(observed.calls).toEqual(["POST /api/prototype/point-to-object/area-context"]);
+    await page.getByRole("button",{name:locale==="ru"?"en":"ru",exact:true}).click();
+    await page.getByRole("button",{name:locale,exact:true}).click();
+    await page.getByRole("tab",{name:locale==="ru"?"Анализ":"Analyse",exact:true}).click();
+    await page.getByRole("tab",{name:locale==="ru"?"Создать":"Create",exact:true}).click();
+    await page.waitForTimeout(800);
+    expect(areaCalls).toBe(1);expect(observed.calls).toHaveLength(1);
+    await retry.click();
+    await expect.poll(()=>areaCalls).toBe(2);
+    await expect(retry).toBeHidden();
+    await page.getByRole("button",{name:locale==="ru"?"en":"ru",exact:true}).click();
+    await page.getByRole("button",{name:locale,exact:true}).click();
+    await page.getByRole("tab",{name:locale==="ru"?"Поиск":"Find",exact:true}).click();
+    await page.getByRole("tab",{name:locale==="ru"?"Создать":"Create",exact:true}).click();
+    await page.waitForTimeout(800);
+    expect(areaCalls).toBe(2);expect(observed.calls).toHaveLength(2);
+    await upload(.004);
+    await expect.poll(()=>areaCalls).toBe(3);
+    await expect(retry).toBeVisible();
+    await page.waitForTimeout(800);
+    expect(observed.calls).toEqual(Array(3).fill("POST /api/prototype/point-to-object/area-context"));
+    expect(observed.errors).toEqual([]);
+    await page.screenshot({path:info.outputPath("area-retry-new-aoi.png"),fullPage:true});
   });
 });

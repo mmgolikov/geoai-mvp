@@ -434,8 +434,32 @@ assert.doesNotMatch(`${areaRoute}\n${findRoute}`, /callTrackedOpenAi|OPENAI_API_
 
 const client = readFileSync(new URL("../components/point-to-object/prototype-client-v5.tsx", import.meta.url), "utf8");
 assert.match(client, /AbortSignal\.timeout\(POINT_OBJECT_SOURCE_BROWSER_TIMEOUT_MS\)/);
-assert.match(client, /samePointObjectAreaRequest\(current\.request, areaRequest\) \? current : null/,
-  "A same-request failure must preserve the last valid area context while a changed AOI must clear it.");
+// Execute the actual client retention expression, not a parallel test copy.
+// Presentation locale may change; held facts/receipt must not be rewritten.
+const retentionSource = client.match(/const retainHeldSnapshot = ([\s\S]*?);\n\s+if \(areaContextCooldownRef\.current/);
+assert.ok(retentionSource, "The bounded last-good retention helper must remain explicit.");
+assert.match(retentionSource[1], /samePointObjectAreaRequest\(current\.request, \{ \.\.\.areaRequest, locale: current\.request\.locale \}\) \? current : null/);
+const retentionJavascript = stripTypeScriptTypes(
+  `export const createRetention = (samePointObjectAreaRequest, areaRequest) => (${retentionSource[1]});`,
+  { mode: "transform" }
+);
+const retentionModule = await import(`data:text/javascript;base64,${Buffer.from(retentionJavascript).toString("base64")}`);
+const heldArea = { request: structuredClone(areaRequest), source: { acquiredAt: "2026-10-02T21:22:46.892Z", originalLocale: "en" } };
+const heldAreaBefore = structuredClone(heldArea);
+const retainAfterLocaleChange = retentionModule.createRetention(samePointObjectAreaRequest, { ...areaRequest, locale: "ru" });
+assert.equal(retainAfterLocaleChange(heldArea), heldArea, "Same geometry/market retains the exact original snapshot on failure despite presentation locale.");
+assert.equal(retainAfterLocaleChange(null), null);
+assert.deepEqual(heldArea, heldAreaBefore, "Retention must not translate facts, relabel source locale or renew evidence time.");
+assert.equal(retentionModule.createRetention(samePointObjectAreaRequest, { ...areaRequest, marketKey: "singapore" })(heldArea), null,
+  "A changed market must clear the previous snapshot.");
+assert.equal(retentionModule.createRetention(samePointObjectAreaRequest, {
+  ...areaRequest, aoiCoordinates: [[[55.280, 25.205], [55.283, 25.205], [55.283, 25.208], [55.280, 25.205]]]
+})(heldArea), null, "A changed AOI must clear the previous snapshot.");
+assert.match(client, /setAreaContext\(retainHeldSnapshot\)/, "Failure/retry paths must use the tested retention helper.");
+assert.match(client, /!samePointObjectAreaRequest\(payload\.request, areaRequest\)/,
+  "A real new response must match the actual request, including its locale, before application.");
+assert.equal(samePointObjectAreaRequest(areaRequest, { ...areaRequest, locale: "ru" }), false,
+  "Preserving a held snapshot must not relax new-response request parity.");
 assert.match(client, /pointObjectSourceResponseIsCurrent\(requestId, areaContextRequestIdRef\.current, controller\.signal\)/);
 assert.match(client, /pointObjectSourceResponseIsCurrent\(requestId, findRequestIdRef\.current, controller\.signal\)/);
 
