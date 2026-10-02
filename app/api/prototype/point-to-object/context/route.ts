@@ -1,6 +1,6 @@
-import { createHash } from "node:crypto";
 import { explicitSourceHeight } from "@/src/lib/prototype/point-to-object-source-geometry";
 import { projectPointObjectFabricDiagnostic } from "@/src/lib/prototype/point-to-object-fabric-diagnostic";
+import { normalizePointObjectContext } from "@/src/lib/prototype/point-to-object-normalized-context";
 
 import { NextResponse } from "next/server";
 
@@ -9,6 +9,7 @@ import { requirePilotIdentity, requirePilotMutationOrigin } from "@/src/lib/auth
 import { readBoundedJson } from "@/src/lib/http/bounded-json";
 import { LivePointEvidenceError } from "@/src/lib/prototype/point-to-object-live-evidence";
 import { acquirePublicEvidenceLease, PublicEvidenceLeaseError } from "@/src/lib/prototype/point-to-object-evidence-lease";
+import { admitPointObjectContextSourceAcquisition, PointObjectSourceAdmissionError } from "@/src/lib/prototype/point-to-object-source-admission";
 import {
   coordinatesMatchPointObjectMarket,
   isPointObjectLocale,
@@ -20,13 +21,6 @@ import {
 } from "@/src/lib/prototype/point-to-object-markets";
 
 export const runtime = "nodejs";
-
-const RATE_WINDOW_MS = 10 * 60 * 1000;
-const RATE_MAX_REQUESTS = 12;
-const GLOBAL_RATE_MAX_REQUESTS = 60;
-
-type RateBucket = { startedAt: number; count: number };
-const rateBuckets = new Map<string, RateBucket>();
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -56,41 +50,6 @@ function sameOrigin(request: Request): boolean {
   } catch {
     return false;
   }
-}
-
-function hash(value: string): string {
-  return createHash("sha256").update(value).digest("hex");
-}
-
-function rateKey(request: Request): string {
-  const forwarded = request.headers.get("x-vercel-forwarded-for") ??
-    request.headers.get("x-forwarded-for") ??
-    request.headers.get("x-real-ip") ??
-    "preview-anonymous";
-  return hash(forwarded.split(",")[0]?.trim() || "preview-anonymous");
-}
-
-function consumeBucket(key: string, maxRequests: number): { allowed: true } | { allowed: false; retryAfterSeconds: number } {
-  const now = Date.now();
-  for (const [entryKey, bucket] of rateBuckets) {
-    if (now - bucket.startedAt >= RATE_WINDOW_MS) rateBuckets.delete(entryKey);
-  }
-  const current = rateBuckets.get(key);
-  if (!current || now - current.startedAt >= RATE_WINDOW_MS) {
-    rateBuckets.set(key, { startedAt: now, count: 1 });
-    return { allowed: true };
-  }
-  if (current.count >= maxRequests) {
-    return { allowed: false, retryAfterSeconds: Math.max(1, Math.ceil((RATE_WINDOW_MS - (now - current.startedAt)) / 1000)) };
-  }
-  current.count += 1;
-  return { allowed: true };
-}
-
-function consumeRateLimit(request: Request): { allowed: true } | { allowed: false; retryAfterSeconds: number } {
-  const client = consumeBucket(`client:${rateKey(request)}`, RATE_MAX_REQUESTS);
-  if (!client.allowed) return client;
-  return consumeBucket("global", GLOBAL_RATE_MAX_REQUESTS);
 }
 
 function validBody(value: unknown): value is {
@@ -134,14 +93,6 @@ export async function POST(request: Request) {
       headers: noStoreHeaders()
     });
   }
-  const rate = consumeRateLimit(request);
-  if (!rate.allowed) {
-    return NextResponse.json({ mode: "unavailable", code: "APPLICATION_RATE_LIMITED", error: "Live object details are temporarily rate limited.", retryable: true }, {
-      status: 429,
-      headers: noStoreHeaders({ "Retry-After": String(rate.retryAfterSeconds) })
-    });
-  }
-
   try {
     const { pack: evidencePack, receipt } = await acquirePublicEvidenceLease({
       longitude: parsed.value.longitude,
@@ -149,7 +100,9 @@ export async function POST(request: Request) {
       locale: nominatimLocale(parsed.value.locale),
       osmFeatureId: parsed.value.expectedSourceFeatureId ?? null,
       expectedCountryCode: pointObjectMarket(parsed.value.caseKey).countryCode
-    });
+    }, () => admitPointObjectContextSourceAcquisition(identity, {
+      environment: process.env, surfaceEnabled: runtimeAllowed()
+    }));
     return NextResponse.json({
       mode: "resolved",
       schemaVersion: 2,
@@ -175,12 +128,19 @@ export async function POST(request: Request) {
         // rendering metadata to a source-bound complete display geometry.
         ...(evidencePack.displayGeometry ? explicitSourceHeight(evidencePack.selectedObject.tags) : {}),
         geoContext: evidencePack.geoContext,
+        normalizedContext: normalizePointObjectContext(evidencePack),
         ...projectPointObjectFabricDiagnostic(evidencePack.source, evidencePack.geoContext.coverage),
         linkedEntity: evidencePack.linkedEntity,
         ...(evidencePack.climate ? { climate: evidencePack.climate } : {})
       }
     }, { headers: noStoreHeaders() });
   } catch (error) {
+    if (error instanceof PointObjectSourceAdmissionError) {
+      return NextResponse.json({ mode: "unavailable", code: error.code, error: error.message,
+        rateLimitScope: "source_acquisition", retryable: error.retryable }, {
+        status: error.httpStatus, headers: noStoreHeaders({ "Retry-After": String(error.retryAfterSeconds) })
+      });
+    }
     if (error instanceof PublicEvidenceLeaseError) {
       return NextResponse.json({ mode: "unavailable", code: error.code, error: error.message, retryable: true }, {
         status: 409, headers: noStoreHeaders()

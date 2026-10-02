@@ -81,11 +81,13 @@ globalThis.fetch = async (url, init) => {
   const query = new URL(url).searchParams.get("data");
   assert.ok(query.includes("[timeout:4]")); assert.ok(init.signal);
   if (query.includes("out body geom 1")) return Response.json({ elements: [{ type: "node", id: 123, lon: 55.27, lat: 25.2, tags: { name: "Offline public fixture", amenity: "school" } }] });
+  assert.ok(query.includes("around:800,") && query.includes("around:400,"), "One enrichment query must retain nearby and fabric scopes.");
+  assert.ok(query.includes(")->.nearby;") && query.includes(")->.uses;") && query.endsWith("out tags center 440;"), "Both scopes must share one capped output.");
   return new Response("Provider private diagnostics must not be copied", { status: 504 });
 };
 try {
   const pack = await buildLivePointObjectEvidencePack({ longitude: 55.27, latitude: 25.2, osmFeatureId: "node/123", locale: "en", expectedCountryCode: "ae", deadlineAtMs: Date.now() + 12_000 });
-  assert.equal(requests, 3);
+  assert.equal(requests, 2, "Exact source plus one combined enrichment; no retry or second enrichment.");
   assert.equal(pack.source.contextStatus, "unavailable"); assert.equal(pack.geoContext.coverage, "unavailable");
   assert.equal(pack.source.contextDiagnostic.failureCode, "timeout"); assert.equal(pack.source.fabricDiagnostic.failureCode, "timeout");
   assert.equal(pack.source.wikidataStatus, "not_requested_no_qid");

@@ -1,4 +1,5 @@
 import { parsePointObjectClimate } from "@/src/lib/prototype/point-to-object-climate-contract";
+import { normalizedContextMatchesProfile, parseNormalizedPointObjectContext } from "@/src/lib/prototype/point-to-object-normalized-context";
 import { parsePointObjectAnswerProvenance } from "@/src/lib/prototype/point-to-object-answer-provenance";
 import { parsePointObjectFabricDiagnostic } from "@/src/lib/prototype/point-to-object-fabric-diagnostic";
 import type { GeoJsonGeometry } from "@/src/lib/point-to-object/contracts";
@@ -282,6 +283,8 @@ export function parseLiveResolvedObject(value: unknown): LiveResolvedObjectConte
   const tags = stringMap(value.tags, 36);
   const metrics = value.metrics === null ? null : parseGeometryMetrics(value.metrics);
   const geoContext = parseGeoContext(value.geoContext);
+  const normalizedContext = value.normalizedContext === undefined ? undefined : parseNormalizedPointObjectContext(value.normalizedContext);
+  if (value.normalizedContext !== undefined && (!normalizedContext || !geoContext || normalizedContext.subjectId !== sourceFeatureId || normalizedContext.scope.kind !== "point_radius" || normalizedContext.sampleSize !== (geoContext.coverage === "available" ? geoContext.sampleSize : null) || !normalizedContextMatchesProfile(normalizedContext, geoContext))) return null;
   const hasFabricDiagnostic = Object.prototype.hasOwnProperty.call(value, "fabricDiagnostic");
   const fabricDiagnostic = hasFabricDiagnostic ? parsePointObjectFabricDiagnostic(value.fabricDiagnostic, geoContext?.coverage) : null;
   // Reject malformed supplied metadata; never turn it into an empty context.
@@ -331,6 +334,7 @@ export function parseLiveResolvedObject(value: unknown): LiveResolvedObjectConte
     tags,
     metrics,
     geoContext,
+    ...(normalizedContext ? { normalizedContext } : {}),
     ...(fabricDiagnostic ? { fabricDiagnostic } : {}),
     linkedEntity,
     ...(climate ? { climate } : {}),

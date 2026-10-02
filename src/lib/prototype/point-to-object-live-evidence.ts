@@ -55,8 +55,8 @@ const OVERPASS_RADIUS_M = 800;
 const URBAN_FABRIC_RADIUS_M = 400 as const;
 const OVERPASS_QUERY_RESULT_LIMIT = 120;
 const URBAN_FABRIC_RESULT_LIMIT = 320;
-const MAX_OVERPASS_ELEMENTS_TO_PARSE = 160;
 const MAX_URBAN_FABRIC_ELEMENTS_TO_PARSE = 360;
+const COMBINED_CONTEXT_RESULT_LIMIT = OVERPASS_QUERY_RESULT_LIMIT + URBAN_FABRIC_RESULT_LIMIT;
 const MAX_NEARBY_CONTEXT_ITEMS = 12;
 
 const ADDRESS_KEYS = new Set([
@@ -173,6 +173,10 @@ export type LiveNearbyContextItem = {
   distanceM: number;
   method: "overpass_around_query_element_center_haversine";
   proofLimit: string;
+  /** Display-only returned node / element centre; never a route or facility boundary. */
+  coordinates?: [number, number];
+  /** Same exclusive primary classification as the returned fabric inventory. */
+  contextGroup?: PointObjectContextGroup;
 };
 
 export type LiveNearbyContextResult = {
@@ -333,6 +337,7 @@ export type LivePointObjectEvidencePack = {
     contextResponseId: string | null;
     contextResponseHash: string | null;
     contextObservedAt: string | null;
+    contextAcquiredAt?: string | null;
     contextRadiusM: number;
     contextUsagePolicyUrl: "https://dev.overpass-api.de/overpass-doc/en/preface/commons.html";
     fabricStatus: "available" | "unavailable";
@@ -340,6 +345,7 @@ export type LivePointObjectEvidencePack = {
     fabricResponseId: string | null;
     fabricResponseHash: string | null;
     fabricObservedAt: string | null;
+    fabricAcquiredAt?: string | null;
     fabricRadiusM: typeof URBAN_FABRIC_RADIUS_M;
     sourceOfferPath: "/prototype/point-to-object/source-offer";
     officialStatus: "open_context_not_official";
@@ -730,6 +736,16 @@ export function buildOverpassUrbanFabricQuery(point: [number, number]): string {
   ].join("\n");
 }
 
+/** One provider admission for both scopes. Each normalizer applies its own
+ * centre-distance filter; a global cap remains explicit for both samples. */
+export function buildOverpassCombinedContextQuery(point: [number, number]): string {
+  const nearby = buildOverpassNearbyQuery(point).split("\n");
+  const fabric = buildOverpassUrbanFabricQuery(point).split("\n");
+  return [nearby[0], ...nearby.slice(1, -1).map(line => line === ");" ? ")->.nearby;" : line),
+    ...fabric.slice(1, -1).map(line => line === ");" ? ")->.uses;" : line),
+    "(.nearby;.uses;);", `out tags center ${COMBINED_CONTEXT_RESULT_LIMIT};`].join("\n");
+}
+
 async function readOverpassText(response: Response): Promise<string> {
   const declaredLength = Number(response.headers.get("content-length"));
   if (Number.isFinite(declaredLength) && declaredLength > OVERPASS_RESPONSE_MAX_BYTES) {
@@ -839,7 +855,7 @@ type PublicSourceDiagnostic = {
 async function acquireOptionalOverpass(query: string, deadlineAtMs: number) {
   try {
     const payload = await fetchOverpassJson(query, deadlineAtMs);
-    return { ok: true as const, payload, diagnostic: { failureCode: null } as PublicSourceDiagnostic };
+    return { ok: true as const, payload, acquiredAt: new Date().toISOString(), diagnostic: { failureCode: null } as PublicSourceDiagnostic };
   } catch (error) {
     const codes = { OVERPASS_TIMEOUT: "timeout", OVERPASS_RATE_LIMITED: "rate_limited", OVERPASS_RESPONSE_INVALID: "invalid_response", OVERPASS_RESPONSE_TOO_LARGE: "response_too_large" } as const;
     const failureCode = error instanceof LivePointEvidenceError && error.code in codes
@@ -1289,7 +1305,8 @@ function districtCharacterFor(
 
 export function normalizeOverpassUrbanFabric(
   payload: unknown,
-  point: [number, number]
+  point: [number, number],
+  resultLimit = URBAN_FABRIC_RESULT_LIMIT
 ): LiveGeoContextProfile {
   assertNoOverpassRuntimeRemark(payload);
   if (!isRecord(payload) || !Array.isArray(payload.elements)) {
@@ -1307,7 +1324,7 @@ export function normalizeOverpassUrbanFabric(
       districtCharacter: districtCharacterFor(new Map(), 0, false)
     };
   }
-  const rawElements = payload.elements.slice(0, MAX_URBAN_FABRIC_ELEMENTS_TO_PARSE);
+  const rawElements = payload.elements.slice(0, Math.max(MAX_URBAN_FABRIC_ELEMENTS_TO_PARSE, resultLimit));
   const byIdentity = new Map<string, { group: PointObjectContextGroup; distanceM: number; building: boolean; levels: number | null }>();
   for (const raw of rawElements) {
     if (!isRecord(raw)) continue;
@@ -1356,7 +1373,7 @@ export function normalizeOverpassUrbanFabric(
     right.count - left.count ||
     (left.nearestDistanceM ?? Number.POSITIVE_INFINITY) - (right.nearestDistanceM ?? Number.POSITIVE_INFINITY) ||
     left.group.localeCompare(right.group));
-  const capReached = payload.elements.length >= URBAN_FABRIC_RESULT_LIMIT;
+  const capReached = payload.elements.length >= resultLimit;
   const middle = Math.floor(levels.length / 2);
   const medianMappedLevels = levels.length === 0 ? null : levels.length % 2 === 1
     ? levels[middle]
@@ -1378,12 +1395,13 @@ export function normalizeOverpassUrbanFabric(
 
 async function resolveLiveUrbanFabric(
   point: [number, number],
-  loader: (query: string) => Promise<unknown> = fetchOverpassJson
+  loader: (query: string) => Promise<unknown> = fetchOverpassJson,
+  resultLimit = URBAN_FABRIC_RESULT_LIMIT
 ): Promise<{ profile: LiveGeoContextProfile; responseHash: string | null; observedAt: string | null }> {
   try {
     const payload = await loader(buildOverpassUrbanFabricQuery(point));
     assertUsableOverpassPayload(payload);
-    const profile = normalizeOverpassUrbanFabric(payload, point);
+    const profile = normalizeOverpassUrbanFabric(payload, point, resultLimit);
     const observedAt = overpassObservedAt(payload);
     return { profile, responseHash: semanticHash({ observedAt, profile }), observedAt };
   } catch {
@@ -1433,7 +1451,7 @@ export function normalizeOverpassNearbyContext(
   assertNoOverpassRuntimeRemark(payload);
   if (!isRecord(payload) || !Array.isArray(payload.elements)) return [];
   const bySourceIdentity = new Map<string, NearbyCandidate>();
-  for (const raw of payload.elements.slice(0, MAX_OVERPASS_ELEMENTS_TO_PARSE)) {
+  for (const raw of payload.elements.slice(0, COMBINED_CONTEXT_RESULT_LIMIT)) {
     if (!isRecord(raw)) continue;
     const type = osmType(raw.type);
     const id = positiveIdentifier(raw.id);
@@ -1457,6 +1475,8 @@ export function normalizeOverpassNearbyContext(
       featureClass: classification.featureClass,
       distanceM: directDistanceM,
       method: "overpass_around_query_element_center_haversine",
+      coordinates: position,
+      contextGroup: contextGroup(tags) ?? "other_built",
       group: classification.group
     };
     const previous = bySourceIdentity.get(sourceFeatureId);
@@ -1978,18 +1998,19 @@ export async function buildLivePointObjectEvidencePack(
   }
   const coordinateAssociation = pointObjectLookupAssociation(matchMethod, geometryContainsAnchor);
 
-  const [nearbyPayload, fabricPayload, climate] = await Promise.all([
-    acquireOptionalOverpass(buildOverpassNearbyQuery(point), deadlineAtMs),
-    acquireOptionalOverpass(buildOverpassUrbanFabricQuery(point), deadlineAtMs),
+  const [contextPayload, climate] = await Promise.all([
+    acquireOptionalOverpass(buildOverpassCombinedContextQuery(point), deadlineAtMs),
     input.includeClimate ? acquirePointObjectClimate({ longitude: point[0], latitude: point[1], deadlineAtMs }) : Promise.resolve(undefined)
   ]);
+  const nearbyPayload = contextPayload;
+  const fabricPayload = contextPayload;
 
   const sourceFeatureId = resolvedIdentity;
   const nearby = nearbyPayload.ok
     ? await resolveLiveNearbyContext(point, sourceFeatureId, locale, async () => nearbyPayload.payload)
     : { status: "unavailable" as const, items: [], responseHash: null, observedAt: null };
   const fabric = fabricPayload.ok
-    ? await resolveLiveUrbanFabric(point, async () => fabricPayload.payload)
+    ? await resolveLiveUrbanFabric(point, async () => fabricPayload.payload, COMBINED_CONTEXT_RESULT_LIMIT)
     : { profile: normalizeOverpassUrbanFabric(null, point), responseHash: null, observedAt: null };
   const selectedTags = displayTags(place);
   const displayGeometry = pointObjectTrustedDisplayGeometry({
@@ -2093,6 +2114,7 @@ export async function buildLivePointObjectEvidencePack(
       contextResponseId: nearby.responseHash ? `overpass_response_${nearby.responseHash.slice(0, 24)}` : null,
       contextResponseHash: nearby.responseHash,
       contextObservedAt: nearby.observedAt,
+      contextAcquiredAt: nearbyPayload.ok ? nearbyPayload.acquiredAt : null,
       contextRadiusM: OVERPASS_RADIUS_M,
       contextUsagePolicyUrl: "https://dev.overpass-api.de/overpass-doc/en/preface/commons.html" as const,
       fabricStatus: fabric.profile.coverage,
@@ -2101,6 +2123,7 @@ export async function buildLivePointObjectEvidencePack(
       fabricResponseId: fabric.responseHash ? `overpass_fabric_${fabric.responseHash.slice(0, 24)}` : null,
       fabricResponseHash: fabric.responseHash,
       fabricObservedAt: fabric.observedAt,
+      fabricAcquiredAt: fabricPayload.ok ? fabricPayload.acquiredAt : null,
       fabricRadiusM: URBAN_FABRIC_RADIUS_M,
       sourceOfferPath: "/prototype/point-to-object/source-offer" as const,
       officialStatus: "open_context_not_official" as const,

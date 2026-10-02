@@ -6,6 +6,7 @@ import { unstable_cache } from "next/cache";
 import { semanticHash } from "@/src/lib/point-to-object/hash";
 import { buildLivePointObjectEvidencePack, type LivePointEvidenceRequest, type LivePointObjectEvidencePack } from "./point-to-object-live-evidence";
 import { parsePublicEvidenceReceipt, publicEvidenceReceiptIsCurrent, PUBLIC_EVIDENCE_LEASE_MS, type PublicEvidenceReceipt } from "./point-to-object-evidence-receipt";
+import { coalescePointObjectSourceAcquisition } from "./point-to-object-source-admission";
 
 const MAX_PUBLIC_PACK_BYTES = 512 * 1024;
 const SOURCE_BUDGET_MS = 12_000;
@@ -69,7 +70,8 @@ async function boundedSource(input: Required<PublicLookup>, serverExactSnapshot:
   } finally { if (timer) clearTimeout(timer); }
 }
 
-async function readLease(input: PublicLookup, allowFill: boolean, expected: PublicEvidenceReceipt | null): Promise<Lease> {
+async function readLease(input: PublicLookup, allowFill: boolean, expected: PublicEvidenceReceipt | null,
+  admitSourceAcquisition?: () => void): Promise<Lease> {
   const lookup = publicLookup(input);
   const startedAt = Date.now();
   if (!allowFill && (!expected || !publicEvidenceReceiptIsCurrent(expected, startedAt))) throw new PublicEvidenceLeaseError();
@@ -84,6 +86,9 @@ async function readLease(input: PublicLookup, allowFill: boolean, expected: Publ
     // Mode is deliberately a closure, not a key argument: both routes read the
     // SAME entry. A cache miss or stale revalidation in AI never fetches sources.
     if (!allowFill) throw new PublicEvidenceLeaseError();
+    // A validated cache hit never reaches this branch. Charge only new source
+    // acquisition, after the shared cache lookup and before any provider call.
+    admitSourceAcquisition?.();
     const pack = validatedPublicPack(await boundedSource(lookup, exactSnapshot), lookup);
     const receipt: PublicEvidenceReceipt = {
       version: "PUBLIC_EVIDENCE_LEASE_V1", evidencePackHash: pack.evidencePackHash,
@@ -94,7 +99,7 @@ async function readLease(input: PublicLookup, allowFill: boolean, expected: Publ
     if (!parsePublicEvidenceReceipt(receipt)) throw new PublicEvidenceLeaseError();
     return { receipt, pack, integrityHash: semanticHash(pack) };
   }, [CACHE_VERSION, cacheKey], { revalidate: PUBLIC_EVIDENCE_LEASE_MS / 1000 });
-  const value = await cached();
+  const value = allowFill ? await coalescePointObjectSourceAcquisition(cacheKey, cached) : await cached();
   const receipt = parsePublicEvidenceReceipt(value?.receipt);
   if (!receipt || !publicEvidenceReceiptIsCurrent(receipt) || receipt.cacheWindow !== cacheWindow ||
       receipt.lookupSourceFeatureId !== lookup.osmFeatureId || receipt.sourceLocale !== lookup.locale ||
@@ -105,12 +110,12 @@ async function readLease(input: PublicLookup, allowFill: boolean, expected: Publ
   if (exactSnapshot && pack.source.sourceResponseHash !== semanticHash(exactSnapshot.element)) throw new PublicEvidenceLeaseError();
   if (value.integrityHash !== semanticHash(pack) || receipt.evidencePackHash !== pack.evidencePackHash ||
       receipt.sourceResponseHash !== pack.source.sourceResponseHash || receipt.acquiredAt !== pack.source.acquiredAt) throw new PublicEvidenceLeaseError();
-  return { receipt, pack, integrityHash: value.integrityHash };
+  return { receipt: { ...receipt }, pack, integrityHash: value.integrityHash };
 }
 
-/** Call only after route authentication, origin validation and rate admission. */
-export function acquirePublicEvidenceLease(input: PublicLookup): Promise<Lease> {
-  return readLease(input, true, null);
+/** Call after authentication/origin/body checks; admission runs only on a cache miss. */
+export function acquirePublicEvidenceLease(input: PublicLookup, admitSourceAcquisition?: () => void): Promise<Lease> {
+  return readLease(input, true, null, admitSourceAcquisition);
 }
 
 /** No source/provider fallback: caller must explicitly refresh Context on 409. */

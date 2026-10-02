@@ -13,6 +13,7 @@ import type {
 } from "@/src/lib/prototype/point-to-object-ai-provenance";
 import type { PointObjectWikidataLinkedEntity } from "@/src/lib/prototype/point-to-object-wikidata-contract";
 import type { PublicEvidenceReceipt } from "@/src/lib/prototype/point-to-object-evidence-receipt";
+import type { PointObjectNormalizedContext } from "@/src/lib/prototype/point-to-object-normalized-context";
 
 export type LiveMapLocationKey = PointObjectMarketKey;
 export type LiveMapMarket = LiveMapLocationKey;
@@ -84,6 +85,7 @@ export type LiveMapNearbyLabel = {
 };
 
 export type LiveResolvedObjectContext = {
+  normalizedContext?: PointObjectNormalizedContext;
   /** Optional acquisition diagnostic; historical absence does not identify a cause. */
   fabricDiagnostic?: PointObjectFabricDiagnostic;
   /** Absent on legacy saved objects; refresh Context before new paid analysis. */

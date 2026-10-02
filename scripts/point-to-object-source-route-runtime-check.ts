@@ -73,13 +73,23 @@ const definitions: RouteDefinition[] = [
         `class LivePointEvidenceError extends Error { constructor(message) { super(message); } }
         `).replace(/import \{ acquirePublicEvidenceLease, PublicEvidenceLeaseError \} from "@\/src\/lib\/prototype\/point-to-object-evidence-lease";/,
         `class PublicEvidenceLeaseError extends Error {}
-         const acquirePublicEvidenceLease = async () => { globalThis.__geoaiSourceCalls.context += 1; return {
+         const leases = new Map();
+         const acquirePublicEvidenceLease = async (lookup, admitSourceAcquisition) => {
+           const key = JSON.stringify(lookup);
+           if (leases.has(key)) return structuredClone(leases.get(key));
+           admitSourceAcquisition();
+           globalThis.__geoaiSourceCalls.context += 1;
+           const value = {
            receipt: { evidencePackHash: "a".repeat(64), sourceResponseHash: "b".repeat(64), acquiredAt: "2026-09-20T12:34:56.000Z" }, pack: {
            evidencePackHash: "a".repeat(64),
-           source: { sourceResponseHash: "b".repeat(64), acquiredAt: "2026-09-20T12:34:56.000Z", fabricStatus: "unavailable", fabricDiagnostic: { failureCode: "timeout" } },
-           selectedObject: { name: "Offline object", displayAddress: "Offline address", featureClass: "building", sourceFeatureId: "way/123", geometryType: "Polygon", addressParts: {}, tags: {}, metrics: {} },
-           resolution: { coordinateAssociation: "inside", resultCentroidDistanceM: 0 }, geoContext: ${JSON.stringify(contextGeoContext)}, linkedEntity: null
-         } }; };`);
+           coordinates: { longitude: lookup.longitude, latitude: lookup.latitude, crs: "EPSG:4326" },
+           source: { sourceResponseHash: "b".repeat(64), acquiredAt: "2026-09-20T12:34:56.000Z", fabricStatus: "unavailable", fabricObservedAt: null, fabricResponseHash: null, fabricDiagnostic: { failureCode: "timeout" } },
+           selectedObject: { name: "Offline object", displayAddress: "Offline address", featureClass: "building", sourceFeatureId: lookup.osmFeatureId, geometryType: "Polygon", addressParts: {}, tags: {}, metrics: {} },
+           resolution: { coordinateAssociation: "inside", resultCentroidDistanceM: 0 }, displayGeometry: null,
+           nearbyContext: [], geoContext: ${JSON.stringify(contextGeoContext)}, linkedEntity: null
+         } };
+           leases.set(key, structuredClone(value)); return value;
+         };`);
     }
   },
   {
@@ -201,7 +211,7 @@ for (const definition of definitions) {
   assert.equal(first.status, 200, `${definition.name} must run with only the explicit Production surface flag.`);
   assert.match(first.headers.get("Cache-Control") ?? "", /no-store/);
   if (definition.name === "context") {
-    const payload = await first.json() as { evidenceReceipt?: unknown; subject?: { geoContext?: unknown; fabricDiagnostic?: unknown } };
+    const payload = await first.json() as { evidenceReceipt?: unknown; subject?: { geoContext?: unknown; fabricDiagnostic?: unknown; normalizedContext?: { coverage: string; sampleSize: number | null } } };
     assert.deepEqual(payload.evidenceReceipt, {
       evidencePackHash: "a".repeat(64),
       sourceResponseHash: "b".repeat(64),
@@ -211,19 +221,37 @@ for (const definition of definitions) {
       "Context must retain unavailable coverage and null distances, not fabricate an empty successful fabric result.");
     assert.deepEqual(payload.subject?.fabricDiagnostic, { failureCode: "timeout" },
       "The real projector must retain only the allowlisted diagnostic from the same frozen source pack.");
+    assert.equal(payload.subject?.normalizedContext?.coverage, "unavailable");
+    assert.equal(payload.subject?.normalizedContext?.sampleSize, null);
+    const cached = await route.POST(request(definition, validBody, "https://production.example.test"));
+    assert.equal(cached.status, 200);
+    assert.equal(fixtureGlobal.__geoaiSourceCalls.context, 1, "A validated cache repeat must not spend source acquisition quota.");
   }
 
   for (let index = 1; index < definition.clientRateLimit; index += 1) {
-    const allowed = await route.POST(request(definition, validBody, "https://production.example.test"));
+    const acquisitionBody = definition.name === "context"
+      ? JSON.stringify({ ...definition.validBody, expectedSourceFeatureId: `way/${123 + index}` })
+      : validBody;
+    const allowed = await route.POST(request(definition, acquisitionBody, "https://production.example.test"));
     assert.equal(allowed.status, 200, `${definition.name} must preserve its declared per-client allowance.`);
   }
-  const rateLimited = await route.POST(request(definition, validBody, "https://production.example.test"));
+  const overflowBody = definition.name === "context"
+    ? JSON.stringify({ ...definition.validBody, expectedSourceFeatureId: "way/999" })
+    : validBody;
+  const rateLimited = await route.POST(request(definition, overflowBody, "https://production.example.test"));
   assert.equal(rateLimited.status, 429, `${definition.name} must preserve its per-client rate cap.`);
   assert.ok(Number(rateLimited.headers.get("Retry-After")) >= 1);
   if (["context", "find", "area-context"].includes(definition.name)) {
     assert.equal((await rateLimited.json()).code, "APPLICATION_RATE_LIMITED", "Application quota must be distinguishable from an upstream 429.");
   }
   assert.equal(fixtureGlobal.__geoaiSourceCalls[definition.name], definition.clientRateLimit);
+  if (definition.name === "context") {
+    assert.equal((await route.POST(request(definition, validBody, "https://production.example.test", "203.0.113.99"))).status, 200,
+      "An exhausted acquisition quota must still allow a validated cached Context read.");
+    assert.equal((await route.POST(request(definition, overflowBody, "https://production.example.test", "203.0.113.99"))).status, 429,
+      "Spoofed IP headers cannot create more acquisition allowance.");
+    assert.equal(fixtureGlobal.__geoaiSourceCalls.context, definition.clientRateLimit);
+  }
 }
 
-console.log("Point-to-object source actual-route offline checks passed: five Production surfaces default-deny, need no OpenAI key, enforce origin/body caps and retain per-client rate limits.");
+console.log("Point-to-object source actual-route offline checks passed: five Production surfaces default-deny, need no OpenAI key, enforce origin/body caps and retain quotas; Context acquisition admission runs only on cache misses and preserves cached repeats.");
