@@ -1,6 +1,10 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 import packageManifest from "../../package.json";
 import { externalHttpUrlPattern, installLoopbackBrowserHarness } from "./helpers/local-webkit-csp";
+import { demoUser } from "../../src/lib/auth/demo-session";
+import { conceptTemplate, generateConceptMassingAlternatives, validatePointObjectCreateAoiVertices, validateRedevelopmentProgram } from "../../src/lib/prototype/point-to-object-create";
+import { hashPointObjectOperation } from "../../src/lib/prototype/point-object-projects";
+import { parsePointObjectProjectOperationInput, parsePointObjectProjectStore } from "../../src/lib/prototype/point-object-projects-contract";
 
 test.beforeEach(async ({ page, browserName }, testInfo) => {
   await installLoopbackBrowserHarness(page, browserName, testInfo.project.use.baseURL);
@@ -673,7 +677,7 @@ test("Create separates draft from committed geometry and never spends on local-o
   await expect(generate).toBeDisabled();
   expect(createPosts).toHaveLength(1);
   expect(challengeGets).toBe(1);
-  expect([...(createPosts[0].lockedControlKeys as string[])].sort()).toEqual([...fixedControlKeys].sort());
+  expect(createPosts[0].lockedControlKeys).toEqual(["blockCount"]);
 
   await page.getByTestId("create-alternative-b").click();
   await expect(page.getByTestId("generated-concept-metrics")).toContainText("1,500");
@@ -690,7 +694,7 @@ test("Create separates draft from committed geometry and never spends on local-o
   await expect(page.getByTestId("generated-concept-summary")).toContainText("Generation 2 committed result.");
   expect(createPosts).toHaveLength(2);
   expect(challengeGets).toBe(2);
-  expect([...(createPosts[1].lockedControlKeys as string[])].sort()).toEqual([...fixedControlKeys].sort());
+  expect(createPosts[1].lockedControlKeys).toEqual([]);
 
   const prompt = page.getByLabel("Custom direction");
   await prompt.fill("force failure");
@@ -1068,7 +1072,7 @@ test("Create coverage proposal is explicit and applying it preserves the committ
   const generate = page.getByTestId("create-generate-action");
   await generate.click();
   await expect(page.getByTestId("generated-concept-summary")).toContainText("Generation 1 committed result.");
-  expect([...(createPosts[0].lockedControlKeys as string[])].sort()).toEqual([...fixedControlKeys].sort());
+  expect(createPosts[0].lockedControlKeys).toEqual([]);
 
   await page.getByText("Concept parameters", { exact: true }).click();
   await page.getByRole("slider", { name: "Site coverage" }).press("ArrowRight");
@@ -1089,7 +1093,7 @@ test("Create coverage proposal is explicit and applying it preserves the committ
   await generate.click();
   await expect(page.getByTestId("generated-concept-summary")).toContainText("Generation 3 committed result.");
   expect((createPosts[2].controls as Record<string, number>).targetSiteCoveragePct).toBe(20);
-  expect([...(createPosts[2].lockedControlKeys as string[])].sort()).toEqual([...fixedControlKeys].sort());
+  expect(createPosts[2].lockedControlKeys).toEqual(["targetSiteCoveragePct"]);
   await expect(generate).toHaveText("Already generated");
   await expect(generate).toBeDisabled();
   await page.screenshot({ path: testInfo.outputPath("coverage-proposal-applied.png") });
@@ -1111,7 +1115,7 @@ test("Create preserves the draft and last result when the local preflight worker
     ]] }))
   });
   await page.getByRole("button", { name: "Public campus" }).click();
-  await expect(page.getByTestId("create-local-preflight")).toHaveAttribute("data-preflight-kind", "ready");
+  await expect(page.getByTestId("create-local-preflight")).toHaveAttribute("data-preflight-kind", "not_applicable");
   await page.getByTestId("create-generate-action").click();
   await expect(page.getByTestId("generated-concept-summary")).toContainText("Generation 1 committed result.");
 
@@ -1136,3 +1140,209 @@ test("Create preserves the draft and last result when the local preflight worker
   expect(createPosts).toHaveLength(1);
   expect(challengeGets).toBe(1);
 });
+
+test("REVIEW02 C2 legacy saved result without original editor fields requires an explicit draft choice", async ({ page }) => {
+  createPosts.length = 0; challengeGets = 0;
+  await installRoutes(page);
+  const vertices: Array<[number, number]> = [[55.26955,25.20455],[55.27065,25.20455],[55.27065,25.20565],[55.26955,25.20565]];
+  const site = validatePointObjectCreateAoiVertices(vertices);
+  const programme = validateRedevelopmentProgram(conceptTemplate("civic_green", "en"));
+  if (!site.ok || !programme.ok) throw new Error("Invalid synthetic legacy fixture.");
+  const aoi = { id: "create-aoi-review02-legacy", coordinates: [[...vertices, vertices[0]]], vertexCount: vertices.length,
+    areaSqM: site.measurements.areaSqM, perimeterM: site.measurements.perimeterM };
+  const alternatives = generateConceptMassingAlternatives(aoi.coordinates, programme.value, "review02-legacy-offline", "en");
+  const stamp = "2026-09-05T12:00:00.000Z";
+  const operation = parsePointObjectProjectOperationInput({ kind: "create", locale: "en", marketKey: "dubai", label: "Legacy offline Create",
+    payload: { aoi, editorSnapshot: null, generatedLocale: "en", activeAlternativeId: "A", areaContext: null,
+      generated: { mode: "openai_concept", generatedAt: stamp, promptVersion: "POINT_OBJECT_CREATE_LEGACY_OFFLINE_FIXTURE",
+        program: programme.value, massing: alternatives[0].massing, alternatives,
+        telemetry: { model: "offline", reasoningEffort: "none", latencyMs: 1, attempts: 1, estimatedCostUsd: 0 },
+        caveat: "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion." } } });
+  if (!operation) throw new Error("Invalid legacy saved operation.");
+  const identity = `demo:${demoUser.id}` as const;
+  const key = `geoai:point-to-object:projects:v1:${encodeURIComponent(identity)}`;
+  const artifact = { ...operation, schemaVersion: 1, artifactId: "review02-legacy", idempotencyKey: "review02-legacy-offline",
+    payloadHash: await hashPointObjectOperation(operation), completedAt: stamp, updatedAt: stamp, viewRevision: 0 };
+  const store = parsePointObjectProjectStore({ schemaVersion: 1, identityKey: identity, activeProjectId: "review02-legacy-project",
+    projects: [{ schemaVersion: 1, projectId: "review02-legacy-project", name: "Synthetic legacy project", storageMode: "browser_local_on_this_device",
+      createdAt: stamp, updatedAt: stamp, artifacts: [artifact] }] }, identity, 20, 30);
+  if (!store) throw new Error("Invalid legacy saved store.");
+  // A schema/hash-validated historical artifact is the compatibility input.
+  // No editor fields, locks, UI hook or restoration intent are invented.
+  await page.addInitScript(({ key, store }) => { if (!localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify(store)); }, { key, store });
+  const core = () => page.evaluate(key => {
+    const payload = JSON.parse(localStorage.getItem(key)!).projects[0].artifacts[0].payload;
+    return { aoi: payload.aoi, generated: payload.generated, editorSnapshot: payload.editorSnapshot };
+  }, key);
+  const calls: string[] = [];
+  page.on("request", request => { if (new URL(request.url()).pathname.startsWith("/api/prototype/")) calls.push(request.url()); });
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.goto("/projects");
+  const before = await core();
+  await page.getByTestId("saved-result-card").getByRole("button", { name: "Show on map", exact: true }).click();
+  await page.getByTestId("create-full-result-dashboard").getByRole("button", { name: "Back to parameters" }).click();
+  const generate = page.getByTestId("create-generate-action");
+  await expect(page.getByTestId("create-legacy-draft-status")).toContainText("Original draft parameters were not saved.");
+  await expect(generate).toBeDisabled();
+  await expect(page.getByTestId("create-draft-status")).toHaveCount(0);
+  await page.getByTestId("create-alternative-b").click();
+  await page.getByTestId("create-alternative-a").click();
+  await page.getByRole("button", { name: "ru", exact: true }).click();
+  await expect(page.getByTestId("create-legacy-draft-status")).toContainText("Исходные параметры черновика не сохранены.");
+  await expect(generate).toBeDisabled();
+  await page.getByRole("button", { name: "en", exact: true }).click();
+  await page.waitForTimeout(800);
+  expect(await core()).toEqual(before);
+  expect(calls).toEqual([]);
+  await page.locator("summary").filter({ hasText: "Concept parameters" }).click();
+  await page.getByTestId("create-auto-controls").press("Enter");
+  await expect(page.getByTestId("create-legacy-draft-status")).toHaveCount(0);
+  await expect(generate).toBeEnabled();
+  await expect(page.getByText("Auto", { exact: true })).toHaveCount(6);
+  await page.waitForTimeout(800);
+  expect(await core()).toEqual(before);
+  expect(calls).toEqual([]); expect(createPosts).toHaveLength(0); expect(challengeGets).toBe(0);
+});
+
+for (const locale of ["en", "ru"] as const) for (const width of [390, 1440]) {
+  test(`REVIEW02 C2 ${locale} ${width}: Auto seeds, explicit locks and saved intent use real UI without implicit generation`, async ({ page }, info) => {
+    createPosts.length = 0;
+    challengeGets = 0;
+    await installRoutes(page);
+    // Only this persistence journey uses the real geometry producer. The
+    // display-only legacy fixture intentionally reports illustrative metrics.
+    await page.route("**/api/prototype/point-to-object/create", async route => {
+      if (route.request().method() === "GET") {
+        challengeGets++;
+        return json(route, { mode: "ready", challenge: "A".repeat(43) });
+      }
+      const request = route.request().postDataJSON();
+      createPosts.push(request);
+      const generation = createPosts.length;
+      const valid = validateRedevelopmentProgram({
+        ...conceptTemplate(request.templateId, request.locale), ...request.controls,
+        title: `Generation ${generation}`, summary: `Generation ${generation} committed result.`
+      });
+      if (!valid.ok) throw new Error(valid.errors.join(";"));
+      const alternatives = generateConceptMassingAlternatives(request.aoiCoordinates, valid.value, `review02-auto-${generation}`, request.locale);
+      return json(route, {
+        ...conceptResponse(request, generation), program: { ...valid.value, schemaVersion: 1 },
+        massing: alternatives[0].massing, alternatives
+      });
+    });
+    const requests: string[] = [];
+    page.on("request", request => {
+      if (new URL(request.url()).pathname.startsWith("/api/prototype/")) requests.push(`${request.method()} ${new URL(request.url()).pathname}`);
+    });
+    await page.context().addCookies([{ name: "geoai_locale", value: locale, url: info.project.use.baseURL! }]);
+    await page.setViewportSize({ width, height: 900 });
+    const openTask = async () => {
+      const open = page.getByRole("button", { name: locale === "ru" ? "Открыть задачу" : "Open task", exact: true });
+      if (await open.isVisible()) await open.click();
+    };
+    const openParameters = () => page.locator("summary").filter({ hasText: locale === "ru" ? "Параметры концепции" : "Concept parameters" }).click();
+    const auto = () => page.getByText(locale === "ru" ? "Авто" : "Auto", { exact: true });
+    const fixed = () => page.getByText(locale === "ru" ? "Задано" : "Fixed", { exact: true });
+    const labels = locale === "ru"
+      ? ["Корпуса", "Минимум этажей", "Максимум этажей", "Плотность застройки", "Открытые пространства", "Отступ"]
+      : ["Blocks", "Minimum levels", "Maximum levels", "Site coverage", "Open space", "Setback"];
+    // The demo-public application has an owner-scoped local demo identity,
+    // not an anonymous guest. Observe its real UI-written project artifacts;
+    // do not inject a session, locks or a project-restoration intent.
+    const storeKey = `geoai:point-to-object:projects:v1:${encodeURIComponent(`demo:${demoUser.id}`)}`;
+    const held = (generation: number) => page.evaluate(({ key, generation }) => {
+      const raw = localStorage.getItem(key);
+      if (!raw) return null;
+      const store = JSON.parse(raw);
+      return store.projects.flatMap((project: { artifacts: Array<{ kind: string; payload: { generated?: { program: { summary: string } } } }> }) => project.artifacts)
+        .find((artifact: { kind: string; payload: { generated?: { program: { summary: string } } } }) =>
+          artifact.kind === "create" && artifact.payload.generated?.program.summary === `Generation ${generation} committed result.`)?.payload ?? null;
+    }, { key: storeKey, generation });
+    const quiet = async (before: string[]) => {
+      await page.waitForTimeout(800);
+      expect(requests).toEqual(before);
+    };
+    await page.goto("/prototype/point-to-object?mode=create");
+    await openTask();
+    await page.getByLabel(locale === "ru" ? "Загрузить GeoJSON" : "Upload GeoJSON").setInputFiles({
+      name: "review02-auto-only.geojson", mimeType: "application/geo+json",
+      buffer: Buffer.from(JSON.stringify({ type: "Polygon", coordinates: [[
+        [55.26955,25.20455],[55.27065,25.20455],[55.27065,25.20565],[55.26955,25.20565],[55.26955,25.20455]
+      ]] }))
+    });
+    await openParameters();
+    await expect(auto()).toHaveCount(6);
+    await page.getByTestId("create-programme-civic_green").click();
+    await expect(auto()).toHaveCount(6);
+    await expect(page.getByTestId("create-local-preflight")).toHaveAttribute("data-preflight-kind", "not_applicable");
+    const generate = page.getByTestId("create-generate-action");
+    await expect(generate).toBeEnabled();
+    expect(createPosts).toHaveLength(0); expect(challengeGets).toBe(0);
+    await generate.click();
+    await expect(page.getByTestId("generated-concept-summary")).toContainText("Generation 1 committed result.");
+    expect(createPosts[0].lockedControlKeys).toEqual([]);
+
+    await page.getByRole("slider", { name: labels[0], exact: true }).press("ArrowRight");
+    await page.getByRole("slider", { name: labels[1], exact: true }).press("End");
+    await expect(fixed()).toHaveCount(3);
+    const localBefore = [...requests];
+    await quiet(localBefore);
+    await generate.click();
+    await expect(page.getByTestId("generated-concept-summary")).toContainText("Generation 2 committed result.");
+    expect([...(createPosts[1].lockedControlKeys as string[])].sort()).toEqual(["blockCount", "levelsMax", "levelsMin"]);
+    await expect.poll(() => held(2)).not.toBeNull();
+    const result2 = await held(2);
+    const beforeAuto = [...requests];
+    await page.getByTestId("create-auto-controls").press("Enter");
+    await expect(auto()).toHaveCount(6);
+    expect(await held(2)).toEqual(result2);
+    await quiet(beforeAuto);
+
+    // Explicit full-lock intent is created through sliders, not injected state.
+    for (const label of labels) {
+      const slider = page.getByRole("slider", { name: label, exact: true });
+      await slider.press("ArrowRight"); await slider.press("ArrowLeft");
+    }
+    await expect(fixed()).toHaveCount(6);
+    await expect(page.getByTestId("create-local-preflight")).toHaveAttribute("data-preflight-kind", "ready");
+    await generate.click();
+    await expect(page.getByTestId("generated-concept-summary")).toContainText("Generation 3 committed result.");
+    expect([...(createPosts[2].lockedControlKeys as string[])].sort()).toEqual([...fixedControlKeys].sort());
+    await expect.poll(() => held(3)).not.toBeNull();
+    const result3 = await held(3);
+    const beforeReopen = [...requests];
+    await page.goto("/projects");
+    await expect(page.getByTestId("hub-count-create").getByTestId("hub-count-value")).toHaveText("3");
+    // Newest-first is the actual Hub order, and each explicit Generate added
+    // one distinct saved result. Reopen through the user's visible action.
+    await page.getByTestId("saved-result-card").first().getByRole("button", { name: locale === "ru" ? "Показать на карте" : "Show on map", exact: true }).click();
+    await expect(page.getByTestId("generated-concept-summary")).toContainText("Generation 3 committed result.");
+    await page.getByTestId("create-full-result-dashboard").getByRole("button", { name: locale === "ru" ? "К параметрам" : "Back to parameters" }).click();
+    await openTask(); await openParameters();
+    await expect(fixed()).toHaveCount(6);
+    expect(await held(3)).toEqual(result3);
+    await quiet(beforeReopen);
+    const beforeLocal = [...requests];
+    await page.getByTestId("create-auto-controls").click();
+    await expect(auto()).toHaveCount(6);
+    await page.getByRole("slider", { name: labels[3], exact: true }).press("End");
+    await page.getByRole("slider", { name: labels[4], exact: true }).press("End");
+    await expect(page.getByTestId("create-parameter-error")).toBeVisible();
+    await expect(generate).toBeDisabled();
+    await page.getByTestId("create-auto-controls").click();
+    await expect(generate).toBeDisabled(); // Auto is not permission to bypass invalid inputs.
+    await page.getByTestId("reset-edited-create-controls").click();
+    await expect(auto()).toHaveCount(6);
+    await page.getByTestId("create-programme-residential_mixed_use").click();
+    await expect(auto()).toHaveCount(6);
+    await page.getByTestId("create-alternative-b").click();
+    await page.getByTestId("create-alternative-a").click();
+    await page.getByRole("button", { name: locale === "ru" ? "en" : "ru", exact: true }).click();
+    await page.getByRole("button", { name: locale, exact: true }).click();
+    await quiet(beforeLocal);
+    expect(await held(3)).toEqual(result3);
+    expect(createPosts).toHaveLength(3); expect(challengeGets).toBe(3);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
+    await page.screenshot({ path: info.outputPath("auto-fixed-local-intent.png"), fullPage: true });
+  });
+}

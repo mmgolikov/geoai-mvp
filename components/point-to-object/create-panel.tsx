@@ -168,6 +168,8 @@ function RangeControl({
   maximum,
   suffix,
   error,
+  fixed,
+  locale,
   onChange
 }: {
   label: string;
@@ -176,6 +178,8 @@ function RangeControl({
   maximum: number;
   suffix?: string;
   error?: string | null;
+  fixed: boolean;
+  locale: "en" | "ru";
   onChange: (value: number) => void;
 }) {
   const errorId = useId();
@@ -185,6 +189,7 @@ function RangeControl({
         <span className="min-w-0">{label}</span>
         <span className={`tabular-nums ${error ? "text-[#b42318]" : "text-[#087f8c]"}`}>{value}{suffix}</span>
       </span>
+      <span className="mt-1 block text-[10px] text-[#667085]">{fixed ? (locale === "ru" ? "Задано" : "Fixed") : (locale === "ru" ? "Авто" : "Auto")}</span>
       <input
         type="range"
         aria-label={label}
@@ -208,7 +213,7 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
   const [templateId, setTemplateId] = useState<ConceptTemplateId>(() => restoredEditor?.templateId ?? "residential_mixed_use");
   const activeTemplate = templates.find((item) => item.templateId === templateId) ?? templates[0];
   const [controls, setControls] = useState<Controls>(() => restoredEditor?.controls ?? controlsFrom(conceptSiteDefaults(activeTemplate, aoi.coordinates)));
-  const [lockedControlKeys, setLockedControlKeys] = useState<Set<ControlKey>>(() => new Set(restoredEditor?.lockedControlKeys ?? POINT_OBJECT_CREATE_EDITOR_CONTROL_KEYS));
+  const [lockedControlKeys, setLockedControlKeys] = useState<Set<ControlKey>>(() => new Set(restoredEditor?.lockedControlKeys ?? []));
   const [customPrompt, setCustomPrompt] = useState(() => restoredEditor?.customPrompt ?? "");
   const [loading, setLoading] = useState(false);
   const [localPreflight, setLocalPreflight] = useState<{
@@ -224,6 +229,9 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
     suggestion: PointObjectCreateCoverageSuggestion;
   } | null>(null);
   const [committedDraftKey, setCommittedDraftKey] = useState<string | null>(() => restoredEditor?.committedDraftKey ?? null);
+  // A legacy result may not have its original prompt/locks/editor snapshot.
+  // Defaults are a new draft, never evidence of the historical request.
+  const [legacyDraftEdited, setLegacyDraftEdited] = useState(false);
   const requestRef = useRef<AbortController | null>(null);
   // Restored or manually edited controls are never silently reduced. Only a
   // fresh/reset geometric default may adopt the worker's validated coverage.
@@ -244,9 +252,10 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
     lockedControlKeys
   }), [controls, customPrompt, depth, editorScopeKey, locale, lockedControlKeys, templateId]);
   const generatedFromCurrentDraft = Boolean(generated && committedDraftKey === draftKey);
+  const legacyResultNeedsExplicitEdit = Boolean(generated && committedDraftKey === null && !legacyDraftEdited);
   const currentDraftKeyRef = useRef(draftKey);
   currentDraftKeyRef.current = draftKey;
-  const draftChangedAfterGeneration = Boolean(generated && !generatedFromCurrentDraft);
+  const draftChangedAfterGeneration = Boolean(generated && !generatedFromCurrentDraft && !legacyResultNeedsExplicitEdit);
   const generatedLanguageMatches = Boolean(generated && generatedLocale === locale);
   const preflightCurrent = localPreflight?.key === draftKey ? localPreflight : null;
   const coverageError = controls.targetSiteCoveragePct + controls.openSpacePct > 100
@@ -311,6 +320,7 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
     setLoading(false);
     setError(null);
     if (editorScopeChanged) {
+      setLegacyDraftEdited(false);
       const nextRestored = restorePointObjectCreateEditorSnapshot(editorSnapshot, editorScopeKey);
       const nextTemplateId = nextRestored?.templateId ?? "residential_mixed_use";
       const nextTemplate = templates.find((item) => item.templateId === nextTemplateId) ?? templates[0];
@@ -318,7 +328,7 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
       setControls(nextRestored?.controls ?? controlsFrom(conceptSiteDefaults(nextTemplate, aoi.coordinates)));
       explicitControlsRef.current = Boolean(nextRestored);
       setDefaultAdjustment(null);
-      setLockedControlKeys(new Set(nextRestored?.lockedControlKeys ?? POINT_OBJECT_CREATE_EDITOR_CONTROL_KEYS));
+      setLockedControlKeys(new Set(nextRestored?.lockedControlKeys ?? []));
       setCustomPrompt(nextRestored?.customPrompt ?? "");
       setCommittedDraftKey(nextRestored?.committedDraftKey ?? null);
       editorScopeKeyRef.current = editorScopeKey;
@@ -358,15 +368,17 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
   function selectTemplate(nextId: ConceptTemplateId) {
     const template = templates.find((item) => item.templateId === nextId);
     if (!template) return;
+    setLegacyDraftEdited(true);
     invalidatePendingRequest();
     setTemplateId(nextId);
     setControls(controlsFrom(conceptSiteDefaults(template, aoi.coordinates)));
     explicitControlsRef.current = false;
     setDefaultAdjustment(null);
-    setLockedControlKeys(new Set(POINT_OBJECT_CREATE_EDITOR_CONTROL_KEYS));
+    setLockedControlKeys(new Set());
   }
 
   function updateControl<Key extends keyof Controls>(key: Key, value: Controls[Key]) {
+    setLegacyDraftEdited(true);
     invalidatePendingRequest();
     explicitControlsRef.current = true;
     setDefaultAdjustment(null);
@@ -392,16 +404,25 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
     });
   }
 
+  function useAutoControls() {
+    setLegacyDraftEdited(true);
+    invalidatePendingRequest();
+    explicitControlsRef.current = false;
+    setDefaultAdjustment(null);
+    setLockedControlKeys(new Set());
+  }
+
   function resetEditedControls() {
+    setLegacyDraftEdited(true);
     invalidatePendingRequest();
     setControls(controlsFrom(conceptSiteDefaults(activeTemplate, aoi.coordinates)));
     explicitControlsRef.current = false;
     setDefaultAdjustment(null);
-    setLockedControlKeys(new Set(POINT_OBJECT_CREATE_EDITOR_CONTROL_KEYS));
+    setLockedControlKeys(new Set());
   }
 
   async function generate() {
-    if (loading || generatedFromCurrentDraft || preflightBlocked) return;
+    if (loading || generatedFromCurrentDraft || legacyResultNeedsExplicitEdit || preflightBlocked) return;
     requestRef.current?.abort();
     const controller = new AbortController();
     requestRef.current = controller;
@@ -530,14 +551,18 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
 
       <details className="mt-4 rounded-xl border border-[#d7dee4] bg-white/80 p-3">
         <summary className="cursor-pointer text-xs font-bold text-[#344054]">{locale === "ru" ? "Параметры концепции" : "Concept parameters"}</summary>
-        {controlsDifferFromTemplate ? <div className="mt-3 flex justify-end"><button type="button" onClick={resetEditedControls} className="min-h-11 rounded-lg px-2 text-[11px] font-bold text-[#087f8c] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]" data-testid="reset-edited-create-controls">{copy.resetParameters}</button></div> : null}
+        <p className="mt-2 text-[11px] leading-4 text-[#667085]">{locale === "ru" ? "Авто — исходные ориентиры для подбора при генерации. Ручная правка задаёт значение. Предыдущий результат не меняется до явной генерации." : "Auto values are starting points for generation. Manual edits fix a value. The previous result changes only when you generate."}</p>
+        <div className="mt-3 flex flex-wrap justify-end gap-2">
+          {lockedControlKeys.size > 0 || legacyResultNeedsExplicitEdit ? <button type="button" onClick={useAutoControls} className="min-h-11 rounded-lg px-2 text-[11px] font-bold text-[#087f8c] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]" data-testid="create-auto-controls">{locale === "ru" ? "Вернуть параметры в Авто" : "Use Auto parameters"}</button> : null}
+          {controlsDifferFromTemplate || lockedControlKeys.size > 0 || legacyResultNeedsExplicitEdit ? <button type="button" onClick={resetEditedControls} className="min-h-11 rounded-lg px-2 text-[11px] font-bold text-[#087f8c] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]" data-testid="reset-edited-create-controls">{copy.resetParameters}</button> : null}
+        </div>
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          <RangeControl label={copy.blocks} value={controls.blockCount} minimum={1} maximum={12} error={blockError} onChange={(value) => updateControl("blockCount", value)} />
-          <RangeControl label={copy.coverage} value={controls.targetSiteCoveragePct} minimum={8} maximum={60} suffix="%" error={coverageError} onChange={(value) => updateControl("targetSiteCoveragePct", value)} />
-          <RangeControl label={copy.levelsMin} value={controls.levelsMin} minimum={1} maximum={40} error={levelsError} onChange={(value) => updateControl("levelsMin", value)} />
-          <RangeControl label={copy.levelsMax} value={controls.levelsMax} minimum={1} maximum={80} onChange={(value) => updateControl("levelsMax", value)} />
-          <RangeControl label={copy.openSpace} value={controls.openSpacePct} minimum={15} maximum={75} suffix="%" error={coverageError} onChange={(value) => updateControl("openSpacePct", value)} />
-          <RangeControl label={copy.setback} value={controls.setbackM} minimum={2} maximum={30} suffix={locale === "ru" ? " м" : " m"} onChange={(value) => updateControl("setbackM", value)} />
+          <RangeControl locale={locale} fixed={lockedControlKeys.has("blockCount")} label={copy.blocks} value={controls.blockCount} minimum={1} maximum={12} error={blockError} onChange={(value) => updateControl("blockCount", value)} />
+          <RangeControl locale={locale} fixed={lockedControlKeys.has("targetSiteCoveragePct")} label={copy.coverage} value={controls.targetSiteCoveragePct} minimum={8} maximum={60} suffix="%" error={coverageError} onChange={(value) => updateControl("targetSiteCoveragePct", value)} />
+          <RangeControl locale={locale} fixed={lockedControlKeys.has("levelsMin")} label={copy.levelsMin} value={controls.levelsMin} minimum={1} maximum={40} error={levelsError} onChange={(value) => updateControl("levelsMin", value)} />
+          <RangeControl locale={locale} fixed={lockedControlKeys.has("levelsMax")} label={copy.levelsMax} value={controls.levelsMax} minimum={1} maximum={80} onChange={(value) => updateControl("levelsMax", value)} />
+          <RangeControl locale={locale} fixed={lockedControlKeys.has("openSpacePct")} label={copy.openSpace} value={controls.openSpacePct} minimum={15} maximum={75} suffix="%" error={coverageError} onChange={(value) => updateControl("openSpacePct", value)} />
+          <RangeControl locale={locale} fixed={lockedControlKeys.has("setbackM")} label={copy.setback} value={controls.setbackM} minimum={2} maximum={30} suffix={locale === "ru" ? " м" : " m"} onChange={(value) => updateControl("setbackM", value)} />
         </div>
       </details>
       {parameterError ? <p className="mt-2 text-xs font-semibold text-[#b42318]" role="alert" data-testid="create-parameter-error">{parameterError}</p> : null}
@@ -549,18 +574,21 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
         value={customPrompt}
         onChange={(event) => {
           invalidatePendingRequest();
-          setCustomPrompt(event.target.value.slice(0, 600));
+          const nextPrompt = event.target.value.slice(0, 600);
+          if (nextPrompt !== customPrompt) setLegacyDraftEdited(true);
+          setCustomPrompt(nextPrompt);
         }}
         rows={3}
         placeholder={copy.placeholder}
         className="mt-2 w-full resize-none rounded-xl border border-[#cbd8d4] bg-white p-3 text-sm leading-5 outline-none focus:border-[#087f8c] focus:ring-2 focus:ring-[#bde7df]"
       />
 
+      {legacyResultNeedsExplicitEdit ? <p className="mt-3 text-xs leading-5 text-[#79520d]" role="status" data-testid="create-legacy-draft-status">{locale === "ru" ? "Исходные параметры черновика не сохранены. Сохранённый результат не изменён; выберите шаблон, измените параметры или явно выберите Авто перед новой генерацией." : "Original draft parameters were not saved. The saved result is unchanged; select a template, edit parameters or explicitly choose Auto before generating a new result."}</p> : null}
       {draftChangedAfterGeneration ? <p className="mt-3 text-[11px] font-bold text-[#79520d]" data-testid="create-draft-status">{copy.draftChanged}</p> : null}
       <div className={`mt-3 rounded-xl border bg-white p-3 text-xs leading-5 ${preflightCurrent?.kind === "failed" || preflightCurrent?.kind === "suggestion" ? "border-[#fecdca] text-[#b42318]" : "border-[#d7dee4] text-[#475467]"}`} role="status" data-testid="create-local-preflight" data-preflight-kind={preflightCurrent?.kind ?? "checking"}>
         {parameterError ?? (!preflightCurrent || preflightCurrent.kind === "checking" ? (locale === "ru" ? "Проверяем размещение до генерации…" : "Checking placement before generation…")
           : preflightCurrent.kind === "ready" ? (locale === "ru" ? "Размещение найдено с заданными параметрами. Это геометрическая проверка, не согласование проекта." : "A layout fits the requested parameters. This checks geometry, not project approval.")
-          : preflightCurrent.kind === "not_applicable" ? (locale === "ru" ? "Свободный запрос требует уточнения программы; геометрия будет проверена после её получения." : "The custom request needs programme resolution; geometry will be checked once the programme is defined.")
+          : preflightCurrent.kind === "not_applicable" ? (locale === "ru" ? "Свободный запрос и параметры Авто требуют подбора программы при генерации; затем проверяется геометрия." : "Custom direction and Auto parameters require programme resolution at generation; geometry is checked afterwards.")
           : preflightCurrent.code === "program_invalid" ? (locale === "ru" ? "Параметры противоречат друг другу: проверьте диапазон этажности и сумму застройки с открытым пространством (не более 100%)." : "The parameters conflict: check the level range and coverage plus open-space target (at most 100%).")
           : preflightCurrent.code === "worker_unavailable" ? (locale === "ru" ? "Проверка размещения сейчас недоступна. Параметры и предыдущий результат сохранены; повторите проверку." : "The placement check is unavailable. Your parameters and previous result are preserved; retry the check.")
           : preflightCurrent.code === "solver_timeout" ? (locale === "ru" ? "Время проверки размещения истекло. Это не означает, что размещение невозможно. Параметры и предыдущий результат сохранены; повторите проверку." : "The placement check timed out. This does not mean the layout is impossible. Your parameters and previous result are preserved; retry the check.")
@@ -592,11 +620,11 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
         <button
           type="button"
           onClick={() => void generate()}
-          disabled={loading || generatedFromCurrentDraft || preflightBlocked}
+          disabled={loading || generatedFromCurrentDraft || legacyResultNeedsExplicitEdit || preflightBlocked}
           data-testid="create-generate-action"
           className="min-h-11 rounded-xl bg-[#087f8c] px-4 text-sm font-bold text-white transition hover:bg-[#066b76] disabled:cursor-not-allowed disabled:bg-[#a8c7c0] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] focus-visible:ring-offset-2"
         >
-          {loading ? copy.generating : generatedFromCurrentDraft ? copy.upToDate : generated ? copy.regenerate : copy.generate}
+          {loading ? copy.generating : legacyResultNeedsExplicitEdit ? (locale === "ru" ? "Выберите параметры" : "Choose parameters") : generatedFromCurrentDraft ? copy.upToDate : generated ? copy.regenerate : copy.generate}
         </button>
         {generated ? <button type="button" onClick={resetGeneratedConcept} data-testid="create-clear-generated" className="min-h-11 rounded-xl border border-[#d7dee4] bg-white px-3 text-xs font-bold text-[#344054]">{copy.reset}</button> : null}
       </div>

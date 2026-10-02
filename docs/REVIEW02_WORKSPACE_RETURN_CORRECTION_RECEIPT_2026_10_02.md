@@ -1,6 +1,6 @@
 # REVIEW02 — Workspace return and context admission correction
 
-Status: Residual targeted verification PASS; integration, full CI and hosted acceptance pending
+Status: Residual and final C2 targeted verification PASS in separate receipts; integration, full CI and hosted acceptance pending
 Owner: dev_1
 Verified: 2026-10-02 UTC / 2026-10-03 Europe/Moscow
 Scope: Main-routed bounded correction; no new feature or design authority
@@ -147,3 +147,68 @@ No Product-code change was required by these two browser-harness preconditions. 
 - Exact caveat unchanged: “Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.” Local persistence/fixtures are not official/live evidence or protected custody; domain DD remains PARTIAL.
 - Rollback: revert only the final residual corrective commit. No migration, browser-data deletion or hosted rollback is required. Handoff: main_1 for controlled integration, final full gates and independent acceptance.
 - After the terminal 26/26 receipt, Root authorized a separate C2 Auto/Fixed correction in the same iteration. The server is retained only for that bounded follow-up; it must be stopped at final handoff. C2 code/test changes will be a separate commit and are not claimed by this residual receipt.
+
+## C2 Auto/Fixed follow-up — 2026-10-03
+
+### Authority and bounded outcome
+
+- Explicit Root follow-up after the terminal residual receipt; same REVIEW02 iteration, not a new feature or design. Ownership: Create panel and minimum editor/preflight/browser tests, plus this existing engineering receipt.
+- Exact clean commit parent: `61c1fa68f975a32893141d8fd221c68655b0e824`. Its residual 26/26 receipt remains separate historical exact-tree evidence, not a 40-test aggregate on the C2 tree.
+- Fresh AOI, template and Reset defaults are Auto numeric starting points. A manual edit fixes only that control, plus a level endpoint when needed to keep the range consistent. Existing saved explicit locks are restored unchanged.
+- A visible keyboard-accessible **Use Auto parameters / Вернуть параметры в Авто** action releases locks without changing the numeric seeds or previous generated result. Each control identifies **Auto / Fixed** or **Авто / Задано**. The bilingual brief distinguishes a draft from the last explicit generation.
+- Only explicit Generate may replace geometry. Auto, parameter edits, template selection, A/B, locale and saved-result reopening do not generate or reacquire sources. Invalid coverage/open-space combinations remain blocked after Auto; Reset is an explicit correction. Worker-unavailable, deadlines, cancellation, solver budgets, negative preflight, locked intent and route/paid guards are unchanged.
+- Auto is not a quality, capacity, planning-rights or provider-success guarantee. Adaptive paid generation and exact frozen source-context use still require Root's separately authorized evidence.
+- Before commit, Root identified a legacy duplicate-start gap inherited from the earlier editor preservation change: a saved result with no original committed draft key could be misclassified as a changed draft immediately on Back/reopen. The added guard disables both the Generate action and handler until a real parameter/prompt/template/Auto/Reset choice. It explicitly labels the original inputs unavailable, invents no original prompt/locks/receipt, does not rewrite saved bytes, and does not replace strict key parity for known snapshots. A new fresh Auto draft without a result remains admissible. One synthetic historical compatibility journey runs in both engines, with EN/RU presentation changes inside the same journey; no wider matrix is added.
+
+### Tested file manifest
+
+| File | Role | SHA-256 |
+| --- | --- | --- |
+| `components/point-to-object/create-panel.tsx` | Auto defaults, explicit locks, visible release/status/brief, legacy admission guard | `1177fb3b16df8138c697cd50650d932d9fe26b1f6c7830c4d945e8658e9dab6b` |
+| `scripts/point-to-object-create-preflight-check.ts` | Auto eligibility, legacy truth table and action/handler guard; negative gates retained | `d92fdaf54bbf07a6c0c82e475b1275e4e7b116fa51d8f0de1d040103e87c98a4` |
+| `tests/e2e/point-to-object-create-reliability.spec.ts` | Eight C2 cells, two legacy compatibility cells, six existing journey cells | `81e65e9e29eefb44ba71a3956ce88461b9e62c16988f715afaf4060f61ae8568` |
+| This receipt | Separate exact-tree evidence and limits | Bound by containing commit |
+
+### Terminal local verification
+
+Environment and reviewer remain Node 24.19.0 / Next.js 15.5.25 / React 19.2.7 / Playwright 1.61.1 / local loopback `127.0.0.1:3132` / dev_1 owner verification. The temporary untracked config `/private/tmp/review02-c2-local.config.ts` (SHA-256 `2a9c39e11ab4cd2c909859f7907080ba903b70bc6f0101baa5a9a1575e84b226`) imports the unchanged existing two-engine matrix and selects only C2 plus the three directly affected legacy journeys. Shared CI/configuration is not modified.
+
+```sh
+GEOAI_E2E_BASE_URL=http://127.0.0.1:3132 \
+PLAYWRIGHT_JUNIT_OUTPUT_FILE=artifacts/review02-c2/junit-run5-legacy.xml \
+./node_modules/.bin/playwright test \
+  --config=/private/tmp/review02-c2-local.config.ts \
+  --workers=1 --fail-on-flaky-tests --reporter=line,junit \
+  --output=artifacts/review02-c2/results-run5-legacy
+```
+
+- Pre-legacy bounded matrix **14/14 PASS**: Chromium 7/7 and WebKit 7/7, failures=0, errors=0, skipped=0, zero retries. JUnit total `571.116736s`, CLI 9.5m; SHA-256 `17ebe2983e10afe555ec7f14577114b9beb80be79f146f724a972fe8e8d7ab11`. This receipt predates the additional guard and is not final exact-tree evidence.
+- Final complete bounded matrix **16/16 PASS** on the current manifest bytes: Chromium 8/8 and WebKit 8/8; failures=0, errors=0, skipped=0, zero retries, one worker and `--fail-on-flaky-tests`. JUnit `junit-run5-legacy.xml`, total `525.5700610000001s`, CLI 8.8m; SHA-256 `17d09c2904e64804f6063de125e191605390a3ba7327260934cd8c7b5771aa5c`. The original 14 cases and two legacy cells ran together; no focused-pass substitution or combined-with-residual aggregate claim.
+- New journeys cover EN/RU at 390x900 and 1440x900 in both engines, initial/template Auto, partial manual locks including the dependent levels pair, keyboard Auto release, full manual locks, three distinct saved operations, actual `/projects` UI reopening, preserved saved editor/geometry/generated payload, invalid-input blocking, explicit Reset, A/B and locale continuity. There are exactly three mocked GET challenges and three mocked Create POSTs per new journey, all from explicit Generate; quiet oracles wait 800ms. No lock/project/session state is injected.
+- The local app's real demo identity writes owner-scoped Saved Projects. Tests read those UI-written payloads and reopen through the visible Hub action; they do not incorrectly claim anonymous guest persistence. The new persistence fixtures use the actual deterministic geometry producer, not the legacy display-only metric fixture. External HTTP is intercepted/blocked; no paid call, provider/source acquisition or hosted write is made by the tests.
+- Existing draft/committed-geometry separation, explicit coverage proposal and unavailable-worker preservation/retry journeys passed in both engines. Numeric assertions, geometry equality, source request counts, timeouts and visual overflow limit were not relaxed.
+- The synthetic legacy case starts from a schema/hash-validated saved artifact with `editorSnapshot:null`, reopens through the Hub UI and returns Back to parameters. Both engines verify Generate disabled, no false changed-draft label, A/B and EN/RU keep the guard, exact saved AOI/generated/absent-editor preservation, and zero prototype requests. Explicit keyboard Auto then enables the new draft without generation or saved-byte mutation. This compatibility fixture is not independent acceptance of the founder's actual historical artifact.
+- `npm run lint -- --incremental false`, full `test:point-to-object-create`, `test:point-to-object-projects`, `test:point-to-object-source-deadline`, `test:point-to-object-trusted-identity`, `test:data-honesty` and `test:secret-hygiene`: PASS. Data-honesty: 486 files, 0 findings, scan hash `d0313cf62d6953f5a9860a9594fe041f698cb0d68a37aa1dcf98088bf2ffbdea`; secret hygiene: 1,441 tracked paths, no secret values output. Diff checks PASS.
+- Endpoint navigation `/prototype/point-to-object` and `/projects` passed in the final mocked local browser journeys. Screenshots remain in run4 and `results-run5-legacy`. Inspection of the pre-legacy RU390 and EN1440 end states is supporting observation only, not golden visual comparison, real AI quality or fresh hosted-map evidence. After the guard, agent-browser verified the restarted homepage has content, expected interactive elements and no framework error overlay; `/private/tmp/review02-c2-legacy-server-smoke.png` is retained and that isolated browser closed before the matrix. This generic smoke does not prove zero public-basemap reads.
+
+### Retained failures / differentiated diagnosis
+
+| Attempt | Exact JUnit terminal receipt | Classification |
+| --- | --- | --- |
+| `junit-run1.xml` | 14 tests, 0 failures, 0 errors, 14 skipped; 24.051316000000003s | Interrupted after lint detected a removed enum import still needed by unchanged template comparison. Import restored; lint then PASS. |
+| `junit-run2.xml` | 14 tests, 0 failures, 3 errors, 8 skipped; 200.993297s | New harness incorrectly sought a guest session in a demo-owner environment. Legacy three journeys passed; incomplete, not accepted. |
+| `junit-run3.xml` | 14 tests, 0 failures, 6 errors, 3 skipped; 873.329627s | Same wrong guest oracle after a geometry-fixture correction, plus WebKit loopback navigation/transport timeouts. No Product or Auth bypass applied; not PASS. |
+| `junit-diagnosed-demo-owner.xml` | 1 test, 0 failures, 1 error, 0 skipped; 147.001124s | Read-only Auth/state diagnosis replaced the wrong guest assumption. Save and Hub reopen progressed, but the harness tried to operate the underlying Task while the real result dialog was open. Corrected by the visible Back to parameters action, not force-click or timeout extension. |
+| `junit-run4.xml` | 14 tests, 0 failures, 0 errors, 0 skipped; 571.116736s | Complete pre-legacy targeted matrix PASS; superseded for final-tree acceptance by the new 16-case run. |
+| `junit-run5-legacy.xml` | 16 tests, 0 failures, 0 errors, 0 skipped; 525.5700610000001s | Complete final exact-manifest C2 matrix PASS, including the additional legacy guard. |
+
+All attempts and failure traces remain retained. Initial forecast and total historical elapsed remain unknown; measured run-specific times above are not hidden. Repeated precondition errors were diagnosed differently rather than labeled flaky or fixed by weakening gates.
+
+### Handoff, rollback and evidence boundary
+
+- Root integrates residual commit `61c1fa68f975a32893141d8fd221c68655b0e824` and this separate C2 commit only; synchronization commits are not duplicate work to integrate. Root owns the full final build/CI, exact-head hosted Preview, independent QA and frozen area-context parity. Test selection reports `fullCiRequired:true`; the targeted receipts do not close that gate.
+- The worker does not run or claim a fresh whole-application build, hosted acceptance, adaptive-provider quality, rights/capacity, or Source Area binding. Root must stop paid proof if the exact frozen `areaContextUsed` receipt is null/mismatched. The earlier 81-route Root build is not current C2 evidence.
+- React/Next.js guidance keeps Auto in an existing client event handler, without network effects or a storage-schema migration. Playwright verifies actual UI actions, restored explicit locks and strict no-request behavior.
+- Only the four files in this C2 manifest and local ignored verification artifacts change. No new dependency/lockfile, source/route/worker, Auth enforcement, environment/secret, rate/paid settings, shared CI, hosted Supabase/Storage, Figma/Confluence, main/Production, push or deployment mutation. Commercial interviews/WTP/proposals/paid pilots and outreach in this package: 0.
+- Mandatory caveat unchanged: “Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.” Browser-local saving is on this device; fixtures and generated scenarios are not official evidence or cloud custody. Domain DD remains PARTIAL.
+- Rollback is a revert of this C2 corrective commit, keeping the residual source-preservation commit and all original browser saved bytes. No data deletion, migration, hosted/Auth/env rollback is necessary. Own loopback server is stopped at final handoff; no browser runner remains active.

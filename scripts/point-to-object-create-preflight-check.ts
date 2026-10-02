@@ -227,6 +227,15 @@ for (const preflight of [suggestion, exhausted]) {
 assert.equal(providerCalls, 0, "Suggestion and bounded solver exhaustion must make zero provider calls.");
 assert.equal(pointObjectCreatePreflightAllowsProvider(ready), true);
 assert.equal(pointObjectCreatePreflightAllowsProvider(partial), true);
+for (const lockedControlKeys of [[], ["blockCount"]] as const) {
+  const auto = preflightPointObjectCreate({
+    aoiCoordinates: squareAoi, aoiHash: "review02:auto-draft", locale: "en",
+    templateId: "commercial_hub", customPrompt: null, controls: fixedTowerControls,
+    lockedControlKeys: [...lockedControlKeys]
+  });
+  assert.equal(auto.kind, "not_applicable", "Unfixed numeric seeds must remain eligible for programme resolution, not a fixed geometry claim.");
+  assert.equal(pointObjectCreatePreflightAllowsProvider(auto), true);
+}
 
 const generatedNarrative = {
   ...ready.program,
@@ -335,10 +344,29 @@ assert.ok((postSource.match(/telemetry: failureTelemetry\(\)/g) ?? []).length >=
   "Every post-provider error lane must retain bounded usage telemetry when available.");
 
 const panelSource = readFileSync(new URL("../components/point-to-object/create-panel.tsx", import.meta.url), "utf8");
-assert.match(panelSource, /new Set\(POINT_OBJECT_CREATE_EDITOR_CONTROL_KEYS\)/,
-  "Displayed numeric controls must be fixed by default.");
-assert.doesNotMatch(panelSource, /edited:\s*"Fixed"|Зафиксировано/,
-  "All-fixed mode must not add repeated methodology badges beside every value.");
+assert.match(panelSource, /restoredEditor\?\.lockedControlKeys \?\? \[\]/,
+  "Fresh controls are Auto; valid saved explicit locks remain intact.");
+assert.match(panelSource, /nextRestored\?\.lockedControlKeys \?\? \[\]/);
+assert.doesNotMatch(panelSource, /new Set\(POINT_OBJECT_CREATE_EDITOR_CONTROL_KEYS\)/,
+  "Template/reset defaults must not silently fix all six parameters.");
+assert.match(panelSource, /data-testid="create-auto-controls"/);
+assert.match(panelSource, /"Задано" : "Fixed"/);
+assert.match(panelSource, /"Авто" : "Auto"/);
+const autoSource = panelSource.slice(panelSource.indexOf("function useAutoControls"), panelSource.indexOf("function resetEditedControls"));
+assert.match(autoSource, /setLockedControlKeys\(new Set\(\)\)/);
+assert.doesNotMatch(autoSource, /fetch\(|onReset\(|onGenerated\(|setControls\(/,
+  "Auto unlock must preserve numeric seeds and the last result without generation or network work.");
+const legacyGuardSource = panelSource.match(/const legacyResultNeedsExplicitEdit = (.+);/)?.[1];
+assert.ok(legacyGuardSource, "Legacy result admission must be explicit.");
+const legacyGuard = new Function("generated", "committedDraftKey", "legacyDraftEdited", `return ${legacyGuardSource};`) as
+  (generated: object | null, committedDraftKey: string | null, legacyDraftEdited: boolean) => boolean;
+assert.equal(legacyGuard(null, null, false), false, "A fresh Auto draft remains eligible.");
+assert.equal(legacyGuard({}, null, false), true, "An unchanged legacy result cannot spend without known original inputs.");
+assert.equal(legacyGuard({}, null, true), false, "Only a real explicit draft choice releases the legacy guard.");
+assert.equal(legacyGuard({}, "saved-explicit-draft-key", false), false, "Existing explicit snapshots retain ordinary parity.");
+assert.match(panelSource, /if \(loading \|\| generatedFromCurrentDraft \|\| legacyResultNeedsExplicitEdit \|\| preflightBlocked\) return;/);
+assert.match(panelSource, /disabled=\{loading \|\| generatedFromCurrentDraft \|\| legacyResultNeedsExplicitEdit \|\| preflightBlocked\}/);
+assert.match(panelSource, /data-testid="create-legacy-draft-status"/);
 assert.match(panelSource, /data-testid="create-coverage-suggestion"/);
 assert.match(panelSource, /data-testid="create-apply-suggested-coverage"/);
 assert.match(panelSource, /controller\.signal\.aborted \|\| requestId !== requestIdRef\.current/,
