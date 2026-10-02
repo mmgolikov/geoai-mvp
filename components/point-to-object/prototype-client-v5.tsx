@@ -424,6 +424,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
   const findFootprintRequestRef = useRef<{ sourceFeatureId: string; controller: AbortController } | null>(null);
   const findRequestIdRef = useRef(0);
   const contextRequestId = useRef(0);
+  const contextAdmissionRef = useRef<{ selectionKey: string; retryVersion: number; identity: PointObjectProjectIdentity | null } | null>(null);
   const searchRequestRef = useRef<AbortController | null>(null);
   const suggestionRequestRef = useRef<AbortController | null>(null);
   const committedSearchQueryRef = useRef("");
@@ -840,7 +841,9 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     if (!sessionReady || previousLocaleRef.current === locale) return;
     previousLocaleRef.current = locale;
     contextRequestId.current += 1;
-    setSelection((current) => current ? { ...current, resolvedObject: null } : current);
+    // A Find/Create draft locale is not permission to erase or reacquire the
+    // held Analyse snapshot. Its original source locale/lease remains binding.
+    if (mode === "analyse") setSelection((current) => current ? { ...current, resolvedObject: null } : current);
     setSearchResults([]);
     setSearchStatus("idle");
     setSuggestionStatus("idle");
@@ -851,7 +854,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     setFindStatus("idle");
     setActiveFindResultId(null);
     setHoveredFindResultId(null);
-  }, [locale, sessionReady]);
+  }, [locale, mode, sessionReady]);
 
   useEffect(() => {
     const query = searchQuery.trim();
@@ -905,8 +908,9 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
   }, [selection]);
 
   const unresolvedContextKey = selection?.resolvedObject ? null : contextRequestKey(selection, locale);
+  const contextSelectionKey = selection ? `${contextRequestKey(selection, "en")}:${selection.clickedAt}` : null;
   useEffect(() => {
-    if (!unresolvedContextKey) {
+    if (mode !== "analyse" || !unresolvedContextKey || !contextSelectionKey) {
       setContextStatus("idle");
       return;
     }
@@ -937,6 +941,16 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
       setContextStatus("error");
       return;
     }
+    // Only a new object interaction or explicit Retry admits network work.
+    // Locale/view changes may reuse a fresh locale-bound cache, but cannot
+    // silently refresh the same object. Keep the existing identity, lease,
+    // request-generation and cooldown guards; a stale locale is recoverable.
+    const admitted = contextAdmissionRef.current;
+    if (admitted?.selectionKey === contextSelectionKey && admitted.retryVersion === contextRetryVersion && admitted.identity === projectIdentity) {
+      setContextFailure("unavailable");
+      setContextStatus("error");
+      return;
+    }
     const requestId = contextRequestId.current + 1;
     contextRequestId.current = requestId;
     const controller = new AbortController();
@@ -952,6 +966,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     timeoutSignal.addEventListener("abort", onDeadline, { once: true });
     setContextStatus("loading");
     const timer = window.setTimeout(() => {
+      contextAdmissionRef.current = { selectionKey: contextSelectionKey, retryVersion: contextRetryVersion, identity: projectIdentity };
       void fetch("/api/prototype/point-to-object/context", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -994,7 +1009,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
       timeoutSignal.removeEventListener("abort", onDeadline);
       controller.abort();
     };
-  }, [unresolvedContextKey, contextRetryVersion, locale, projectIdentity]);
+  }, [mode, unresolvedContextKey, contextSelectionKey, contextRetryVersion, locale, projectIdentity]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -2123,7 +2138,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
         areaContext={areaContext}
         activeAlternativeId={activeCreateAlternativeId}
         onAlternativeChange={changeCreateAlternative}
-        onBackToEditor={() => { setCreateResultDashboardOpen(false); persistGuestCreateSession({ dashboardOpen: false }); }}
+        onBackToEditor={() => { setCreateResultDashboardOpen(false); setSheet("full"); persistGuestCreateSession({ dashboardOpen: false }); }}
         onShowMap={() => { setCreateResultDashboardOpen(false); setCreateAreaCleared(true); setCreateReplacementStatus("idle"); setCreateReplacementRevision((revision) => revision + 1); setSheet("peek"); persistGuestCreateSession({ dashboardOpen: false }); }}
       /> : null}
     </main>
