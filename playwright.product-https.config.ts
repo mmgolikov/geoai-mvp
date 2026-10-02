@@ -29,7 +29,8 @@ const productSpecs = [
   "sprint10-find-state.spec.ts",
   "sprint10-create-preview.spec.ts",
   "review29-express-overview.spec.ts",
-  "review29-map-persistence.spec.ts"
+  "review29-map-persistence.spec.ts",
+  "review02-workspace-return.spec.ts"
 ];
 
 // Fixed loopback TLS only. The context-wide TLS-error exception is bounded by

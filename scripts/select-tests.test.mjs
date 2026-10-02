@@ -66,6 +66,16 @@ test("Review02 helpers keep new contracts and downstream journeys in CI", () => 
   for (const name of ["test:review02-data", "test:review02-map"]) assert.ok(workflow.includes(`npm run ${name}`), name);
 });
 
+test("Workspace return regression remains in both product browser gates", () => {
+  const spec = "tests/e2e/review02-workspace-return.spec.ts";
+  const plan = selectPlan(["components/point-to-object/prototype-client-v5.tsx"]);
+  assert.ok(plan.e2eFiles.includes(spec));
+  const pkg = JSON.parse(readFileSync(new URL("package.json", repo), "utf8"));
+  assert.ok(pkg.scripts["test:e2e:point-to-object-v5:demo"].includes(spec));
+  const webkit = readFileSync(new URL("playwright.product-https.config.ts", repo), "utf8");
+  assert.ok(webkit.includes('"review02-workspace-return.spec.ts"'));
+});
+
 test("Unknown, schema, and auth require broad coverage", () => {
   for (const path of ["src/lib/new-feature.ts", "supabase/migrations/20260928.sql", "src/lib/auth/request-context.ts", "package-lock.json", "src/lib/prototype/point-to-object-schema.ts"]) {
     const plan = selectPlan([path]);
