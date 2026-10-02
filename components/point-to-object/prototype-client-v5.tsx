@@ -12,6 +12,7 @@ import { PointObjectCreatePanel, type PointObjectCreateEditorSnapshot, type Poin
 import { CreateResultDashboard } from "@/components/point-to-object/create-result-dashboard";
 import { FindComparisonDashboard } from "@/components/point-to-object/find-comparison-dashboard";
 import type { PointObjectComparisonInsight } from "@/src/lib/prototype/point-to-object-comparison-core";
+import { boundPointObjectComparisonInsight } from "@/src/lib/prototype/point-to-object-comparison-state";
 import { nominatimLocale } from "@/src/lib/prototype/point-to-object-markets";
 import { LiveObjectMap, type LiveMapCreateAoiFitRequest, type LiveMapNavigationTarget, type LiveMapViewMode, type PointObjectReplacementStatus } from "@/components/point-to-object/live-object-map";
 import { usePointObjectLocale } from "@/components/point-to-object/locale-provider";
@@ -831,7 +832,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
         : "results",
       analysisTargetSourceFeatureId: findResult ? findAnalysisTargetSourceFeatureId : null,
       comparisonContexts: Object.fromEntries(findShortlist.flatMap(candidate=>{ const context=findResolvedObjects[candidate.sourceFeatureId]; return context?.coordinateAssociation === "trusted_open_map_identity" && context.evidenceReceipt?.lookupSourceFeatureId === candidate.sourceFeatureId && context.evidenceReceipt.sourceLocale === nominatimLocale(findResult?.criteria.locale ?? locale) ? [[candidate.sourceFeatureId,context]] : []; })),
-      comparisonInsight: findComparisonInsight && findComparisonInsight.locale === (findResult?.criteria.locale ?? locale) && findComparisonInsight.role === persistedIntent.role && findComparisonInsight.scenario === persistedIntent.scenario && findComparisonInsight.snapshots.length === findShortlist.length && findComparisonInsight.snapshots.every(snapshot=>findShortlist.some(candidate=>candidate.sourceFeatureId===snapshot.sourceFeatureId) && findResolvedObjects[snapshot.sourceFeatureId]?.evidenceReceipt?.evidencePackHash===snapshot.evidencePackHash) ? findComparisonInsight : null
+      comparisonInsight: boundPointObjectComparisonInsight(findComparisonInsight, { locale: findResult?.criteria.locale ?? locale, role: persistedIntent.role, scenario: persistedIntent.scenario }, findShortlist, findResolvedObjects)
     });
   }, [findAnalysisTargetSourceFeatureId, findAudience, findComparisonDashboardOpen, findComparisonOpen, findGroup, findMaximumLevels, findMinimumLevels, findResult, findResultIntent, findRole, findScenario, findSessionReady, findShortlist, locale, locationKey, findResolvedObjects, findComparisonInsight]);
 
@@ -1285,14 +1286,14 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
 
   useEffect(() => {
     const binding = findSavedBindingRef.current;
-    if (!binding || !findResult || findShortlist.length < 2) return;
+    if (!binding || !findResult || !findResultIntent || findShortlist.length < 2) return;
     const contexts = Object.fromEntries(findShortlist.flatMap(candidate => {
       const context = findResolvedObjects[candidate.sourceFeatureId];
       return context?.evidenceReceipt?.lookupSourceFeatureId === candidate.sourceFeatureId && context.evidenceReceipt.sourceLocale === nominatimLocale(findResult.criteria.locale) && context.coordinateAssociation === "trusted_open_map_identity" ? [[candidate.sourceFeatureId,context]] : [];
     }));
-    const insight = findComparisonInsight && findComparisonInsight.locale === locale && findComparisonInsight.role === findRole && findComparisonInsight.scenario === findScenario && findComparisonInsight.snapshots.length === findShortlist.length && findComparisonInsight.snapshots.every(snapshot => contexts[snapshot.sourceFeatureId]?.evidenceReceipt?.evidencePackHash === snapshot.evidencePackHash) ? findComparisonInsight : null;
+    const insight = boundPointObjectComparisonInsight(findComparisonInsight, { locale: findResult.criteria.locale, role: findResultIntent.role, scenario: findResultIntent.scenario }, findShortlist, contexts);
     queueFindViewUpdate(binding, { shortlist: findShortlist, comparisonOpen: findComparisonOpen, comparisonView: findComparisonDashboardOpen ? "dashboard" : findComparisonOpen ? "mini" : "results", analysisTargetSourceFeatureId: findAnalysisTargetSourceFeatureId, comparisonContexts: contexts, comparisonInsight: insight });
-  }, [findResolvedObjects, findComparisonInsight, findResult, findShortlist, findComparisonOpen, findComparisonDashboardOpen, findAnalysisTargetSourceFeatureId, locale, findRole, findScenario]);
+  }, [findResolvedObjects, findComparisonInsight, findResult, findResultIntent, findShortlist, findComparisonOpen, findComparisonDashboardOpen, findAnalysisTargetSourceFeatureId]);
 
   function queueCreateViewUpdate(identityKey: PointObjectProjectIdentity, artifactId: string, id: "A" | "B") {
     createViewSaveQueueRef.current = createViewSaveQueueRef.current

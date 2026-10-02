@@ -12,6 +12,8 @@ import { CONTEXT_GROUP_LABELS, normalizedResolvedContext } from "@/src/lib/proto
 import { publicEvidenceReceiptIsCurrent } from "@/src/lib/prototype/point-to-object-evidence-receipt";
 import { nominatimLocale } from "@/src/lib/prototype/point-to-object-markets";
 import { parsePointObjectComparisonInsight, type PointObjectComparisonInsight } from "@/src/lib/prototype/point-to-object-comparison-core";
+import { requestPointObjectComparison, PointObjectComparisonRequestError } from "@/src/lib/prototype/point-to-object-comparison-request";
+import { boundPointObjectComparisonInsight } from "@/src/lib/prototype/point-to-object-comparison-state";
 import { pointObjectSourceFailure, sourceFailureMessage, sourceRetryAfterSeconds } from "@/src/lib/prototype/point-to-object-source-recovery";
 import { PointObjectContextDashboard } from "./context-dashboard";
 
@@ -96,7 +98,7 @@ export function FindComparisonDashboard({ locale, result, candidates, roleLabel,
     return context && publicEvidenceReceiptIsCurrent(context.evidenceReceipt) && context.evidenceReceipt?.sourceLocale === nominatimLocale(locale) && context.evidenceReceipt.lookupSourceFeatureId === candidate.sourceFeatureId && context.geoContext.coverage === "available" && context.geoContext.sampleSize > 0 && !context.geoContext.capReached && context.normalizedContext?.source.acquiredAt && Number.isFinite(Date.parse(context.normalizedContext.source.acquiredAt)) ? context : null;
   };
   const ready = !stale && candidates.every(candidate => readyContext(candidate));
-  const matchedInsight = !stale && insight?.locale === locale && insight.role === role && insight.scenario === scenario && insight.snapshots.length === candidates.length && insight.snapshots.every(snapshot => candidates.some(c => c.sourceFeatureId === snapshot.sourceFeatureId) && contexts[snapshot.sourceFeatureId]?.evidenceReceipt?.evidencePackHash === snapshot.evidencePackHash && contexts[snapshot.sourceFeatureId]?.name === snapshot.label) ? insight : null;
+  const matchedInsight = !stale ? boundPointObjectComparisonInsight(insight, { locale, role, scenario }, candidates, contexts) : null;
 
   async function loadContexts() {
     if (controllerRef.current || stale || Date.now() < cooldownUntil) return;
@@ -126,16 +128,12 @@ export function FindComparisonDashboard({ locale, result, candidates, roleLabel,
     const controller=new AbortController(); controllerRef.current=controller; setPhase("ai"); setError(null);
     try {
       const frozen=candidates.map(candidate => ({longitude:candidate.longitude,latitude:candidate.latitude,expectedSourceFeatureId:candidate.sourceFeatureId,evidenceReceipt:readyContext(candidate)!.evidenceReceipt!}));
-      const challengeResponse=await fetch("/api/prototype/point-to-object/ai",{method:"GET",cache:"no-store",signal:controller.signal});
-      const challenge=await challengeResponse.json() as {mode?:string;challenge?:string};
-      if (!challengeResponse.ok || challenge.mode!=="ready" || !challenge.challenge) throw new Error(ru ? "AI-сравнение сейчас недоступно." : "AI comparison is unavailable.");
-      const response=await fetch("/api/prototype/point-to-object/ai",{method:"POST",headers:{"Content-Type":"application/json"},signal:AbortSignal.any([controller.signal,AbortSignal.timeout(75_000)]),body:JSON.stringify({caseKey:result.criteria.marketKey,longitude:frozen[0].longitude,latitude:frozen[0].latitude,locale,role,scenario,depth:"standard",goal:"development_screening",perspective:"developer",horizon:"current",question:null,expectedSourceFeatureId:frozen[0].expectedSourceFeatureId,evidenceReceipt:frozen[0].evidenceReceipt,comparison:frozen,consent:true,challenge:challenge.challenge})});
-      const raw: unknown=await response.json();
+      const response=await requestPointObjectComparison({signal:controller.signal,payload:{caseKey:result.criteria.marketKey,longitude:frozen[0].longitude,latitude:frozen[0].latitude,locale,role,scenario,depth:"standard",goal:"development_screening",perspective:"developer",horizon:"current",question:null,expectedSourceFeatureId:frozen[0].expectedSourceFeatureId,evidenceReceipt:frozen[0].evidenceReceipt,comparison:frozen,consent:true}});
       if (controller.signal.aborted) return;
-      const parsed=response.ok ? parsePointObjectComparisonInsight(raw) : null;
+      const parsed=response.ok ? parsePointObjectComparisonInsight(response.payload) : null;
       if (!parsed || parsed.locale!==locale || parsed.role!==role || parsed.scenario!==scenario || parsed.snapshots.length!==frozen.length || !parsed.snapshots.every(snapshot=>frozen.some(candidate=>candidate.expectedSourceFeatureId===snapshot.sourceFeatureId && candidate.evidenceReceipt.evidencePackHash===snapshot.evidencePackHash && contexts[candidate.expectedSourceFeatureId]?.name === snapshot.label))) throw new Error(response.status===409 ? (ru ? "Обновите снимки кандидатов перед AI-сравнением." : "Refresh candidate snapshots before AI comparison.") : (ru ? "AI-сравнение не завершилось; исходные данные сохранены." : "AI comparison did not complete; source data is preserved."));
       onInsight(parsed);
-    } catch(cause) { if(!controller.signal.aborted) setError(cause instanceof Error ? cause.message : (ru ? "AI-сравнение недоступно." : "AI comparison unavailable.")); }
+    } catch(cause) { if(!controller.signal.aborted) setError(cause instanceof PointObjectComparisonRequestError ? cause.code === "timeout" ? (ru ? "Время ожидания истекло. Данные сохранены; можно повторить запуск." : "Request timed out. Source data is preserved; you can start again.") : (ru ? "AI-сравнение сейчас недоступно. Попробуйте позднее." : "AI comparison is unavailable. Try again later.") : cause instanceof Error ? cause.message : (ru ? "AI-сравнение недоступно." : "AI comparison unavailable.")); }
     finally { if(controllerRef.current===controller){controllerRef.current=null;setPhase("idle");} }
   }
   const sourceTime = useMemo(() => {

@@ -17,6 +17,8 @@ const normalized = await import(new URL("src/lib/prototype/point-to-object-norma
 const comparison = await import(new URL("src/lib/prototype/point-to-object-comparison-core.ts",root).href);
 const service = await import(new URL("src/lib/prototype/point-to-object-ai.ts",root).href);
 const session = await import(new URL("src/lib/prototype/point-to-object-find-session.ts",root).href);
+const comparisonState = await import(new URL("src/lib/prototype/point-to-object-comparison-state.ts",root).href);
+const projects = await import(new URL("src/lib/prototype/point-object-projects.ts",root).href);
 const CAVEAT="Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
 let checks=0;
 function check(value:unknown,message:string){assert.ok(value,message);checks++;}
@@ -86,4 +88,50 @@ const saved={version:1,marketKey:"dubai",locale:"en",audience:"b2b",role:request
 check(session.parsePointObjectFindSessionState(saved),"saved comparison retains exact contexts and insight");
 for(const mutate of [(s:typeof saved)=>{s.comparisonInsight={...insight,scenario:"b2b_hotel_development"};},(s:typeof saved)=>{s.comparisonContexts["way/101"].evidenceReceipt.evidencePackHash="0".repeat(64);},(s:typeof saved)=>{s.comparisonContexts["way/101"].sourceFeatureId="way/999";},(s:typeof saved)=>{s.comparisonContexts["way/101"].normalizedContext.scope.anchor=[55.28,25.2];},(s:typeof saved)=>{s.comparisonContexts["way/101"].evidenceReceipt.sourceLocale="ru";},(s:typeof saved)=>{s.comparisonInsight.snapshots[0].label="An invented source label";},(s:typeof saved)=>{s.comparisonInsight.differences[0].evidenceRefs=["way/101:healthcare.nearest","way/102:healthcare.nearest"];},(s:typeof saved)=>{s.comparisonContexts["way/101"].geoContext.groups[0].nearestDistanceM=101;},(s:typeof saved)=>{s.comparisonInsight.telemetry.latencyMs=-1;}]) {const bad=structuredClone(saved);mutate(bad);check(!session.parsePointObjectFindSessionState(bad),"restored mismatch fails closed");}
 check(injectedProviderCalls===2,"saved reopen parser dispatches no provider");
-console.log(JSON.stringify({status:"PASS",checks,injectedProviderCalls,networkCalls:0,coverage:"normalized context, one-attempt comparison, frozen source and saved receipt bindings"}));
+
+// In-memory browser-local storage only: exercise the real artifact writer and
+// reopen parser, not cloud persistence or the founder's browser/account state.
+class MemoryStorage {
+  values=new Map<string,string>();
+  get length(){return this.values.size;}
+  key(index:number){return [...this.values.keys()][index]??null;}
+  getItem(key:string){return this.values.get(key)??null;}
+  setItem(key:string,value:string){this.values.set(key,value);}
+  removeItem(key:string){this.values.delete(key);}
+}
+class ProjectEvent<T=unknown> extends Event { detail:T; constructor(type:string,init:{detail:T}){super(type);this.detail=init.detail;} }
+const previousWindow=globalThis.window, previousEvent=globalThis.CustomEvent;
+let reopenNetworkCalls=0;
+Object.assign(globalThis,{window:{localStorage:new MemoryStorage(),sessionStorage:new MemoryStorage(),dispatchEvent:()=>true},CustomEvent:ProjectEvent});
+globalThis.fetch=async()=>{reopenNetworkCalls++;throw new Error("Network forbidden during local restore");};
+try {
+  const committed=session.parsePointObjectFindSessionState(saved)!;
+  const identity=projects.pointObjectProjectIdentity({id:"offline-compare-recovery",isDemoUser:true})!;
+  projects.reconcilePointObjectBrowserIdentity(identity);
+  await projects.createPointObjectProject(identity,"en","Offline comparison recovery");
+  const stored=await projects.savePointObjectOperation(identity,{kind:"find",locale:"en",marketKey:"dubai",label:"Frozen comparison",payload:{session:committed}},"offline-compare-recovery");
+  check(stored.status==="saved","valid frozen comparison saved through actual local writer");
+  if(stored.status!=="saved")throw new Error("Expected a saved fixture");
+  const committedIntent={locale:committed.result!.criteria.locale,role:committed.role,scenario:committed.scenario};
+  for(const draft of [{...committedIntent,locale:"ru"},{...committedIntent,scenario:"b2b_hotel_development"},{...committedIntent,role:"real_estate_fund"}]) {
+    check(comparisonState.boundPointObjectComparisonInsight(committed.comparisonInsight!,draft,committed.shortlist,committed.comparisonContexts!)===null,"draft language/role/scenario hides the mismatched insight");
+    const retained=comparisonState.boundPointObjectComparisonInsight(committed.comparisonInsight!,committedIntent,committed.shortlist,committed.comparisonContexts!);
+    check(retained===committed.comparisonInsight,"persistence independently uses committed Find conditions");
+    const updated=await projects.updatePointObjectFindViewState(identity,stored.artifact.artifactId,{shortlist:committed.shortlist,comparisonOpen:true,comparisonView:"dashboard",analysisTargetSourceFeatureId:null,comparisonContexts:committed.comparisonContexts,comparisonInsight:retained});
+    check((updated.status==="saved"||updated.status==="replayed")&&updated.artifact.payload.session.comparisonInsight?.snapshots[0].evidencePackHash===a.evidencePackHash,"draft view update preserves the saved insight/hash");
+    const reopened=projects.inspectPointObjectProjects(identity).store!.projects.flatMap((project:{artifacts:unknown[]})=>project.artifacts).find((artifact:{artifactId:string})=>artifact.artifactId===stored.artifact.artifactId);
+    check(await projects.verifySavedPointObjectArtifact(reopened),"reopened comparison retains valid artifact integrity");
+    check(JSON.stringify(reopened.payload.session.comparisonInsight)===JSON.stringify(insight),"reopen restores exact old synthesis, not a relabelled result");
+  }
+  check(comparisonState.boundPointObjectComparisonInsight(committed.comparisonInsight!,committedIntent,committed.shortlist,committed.comparisonContexts!)===committed.comparisonInsight,"changing back displays the matching old snapshot without regeneration");
+  const changedContexts=structuredClone(committed.comparisonContexts!);changedContexts["way/101"].evidenceReceipt!.evidencePackHash="0".repeat(64);
+  check(comparisonState.boundPointObjectComparisonInsight(committed.comparisonInsight!,committedIntent,committed.shortlist,changedContexts)===null,"changed source hash cannot reuse the old result");
+  check(comparisonState.boundPointObjectComparisonInsight(committed.comparisonInsight!,committedIntent,committed.shortlist.slice(0,1),committed.comparisonContexts!)===null,"changed candidate cohort cannot reuse the old result");
+  const clientSource=readFileSync(new URL("components/point-to-object/prototype-client-v5.tsx",root),"utf8");
+  const saveEffect=clientSource.slice(clientSource.indexOf("const binding = findSavedBindingRef.current;\n    if (!binding || !findResult || !findResultIntent"),clientSource.indexOf("function queueCreateViewUpdate"));
+  check(saveEffect.includes("locale: findResult.criteria.locale, role: findResultIntent.role, scenario: findResultIntent.scenario")&&!saveEffect.includes("findRole")&&!saveEffect.includes("findScenario"),"actual artifact effect is bound to committed intent, not draft controls");
+  check(reopenNetworkCalls===0&&injectedProviderCalls===2,"draft edit/change-back/reopen makes zero source or provider calls");
+} finally {
+  Object.assign(globalThis,{window:previousWindow,CustomEvent:previousEvent});globalThis.fetch=previousFetch;
+}
+console.log(JSON.stringify({status:"PASS",checks,injectedProviderCalls,networkCalls:0,coverage:"normalized context, one-attempt comparison, frozen receipt bindings and committed-vs-draft local saved recovery"}));
