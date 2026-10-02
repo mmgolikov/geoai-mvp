@@ -293,6 +293,8 @@ jobs:
         run: |
           set -euo pipefail
           npm run test:point-to-object-runtime-gate | tee artifacts/point-to-object-runtime-gate-check.txt
+          npm run test:review02-data | tee artifacts/review02-data-contract-check.txt
+          npm run test:review02-map | tee artifacts/review02-map-geometry-check.txt
           node scripts/quality20-production-gate-check.mjs | tee artifacts/quality20-production-gate-check.txt
           node scripts/quality20-production-membership-check.mjs | tee artifacts/quality20-production-membership-check.txt
           node scripts/quality20-password-only-check.mjs | tee artifacts/quality20-password-only-check.txt

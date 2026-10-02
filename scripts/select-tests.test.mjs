@@ -45,6 +45,27 @@ test("Context includes transitive consumers", () => {
   assert.equal(plan.fullCiRequired, false);
 });
 
+test("Review02 helpers keep new contracts and downstream journeys in CI", () => {
+  for (const path of [
+    "src/lib/prototype/point-to-object-normalized-context.ts",
+    "src/lib/prototype/point-to-object-comparison-core.ts",
+    "src/lib/prototype/point-to-object-source-admission.ts",
+    "src/lib/prototype/point-to-object-volume-edges.ts",
+    "components/point-to-object/context-dashboard.tsx"
+  ]) {
+    const plan = selectPlan([path]);
+    assert.equal(plan.fullCiRequired, false, path);
+    assert.ok(plan.components.includes("REVIEW02"), path);
+    for (const name of ["test:review02-data", "test:review02-map"]) {
+      assert.equal(plan.npmScripts.filter(item => item === name).length, 1, `${path}: ${name}`);
+    }
+    assert.ok(plan.e2eFiles.includes("tests/e2e/review29-map-persistence.spec.ts"), path);
+    assert.equal(plan.liveReviewRequired, true, path);
+  }
+  const workflow = readFileSync(new URL(".github/workflows/geoai-quality-gate.yml", repo), "utf8");
+  for (const name of ["test:review02-data", "test:review02-map"]) assert.ok(workflow.includes(`npm run ${name}`), name);
+});
+
 test("Unknown, schema, and auth require broad coverage", () => {
   for (const path of ["src/lib/new-feature.ts", "supabase/migrations/20260928.sql", "src/lib/auth/request-context.ts", "package-lock.json", "src/lib/prototype/point-to-object-schema.ts"]) {
     const plan = selectPlan([path]);
