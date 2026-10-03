@@ -34,6 +34,7 @@ import {
 import { pointObjectMarket } from "@/src/lib/prototype/point-to-object-markets";
 import { clearPointObjectPartitionRenderer, reconcilePointObjectCompleteFootprintRenderer } from "@/src/lib/prototype/point-to-object-map-partition-renderer";
 import { pointObjectCompleteFootprintOverlap } from "@/src/lib/prototype/point-to-object-map-partition";
+import { reviewPointObjectCreateMapConflict, type CreateMapConflictReview } from "@/src/lib/prototype/point-to-object-create-map-conflict";
 import { pointObjectFindPresentationState, pointObjectFindVerifiedFootprint, pointObjectNativeSelectedBuildingPredicate, pointObjectTilePolygonMemberAt, pointObjectRenderedTileMemberAt } from "@/src/lib/prototype/point-to-object-map-selection";
 import { ensureVolumeEdgeLayer, setVolumeEdges, projectRenderedVolumePoint } from "@/src/lib/prototype/point-to-object-volume-edges";
 import { createPointObjectMapResultOpenGuard, groupExactPointObjectProjectResults } from "@/src/lib/prototype/point-to-object-map-project-groups";
@@ -84,6 +85,19 @@ const SELECTED_NATIVE_FILTER_ACTIVE = new WeakSet<MapLibreMap>();
 const SELECTED_NATIVE_PARTITION_ACTIVE = new WeakSet<MapLibreMap>();
 const SELECTED_NATIVE_SELECTION_SIGNATURE = new WeakMap<MapLibreMap, string>();
 const SELECTED_RELATION_MEMBER_AOI = new WeakMap<MapLibreMap, { selectionSignature: string; aoi: Polygon }>();
+type CreateMapPresentation = {
+  savedObjects: number;
+  zoom: number;
+  sourceInstalled: boolean;
+  layerInstalled: boolean;
+  layerVisible: boolean;
+  renderedParts: number | null;
+  check: CreateMapConflictReview["status"];
+  reason: CreateMapConflictReview["reason"] | "low-zoom-mask";
+  comparedPairs: number;
+  disjointMembers: number;
+};
+const CREATE_MAP_PRESENTATION_OBSERVERS = new WeakMap<MapLibreMap, (state: CreateMapPresentation | null) => void>();
 
 const SELECTABLE_SOURCE_LAYERS = new Set([
   "building",
@@ -996,6 +1010,37 @@ function applyBuildingReplacement(map: MapLibreMap, aoi: PointObjectCreateAoi): 
   }
 }
 
+function publishCreateMapPresentation(
+  map: MapLibreMap,
+  massing: ConceptMassingResult | null,
+  viewMode: MapViewMode,
+  review: CreateMapConflictReview | null,
+  lowZoom: boolean
+) {
+  const observer = CREATE_MAP_PRESENTATION_OBSERVERS.get(map);
+  if (!observer) return;
+  if (!massing || !review) { observer(null); return; }
+  const layerId = viewMode === "3d" ? CONCEPT_VOLUME_LAYER_ID : CONCEPT_FILL_LAYER_ID;
+  const layerInstalled = Boolean(map.getLayer(layerId));
+  let renderedParts: number | null = null;
+  if (layerInstalled) {
+    try { renderedParts = map.queryRenderedFeatures({ layers: [layerId] }).length; }
+    catch { /* The diagnostic is unknown, not a render-success claim. */ }
+  }
+  // Public presentation facts only: no identity, coordinates, payload or secrets.
+  observer({ savedObjects: massing.featureCollection.features.length, zoom: Number(map.getZoom().toFixed(2)),
+    sourceInstalled: Boolean(map.getSource(CONCEPT_SOURCE_ID)), layerInstalled,
+    layerVisible: layerInstalled && map.getLayoutProperty(layerId, "visibility") !== "none", renderedParts,
+    check: review.status, reason: lowZoom && review.status === "clear" ? "low-zoom-mask" : review.reason,
+    comparedPairs: review.comparedPairs, disjointMembers: review.disjointMembers });
+}
+
+function reviewVisibleCreateConcept(map: MapLibreMap, massing: ConceptMassingResult): CreateMapConflictReview {
+  return reviewPointObjectCreateMapConflict(map,
+    buildingLayerIds(map).filter(id => map.getLayoutProperty(id, "visibility") !== "none"),
+    massing.featureCollection.features);
+}
+
 function setCreateLayers(
   map: MapLibreMap,
   draft: Wgs84Position[],
@@ -1025,8 +1070,10 @@ function setCreateLayers(
   // Replacement is reliable from z13, but native extrusions start at z14.
   // Keep the AOI surface through that flat/generalized transition as well.
   const lowZoom = map.getZoom() < NATIVE_VOLUME_MIN_ZOOM;
-  const canShowConcept = Boolean(massing && aoi && suppressExistingBuildings &&
-    (lowZoom || !visibleNativeConceptConflict(map, massing)));
+  const review = massing && aoi && suppressExistingBuildings ? lowZoom
+    ? reviewPointObjectCreateMapConflict(map, [], massing.featureCollection.features)
+    : reviewVisibleCreateConcept(map, massing) : null;
+  const canShowConcept = review?.status === "clear";
   setPointObjectLayerVisibilityIfChanged(map, CREATE_AOI_MASK_LAYER_ID,
     canShowConcept && lowZoom ? "visible" : "none");
   const environment = aoi && massing ? buildConceptEnvironment(aoi, massing) : null;
@@ -1035,9 +1082,10 @@ function setCreateLayers(
   const canShowEnvironment = Boolean(canShowConcept && environment?.featureCollection.features.length &&
     (lowZoom || !visibleNativeConceptConflict(map, environment, 256)));
   updateConceptEnvironment(map, environment, canShowEnvironment);
-  if (map.getLayer(CONCEPT_FILL_LAYER_ID)) map.setLayoutProperty(CONCEPT_FILL_LAYER_ID, "visibility", canShowConcept && viewMode === "2d" ? "visible" : "none");
-  if (map.getLayer(CONCEPT_VOLUME_LAYER_ID)) map.setLayoutProperty(CONCEPT_VOLUME_LAYER_ID, "visibility", canShowConcept && viewMode === "3d" ? "visible" : "none");
+  setPointObjectLayerVisibilityIfChanged(map, CONCEPT_FILL_LAYER_ID, canShowConcept && viewMode === "2d" ? "visible" : "none");
+  setPointObjectLayerVisibilityIfChanged(map, CONCEPT_VOLUME_LAYER_ID, canShowConcept && viewMode === "3d" ? "visible" : "none");
   if (map.getLayer(BUILDINGS_3D_LAYER_ID)) map.setLayoutProperty(BUILDINGS_3D_LAYER_ID, "visibility", viewMode === "3d" ? "visible" : "none");
+  publishCreateMapPresentation(map, massing, viewMode, review, lowZoom);
   return replacementStatus;
 }
 
@@ -1478,6 +1526,7 @@ export function LiveObjectMap({
   const [viewMode, setViewMode] = useState<MapViewMode>("3d");
   const [basemapId, setBasemapId] = useState<LiveMapBasemapId>("street");
   const [showSelectedVolume, setShowSelectedVolume] = useState(true);
+  const [createMapPresentation, setCreateMapPresentation] = useState<CreateMapPresentation | null>(null);
   const hasProjectOverview = projectMarkers.length > 0;
   const projectOverviewSignature = JSON.stringify(projectMarkers.map(({ id, longitude, latitude }) => [id, longitude, latitude]));
   const markerDataSignature = JSON.stringify([findResults, projectMarkers]);
@@ -1891,6 +1940,8 @@ export function LiveObjectMap({
           attributionControl: false
         });
         mapRef.current = map;
+        CREATE_MAP_PRESENTATION_OBSERVERS.set(map, next => setCreateMapPresentation(current =>
+          JSON.stringify(current) === JSON.stringify(next) ? current : next));
         applyViewMode(map, initialViewMode, false, false);
         map.addControl(new maplibregl.NavigationControl({ showCompass: false, showZoom: true }), "top-right");
         map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
@@ -2068,8 +2119,10 @@ export function LiveObjectMap({
                 : "error";
           replacementStatusCallbackRef.current?.(status);
           const flatNative = map.getZoom() < NATIVE_VOLUME_MIN_ZOOM;
-          const conceptVisible = Boolean(conceptMassingRef.current &&
-            (flatNative || !visibleNativeConceptConflict(map, conceptMassingRef.current)));
+          const review = conceptMassingRef.current ? flatNative
+            ? reviewPointObjectCreateMapConflict(map, [], conceptMassingRef.current.featureCollection.features)
+            : reviewVisibleCreateConcept(map, conceptMassingRef.current) : null;
+          const conceptVisible = review?.status === "clear";
           setPointObjectLayerVisibilityIfChanged(map, CREATE_AOI_MASK_LAYER_ID, conceptVisible && flatNative ? "visible" : "none");
           setPointObjectLayerVisibilityIfChanged(map, CONCEPT_FILL_LAYER_ID, conceptVisible && viewModeRef.current === "2d" ? "visible" : "none");
           setPointObjectLayerVisibilityIfChanged(map, CONCEPT_VOLUME_LAYER_ID, conceptVisible && viewModeRef.current === "3d" ? "visible" : "none");
@@ -2078,6 +2131,7 @@ export function LiveObjectMap({
           const environmentVisible = Boolean(conceptVisible && environment?.featureCollection.features.length &&
             (flatNative || !visibleNativeConceptConflict(map, environment, 256)));
           setConceptEnvironmentVisibility(map, environmentVisible);
+          publishCreateMapPresentation(map, conceptMassingRef.current, viewModeRef.current, review, flatNative);
         };
 
         const handleMoveEnd = (event: MapEventType["moveend"] & { geoaiNavigationRequestId?: string; geoaiNavigationCamera?: NavigationCamera }) => {
@@ -2263,6 +2317,7 @@ export function LiveObjectMap({
       mapRef.current = null;
       selectAtRef.current = null;
       if (map) {
+        CREATE_MAP_PRESENTATION_OBSERVERS.delete(map);
         if (handleStyleData) map.off("styledata", handleStyleData);
         if (handleStyleReady) map.off("style.load", handleStyleReady);
         restoreBuildingFilters(map);
@@ -2397,7 +2452,7 @@ export function LiveObjectMap({
 
   return (
     <div
-      className={containerClassName}
+      className={`${containerClassName} isolate`}
       role="region"
       aria-label={`${t("map.region")} — ${pointObjectMarket(locationKey).label[locale]}`}
       aria-describedby="live-map-instructions"
@@ -2412,6 +2467,20 @@ export function LiveObjectMap({
       <p id="live-map-instructions" className="sr-only">
         {t(instructionKey)}
       </p>
+      {interactionMode === "create" && createAreaCleared && createMapPresentation ? (
+        <details data-testid="create-map-render-status" className="absolute left-3 top-28 z-10 max-w-[calc(100%-6rem)] rounded-xl border border-line bg-white/95 px-3 text-xs text-[#475467] shadow-sm sm:max-w-sm">
+          <summary className="flex min-h-11 cursor-pointer items-center gap-2 font-semibold focus-visible:outline-2 focus-visible:outline-[#087f8c]">
+            {locale === "ru" ? "Сохранённая концепция" : "Saved concept"}: {createMapPresentation.savedObjects} · {createMapPresentation.layerVisible
+              ? (locale === "ru" ? "слой включён" : "layer enabled") : (locale === "ru" ? "слой скрыт" : "layer hidden")}
+          </summary>
+          <p className="max-w-full break-words pb-3 leading-5">
+            {locale === "ru" ? "Проверка" : "Check"}: {createMapPresentation.reason} · {locale === "ru" ? "масштаб" : "zoom"}: {createMapPresentation.zoom}.<br />
+            {locale === "ru" ? "Источник установлен" : "Source installed"}: {String(createMapPresentation.sourceInstalled)} · {locale === "ru" ? "слой установлен" : "layer installed"}: {String(createMapPresentation.layerInstalled)}.<br />
+            {locale === "ru" ? "Нарисованные части (не число объектов)" : "Rendered parts (not object count)"}: {createMapPresentation.renderedParts ?? "unknown"}.<br />
+            {locale === "ru" ? "Сравнённые пары" : "Compared pairs"}: {createMapPresentation.comparedPairs} · {locale === "ru" ? "непересекающиеся части" : "disjoint members"}: {createMapPresentation.disjointMembers}.
+          </p>
+        </details>
+      ) : null}
       {openProjectGroup ? (
         <div ref={projectGroupDialogRef} role="dialog" aria-label={locale === "ru" ? "Сохранённые результаты в этой точке" : "Saved results at this location"} data-testid="project-location-picker" className="absolute left-3 right-3 top-40 z-20 max-h-[60%] max-w-sm overflow-y-auto rounded-xl border border-[#d7dee4] bg-white p-3 shadow-xl">
           <div className="mb-2 flex items-center justify-between gap-3">
