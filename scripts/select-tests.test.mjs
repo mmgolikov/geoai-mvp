@@ -51,6 +51,7 @@ test("Review02 helpers keep new contracts and downstream journeys in CI", () => 
     "src/lib/prototype/point-to-object-comparison-core.ts",
     "src/lib/prototype/point-to-object-source-admission.ts",
     "src/lib/prototype/point-to-object-volume-edges.ts",
+    "src/lib/prototype/point-to-object-create-map-conflict.ts",
     "components/point-to-object/context-dashboard.tsx"
   ]) {
     const plan = selectPlan([path]);
@@ -64,6 +65,7 @@ test("Review02 helpers keep new contracts and downstream journeys in CI", () => 
   }
   const workflow = readFileSync(new URL(".github/workflows/geoai-quality-gate.yml", repo), "utf8");
   for (const name of ["test:review02-data", "test:review02-map"]) assert.ok(workflow.includes(`npm run ${name}`), name);
+  assert.ok(pkg.scripts["test:review02-map"].includes("scripts/review02-create-map-conflict-check.mjs"), "Create conflict safety stays in the existing CI map gate");
 });
 
 test("Workspace return regression remains in both product browser gates", () => {
