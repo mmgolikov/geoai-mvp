@@ -25,7 +25,10 @@ const geoContext = {
 const footprint = { type: "Polygon", coordinates: [[[55.283, 25.217], [55.284, 25.217], [55.284, 25.218], [55.283, 25.217]]] };
 const fixtures = globalThis as typeof globalThis & { __review29ContextPack: Record<string, unknown> };
 const makePack = (displayGeometry: unknown, tags: Record<string, string>) => ({
-  source: { fabricStatus: "unavailable", fabricDiagnostic: { failureCode: "timeout" } },
+  coordinates: { longitude: 55.283676, latitude: 25.217637, crs: "EPSG:4326" },
+  nearbyContext: [],
+  source: { fabricStatus: "unavailable", fabricDiagnostic: { failureCode: "timeout" },
+    fabricAcquiredAt: null, fabricObservedAt: null, fabricResponseHash: null },
   selectedObject: {
     name: "Offline hotel fixture", displayAddress: "Dubai", featureClass: "tourism:hotel",
     sourceFeatureId: "way/393391115", geometryType: "Polygon", addressParts: { city: "Dubai" },

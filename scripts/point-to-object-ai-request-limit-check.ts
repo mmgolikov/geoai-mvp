@@ -1,6 +1,20 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { stripTypeScriptTypes } from "node:module";
+import { registerHooks, stripTypeScriptTypes } from "node:module";
+
+const comparisonCoreUrl = new URL("../src/lib/prototype/point-to-object-comparison-core.ts", import.meta.url);
+const contractsUrl = new URL("../src/lib/point-to-object/contracts.ts", import.meta.url);
+registerHooks({
+  resolve(specifier, context, nextResolve) {
+    if (context.parentURL === comparisonCoreUrl.href && specifier === "./point-to-object-normalized-context") {
+      return nextResolve(new URL("./point-to-object-normalized-context.ts", comparisonCoreUrl).href, context);
+    }
+    if (context.parentURL === comparisonCoreUrl.href && specifier === "../point-to-object/contracts") {
+      return nextResolve(contractsUrl.href, context);
+    }
+    return nextResolve(specifier, context);
+  }
+});
 
 const fixtureGlobal = globalThis as typeof globalThis & {
   __pointObjectOversizedRequest?: unknown;
@@ -21,6 +35,8 @@ const source = readFileSync(new URL("../src/lib/prototype/point-to-object-ai.ts"
   .replace(/import type \{ GroundablePointObjectEvidencePack \} from "\.\/point-to-object-live-evidence";/, "")
   .replace(/import \{ pointObjectAnalysisRoleScenarioOrUnspecified \} from "\.\/point-to-object-ai-provenance";/,
     'const pointObjectAnalysisRoleScenarioOrUnspecified = () => ({ role: "unspecified", scenario: "unspecified" });')
+  .replace(/from "\.\/point-to-object-comparison-core";/, `from ${JSON.stringify(comparisonCoreUrl.href)};`)
+  .replace(/from "\.\.\/point-to-object\/contracts";/, `from ${JSON.stringify(contractsUrl.href)};`)
   .concat("\nexport { requestOpenAi as __requestOpenAiForCheck };\n");
 
 const service = await import(`data:text/javascript;base64,${Buffer.from(
