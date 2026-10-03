@@ -11,6 +11,8 @@ async function loadSession(): Promise<Record<string, any>> {
   let source = readFileSync(file, "utf8");
   source = source.replace(/from "@\/src\/lib\/prototype\/point-to-object-climate-contract"/,
     `from ${JSON.stringify(pathToFileURL(path.join(process.cwd(), "src/lib/prototype/point-to-object-climate-contract.ts")).href)}`);
+  source = source.replace(/from "@\/src\/lib\/prototype\/point-to-object-normalized-context"/,
+    `from ${JSON.stringify(pathToFileURL(path.join(process.cwd(), "src/lib/prototype/point-to-object-normalized-context.ts")).href)}`);
   source = source.replace(/from "@\/src\/lib\/prototype\/point-to-object-answer-provenance"/,
     `from ${JSON.stringify(pathToFileURL(path.join(process.cwd(), "src/lib/prototype/point-to-object-answer-provenance.ts")).href)}`);
   source = source.replace(/from "@\/src\/lib\/prototype\/point-to-object-fabric-diagnostic"/,
