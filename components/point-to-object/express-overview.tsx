@@ -1,9 +1,17 @@
 import type { LiveMapSelection } from "@/components/point-to-object/live-types";
 import { pointObjectHasSelectedIdentity, pointObjectSelectedLookupId } from "@/src/lib/prototype/point-to-object-trusted-identity";
-import { normalizedResolvedContext } from "@/src/lib/prototype/point-to-object-normalized-context";
+import { CONTEXT_GROUP_LABELS, normalizedResolvedContext } from "@/src/lib/prototype/point-to-object-normalized-context";
 import { PointObjectContextDashboard } from "./context-dashboard";
 
 type Locale = "en" | "ru";
+
+export const EXPRESS_MISSING_DOMAIN_CHECKS = [
+  { group: "transport", en: "Check nearby stops and the walking route to their entrances.", ru: "Проверьте ближайшие остановки и пеший путь до входов." },
+  { group: "retail_daily_needs", en: "Confirm nearby daily services and their opening hours.", ru: "Уточните ближайшие повседневные услуги и часы работы." },
+  { group: "education", en: "Confirm schools, admission and access with their operators.", ru: "Уточните школы, условия приёма и доступ у операторов." },
+  { group: "healthcare", en: "Confirm clinics, available services and access with their operators.", ru: "Уточните клиники, действующие услуги и доступ у операторов." },
+  { group: "open_space", en: "Check parks and public spaces, entrances and public access on site.", ru: "Проверьте парки и общественные пространства, входы и доступ на месте." }
+] as const;
 
 function selectedPolygonAreaSqM(selection: LiveMapSelection): number | null {
   const geometry = selection.object.geometry;
@@ -226,7 +234,15 @@ export function PointObjectExpressOverview({ selection, locale }: { selection: L
           : "Check identity and dimensions against official or owner records. Focused AI analysis is a separate action."}</p>
       </article>
     </div>
-    {selection.resolvedObject ? <div className="mt-5"><PointObjectContextDashboard context={normalizedResolvedContext(selection.resolvedObject, [selection.longitude, selection.latitude])} locale={locale} /></div> : null}
+    {selection.resolvedObject ? <div className="mt-5"><PointObjectContextDashboard context={normalizedResolvedContext(selection.resolvedObject, [selection.longitude, selection.latitude])} locale={locale} /></div> : <section className="mt-5" aria-labelledby="express-missing-domains-title" data-testid="express-missing-domains">
+      <h3 id="express-missing-domains-title" className="text-lg font-bold text-[#243447]">{ru ? "Инфраструктура и окружение" : "Infrastructure & surroundings"}</h3>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">{EXPRESS_MISSING_DOMAIN_CHECKS.map(check => <article key={check.group} className="min-w-0 rounded-xl border border-[#dce6e3] bg-[#f8fafc] p-3" data-testid={`express-missing-${check.group}`}>
+        <h4 className="text-xs font-bold text-[#52657a]">{CONTEXT_GROUP_LABELS[locale][check.group]}</h4>
+        <p className="mt-2 text-sm font-semibold text-[#087f8c]">{ru ? "Недоступно" : "Unavailable"}</p>
+        <p className="mt-1 text-[11px] leading-5 text-[#52657a]">{ru ? "В локальном снимке нет данных окружения." : "No surroundings data in the held snapshot."}</p>
+        <p className="mt-2 text-xs leading-5 text-[#344054]">{check[locale]}</p>
+      </article>)}</div>
+    </section>}
     <p className="mt-4 text-xs leading-5 text-[#52657a]" data-testid="express-unavailable"><span className="font-semibold">{ru ? "Не установлено этой картой:" : "Not established by this map:"}</span> {ru
       ? "права и ограничения, допустимое использование, спрос, стоимость и экономика проекта."
       : "rights and constraints, permitted use, demand, costs and project economics."}</p>
