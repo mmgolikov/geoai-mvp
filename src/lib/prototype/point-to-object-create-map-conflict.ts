@@ -4,11 +4,15 @@ import { pointObjectCompleteFootprintOverlap } from "./point-to-object-map-parti
 import { validatePointObjectReplacementAoi } from "./point-to-object-map-replacement";
 
 export type CreateMapConflictReason = "footprints-clear" | "measured-overlap" | "native-geometry-unmeasurable" | "saved-geometry-invalid" | "query-failed" | "projection-failed";
+export type CreateMapNativeFailure = "unsupported-type" | "empty-coordinates" | "short-ring" | "invalid-position" | "point-budget" | "native-feature-budget" | "metric-overlap-null";
+export type CreateMapNativeGeometryType = "Polygon" | "MultiPolygon" | "Point" | "MultiPoint" | "LineString" | "MultiLineString" | "GeometryCollection" | "unknown";
 export type CreateMapConflictReview = {
   status: "clear" | "overlap" | "uncertain";
   reason: CreateMapConflictReason;
   comparedPairs: number;
   disjointMembers: number;
+  nativeFailureCounts: Record<CreateMapNativeFailure, number>;
+  nativeGeometryCounts: Record<CreateMapNativeGeometryType, number>;
 };
 type Bounds = readonly [number, number, number, number];
 type BoundedPolygon = { polygon: Polygon; bounds: Bounds };
@@ -16,25 +20,39 @@ const MAX_POSITIONS = 5_000;
 const MAX_NATIVE_FEATURES = 2_000;
 const SAVED_TOPOLOGY = new WeakMap<object, { signature: string; valid: boolean }>();
 
-function boundedPolygons(value: unknown): BoundedPolygon[] | null {
-  if (!value || typeof value !== "object" || !("type" in value) || !("coordinates" in value)) return null;
+function nativeGeometryType(value: unknown): CreateMapNativeGeometryType {
+  if (value && typeof value === "object" && "type" in value) {
+    switch (value.type) {
+      case "Polygon": case "MultiPolygon": case "Point": case "MultiPoint":
+      case "LineString": case "MultiLineString": case "GeometryCollection": return value.type;
+    }
+  }
+  return "unknown";
+}
+
+function boundedPolygons(value: unknown, onFailure?: (reason: CreateMapNativeFailure) => void): BoundedPolygon[] | null {
+  const reject = (reason: CreateMapNativeFailure): null => { onFailure?.(reason); return null; };
+  if (!value || typeof value !== "object" || !("type" in value)) return reject("unsupported-type");
+  if (!("coordinates" in value)) return reject("empty-coordinates");
   const coordinates = value.coordinates;
   const polygons = value.type === "Polygon" ? [coordinates] : value.type === "MultiPolygon" ? coordinates : null;
-  if (!Array.isArray(polygons) || !polygons.length) return null;
+  if (value.type !== "Polygon" && value.type !== "MultiPolygon") return reject("unsupported-type");
+  if (!Array.isArray(polygons) || !polygons.length) return reject("empty-coordinates");
   let positions = 0;
   const result: BoundedPolygon[] = [];
   for (const polygon of polygons) {
-    if (!Array.isArray(polygon) || !polygon.length) return null;
+    if (!Array.isArray(polygon) || !polygon.length) return reject("empty-coordinates");
     let west = Infinity, south = Infinity, east = -Infinity, north = -Infinity;
     const rings: Position[][] = [];
     for (const ring of polygon) {
-      if (!Array.isArray(ring) || ring.length < 4) return null;
+      if (!Array.isArray(ring) || ring.length < 4) return reject("short-ring");
       const safeRing: Position[] = [];
       for (const position of ring) {
-        if (++positions > MAX_POSITIONS || !Array.isArray(position) || position.length < 2) return null;
+        if (++positions > MAX_POSITIONS) return reject("point-budget");
+        if (!Array.isArray(position) || position.length < 2) return reject("invalid-position");
         const [longitude, latitude] = position;
         if (typeof longitude !== "number" || typeof latitude !== "number" || !Number.isFinite(longitude) || !Number.isFinite(latitude) ||
-          Math.abs(longitude) > 180 || Math.abs(latitude) > 90) return null;
+          Math.abs(longitude) > 180 || Math.abs(latitude) > 90) return reject("invalid-position");
         west = Math.min(west, longitude); south = Math.min(south, latitude);
         east = Math.max(east, longitude); north = Math.max(north, latitude);
         safeRing.push([longitude, latitude]);
@@ -71,7 +89,13 @@ export function reviewPointObjectCreateMapConflict(
   layers: string[],
   features: readonly { geometry: unknown }[]
 ): CreateMapConflictReview {
-  const review: CreateMapConflictReview = { status: "clear", reason: "footprints-clear", comparedPairs: 0, disjointMembers: 0 };
+  // Fixed aggregate keys only. Counts describe visited query features/pairs,
+  // not unique buildings, source completeness or an authorization decision.
+  const review: CreateMapConflictReview = { status: "clear", reason: "footprints-clear", comparedPairs: 0, disjointMembers: 0,
+    nativeFailureCounts: { "unsupported-type": 0, "empty-coordinates": 0, "short-ring": 0, "invalid-position": 0,
+      "point-budget": 0, "native-feature-budget": 0, "metric-overlap-null": 0 },
+    nativeGeometryCounts: { Polygon: 0, MultiPolygon: 0, Point: 0, MultiPoint: 0, LineString: 0,
+      MultiLineString: 0, GeometryCollection: 0, unknown: 0 } };
   const uncertain = (reason: CreateMapConflictReason): CreateMapConflictReview => ({ ...review, status: "uncertain", reason });
   const saved = features.map(feature => validatedSavedPolygons(feature.geometry));
   if (!features.length || saved.some(member => !member)) return uncertain("saved-geometry-invalid");
@@ -88,10 +112,15 @@ export function reviewPointObjectCreateMapConflict(
   let native: ReturnType<MapLibreMap["queryRenderedFeatures"]>;
   try { native = map.queryRenderedFeatures(box, { layers }); }
   catch { return uncertain("query-failed"); }
-  if (native.length > MAX_NATIVE_FEATURES) return uncertain("native-geometry-unmeasurable");
+  if (native.length > MAX_NATIVE_FEATURES) {
+    review.nativeFailureCounts["native-feature-budget"] += 1;
+    return uncertain("native-geometry-unmeasurable");
+  }
   let hasUnknown = false;
   for (const feature of native) {
-    const members = boundedPolygons(feature.geometry);
+    const geometry = feature.geometry;
+    review.nativeGeometryCounts[nativeGeometryType(geometry)] += 1;
+    const members = boundedPolygons(geometry, reason => { review.nativeFailureCounts[reason] += 1; });
     if (!members) { hasUnknown = true; continue; }
     for (const member of members) {
       const relevant = concepts.filter(concept => !disjoint(member.bounds, concept.bounds));
@@ -101,7 +130,7 @@ export function reviewPointObjectCreateMapConflict(
         // A distant invalid sibling must not poison a measurable local member.
         // Overlap/unknown near the proposal still blocks the entire concept.
         const overlap = pointObjectCompleteFootprintOverlap(member.polygon, concept.polygon);
-        if (!overlap) hasUnknown = true;
+        if (!overlap) { hasUnknown = true; review.nativeFailureCounts["metric-overlap-null"] += 1; }
         else if (overlap.overlapSqM > 0.05) return { ...review, status: "overlap", reason: "measured-overlap" };
       }
     }

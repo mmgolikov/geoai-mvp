@@ -1,6 +1,6 @@
 # REVIEW02 — Saved Create Map Visibility Correction
 
-Status: Candidate / Local contracts PASS / Exact-founder and hosted acceptance UNVERIFIED
+Status: Candidate / Safe aggregate diagnostics local PASS / Actual-founder C1 unresolved (Main observation) / New exact-head hosted diagnostics UNVERIFIED
 
 Date: 2026-10-03. Owner: dev_1. Integrator, builder, browser owner and deployer: main_1 / Root.
 
@@ -71,3 +71,42 @@ Current portable script SHA-256: **`2e014f143ed53795a7e83b9c326eb0e48c6d6efcff52
 Verification: Node **24.19.0**, TypeScript **5.9.3**, reviewer dev_1. Checkout: **60 PASS / networkCalls=0**. Prospective archived no-`.git` tree at `/private/tmp/geoai-review02-portability.YVbfGy`: **60 PASS / networkCalls=0**, same script/map/helper digests. The archive reuses an existing installed dependency tree through a `node_modules` symlink; no install, network or clean-install certification is claimed. A fresh immutable archive of the resulting commit must pass before final handoff, which records its exact location. Diff/secret hygiene PASS on the two-file delta. No app build, browser, broad historical test rerun, CI wiring, owner-branch push or external action is performed here.
 
 Root owns wiring the portable check into its existing bounded map gate, integrated build/publish and the unchanged exact-founder/Compare visual gates. Rollback of this follow-up affects only test/receipt and would reintroduce the recorded portability defect; it does not revert or alter d238 application behavior. Production/main, Auth/environment, saved geometry, source/provider behavior and the independent two-TSX hashes remain unchanged.
+
+## Bounded aggregate diagnostic follow-up — 2026-10-03
+
+Authority: latest explicit Main assignment permits two source files, their pure contract and this receipt, followed by **one local frozen commit**. Clean starting head: `45982b3246adf6f7fd65424757e344f4e8fd8ee8`, same isolated branch/check-out. No Control worktree files, CI, browser, server, provider, dependency installation, Auth, environment, cloud, main or Production action is permitted. Initial forecast: 15–20 minutes; start `2026-10-03T12:05:08Z`. The exact commit and final clean-state receipt are returned externally rather than self-embedded.
+
+Main reports published `d27489acae620b78d0779facddfe76301786d051` still hides the unchanged founder's saved five-volume result. Its aggregate diagnostic is `native-geometry-unmeasurable`, zoom 16.45, source/layer installed, rendered parts 0, compared pairs 0, disjoint members 19. Read-only Git comparison proves the two relevant source files at 45982 and d274 are identical. This observed failure supersedes the earlier unverified founder outcome: **C1 is unresolved, not fixed by the prior bounding-box patch**. Zero compared pairs excludes exact-overlap triangulation as the observed branch; a native feature fails structural normalization before bbox comparison. Its exact subtype remains unverified. No new fixture is presented as the actual founder's geometry.
+
+### Fixed public diagnostic contract
+
+The existing `clear / overlap / uncertain` verdict, reason, measured 0.05 m² threshold, native hiding/restoration, strict saved validation, bbox comparison, low-zoom policy and limits are retained. Diagnostics never alter the verdict, repair geometry, ignore lines/unknowns, create a source request or force visibility.
+
+- `nativeFailureCounts`: fixed keys `unsupported-type`, `empty-coordinates`, `short-ring`, `invalid-position`, `point-budget`, `native-feature-budget`, `metric-overlap-null`.
+- Structural counters record **the first failing structural check per rejected native query feature**, not every malformed position or polygon member. Empty polygon components use `empty-coordinates`; malformed/short rings use `short-ring`; nonfinite/out-of-range positions use `invalid-position`. Missing coordinates fail that check even on an unsupported type.
+- `point-budget` preserves the 5,000-position limit per native feature. `native-feature-budget` is one query-budget event when more than 2,000 features are returned; no geometry traversal is added in that branch.
+- `metric-overlap-null` counts failed **exact comparison pairs**, separately from structural rejections. Saved-geometry failures do not masquerade as native failure counts.
+- `nativeGeometryCounts`: fixed keys `Polygon`, `MultiPolygon`, `Point`, `MultiPoint`, `LineString`, `MultiLineString`, `GeometryCollection`, `unknown`. Arbitrary incoming type strings are mapped to `unknown`, never copied into keys or UI.
+- Geometry counts describe only **visited query features**. Duplicated tile/style features and early-return prefixes are possible: these are not unique buildings, complete source inventory or provider readiness. Zero counts can also mean saved/projection/query/budget short-circuit, not proof of no native features.
+- The existing expandable public surface displays nonzero fixed codes/counts only. No IDs, coordinates, raw geometry, feature properties, provider/session data or credentials are added. Installed source/layer remains installation evidence only.
+
+### Four-file manifest and exact local evidence
+
+| File | Follow-up SHA-256 / scope |
+| --- | --- |
+| `src/lib/prototype/point-to-object-create-map-conflict.ts` | `c077eb8577b086fe23e95b2983981b2114fa51902e4740599a5755d4f1a81d23`; fixed failure/type aggregate counters only |
+| `components/point-to-object/live-object-map.tsx` | `bbc2374b11b480aa74838aeac2db3db606543d97822f7a227bcabe7b21aaa0c5`; typed publication and existing details display only |
+| `scripts/review02-create-map-conflict-check.mjs` | `7b5545384895bd816bbe2c2026a902933bb49f3470a45221550ce80533064f63`; portable frozen-prior differential oracle and diagnostics negatives |
+| This receipt | Scope, units, unresolved actual-founder outcome, evidence limitations and rollback; final hash in handoff |
+
+Verification reviewer: dev_1 owner review, not independent QA. Pure command: bundled Node **24.19.0** `--experimental-strip-types scripts/review02-create-map-conflict-check.mjs`, TypeScript **5.9.3**. **60 existing cases + 65 diagnostic/parity cases PASS; networkCalls=0**. Every fixed failure reason is tested in the classifier and the actual component publication functions; fixed allowlists reject arbitrary type/property identifiers and coordinate leakage. A frozen exact previous helper, pinned SHA-256 `9aab51e39b2bf86ef386b4bd46af166c91e21374fdbb2fac37f9396bf427098f`, establishes unchanged status/reason/pair/disjoint verdicts without a runtime Git dependency. Low-zoom/saved-validation, measured overlap, uncertainty, restoration and data immutability remain covered. A 19-disjoint/zero-pair synthetic case demonstrates diagnostic discrimination only.
+
+`npm run lint -- --incremental false`: PASS on final three code/test files, default Node 20.19.6; no shared incremental cache write. Secret hygiene: PASS, 1,445 tracked paths. Diff check: PASS. Initial differential-harness attempt failed because its isolated function evaluator retained an `export` declaration; the evaluator removes that module keyword for the frozen function invocation only, leaving its pinned input unchanged. Final complete pure contract passed; no product assertion was weakened. Module-type warning remains non-blocking. No package/lockfile or installed dependency changes.
+
+The six original protected native/Analyse functions still satisfy their exact pinned original hashes and one-byte negative oracles. Express (`5cbae26c…`) and Compare (`0fb15737…`) remain byte-identical to their prior reviewed files. No broad build, browser, hosted diagnostic, CI or live-founder acceptance is claimed. Main's independent stale-Locale CI review (`37119719599`) remains separately owned and was not duplicated.
+
+### Handoff and rollback
+
+Main may integrate this diagnostic-only commit under its own authority, run its required integrated gates and inspect the **same saved result without regeneration** through the supported public details surface. Record fixed reason and type counts; do not infer actual geometry from the synthetic test or automatically start another fix cycle. Founder C1 remains NO-GO pending a separately accepted corrective scope and exact result verification. No blind limit increase, AOI mask, line skipping or visibility override is authorized here.
+
+Rollback: revert only this diagnostic descendant to parent `45982b3246adf6f7fd65424757e344f4e8fd8ee8`; saved objects are not rewritten. Git automatic maintenance is disabled for the local staging/commit. External mutations: none; Production/main changed: false; outreach: false; secrets/personal data accessed: false; paid/operator/network calls: 0. Required caveat and source-rights/readiness boundaries remain unchanged. No maturity or C1 acceptance upgrade.

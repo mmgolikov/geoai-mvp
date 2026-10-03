@@ -28,8 +28,10 @@ const mapFor = (geometries, extra = {}) => ({
   queryRenderedFeatures: () => geometries.map(geometry => ({ geometry })), ...extra
 });
 let cases = 0;
+const differentialFixtures = [];
 function expectReview(map, geometry, status, reason) {
   const result = review(map, ["native"], [{ geometry }]);
+  differentialFixtures.push({map,geometry:structuredClone(geometry),result});
   assert.equal(result.status,status); assert.equal(result.reason,reason); cases++;
   return result;
 }
@@ -98,6 +100,190 @@ function functions(text, file = path) {
 const helperPath = "src/lib/prototype/point-to-object-create-map-conflict.ts";
 const helperFunctions = functions(readFileSync(helperPath,"utf8"),helperPath);
 const validation = (await import("../src/lib/prototype/point-to-object-map-replacement.ts")).validatePointObjectReplacementAoi;
+// Frozen exact 45982 helper (SHA pinned below): differential verdict oracle,
+const previousClassifierSource = String.raw`import type { Polygon, Position } from "geojson";
+import type { Map as MapLibreMap } from "maplibre-gl";
+import { pointObjectCompleteFootprintOverlap } from "./point-to-object-map-partition";
+import { validatePointObjectReplacementAoi } from "./point-to-object-map-replacement";
+
+export type CreateMapConflictReason = "footprints-clear" | "measured-overlap" | "native-geometry-unmeasurable" | "saved-geometry-invalid" | "query-failed" | "projection-failed";
+export type CreateMapConflictReview = {
+  status: "clear" | "overlap" | "uncertain";
+  reason: CreateMapConflictReason;
+  comparedPairs: number;
+  disjointMembers: number;
+};
+type Bounds = readonly [number, number, number, number];
+type BoundedPolygon = { polygon: Polygon; bounds: Bounds };
+const MAX_POSITIONS = 5_000;
+const MAX_NATIVE_FEATURES = 2_000;
+const SAVED_TOPOLOGY = new WeakMap<object, { signature: string; valid: boolean }>();
+
+function boundedPolygons(value: unknown): BoundedPolygon[] | null {
+  if (!value || typeof value !== "object" || !("type" in value) || !("coordinates" in value)) return null;
+  const coordinates = value.coordinates;
+  const polygons = value.type === "Polygon" ? [coordinates] : value.type === "MultiPolygon" ? coordinates : null;
+  if (!Array.isArray(polygons) || !polygons.length) return null;
+  let positions = 0;
+  const result: BoundedPolygon[] = [];
+  for (const polygon of polygons) {
+    if (!Array.isArray(polygon) || !polygon.length) return null;
+    let west = Infinity, south = Infinity, east = -Infinity, north = -Infinity;
+    const rings: Position[][] = [];
+    for (const ring of polygon) {
+      if (!Array.isArray(ring) || ring.length < 4) return null;
+      const safeRing: Position[] = [];
+      for (const position of ring) {
+        if (++positions > MAX_POSITIONS || !Array.isArray(position) || position.length < 2) return null;
+        const [longitude, latitude] = position;
+        if (typeof longitude !== "number" || typeof latitude !== "number" || !Number.isFinite(longitude) || !Number.isFinite(latitude) ||
+          Math.abs(longitude) > 180 || Math.abs(latitude) > 90) return null;
+        west = Math.min(west, longitude); south = Math.min(south, latitude);
+        east = Math.max(east, longitude); north = Math.max(north, latitude);
+        safeRing.push([longitude, latitude]);
+      }
+      rings.push(safeRing);
+    }
+    result.push({ polygon: { type: "Polygon", coordinates: rings }, bounds: [west, south, east, north] });
+  }
+  return result;
+}
+
+function disjoint(left: Bounds, right: Bounds): boolean {
+  // Strict inequality preserves touching boundaries for the exact overlap test.
+  return left[2] < right[0] || right[2] < left[0] || left[3] < right[1] || right[3] < left[1];
+}
+
+function validatedSavedPolygons(value: unknown): BoundedPolygon[] | null {
+  const polygons = boundedPolygons(value);
+  if (!polygons || !value || typeof value !== "object") return null;
+  // Cache expensive topology, not a mutable object's presumed trust. The
+  // bounded canonical coordinates are compared every time, including restores.
+  const signature = JSON.stringify(polygons.map(member => member.polygon.coordinates));
+  let cached = SAVED_TOPOLOGY.get(value);
+  if (!cached || cached.signature !== signature) {
+    cached = { signature, valid: polygons.every(member => validatePointObjectReplacementAoi(member.polygon).valid) };
+    SAVED_TOPOLOGY.set(value, cached);
+  }
+  return cached.valid ? polygons : null;
+}
+
+/** Read-only render review. No source acquisition, geometry repair or masking. */
+export function reviewPointObjectCreateMapConflict(
+  map: Pick<MapLibreMap, "project" | "queryRenderedFeatures">,
+  layers: string[],
+  features: readonly { geometry: unknown }[]
+): CreateMapConflictReview {
+  const review: CreateMapConflictReview = { status: "clear", reason: "footprints-clear", comparedPairs: 0, disjointMembers: 0 };
+  const uncertain = (reason: CreateMapConflictReason): CreateMapConflictReview => ({ ...review, status: "uncertain", reason });
+  const saved = features.map(feature => validatedSavedPolygons(feature.geometry));
+  if (!features.length || saved.some(member => !member)) return uncertain("saved-geometry-invalid");
+  const concepts = saved.flatMap(member => member ?? []);
+  // The previous no-visible-native-layer policy is retained; no network probe.
+  if (!layers.length) return review;
+  let box: [[number, number], [number, number]];
+  try {
+    const projected = concepts.flatMap(({ polygon }) => polygon.coordinates.flat().map(position => map.project([position[0], position[1]])));
+    if (projected.some(point => !Number.isFinite(point.x) || !Number.isFinite(point.y))) return uncertain("projection-failed");
+    box = [[Math.min(...projected.map(point => point.x)), Math.min(...projected.map(point => point.y))],
+      [Math.max(...projected.map(point => point.x)), Math.max(...projected.map(point => point.y))]];
+  } catch { return uncertain("projection-failed"); }
+  let native: ReturnType<MapLibreMap["queryRenderedFeatures"]>;
+  try { native = map.queryRenderedFeatures(box, { layers }); }
+  catch { return uncertain("query-failed"); }
+  if (native.length > MAX_NATIVE_FEATURES) return uncertain("native-geometry-unmeasurable");
+  let hasUnknown = false;
+  for (const feature of native) {
+    const members = boundedPolygons(feature.geometry);
+    if (!members) { hasUnknown = true; continue; }
+    for (const member of members) {
+      const relevant = concepts.filter(concept => !disjoint(member.bounds, concept.bounds));
+      if (!relevant.length) { review.disjointMembers += 1; continue; }
+      for (const concept of relevant) {
+        review.comparedPairs += 1;
+        // A distant invalid sibling must not poison a measurable local member.
+        // Overlap/unknown near the proposal still blocks the entire concept.
+        const overlap = pointObjectCompleteFootprintOverlap(member.polygon, concept.polygon);
+        if (!overlap) hasUnknown = true;
+        else if (overlap.overlapSqM > 0.05) return { ...review, status: "overlap", reason: "measured-overlap" };
+      }
+    }
+  }
+  return hasUnknown ? uncertain("native-geometry-unmeasurable") : review;
+}
+`;
+assert.equal(createHash("sha256").update(previousClassifierSource,"utf8").digest("hex"),
+  "9aab51e39b2bf86ef386b4bd46af166c91e21374fdbb2fac37f9396bf427098f");
+const previousFunctions = functions(previousClassifierSource,helperPath);
+const previousCode = ["boundedPolygons","disjoint","validatedSavedPolygons","reviewPointObjectCreateMapConflict"].map(name=>previousFunctions.get(name)).join("\n");
+const previousReview = new Function("MAX_POSITIONS","MAX_NATIVE_FEATURES","SAVED_TOPOLOGY","validatePointObjectReplacementAoi","pointObjectCompleteFootprintOverlap",
+  `${ts.transpileModule(previousCode,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText.replace(/^export /gm,"")}\nreturn reviewPointObjectCreateMapConflict;`)
+  (5000,2000,new WeakMap(),validation,oldOverlap);
+const verdict = ({status,reason,comparedPairs,disjointMembers}) => ({status,reason,comparedPairs,disjointMembers});
+let diagnosticCases = 0;
+for (const {map,geometry,result} of differentialFixtures) {
+  assert.deepEqual(verdict(result),previousReview(map,["native"],[{geometry}]),"Exact frozen prior verdict is unchanged");
+  assert.equal(networkCalls,0); diagnosticCases++;
+}
+const failureKeys = ["unsupported-type","empty-coordinates","short-ring","invalid-position","point-budget","native-feature-budget","metric-overlap-null"];
+const geometryKeys = ["Polygon","MultiPolygon","Point","MultiPoint","LineString","MultiLineString","GeometryCollection","unknown"];
+const zeros = keys => Object.fromEntries(keys.map(key=>[key,0]));
+function expectDiagnostic(geometry, code, type) {
+  const input = mapFor([geometry]);
+  const result = review(input,["native"],[{geometry:concept}]);
+  assert.deepEqual(verdict(result),previousReview(input,["native"],[{geometry:concept}]));
+  assert.equal(result.status,"uncertain");
+  assert.deepEqual(result.nativeFailureCounts,{...zeros(failureKeys),[code]:1});
+  assert.deepEqual(result.nativeGeometryCounts,{...zeros(geometryKeys),[type]:1});
+  assert.equal(networkCalls,0); diagnosticCases++;
+}
+for (const [geometry,code,type] of [
+  [null,"unsupported-type","unknown"],
+  [{coordinates:[]},"unsupported-type","unknown"],
+  [{type:"synthetic-private-provider-session-id",coordinates:[]},"unsupported-type","unknown"],
+  [{type:"__proto__",coordinates:[]},"unsupported-type","unknown"],
+  [{type:"Point",coordinates:[55.27,25.2]},"unsupported-type","Point"],
+  [{type:"MultiPoint",coordinates:[[55.27,25.2]]},"unsupported-type","MultiPoint"],
+  [{type:"LineString",coordinates:[[55.27,25.2],[55.28,25.21]]},"unsupported-type","LineString"],
+  [{type:"MultiLineString",coordinates:[[[55.27,25.2],[55.28,25.21]]]},"unsupported-type","MultiLineString"],
+  [{type:"GeometryCollection",geometries:[]},"empty-coordinates","GeometryCollection"],
+  [{type:"Polygon"},"empty-coordinates","Polygon"],
+  [{type:"Polygon",coordinates:[]},"empty-coordinates","Polygon"],
+  [{type:"Polygon",coordinates:null},"empty-coordinates","Polygon"],
+  [{type:"MultiPolygon",coordinates:[]},"empty-coordinates","MultiPolygon"],
+  [{type:"MultiPolygon",coordinates:null},"empty-coordinates","MultiPolygon"],
+  [{type:"MultiPolygon",coordinates:[[]]},"empty-coordinates","MultiPolygon"],
+  [{type:"Polygon",coordinates:[null]},"short-ring","Polygon"],
+  [{type:"Polygon",coordinates:[[]]},"short-ring","Polygon"],
+  [{type:"Polygon",coordinates:[[[55.27,25.2],[55.28,25.21],[55.27,25.2]]]},"short-ring","Polygon"],
+  [overBudget,"point-budget","Polygon"],
+  [bowtie(55.27,25.2),"metric-overlap-null","Polygon"]
+]) expectDiagnostic(geometry,code,type);
+for (const position of [null,[55.27],["55.27",25.2],[NaN,25.2],[55.27,Infinity],[181,25.2],[55.27,91]]) {
+  const geometry = structuredClone(concept); geometry.coordinates[0][0] = position;
+  expectDiagnostic(geometry,"invalid-position","Polygon");
+}
+const exhausted = mapFor(Array(2001).fill(concept));
+const exhaustedResult = review(exhausted,["native"],[{geometry:concept}]);
+assert.deepEqual(verdict(exhaustedResult),previousReview(exhausted,["native"],[{geometry:concept}]));
+assert.deepEqual(exhaustedResult.nativeFailureCounts,{...zeros(failureKeys),"native-feature-budget":1});
+assert.deepEqual(exhaustedResult.nativeGeometryCounts,zeros(geometryKeys),"Over-budget query is not traversed just for diagnostics");
+assert.equal(networkCalls,0); diagnosticCases++;
+const rejectedWithDisjoint = mapFor([...Array(19).fill(outside),{type:"LineString",coordinates:[[55.27,25.2],[55.28,25.21]]}]);
+const observedShape = review(rejectedWithDisjoint,["native"],[{geometry:concept}]);
+assert.deepEqual(verdict(observedShape),previousReview(rejectedWithDisjoint,["native"],[{geometry:concept}]));
+assert.equal(observedShape.disjointMembers,19); assert.equal(observedShape.comparedPairs,0);
+assert.equal(observedShape.nativeFailureCounts["unsupported-type"],1);
+assert.deepEqual(observedShape.nativeGeometryCounts,{...zeros(geometryKeys),Polygon:19,LineString:1});
+assert.equal(networkCalls,0); diagnosticCases++;
+// A synthetic shape is not identification of the actual founder geometry.
+for (const geometry of [unclosed,zeroArea,selfIntersecting]) {
+  const denied = review(mapFor([],{queryRenderedFeatures:()=>{throw new Error("Saved invalid must short-circuit query");}}),[],[{geometry}]);
+  assert.deepEqual(verdict(denied),previousReview(mapFor([]),[],[{geometry}]));
+  assert.deepEqual(denied.nativeFailureCounts,zeros(failureKeys));
+  assert.deepEqual(denied.nativeGeometryCounts,zeros(geometryKeys));
+  assert.equal(networkCalls,0); diagnosticCases++;
+}
 let topologyCalls = 0;
 const cacheCode = ["boundedPolygons","validatedSavedPolygons"].map(name=>helperFunctions.get(name)).join("\n");
 const cachedValidation = new Function("MAX_POSITIONS","SAVED_TOPOLOGY","validatePointObjectReplacementAoi",
@@ -192,7 +378,38 @@ for (const badZoom of [13.5,16]) {
 zoom=16; sourceData=empty; setCreate(map,[],aoi,true,saved,"3d");
 assert.equal(sourceData.features.length,5,"Style recreation restores the unchanged legacy massing, without an alternative-generation dependency");
 assert.equal(JSON.stringify(saved),savedBytes,"All transitions preserve original saved coordinates, IDs and heights"); cases++;
-assert.deepEqual(Object.keys(diagnostic).sort(),["savedObjects","zoom","sourceInstalled","layerInstalled","layerVisible","renderedParts","check","reason","comparedPairs","disjointMembers"].sort(),"Public diagnostic is an exact no-identity/no-payload allowlist"); cases++;
+assert.deepEqual(Object.keys(diagnostic).sort(),["savedObjects","zoom","sourceInstalled","layerInstalled","layerVisible","renderedParts","check","reason","comparedPairs","disjointMembers","nativeFailureCounts","nativeGeometryCounts"].sort(),"Public diagnostic is an exact no-identity/no-payload allowlist"); cases++;
+native = [{type:"synthetic-private-provider-session-id",coordinates:[],id:"do-not-publish",properties:{provider:"do-not-publish"}}];
+setCreate(map,[],aoi,true,saved,"3d");
+assert.equal(visibility.get("geoai-concept-volume"),"none");
+assert.deepEqual(Object.keys(diagnostic.nativeFailureCounts),failureKeys);
+assert.deepEqual(Object.keys(diagnostic.nativeGeometryCounts),geometryKeys);
+assert.equal(diagnostic.nativeFailureCounts["unsupported-type"],1);
+assert.equal(diagnostic.nativeGeometryCounts.unknown,1);
+assert.ok(!JSON.stringify(diagnostic).includes("synthetic-private-provider-session-id"));
+assert.ok(!JSON.stringify(diagnostic).includes("do-not-publish"));
+assert.equal(networkCalls,0); diagnosticCases++;
+for (const [geometries,code,count] of [
+  [[{type:"LineString",coordinates:[[55.27,25.2],[55.28,25.21]]}],"unsupported-type",1],
+  [[{type:"Polygon",coordinates:[]}],"empty-coordinates",1],
+  [[{type:"Polygon",coordinates:[[]]}],"short-ring",1],
+  [[invalidPosition],"invalid-position",1],
+  [[overBudget],"point-budget",1],
+  [Array(2001).fill(concept),"native-feature-budget",1],
+  [[bowtie(55.27,25.2)],"metric-overlap-null",5]
+]) {
+  native = geometries; setCreate(map,[],aoi,true,saved,"3d");
+  const before = previousReview(mapFor(geometries),["geoai-buildings-3d"],saved.featureCollection.features);
+  assert.deepEqual({status:diagnostic.check,reason:diagnostic.reason,comparedPairs:diagnostic.comparedPairs,disjointMembers:diagnostic.disjointMembers},before);
+  assert.equal(visibility.get("geoai-concept-volume"),"none","Every diagnosed uncertainty retains suppression");
+  assert.equal(diagnostic.nativeFailureCounts[code],count);
+  assert.deepEqual(Object.keys(diagnostic.nativeFailureCounts),failureKeys);
+  assert.deepEqual(Object.keys(diagnostic.nativeGeometryCounts),geometryKeys);
+  assert.ok(!JSON.stringify(diagnostic).includes("55.27"));
+  assert.ok(!JSON.stringify(diagnostic).includes("25.2"));
+  assert.equal(JSON.stringify(saved),savedBytes);
+  assert.equal(networkCalls,0); diagnosticCases++;
+}
 assert.ok(source.includes('className={`${containerClassName} isolate`}'),"Map controls stay in their local stacking context"); cases++;
 assert.equal(networkCalls,0);
-console.log(JSON.stringify({status:"PASS",cases,networkCalls,scope:"pure overlap classification + actual component presentation functions; hosted founder acceptance pending"}));
+console.log(JSON.stringify({status:"PASS",cases,diagnosticCases,networkCalls,scope:"60 existing cases + exact frozen-prior verdict parity and safe aggregate diagnostics; hosted founder acceptance pending"}));

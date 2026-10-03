@@ -96,6 +96,8 @@ type CreateMapPresentation = {
   reason: CreateMapConflictReview["reason"] | "low-zoom-mask";
   comparedPairs: number;
   disjointMembers: number;
+  nativeFailureCounts: CreateMapConflictReview["nativeFailureCounts"];
+  nativeGeometryCounts: CreateMapConflictReview["nativeGeometryCounts"];
 };
 const CREATE_MAP_PRESENTATION_OBSERVERS = new WeakMap<MapLibreMap, (state: CreateMapPresentation | null) => void>();
 
@@ -1032,7 +1034,8 @@ function publishCreateMapPresentation(
     sourceInstalled: Boolean(map.getSource(CONCEPT_SOURCE_ID)), layerInstalled,
     layerVisible: layerInstalled && map.getLayoutProperty(layerId, "visibility") !== "none", renderedParts,
     check: review.status, reason: lowZoom && review.status === "clear" ? "low-zoom-mask" : review.reason,
-    comparedPairs: review.comparedPairs, disjointMembers: review.disjointMembers });
+    comparedPairs: review.comparedPairs, disjointMembers: review.disjointMembers,
+    nativeFailureCounts: review.nativeFailureCounts, nativeGeometryCounts: review.nativeGeometryCounts });
 }
 
 function reviewVisibleCreateConcept(map: MapLibreMap, massing: ConceptMassingResult): CreateMapConflictReview {
@@ -2477,7 +2480,9 @@ export function LiveObjectMap({
             {locale === "ru" ? "Проверка" : "Check"}: {createMapPresentation.reason} · {locale === "ru" ? "масштаб" : "zoom"}: {createMapPresentation.zoom}.<br />
             {locale === "ru" ? "Источник установлен" : "Source installed"}: {String(createMapPresentation.sourceInstalled)} · {locale === "ru" ? "слой установлен" : "layer installed"}: {String(createMapPresentation.layerInstalled)}.<br />
             {locale === "ru" ? "Нарисованные части (не число объектов)" : "Rendered parts (not object count)"}: {createMapPresentation.renderedParts ?? "unknown"}.<br />
-            {locale === "ru" ? "Сравнённые пары" : "Compared pairs"}: {createMapPresentation.comparedPairs} · {locale === "ru" ? "непересекающиеся части" : "disjoint members"}: {createMapPresentation.disjointMembers}.
+            {locale === "ru" ? "Сравнённые пары" : "Compared pairs"}: {createMapPresentation.comparedPairs} · {locale === "ru" ? "непересекающиеся части" : "disjoint members"}: {createMapPresentation.disjointMembers}.<br />
+            {locale === "ru" ? "Причины отказа исходной геометрии" : "Native geometry failure counts"}: {Object.entries(createMapPresentation.nativeFailureCounts).filter(([, count]) => count > 0).map(([code, count]) => `${code}: ${count}`).join(" · ") || "none"}.<br />
+            {locale === "ru" ? "Типы просмотренной геометрии (не уникальные здания)" : "Visited geometry types (not unique buildings)"}: {Object.entries(createMapPresentation.nativeGeometryCounts).filter(([, count]) => count > 0).map(([type, count]) => `${type}: ${count}`).join(" · ") || "none"}.
           </p>
         </details>
       ) : null}
