@@ -110,3 +110,67 @@ The six original protected native/Analyse functions still satisfy their exact pi
 Main may integrate this diagnostic-only commit under its own authority, run its required integrated gates and inspect the **same saved result without regeneration** through the supported public details surface. Record fixed reason and type counts; do not infer actual geometry from the synthetic test or automatically start another fix cycle. Founder C1 remains NO-GO pending a separately accepted corrective scope and exact result verification. No blind limit increase, AOI mask, line skipping or visibility override is authorized here.
 
 Rollback: revert only this diagnostic descendant to parent `45982b3246adf6f7fd65424757e344f4e8fd8ee8`; saved objects are not rewritten. Git automatic maintenance is disabled for the local staging/commit. External mutations: none; Production/main changed: false; outreach: false; secrets/personal data accessed: false; paid/operator/network calls: 0. Required caveat and source-rights/readiness boundaries remain unchanged. No maturity or C1 acceptance upgrade.
+
+## C1 bounded two-stage native review — 2026-10-03
+
+Authority: Main explicitly authorizes this correction within existing REVIEW02 C1, not a new sprint. Only this helper, its existing pure script and this appended receipt are owned; no TSX/Control files, source acquisition, paid/provider, build/browser/server/CI, dependency, Auth/environment, cloud, push/PR/deploy, main or Production changes. Preflight: clean `codex/review02-dashboard-closure@74e2cddd7d3a92bbdd253d4c371f703ee551f20d`; helper and component are byte-identical to Main's observed hosted `7f4cdab9030d3d5c80c80c655144eb13131d79ec`, READY `dpl_7fB2HhfYp9KLiL618yCqX5oFos5e`. Worker start `2026-10-03T13:36:22Z`; final elapsed/commit are supplied in handoff. No new initial estimate was declared for this separate correction; earlier diagnostic forecasts are retained as historical, not backfilled.
+
+### Actual observation and retained non-acceptance
+
+Main's same saved result still has five objects / 66,268 m² AOI / 149,475 m² floor area. At z16.45: `footprints-clear`, layer enabled, rendered parts 6 (not object count), compared pairs 0, disjoint members 19, two visited MultiPolygon features. One zoom-out to z15.45: `point-budget:1`, one visited MultiPolygon, uncertain/hidden, zero comparisons/disjoint members/rendered parts. Returning to z16.45 restores the first state. Main's screenshots: `deliverables/2026-10-02-preview-review/resume03-7f4c-{result-3d,main-clear,main-out1}.png`; these were not opened or recaptured by this worker. No regeneration or paid calls occurred in that Main observation.
+
+The old 5,000-position counter covers the entire native MultiPolygon, including all members/holes, and rejects it before member bbox filtering. Native aggregation/size distribution is not physically read back here. This implementation fixes the bounded synthetic mechanism; it does **not** establish that the actual z15.45 geometry fits the new limits or passes exact topology. C1 remains unaccepted pending Root's same-result hosted check.
+
+### Complete scan and complete plan admission
+
+Saved validation, its object-plus-coordinate-signature cache, `MAX_POSITIONS=5000` and the strict bbox function are byte-identical to 74e2, tested by exact function digests and one-byte negative oracles. No saved payload is repaired or regenerated. Existing no-layer/low-zoom, projection/query handling and native restoration/visibility remain unchanged. TSX is untouched; its existing fixed-count details surface displays the new fixed keys without a new component contract.
+
+1. Scan **all** native query features into complete finite member envelopes, including **every hole**. Counters are review-wide, not reset at feature/member/ring boundaries. Structural rejection discards that feature and preserves uncertainty; cap exhaustion aborts the whole review as uncertain. No completed prefix of a failed feature is returned, and no bbox/exact work begins before aggregate scan completion.
+2. Build/admit the **whole** relevant-member plan using full-member versus each saved-member bounds. Strict disjointness alone bypasses costly topology. Touching bounds still enter exact work. Preflight all vertex/pair/work caps before any exact call; later exhaustion cannot be hidden by an earlier result.
+3. Execute admitted exact pairs through the unchanged overlap kernel. Existing strict source topology/holes and 1,000-vertex ceiling remain; positive overlap greater than 0.05 m² blocks. Null exact measurement remains uncertain. Clear requires all scan/plan gates completed and no unresolved feature or pair. Unsupported/line geometry is not ignored. No coordinate simplification, prefix bounds, AOI mask or forced visibility is added.
+
+| Review-wide boundary | Limit / fail-closed diagnostic |
+| --- | --- |
+| Native query features | Existing 2,000 / `native-feature-budget` |
+| Finite native coordinate scan | 120,000 across all features/rings / `point-budget` (new native unit, not old per-feature 5,000) |
+| Native members | 4,096 / `native-member-budget` |
+| Structural steps | 140,000; feature/member/ring/position visits plus bbox pairs / `native-structure-budget` |
+| Relevant source vertices | Existing 1,000 per Polygon / `exact-vertex-budget` |
+| Admitted exact pairs | 128 across the review / `exact-pair-budget` |
+| Exact complexity admission score | 2,000,000 / `exact-work-budget` |
+
+The complexity score charges each pair for both polygon ring vertex-count cubes, twice their total-vertex squares, and the source × saved vertex product. It accounts conservatively for potentially cubic ear search, topology and triangle-pair costs; it is an **admission estimate, not an interruptible kernel counter or wall-clock guarantee**. Work-cap exhaustion may reject a relevant member below 1,000 vertices. MapLibre query/vector decoding happens outside this pure classifier's own traversal budget and is not benchmark-certified here. Invalid native topology may bypass exact work only when a complete finite envelope proves it spatially disjoint; it is never certified/re-emitted as validated source data.
+
+### Exact local verification and intentional parity differences
+
+Command: bundled Node 24.19.0 `--experimental-strip-types scripts/review02-create-map-conflict-check.mjs`; TypeScript 5.9.3; reviewer dev_1 owner review, not independent QA. Final code/script: **60 original cases + 67 diagnostic/parity cases + 47 native-repair cases PASS; networkCalls=0**. Frozen earlier-source verdict oracle remains active for the original small inputs. Saved/query/projection negatives, cache mutation, threshold/touches/holes, Show existing/generated, 2D/3D, low-zoom and style restoration remain asserted. Exact component/native-protection hashes and public no-ID/no-coordinate allowlists remain checked.
+
+Intentional differences are individually asserted, not broadly exempted: (a) a finite 6,000-position far aggregate now clears after full exclusion, (b) the same far members with one local courtyard still clear only after exact zero-overlap, (c) the same aggregate with a last/first local overlapping member reports overlap, (d) a finite 6,001-position single far ring clears. The frozen former oracle is explicitly uncertain for each of these over-5,000 inputs. Separately, new **stricter** review-wide work/pair caps are proved to turn formerly clear repeated local-courtyard fixtures into uncertain; whole-scan exhaustion is proved to precede a former early overlap return. The 5,001-position repeated-coordinate local negative remains uncertain, now labelled `exact-vertex-budget`, not the former whole-feature `point-budget`.
+
+New negatives cover a near final finite coordinate after 5,000 far positions; last malformed coordinate/hole and empty hole; unsupported lines among far members; a distant exterior with a local invalid hole; large far versus large relevant members; review-wide scan across separate 60,000-position features; member, structural, exact vertex/pair/work exhaustion; unread suffix before/after an overlapping feature; and order permutations. Instrumented actual classifier functions prove **zero exact calls before failed scan/plan admission**. Geometry bytes remain unchanged. Initial run after adding the helper failed only the stale seven-key test allowlist; it was expanded to the twelve fixed allowed codes while retaining the no-payload/identity negatives. No product negative assertion or old verdict oracle was dropped.
+
+`npm run lint -- --incremental false`: PASS on final helper; no shared incremental cache write. Diff check: PASS. No broad suite/build/browser/CI or new scanner run was performed under this package; secret/no-network claims are bounded to static diff review and pure network-zero evidence. Non-blocking module-type warning remains; no package/lockfile/install change.
+
+### Deterministic local synthetic benchmark
+
+Five repeated classifier calls per fixed fixture, each with **five identical synthetic saved footprints**, not the actual founder geometries. Fixture construction/assertions excluded from measured intervals; no actual map engine, browser, tile decoding or hosted performance evidence. Final pre-commit run on the manifest below:
+
+| Fixture | min / median / max milliseconds |
+| --- | --- |
+| 1,200 far members | 0.678 / 0.824 / 2.927 |
+| Far aggregate plus local courtyard (>6,000 positions) | 0.714 / 0.825 / 2.090 |
+| Complete 120,000-position far ring | 3.431 / 5.747 / 9.191 |
+| Unread suffix at position 120,001 | 3.451 / 3.775 / 6.147 |
+| 125 admitted courtyard comparison pairs | 1.373 / 2.211 / 3.406 |
+
+These are observed samples, not maximum runtime guarantees or evidence of acceptable hosted FPS. Other earlier samples showed a 17.096 ms maximum for the complete far ring; retain that variability rather than cherry-picking the final lower maximum.
+
+### Three-file manifest and Root handoff
+
+- `src/lib/prototype/point-to-object-create-map-conflict.ts`: SHA-256 `f18556d74e7f7528a00131da5c042868421363d9d007ee0245bbb62fc7bae025`.
+- `scripts/review02-create-map-conflict-check.mjs`: SHA-256 `1e16d28f3371c2e74aa30dd00ca83ea031cae2a602121acd94769b38e3d67955`.
+- This appended receipt: final hash and exact local commit supplied in handoff. Existing sections are retained as dated historical evidence.
+
+Component remains SHA-256 `bbc2374b11b480aa74838aeac2db3db606543d97822f7a227bcabe7b21aaa0c5`; no TSX change was necessary. Root owns independent review/integration and exact hosted same-founder result at z16.45 → z15.45 → z16.45, with unchanged saved metrics and no regeneration/provider call. If actual geometry exceeds any budget or remains unreadable/relevant, report the fixed code and keep C1 NO-GO; do not automatically enlarge limits or start another cycle. Actual per-member sizes, hosted timing and the final founder outcome remain UNVERIFIED here.
+
+Rollback: revert only this bounded descendant to `74e2cddd7d3a92bbdd253d4c371f703ee551f20d`; saved data, map masking/restoration and Control files remain intact. Exactly one local commit, automatic Git maintenance disabled; no external mutation, push, PR, deployment, main/Production, Auth/environment, hosted data, source/provider, paid/outreach or secret/personal-data action. Caveat/source custody/readiness boundaries remain unchanged; no release or maturity promotion.

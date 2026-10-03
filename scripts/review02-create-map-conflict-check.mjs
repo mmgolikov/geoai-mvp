@@ -12,7 +12,7 @@ registerHooks({ resolve(s, c, next) {
 } });
 let networkCalls = 0;
 globalThis.fetch = () => { networkCalls++; throw new Error("Network forbidden in this pure contract"); };
-const { reviewPointObjectCreateMapConflict: review } = await import("../src/lib/prototype/point-to-object-create-map-conflict.ts");
+const { reviewPointObjectCreateMapConflict: review, pointObjectCreateMapNativeLimits: limits } = await import("../src/lib/prototype/point-to-object-create-map-conflict.ts");
 const { pointObjectCompleteFootprintOverlap: oldOverlap } = await import("../src/lib/prototype/point-to-object-map-partition.ts");
 const { setPointObjectLayerVisibilityIfChanged } = await import("../src/lib/prototype/point-to-object-map-replacement.ts");
 const rectangle = (w, s, e, n) => ({ type: "Polygon", coordinates: [[[w,s],[e,s],[e,n],[w,n],[w,s]]] });
@@ -53,6 +53,7 @@ expectReview(mapFor([rectangle(55.2704,25.2,55.2708,25.2004)]),concept,"clear","
 expectReview(mapFor([rectangle(55.2704,25.2004,55.2708,25.2008)]),concept,"clear","footprints-clear");
 expectReview(mapFor(Array(2001).fill(concept)),concept,"uncertain","native-geometry-unmeasurable");
 const overBudget = {type:"Polygon",coordinates:[Array(5001).fill([55.27,25.2])]};
+const scanOverBudget = {type:"Polygon",coordinates:[Array(120001).fill([55.27,25.2])]};
 expectReview(mapFor([overBudget]),concept,"uncertain","native-geometry-unmeasurable");
 const invalidPosition = structuredClone(outside); invalidPosition.coordinates[0][0][0] = NaN;
 expectReview(mapFor([invalidPosition]),concept,"uncertain","native-geometry-unmeasurable");
@@ -225,7 +226,7 @@ for (const {map,geometry,result} of differentialFixtures) {
   assert.deepEqual(verdict(result),previousReview(map,["native"],[{geometry}]),"Exact frozen prior verdict is unchanged");
   assert.equal(networkCalls,0); diagnosticCases++;
 }
-const failureKeys = ["unsupported-type","empty-coordinates","short-ring","invalid-position","point-budget","native-feature-budget","metric-overlap-null"];
+const failureKeys = ["unsupported-type","empty-coordinates","short-ring","invalid-position","point-budget","native-feature-budget","metric-overlap-null","native-member-budget","native-structure-budget","exact-vertex-budget","exact-pair-budget","exact-work-budget"];
 const geometryKeys = ["Polygon","MultiPolygon","Point","MultiPoint","LineString","MultiLineString","GeometryCollection","unknown"];
 const zeros = keys => Object.fromEntries(keys.map(key=>[key,0]));
 function expectDiagnostic(geometry, code, type) {
@@ -256,7 +257,8 @@ for (const [geometry,code,type] of [
   [{type:"Polygon",coordinates:[null]},"short-ring","Polygon"],
   [{type:"Polygon",coordinates:[[]]},"short-ring","Polygon"],
   [{type:"Polygon",coordinates:[[[55.27,25.2],[55.28,25.21],[55.27,25.2]]]},"short-ring","Polygon"],
-  [overBudget,"point-budget","Polygon"],
+  [overBudget,"exact-vertex-budget","Polygon"],
+  [scanOverBudget,"point-budget","Polygon"],
   [bowtie(55.27,25.2),"metric-overlap-null","Polygon"]
 ]) expectDiagnostic(geometry,code,type);
 for (const position of [null,[55.27],["55.27",25.2],[NaN,25.2],[55.27,Infinity],[181,25.2],[55.27,91]]) {
@@ -283,6 +285,119 @@ for (const geometry of [unclosed,zeroArea,selfIntersecting]) {
   assert.deepEqual(denied.nativeFailureCounts,zeros(failureKeys));
   assert.deepEqual(denied.nativeGeometryCounts,zeros(geometryKeys));
   assert.equal(networkCalls,0); diagnosticCases++;
+}
+let nativeCases = 0;
+assert.deepEqual(limits,{scanPositions:120000,members:4096,structuralSteps:140000,exactPairs:128,exactWork:2000000});
+assert.ok(Object.isFrozen(limits)); nativeCases++;
+for (const [name,expected] of Object.entries({
+  boundedPolygons:"bb1346784947158574b0ea5d3c73ea740b72d6c6ea03a0802fc8ce850f59f532",
+  validatedSavedPolygons:"d25b5fdb800bfa7c7766f92eff007b7eee69b709124ebfef1347ab138c94c7cc",
+  disjoint:"75b829ce0494fcbbcd5d89cd0fa7c38a09512415dac49589ba9fef0993de7bd1"
+})) {
+  assert.equal(createHash("sha256").update(helperFunctions.get(name)).digest("hex"),expected,"Exact 74e2 saved validation/cache/bbox function is unchanged");
+  assert.notEqual(createHash("sha256").update(`${helperFunctions.get(name)}\n`).digest("hex"),expected);
+  nativeCases++;
+}
+assert.ok(readFileSync(helperPath,"utf8").includes("const MAX_POSITIONS = 5_000;")); nativeCases++;
+const completeCode = ["nativeGeometryType","boundedPolygons","disjoint","validatedSavedPolygons","nativeStructureStep","completeNativeEnvelopes","exactPolygonWork","reviewPointObjectCreateMapConflict"].map(name=>helperFunctions.get(name)).join("\n");
+let exactCalls = 0;
+const countedReview = new Function("MAX_POSITIONS","MAX_NATIVE_FEATURES","SAVED_TOPOLOGY","pointObjectCreateMapNativeLimits","pointObjectReplacementMaxVertices","validatePointObjectReplacementAoi","pointObjectCompleteFootprintOverlap",
+  `${ts.transpileModule(completeCode,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText.replace(/^export /gm,"")}\nreturn reviewPointObjectCreateMapConflict;`)
+  (5000,2000,new WeakMap(),limits,1000,validation,(...args)=>{exactCalls++;return oldOverlap(...args);});
+function nativeFixture(geometries,status,code,expectedCalls = null) {
+  const bytes = JSON.stringify(geometries), input = mapFor(geometries);
+  exactCalls = 0;
+  const result = countedReview(input,["native"],[{geometry:concept}]);
+  assert.equal(result.status,status);
+  if (code) assert.equal(result.nativeFailureCounts[code],1);
+  if (expectedCalls !== null) assert.equal(exactCalls,expectedCalls,"No exact work before full scan and plan admission");
+  assert.equal(result.comparedPairs,exactCalls);
+  assert.equal(JSON.stringify(geometries),bytes);
+  assert.equal(networkCalls,0); nativeCases++;
+  return result;
+}
+function circle(vertices, longitude = 55.28, latitude = 25.21, radius = 0.0002) {
+  const ring = Array.from({length:vertices},(_,i)=>[longitude+radius*Math.cos(i*2*Math.PI/vertices),latitude+radius*Math.sin(i*2*Math.PI/vertices)]);
+  ring.push([...ring[0]]); return {type:"Polygon",coordinates:[ring]};
+}
+const farMembers = Array.from({length:1200},(_,i)=>rectangle(55.28+i*0.0000001,25.21,55.28004+i*0.0000001,25.21004).coordinates);
+const farAggregate = {type:"MultiPolygon",coordinates:farMembers};
+const courtyardAggregate = {type:"MultiPolygon",coordinates:[...farMembers,courtyard.coordinates]};
+const overlapAggregate = {type:"MultiPolygon",coordinates:[...farMembers,concept.coordinates]};
+// Intentional differences: valid finite aggregates above old whole-feature
+// 5000 limit. Explicit new clear/overlap oracles, never a blanket parity bypass.
+for (const [geometry,status,pairs] of [[farAggregate,"clear",0],[courtyardAggregate,"clear",1],[overlapAggregate,"overlap",1],[circle(6000),"clear",0]]) {
+  const old = previousReview(mapFor([geometry]),["native"],[{geometry:concept}]);
+  assert.equal(old.status,"uncertain"); assert.equal(old.reason,"native-geometry-unmeasurable");
+  nativeFixture([geometry],status,null,pairs);
+}
+assert.equal(nativeFixture([farAggregate],"clear",null,0).disjointMembers,1200);
+for (const members of [overlapAggregate.coordinates,[...overlapAggregate.coordinates].reverse(),[concept.coordinates,...farMembers.slice(400),...farMembers.slice(0,400)]]) {
+  nativeFixture([{type:"MultiPolygon",coordinates:members}],"overlap",null,1);
+}
+for (const members of [courtyardAggregate.coordinates,[...courtyardAggregate.coordinates].reverse()]) {
+  nativeFixture([{type:"MultiPolygon",coordinates:members}],"clear",null,1);
+}
+const lateInvalid = structuredClone(farAggregate);
+lateInvalid.coordinates.at(-1)[0].at(-1)[0] = NaN;
+nativeFixture([lateInvalid],"uncertain","invalid-position",0);
+const lastCoordinateNear = circle(6000);
+lastCoordinateNear.coordinates[0][5999] = [55.2702,25.2002];
+nativeFixture([lastCoordinateNear],"uncertain","exact-vertex-budget",0);
+const lateHoleInvalid = structuredClone(farAggregate);
+lateHoleInvalid.coordinates.at(-1).push([[55.27,25.2],[55.2701,25.2],[55.2701,25.2001],[Infinity,25.2]]);
+nativeFixture([lateHoleInvalid],"uncertain","invalid-position",0);
+const shortHole = structuredClone(farAggregate); shortHole.coordinates.at(-1).push([]);
+nativeFixture([shortHole],"uncertain","short-ring",0);
+for (const coordinates of [lateInvalid.coordinates,[...lateInvalid.coordinates].reverse()]) {
+  nativeFixture([{type:"MultiPolygon",coordinates}],"uncertain","invalid-position",0);
+}
+for (const geometries of [[farAggregate,{type:"LineString",coordinates:[[55.27,25.2],[55.28,25.21]]}], [{type:"LineString",coordinates:[[55.27,25.2],[55.28,25.21]]},farAggregate]]) {
+  nativeFixture(geometries,"uncertain","unsupported-type",0);
+}
+// A hole outside a distant exterior can reach the concept. Full-ring bounds
+// must select it; strict topology then rejects it instead of a false clear.
+const remoteExteriorLocalHole = structuredClone(outside); remoteExteriorLocalHole.coordinates.push(concept.coordinates[0]);
+nativeFixture([remoteExteriorLocalHole],"uncertain","metric-overlap-null",1);
+nativeFixture([circle(6000,55.2702,25.2002,0.001)],"uncertain","exact-vertex-budget",0);
+nativeFixture([circle(1001,55.2702,25.2002,0.001)],"uncertain","exact-vertex-budget",0);
+nativeFixture([circle(130,55.2702,25.2002,0.001)],"uncertain","exact-work-budget",0);
+const withinWork = circle(100,55.2702,25.2002,0.001); withinWork.coordinates.push(courtyard.coordinates[1]);
+nativeFixture([withinWork],"clear",null,1);
+assert.equal(previousReview(mapFor([withinWork,withinWork]),["native"],[{geometry:concept}]).status,"clear","New review-wide work exhaustion is an explicit stricter safety verdict"); nativeCases++;
+nativeFixture([withinWork,withinWork],"uncertain","exact-work-budget",0);
+nativeFixture(Array(limits.exactPairs).fill(courtyard),"clear",null,limits.exactPairs);
+assert.equal(previousReview(mapFor(Array(limits.exactPairs+1).fill(courtyard)),["native"],[{geometry:concept}]).status,"clear","New exact-pair exhaustion is explicit, never silently omitted from parity"); nativeCases++;
+nativeFixture(Array(limits.exactPairs+1).fill(courtyard),"uncertain","exact-pair-budget",0);
+const atScan = circle(limits.scanPositions-1);
+nativeFixture([atScan],"clear",null,0);
+nativeFixture([circle(limits.scanPositions)],"uncertain","point-budget",0);
+// Budgets are review-wide, not reset for feature, member, ring or exact pair.
+const sixtyThousand = circle(59999);
+nativeFixture([sixtyThousand,sixtyThousand],"clear",null,0);
+nativeFixture([sixtyThousand,circle(60000)],"uncertain","point-budget",0);
+const perMemberCap = {type:"MultiPolygon",coordinates:Array(limits.members+1).fill(outside.coordinates)};
+nativeFixture([perMemberCap],"uncertain","native-member-budget",0);
+const fourPositionRing = [[55.28,25.21],[55.2801,25.21],[55.28,25.2101],[55.28,25.21]];
+nativeFixture([{type:"Polygon",coordinates:Array(30000).fill(fourPositionRing)}],"uncertain","native-structure-budget",0);
+for (const geometries of [[concept,circle(limits.scanPositions)],[circle(limits.scanPositions),concept]]) {
+  const denied = nativeFixture(geometries,"uncertain","point-budget",0);
+  assert.equal(denied.disjointMembers,0,"Unread suffix/prefix cannot establish clearance");
+}
+assert.equal(previousReview(mapFor([concept,circle(limits.scanPositions)]),["native"],[{geometry:concept}]).status,"overlap","New whole-scan admission precedes an old early measured-overlap return"); nativeCases++;
+// Repeat the exact same bounded synthetic fixtures only. Construction/assertion
+// cost excluded; durations are local classifier observations, not hosted FPS.
+const benchmarks = [];
+const benchmarkSaved = Array.from({length:5},()=>({geometry:concept}));
+for (const [name,geometries,status] of [["1200-far-members",[farAggregate],"clear"],["6000-positions-local-courtyard",[courtyardAggregate],"clear"],["120000-position-complete-far-ring",[atScan],"clear"],["120001-position-unread-suffix",[circle(limits.scanPositions)],"uncertain"],["125-admitted-courtyard-pairs",Array(25).fill(courtyard),"clear"]]) {
+  const input = mapFor(geometries); const samples = [];
+  for (let i=0;i<5;i++) {
+    const start = performance.now(); const result = review(input,["native"],benchmarkSaved);
+    samples.push(performance.now()-start); assert.equal(result.status,status); assert.equal(networkCalls,0);
+  }
+  samples.sort((a,b)=>a-b);
+  benchmarks.push({fixture:name,syntheticSavedObjects:5,runs:5,minMs:Number(samples[0].toFixed(3)),medianMs:Number(samples[2].toFixed(3)),maxMs:Number(samples[4].toFixed(3))});
+  nativeCases++;
 }
 let topologyCalls = 0;
 const cacheCode = ["boundedPolygons","validatedSavedPolygons"].map(name=>helperFunctions.get(name)).join("\n");
@@ -394,7 +509,8 @@ for (const [geometries,code,count] of [
   [[{type:"Polygon",coordinates:[]}],"empty-coordinates",1],
   [[{type:"Polygon",coordinates:[[]]}],"short-ring",1],
   [[invalidPosition],"invalid-position",1],
-  [[overBudget],"point-budget",1],
+  [[overBudget],"exact-vertex-budget",1],
+  [[scanOverBudget],"point-budget",1],
   [Array(2001).fill(concept),"native-feature-budget",1],
   [[bowtie(55.27,25.2)],"metric-overlap-null",5]
 ]) {
@@ -412,4 +528,4 @@ for (const [geometries,code,count] of [
 }
 assert.ok(source.includes('className={`${containerClassName} isolate`}'),"Map controls stay in their local stacking context"); cases++;
 assert.equal(networkCalls,0);
-console.log(JSON.stringify({status:"PASS",cases,diagnosticCases,networkCalls,scope:"60 existing cases + exact frozen-prior verdict parity and safe aggregate diagnostics; hosted founder acceptance pending"}));
+console.log(JSON.stringify({status:"PASS",cases,diagnosticCases,nativeCases,networkCalls,limits,benchmarks,scope:"existing negatives + bounded complete native envelopes and intentional aggregate-budget repair; hosted founder acceptance pending"}));
