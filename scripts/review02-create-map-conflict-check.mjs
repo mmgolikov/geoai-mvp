@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { registerHooks } from "node:module";
 import ts from "typescript";
 
@@ -108,9 +108,24 @@ assert.equal(topologyCalls,1,"Unchanged geometry does not repeat expensive topol
 repeatedSaved.coordinates[0].pop(); assert.equal(cachedValidation(repeatedSaved),null);
 assert.equal(topologyCalls,2,"Mutation invalidates cached trust before a no-native shortcut"); cases++;
 const current = functions(source);
-const baseline = functions(execFileSync("git",["show",`666c570b4f1e54b8468c02fdaa715af7cb753c03:${path}`],{encoding:"utf8"}));
-for (const name of ["visibleNativeConceptConflict","applyBuildingReplacement","restoreBuildingFilters","setHighlight","sanitizeGeometry","buildingLayerIds"]) {
-  assert.ok(current.has(name)); assert.equal(current.get(name),baseline.get(name),`${name}: existing native/Analyse protection is byte-identical`); cases++;
+// Exact UTF-8 FunctionDeclaration.getText() digests independently read from
+// original 666c570b4f1e54b8468c02fdaa715af7cb753c03. This provenance label is
+// historical, not a runtime Git dependency: owner commits can be cherry-picked
+// into a clean/shallow CI clone or tested in an archive with no .git directory.
+const protectedFunctionSHA256 = Object.freeze({
+  visibleNativeConceptConflict: "638d7ecd91542fb00f60fa880842df721b901d1e2f75acbc7c5ec96043664c33",
+  applyBuildingReplacement: "9a76c919416af04d12bd53f100d728ba0ea3dc2be4ad64840185a393098afe2d",
+  restoreBuildingFilters: "4d729abe375b5ee19f7679621a936021e7791d60f2019de2edbd49f80e225e4d",
+  setHighlight: "c7ee68318f85ef23d58c531f410c22108e57aa0b86336665a7d94d4632a50a68",
+  sanitizeGeometry: "c00e928f4b15e5c96c6e63f3c33d8c3f48b9e8c01b9aaf4cba83d01360ecea3e",
+  buildingLayerIds: "6d19ed7da84f0fc456daa8fb882f2157d69be79263d98936e06dddd93783c951"
+});
+for (const [name, expected] of Object.entries(protectedFunctionSHA256)) {
+  assert.ok(current.has(name));
+  const text = current.get(name);
+  assert.equal(createHash("sha256").update(text,"utf8").digest("hex"),expected,`${name}: existing native/Analyse protection is byte-identical to original 666c570b`);
+  assert.notEqual(createHash("sha256").update(`${text}\n`,"utf8").digest("hex"),expected,`${name}: a one-byte text change cannot satisfy the pinned protection oracle`);
+  cases++;
 }
 const observers = new WeakMap();
 const empty = {type:"FeatureCollection",features:[]};

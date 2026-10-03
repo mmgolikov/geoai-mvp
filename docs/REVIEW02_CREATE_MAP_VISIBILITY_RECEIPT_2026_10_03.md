@@ -16,7 +16,7 @@ Root's same saved result: 66,268 m² AOI, 15,242 m² generated footprint, 23% co
 
 **Proven local mechanism:** the former whole-MultiPolygon intersection check returns null if any member is invalid, including a distant member. A pure regression combines a measurable courtyard with zero local overlap and a disjoint invalid sibling: the old helper returns null (suppressing the entire proposal), whereas the new member-wise review returns clear. This proves a code defect, not that this particular native geometry caused the hosted founder failure.
 
-## Four-file change manifest
+## Initial four-file change manifest — commit d23807963f34c6916c14da2b8f907d10726f6277
 
 | File | Bounded change / SHA-256 |
 | --- | --- |
@@ -59,3 +59,15 @@ Integrate this one scoped descendant, perform exact-commit independent review, b
 Rollback: revert the scoped corrective commit on the integration Candidate. Starting point is `666c570b4f1e54b8468c02fdaa715af7cb753c03`; saved browser-local geometry is neither rewritten nor regenerated. No reset, GC/repack, main/release or Production rollback is authorized or performed. Automatic Git maintenance is disabled for local staging/commit.
 
 Production/main changed: false. External mutations: none. External outreach: false. Secrets/personal data accessed: false. Interviews/WTP/proposals/paid pilots performed: 0/0/0/0. Source rights/custody/live status and hosted S0 readiness are not reassessed or upgraded. Research economics are absent. Required caveat is unchanged: “Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.”
+
+## Test-portability follow-up — 2026-10-03
+
+Root's exact-d238 scoped static review is CLEAR and the saved-topology P2 is closed. **Initial portability finding is retained:** the test invokes `git show 666c570b…` even though Control integrates cherry-picks and does not publish that owner history. A clean CI clone may lack the object. The original d238 script was reproduced in an archive without `.git`: script exit 1, child Git exit 128, `fatal: not a git repository`. This is a test packaging defect, not an application/geometry assertion failure.
+
+Authorized follow-up changes **only** this receipt and `scripts/review02-create-map-conflict-check.mjs`. The script removes the child-process/Git dependency and pins SHA-256 of the exact UTF-8 TypeScript `FunctionDeclaration.getText()` for all six original protected functions. Digests were independently calculated from original `666c570b4f1e54b8468c02fdaa715af7cb753c03`; the commit is now a provenance label, never a runtime dependency. No trimming, normalization, omitted body or skipped negative oracle. Each original six-function check remains one case and additionally rejects a one-byte text change. All existing overlap, query, malformed/saved topology, cache, legacy presentation and low-zoom negatives remain unchanged; total remains **60 cases**.
+
+Current portable script SHA-256: **`2e014f143ed53795a7e83b9c326eb0e48c6d6efcff52ad0633aaf0ee14785ae6`**. The earlier `64e0…` manifest is historical d238 evidence, not the current test version. Application/map SHA-256 remains `b036dc7745d03ff8c352308cec335d643939523f0493f8cc340c56c7edd14135`; helper remains `9aab51e39b2bf86ef386b4bd46af166c91e21374fdbb2fac37f9396bf427098f`.
+
+Verification: Node **24.19.0**, TypeScript **5.9.3**, reviewer dev_1. Checkout: **60 PASS / networkCalls=0**. Prospective archived no-`.git` tree at `/private/tmp/geoai-review02-portability.YVbfGy`: **60 PASS / networkCalls=0**, same script/map/helper digests. The archive reuses an existing installed dependency tree through a `node_modules` symlink; no install, network or clean-install certification is claimed. A fresh immutable archive of the resulting commit must pass before final handoff, which records its exact location. Diff/secret hygiene PASS on the two-file delta. No app build, browser, broad historical test rerun, CI wiring, owner-branch push or external action is performed here.
+
+Root owns wiring the portable check into its existing bounded map gate, integrated build/publish and the unchanged exact-founder/Compare visual gates. Rollback of this follow-up affects only test/receipt and would reintroduce the recorded portability defect; it does not revert or alter d238 application behavior. Production/main, Auth/environment, saved geometry, source/provider behavior and the independent two-TSX hashes remain unchanged.
