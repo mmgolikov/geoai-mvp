@@ -15,6 +15,17 @@ const capabilities = read("src/lib/prototype/point-to-object-find-capabilities.t
 const i18n = read("src/lib/prototype/point-to-object-i18n.ts");
 const header = read("components/point-to-object/prototype-header.tsx");
 const mobileCss = read("components/point-to-object/mobile-workspace.module.css");
+const replacement = read("src/lib/prototype/point-to-object-map-replacement.ts");
+
+let rejectedMutationChecks = 0;
+function assertRejectedMutation(source, target, replacementText, check, expectedFailure) {
+  assert.equal(source.split(target).length - 1, 1,
+    `Negative mutation target must exist exactly once: ${target}`);
+  const mutated = source.replace(target, replacementText);
+  assert.notEqual(mutated, source, "Negative mutations must change the consumer source");
+  assert.throws(() => check(mutated), expectedFailure);
+  rejectedMutationChecks += 1;
+}
 
 assert.match(client, /expectedSourceFeatureId: exactOsmFeatureId\(selection\.object\.sourceFeatureId\)/);
 assert.match(client, /const expectedSourceFeatureId = exactOsmFeatureId\(candidate\.sourceFeatureId\)/);
@@ -142,7 +153,7 @@ const markStaleEnd = client.indexOf("function changeFindRole", markStaleStart);
 const markStale = client.slice(markStaleStart, markStaleEnd);
 assert.doesNotMatch(markStale, /setFindShortlist|setFindComparisonOpen|setFindAnalysisTargetSourceFeatureId/, "Marking stale must preserve analysis continuity");
 const localeEffectStart = client.indexOf('if (!sessionReady || previousLocaleRef.current === locale) return;');
-const localeEffectEnd = client.indexOf('}, [locale, sessionReady]);', localeEffectStart);
+const localeEffectEnd = client.indexOf('}, [locale, mode, sessionReady]);', localeEffectStart);
 const localeEffect = client.slice(localeEffectStart, localeEffectEnd);
 assert.ok(localeEffectStart >= 0 && localeEffectEnd > localeEffectStart, "Locale transition effect must be addressable");
 assert.doesNotMatch(localeEffect, /setFindResult\(null\)|setFindResultIntent\(null\)|setFindShortlist\(\[\]\)|setFindComparisonOpen\(false\)|setFindAnalysisTargetSourceFeatureId\(null\)/, "Locale changes must mark existing Find output stale without deleting its lineage or continuation state");
@@ -207,16 +218,33 @@ assert.match(client, /data-testid="create-map-presentation-toggle"/);
 assert.match(client, /function toggleCreateMapPresentation\(\)[\s\S]*if \(createAreaCleared\) \{[\s\S]*setCreateAreaCleared\(false\)/,
   "A requested replacement, including partial coverage, must retain an explicit restore action");
 function assertDurableConceptVisibility(source) {
-  assert.match(source, /const lowZoom = map\.getZoom\(\) < pointObjectReplacementMinimumReliableZoom;/,
-    "Low zoom must use the explicit native replacement reliability boundary");
-  assert.match(source, /const canShowConcept = Boolean\(massing && aoi && suppressExistingBuildings &&\s*\(lowZoom \|\| !visibleNativeConceptConflict\(map, massing\)\)\);/,
+  assert.match(source, /const NATIVE_VOLUME_MIN_ZOOM = 14;/,
+    "Native extrusion presentation must retain its distinct z14 boundary");
+  assert.match(source, /const lowZoom = map\.getZoom\(\) < NATIVE_VOLUME_MIN_ZOOM;/,
+    "Low zoom must cover the flat-native transition until native extrusions start");
+  assert.match(source, /if \(map\.getZoom\(\) < pointObjectReplacementMinimumReliableZoom\) \{\s*restoreBuildingFilters\(map\);\s*replacementStatus = "zoom-required";/,
+    "Native replacement must retain its separate reliable-zoom restoration guard");
+  assert.match(source, /function reviewVisibleCreateConcept\(map: MapLibreMap, massing: ConceptMassingResult\): CreateMapConflictReview \{\s*return reviewPointObjectCreateMapConflict\(map,\s*buildingLayerIds\(map\)\.filter\(id => map\.getLayoutProperty\(id, "visibility"\) !== "none"\),\s*massing\.featureCollection\.features\);\s*\}/,
+    "Detailed review must bind visible native layers to reject native collisions");
+  assert.match(source, /const review = massing && aoi && suppressExistingBuildings \? lowZoom\s*\? reviewPointObjectCreateMapConflict\(map, \[\], massing\.featureCollection\.features\)\s*:\s*reviewVisibleCreateConcept\(map, massing\) : null;\s*const canShowConcept = review\?\.status === "clear";/,
     "Detailed zoom must still reject native collisions, independent of temporary source loading");
   assert.match(source, /setPointObjectLayerVisibilityIfChanged\(map, CREATE_AOI_MASK_LAYER_ID,\s*canShowConcept && lowZoom \? "visible" : "none"\);/,
     "The low-zoom concept must cover generalized native footprints with its site mask");
 }
+assert.match(replacement, /export const pointObjectReplacementMinimumReliableZoom = 13 as const;/,
+  "Native replacement reliability must remain z13, distinct from native extrusion presentation at z14");
 assertDurableConceptVisibility(map);
-assert.throws(() => assertDurableConceptVisibility(map.replace("!visibleNativeConceptConflict(map, massing)", "true")), /native collisions/);
-assert.throws(() => assertDurableConceptVisibility(map.replace('canShowConcept && lowZoom ? "visible" : "none"', '"none"')), /site mask/);
+assertRejectedMutation(map, 'const canShowConcept = review?.status === "clear";',
+  "const canShowConcept = true;", assertDurableConceptVisibility, /native collisions/);
+assertRejectedMutation(map, ": reviewVisibleCreateConcept(map, massing) : null;",
+  ": reviewPointObjectCreateMapConflict(map, [], massing.featureCollection.features) : null;",
+  assertDurableConceptVisibility, /native collisions/);
+assertRejectedMutation(map, 'buildingLayerIds(map).filter(id => map.getLayoutProperty(id, "visibility") !== "none")',
+  "[]", assertDurableConceptVisibility, /native collisions/);
+assertRejectedMutation(map, "? reviewPointObjectCreateMapConflict(map, [], massing.featureCollection.features)",
+  '? { status: "clear" }', assertDurableConceptVisibility, /native collisions/);
+assertRejectedMutation(map, 'canShowConcept && lowZoom ? "visible" : "none"',
+  '"none"', assertDurableConceptVisibility, /site mask/);
 assert.match(client, /"Show generated concept"/);
 assert.match(client, /"Hide existing buildings"/);
 assert.match(client, /setCreateReplacementRevision\(\(revision\) => revision \+ 1\)/);
@@ -236,17 +264,60 @@ assert.doesNotMatch(pendingInvalidation, /onReset\(\)/, "Draft edits must preser
 assert.match(create, /function selectTemplate[\s\S]*invalidatePendingRequest\(\);[\s\S]*setTemplateId/);
 assert.match(create, /function updateControl[\s\S]*invalidatePendingRequest\(\);[\s\S]*setControls/);
 assert.match(create, /lockedControlKeys: \[\.\.\.lockedControlKeys\]/, "Create must send the explicit fixed controls to the engine lock contract");
-assert.match(create, /setLockedControlKeys\(new Set\(POINT_OBJECT_CREATE_EDITOR_CONTROL_KEYS\)\)/, "Template and local reset actions must preserve the fixed-default contract");
-assert.doesNotMatch(create, /setLockedControlKeys\(new Set\(\)\)/, "Reset must not silently restore soft controls");
+function assertCreateControlIntent(source) {
+  const templateStart = source.indexOf("function selectTemplate(");
+  const manualStart = source.indexOf("function updateControl<", templateStart);
+  const autoStart = source.indexOf("function useAutoControls()", manualStart);
+  const resetStart = source.indexOf("function resetEditedControls()", autoStart);
+  const generateStart = source.indexOf("async function generate()", resetStart);
+  assert.ok(templateStart >= 0 && manualStart > templateStart && autoStart > manualStart &&
+    resetStart > autoStart && generateStart > resetStart, "Create control handlers must be addressable");
+  for (const handler of [source.slice(templateStart, manualStart), source.slice(resetStart, generateStart)]) {
+    assert.match(handler, /invalidatePendingRequest\(\);[\s\S]*setControls\(controlsFrom\(conceptSiteDefaults\(/,
+      "Template/reset must cancel pending work and use geometric defaults");
+    assert.match(handler, /explicitControlsRef\.current = false;[\s\S]*setLockedControlKeys\(new Set\(\)\)/,
+      "Template/reset defaults must be Auto until the user explicitly edits them");
+    assert.doesNotMatch(handler, /onReset\(|onGenerated\(|fetch\(/,
+      "Template/reset draft changes must preserve the committed result without generation");
+  }
+  const manual = source.slice(manualStart, autoStart);
+  assert.match(manual, /explicitControlsRef\.current = true;/);
+  assert.match(manual, /setLockedControlKeys\(\(current\) => \{\s*const updated = new Set\(current\);\s*updated\.add\(key\);[\s\S]*if \(correctedPair\) \{\s*updated\.add\("levelsMin"\);\s*updated\.add\("levelsMax"\);\s*\}[\s\S]*return updated;/,
+    "Manual edits must retain existing locks and fix the edited key plus any corrected level pair");
+  assert.doesNotMatch(manual, /setLockedControlKeys\(new Set\(\)\)/,
+    "Manual edits must not silently clear explicit locks");
+  assert.match(source, /const \[lockedControlKeys, setLockedControlKeys\] = useState<Set<ControlKey>>\(\(\) => new Set\(restoredEditor\?\.lockedControlKeys \?\? \[\]\)\);/,
+    "Initial restore must preserve saved explicit locks; only a fresh draft defaults to Auto");
+  assert.match(source, /setLockedControlKeys\(new Set\(nextRestored\?\.lockedControlKeys \?\? \[\]\)\);/,
+    "Scope restore must preserve saved explicit locks; only a fresh draft defaults to Auto");
+}
+assertCreateControlIntent(create);
+assertRejectedMutation(create, "updated.add(key);", "", assertCreateControlIntent, /Manual edits/);
+assertRejectedMutation(create, "new Set(restoredEditor?.lockedControlKeys ?? [])", "new Set([])",
+  assertCreateControlIntent, /Initial restore/);
+assertRejectedMutation(create, "setLockedControlKeys(new Set(nextRestored?.lockedControlKeys ?? []));",
+  "setLockedControlKeys(new Set());", assertCreateControlIntent, /Scope restore/);
 assert.ok(create.includes('data-testid={`create-alternative-${alternative.id.toLowerCase()}`}'), "Create must expose stable A/B option controls");
 assert.match(client, /conceptMassing=\{mode === "create" \? activeConceptMassing : null\}/, "The map must render the active returned concept alternative");
 assert.match(create, /id="point-object-create-prompt"[\s\S]*onChange=\{\(event\) => \{[\s\S]*invalidatePendingRequest\(\);[\s\S]*setCustomPrompt/);
-assert.match(create, /const preflightBlocked = !preflightCurrent \|\| \["checking", "failed", "suggestion"\]\.includes\(preflightCurrent\.kind\);/,
-  "Create must block generation until the current local placement check is ready or not applicable");
-assert.match(create, /async function generate\(\)[\s\S]*if \(loading \|\| generatedFromCurrentDraft \|\| preflightBlocked\) return;/,
-  "The generation handler must retain loading, unchanged-draft and preflight no-op guards");
-assert.match(create, /disabled=\{loading \|\| generatedFromCurrentDraft \|\| preflightBlocked\}/,
-  "The Generate control must expose the same loading, unchanged-draft and preflight blockers natively");
+function assertCreateGenerationAdmission(source) {
+  assert.match(source, /const preflightBlocked = Boolean\(parameterError\) \|\| !preflightCurrent \|\| \["checking", "failed", "suggestion"\]\.includes\(preflightCurrent\.kind\);/,
+    "Create must block parameter errors and require the current ready or not-applicable preflight");
+  assert.match(source, /const legacyResultNeedsExplicitEdit = Boolean\(generated && committedDraftKey === null && !legacyDraftEdited\);/,
+    "Legacy results without original draft inputs require an explicit edit before generation");
+  assert.match(source, /async function generate\(\)[\s\S]*if \(loading \|\| generatedFromCurrentDraft \|\| legacyResultNeedsExplicitEdit \|\| preflightBlocked\) return;/,
+    "The generation handler must retain loading, unchanged-draft, legacy-edit and preflight no-op guards");
+  assert.match(source, /disabled=\{loading \|\| generatedFromCurrentDraft \|\| legacyResultNeedsExplicitEdit \|\| preflightBlocked\}/,
+    "The Generate control must expose the same loading, unchanged-draft, legacy-edit and preflight blockers natively");
+}
+assertCreateGenerationAdmission(create);
+assertRejectedMutation(create, "Boolean(parameterError) || ", "", assertCreateGenerationAdmission, /parameter errors/);
+assertRejectedMutation(create, "if (loading || generatedFromCurrentDraft || legacyResultNeedsExplicitEdit || preflightBlocked) return;",
+  "if (loading || generatedFromCurrentDraft || preflightBlocked) return;",
+  assertCreateGenerationAdmission, /generation handler/);
+assertRejectedMutation(create, "disabled={loading || generatedFromCurrentDraft || legacyResultNeedsExplicitEdit || preflightBlocked}",
+  "disabled={loading || generatedFromCurrentDraft || preflightBlocked}",
+  assertCreateGenerationAdmission, /Generate control/);
 assert.match(create, /generatedLocale === locale/);
 assert.match(create, /create-result-language-stale/);
 assert.match(create, /upToDate: "Already generated"/);
@@ -269,4 +340,4 @@ assert.match(map, /interactionMode === "find"/);
 assert.match(header, /sm:hidden[^>]*" aria-hidden="true">←/);
 assert.match(header, /hidden sm:inline/);
 
-console.log("point-to-object V5 interaction contract checks passed");
+console.log(`point-to-object V5 interaction contract checks passed (${rejectedMutationChecks} rejected bypass mutations)`);
