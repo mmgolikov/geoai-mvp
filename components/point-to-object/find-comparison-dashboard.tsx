@@ -8,7 +8,7 @@ import { useModalShell } from "@/components/point-to-object/use-modal-shell";
 import { pointObjectFindCandidateResultKind, type PointObjectFindCandidate, type PointObjectFindResult } from "@/src/lib/prototype/point-to-object-find-contract";
 import type { LiveResolvedObjectContext } from "./live-types";
 import { parseLiveResolvedObject } from "./live-session";
-import { CONTEXT_GROUP_LABELS, normalizedResolvedContext } from "@/src/lib/prototype/point-to-object-normalized-context";
+import { CONTEXT_GROUP_LABELS, normalizedResolvedContext, type PointObjectNormalizedContext } from "@/src/lib/prototype/point-to-object-normalized-context";
 import { publicEvidenceReceiptIsCurrent } from "@/src/lib/prototype/point-to-object-evidence-receipt";
 import { nominatimLocale } from "@/src/lib/prototype/point-to-object-markets";
 import { parsePointObjectComparisonInsight, type PointObjectComparisonInsight } from "@/src/lib/prototype/point-to-object-comparison-core";
@@ -79,6 +79,59 @@ function CandidateMapContext({ candidates, locale, marketKey, activeId, onSelect
 }
 const ignoreSelection = () => undefined;
 
+/** Presentation only: aligned observations are not a current or exhaustive inventory.
+ * Keep the existing source/AI admission contracts independent of this explanation. */
+export function comparisonMetricComparability(contexts: Array<PointObjectNormalizedContext | null>, metricId: string, locale: Props["locale"]): { comparable: boolean; explanation: string } {
+  const ru = locale === "ru";
+  const blocked = (en: string, russian: string) => ({ comparable: false, explanation: ru ? russian : en });
+  if (contexts.length < 2 || contexts.some(context => !context || context.coverage === "unavailable")) return blocked("Not comparable: at least one candidate has no held context sample.", "Несопоставимо: у одного из кандидатов нет сохранённой выборки окружения.");
+  const snapshots = contexts as PointObjectNormalizedContext[];
+  if (snapshots.some(context => context.capReached || context.coverage === "partial")) return blocked("Not comparable: a sample reached its cap; totals may be truncated.", "Несопоставимо: достигнут предел выборки; количества могут быть усечены.");
+  const first = snapshots[0];
+  if (snapshots.some(context => context.version !== first.version || context.source.name !== first.source.name || context.scope.kind !== "point_radius" || context.scope.radiusM !== first.scope.radiusM) || !first.scope.radiusM) return blocked("Not comparable: source definitions or query scopes differ or are unknown.", "Несопоставимо: определения источника или области запросов различаются либо неизвестны.");
+  if (snapshots.some(context => !context.source.responseHash || !/^[a-f0-9]{64}$/.test(context.source.responseHash))) return blocked("Not comparable: a context source fingerprint is missing; legacy observations are retained only.", "Несопоставимо: нет отпечатка источника окружения; старые наблюдения только сохранены.");
+  const acquired = snapshots.map(context => Date.parse(context.source.acquiredAt ?? ""));
+  if (acquired.some(time => !Number.isFinite(time))) return blocked("Not comparable: a context acquisition time is unknown.", "Несопоставимо: время получения окружения неизвестно.");
+  if (Math.max(...acquired) - Math.min(...acquired) > 15 * 60_000) return blocked("Not comparable: context acquisitions are more than 15 minutes apart.", "Несопоставимо: данные окружения получены с разницей более 15 минут.");
+  const observed = snapshots.map(context => context.source.observedAt === null ? null : Date.parse(context.source.observedAt));
+  const knownObserved = observed.filter((time): time is number => time !== null);
+  if (knownObserved.some(time => !Number.isFinite(time)) || knownObserved.length > 1 && Math.max(...knownObserved) - Math.min(...knownObserved) > 15 * 60_000) return blocked("Not comparable: reported source update times differ by more than 15 minutes or are invalid.", "Несопоставимо: указанные времена обновления источника различаются более чем на 15 минут либо некорректны.");
+  const metrics = snapshots.map(context => context.metrics.find(metric => metric.id === metricId));
+  if (metrics.some(metric => !metric || metric.status !== "derived" || metric.value === null || !Number.isFinite(metric.value))) return blocked("Not comparable: this metric is unknown or unavailable for a candidate; no delta or ranking.", "Несопоставимо: параметр одного из кандидатов неизвестен или недоступен; без разницы и ранжирования.");
+  if (metrics.some(metric => metric!.unit !== metrics[0]!.unit || metric!.method !== metrics[0]!.method)) return blocked("Not comparable: metric units or calculation methods differ.", "Несопоставимо: единицы или методы расчёта различаются.");
+  return { comparable: true, explanation: ru
+    ? `Сопоставимы только ограниченные выборки: одинаковые метод и радиус, получение в пределах 15 минут. ${knownObserved.length === snapshots.length ? "Указанные обновления источника согласованы; это не гарантия актуальности." : "Свежесть источника неизвестна хотя бы для одного кандидата."}`
+    : `Comparable bounded samples only: same method and radius, acquisitions within 15 minutes. ${knownObserved.length === snapshots.length ? "Reported source updates are aligned, not a guarantee of current data." : "Source freshness is unknown for at least one candidate."}` };
+}
+
+export function comparisonSnapshotAge(acquiredAt: string | null, asOfMs: number | null, locale: Props["locale"]): string {
+  const acquiredMs = Date.parse(acquiredAt ?? "");
+  if (!Number.isFinite(acquiredMs) || asOfMs === null) return locale === "ru" ? "Возраст неизвестен" : "Age unknown";
+  if (!Number.isFinite(asOfMs) || acquiredMs > asOfMs) return locale === "ru" ? "Несогласованное время" : "Inconsistent timestamp";
+  const minutes = Math.floor((asOfMs - acquiredMs) / 60_000);
+  if (minutes < 1) return locale === "ru" ? "Менее 1 мин" : "Less than 1 min";
+  const days = Math.floor(minutes / 1440), hours = Math.floor(minutes % 1440 / 60), remainder = minutes % 60;
+  return locale === "ru" ? `${days ? `${days} д ` : ""}${hours ? `${hours} ч ` : ""}${remainder} мин` : `${days ? `${days} d ` : ""}${hours ? `${hours} h ` : ""}${remainder} min`;
+}
+
+function ComparisonContextLineage({ context, locale, asOfMs }: { context: PointObjectNormalizedContext | null; locale: Props["locale"]; asOfMs: number | null }) {
+  const ru = locale === "ru";
+  if (!context) return <span>{ru ? "Снимок окружения недоступен" : "Context snapshot unavailable"}</span>;
+  const date = (value: string | null) => value && Number.isFinite(Date.parse(value)) ? <time dateTime={value} title={value}>{value}</time> : (ru ? "Неизвестно" : "Unknown");
+  return <details className="max-w-[320px] break-words text-xs leading-5 font-normal" data-testid={`comparison-context-lineage-${context.subjectId}`}>
+    <summary className="min-h-11 cursor-pointer rounded-md font-semibold focus-visible:outline-2 focus-visible:outline-[#087f8c]" title={context.source.responseHash ?? undefined}>
+      {comparisonSnapshotAge(context.source.acquiredAt, asOfMs, locale)} · {context.source.responseHash ? `${context.source.responseHash.slice(0, 10)}…` : (ru ? "Отпечаток неизвестен" : "Fingerprint unknown")}
+    </summary>
+    <dl className="space-y-2">
+      <div><dt className="font-semibold">{ru ? "Получено окружение" : "Context acquired"}</dt><dd className="break-all">{date(context.source.acquiredAt)}</dd></div>
+      <div><dt className="font-semibold">{ru ? "Обновление источника" : "Source update"}</dt><dd className="break-all">{date(context.source.observedAt)}</dd></div>
+      <div><dt className="font-semibold">{ru ? "Отпечаток ответа окружения" : "Context response fingerprint"}</dt><dd className="break-all" title={context.source.responseHash ?? undefined}>{context.source.responseHash ?? (ru ? "Неизвестно; старый снимок" : "Unknown; legacy snapshot")}</dd></div>
+      <div><dt className="font-semibold">{ru ? "Возраст рассчитан на" : "Age calculated as of"}</dt><dd className="break-all">{date(asOfMs === null ? null : new Date(asOfMs).toISOString())}</dd></div>
+    </dl>
+    <p className="mt-2">{ru ? "Возраст получения не подтверждает свежесть объектов OSM. Снимок исторический; новый запрос — только через явное обновление." : "Acquisition age does not establish OSM feature freshness. This is a held snapshot; a new request requires explicit refresh."}</p>
+  </details>;
+}
+
 export function FindComparisonDashboard({ locale, result, candidates, roleLabel, scenarioLabel, role, scenario, contexts, insight, stale, onContextResolved, onInsight, groupLabel, onBackToComparison, onBackToResults, onShowMap, onOpenAnalysis }: Props) {
   const dialogRef = useModalShell(onBackToComparison);
   const ru = locale === "ru";
@@ -99,6 +152,14 @@ export function FindComparisonDashboard({ locale, result, candidates, roleLabel,
   };
   const ready = !stale && candidates.every(candidate => readyContext(candidate));
   const matchedInsight = !stale ? boundPointObjectComparisonInsight(insight, { locale, role, scenario }, candidates, contexts) : null;
+  // Capture the display clock only after hydration or a held-context update.
+  // Locale/view renders must neither reacquire evidence nor start a timer.
+  const [displayedAtMs, setDisplayedAtMs] = useState<number | null>(null);
+  useEffect(() => { setDisplayedAtMs(Date.now()); }, [contexts]);
+  const normalizedContexts = candidates.map(candidate => {
+    const context = currentContext(candidate);
+    return context ? normalizedResolvedContext(context) : null;
+  });
 
   async function loadContexts() {
     if (controllerRef.current || stale || Date.now() < cooldownUntil) return;
@@ -169,6 +230,7 @@ export function FindComparisonDashboard({ locale, result, candidates, roleLabel,
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(340px,.65fr)]">
           <section className="min-w-0 rounded-[24px] border border-line bg-white p-5 shadow-soft sm:p-7" aria-labelledby="common-metrics-title">
             <div className="flex items-center gap-2"><PointObjectIcon name="compare" className="h-5 w-5 text-[#087f8c]" /><h2 id="common-metrics-title" className="text-xl font-bold">{ru ? "Общие наблюдаемые параметры" : "Common observed metrics"}</h2></div>
+            <p className="mt-2 text-xs leading-5 text-muted">{ru ? "Сравниваются только сохранённые наблюдения, не доступность, вместимость или экономика. Разные области, пределы выборки и неизвестные параметры не дают разницы или рейтинга." : "Compare held observations only, not availability, capacity or economics. Different scopes, sample caps and unknown metrics do not support a delta or ranking."}</p>
             <div className="mt-4 overflow-x-auto" role="region" aria-label={ru ? "Таблица сравнения" : "Comparison table"} tabIndex={0}>
               <table className="min-w-[680px] w-full border-collapse text-left text-sm">
                 <thead><tr className="border-b border-line"><th className="p-3 text-xs text-muted">{ru ? "Параметр" : "Metric"}</th>{candidates.map((candidate, index) => <th key={candidate.sourceFeatureId} className={`p-3 align-bottom ${activeId === candidate.sourceFeatureId ? "bg-[#f4fbfb]" : ""}`}><button type="button" aria-pressed={activeId === candidate.sourceFeatureId} onClick={() => setActiveId(candidate.sourceFeatureId)} className="min-h-11 text-left focus-visible:outline-2 focus-visible:outline-[#087f8c]"><span className="mr-2 inline-grid h-5 min-w-5 place-items-center rounded-full bg-[#087f8c] px-1 text-[10px] text-white">{index + 1}</span>{candidate.label}</button></th>)}</tr></thead>
@@ -182,9 +244,17 @@ export function FindComparisonDashboard({ locale, result, candidates, roleLabel,
                     } },
                     { label: ru ? "Этажность на карте" : "Mapped levels", value: (candidate: PointObjectFindCandidate) => candidate.mappedBuildingLevels?.toLocaleString(locale) ?? "—" },
                     { label: ru ? "Район" : "Locality", value: (candidate: PointObjectFindCandidate) => locality(candidate) ?? "—" },
+                    { label: ru ? "Дата, возраст и источник окружения" : "Context date, age and source", value: (candidate: PointObjectFindCandidate) => <ComparisonContextLineage context={normalizedContexts[candidates.indexOf(candidate)]} locale={locale} asOfMs={displayedAtMs} /> },
                     { label: ru ? "Покрытие окружения" : "Surroundings coverage", value: (candidate: PointObjectFindCandidate) => { const context=currentContext(candidate); return !context || context.geoContext.coverage!=="available" ? (ru ? "Недоступно" : "Unavailable") : context.geoContext.capReached ? (ru ? "Частично · предел выборки" : "Partial · sample cap") : `${context.geoContext.sampleSize} ${ru ? "записей · 400 м" : "records · 400 m"}`; } },
-                    ...(["transport","retail_daily_needs","education","healthcare","open_space"] as const).map(group=>({label:CONTEXT_GROUP_LABELS[locale][group],value:(candidate:PointObjectFindCandidate)=>{const context=currentContext(candidate); if(!context || context.geoContext.coverage!=="available") return "—"; const metrics=normalizedResolvedContext(context).metrics; const count=metrics.find(m=>m.id===`${group}.count`)?.value; const distance=metrics.find(m=>m.id===`${group}.nearest`)?.value; return `${count ?? "—"} ${ru ? "зап." : "records"}${distance==null ? "" : ` · ${distance} ${ru ? "м по прямой" : "m straight-line"}`}`;}}))
-                  ].map((row) => <tr key={row.label} className="border-b border-line last:border-b-0"><th scope="row" className="p-3 text-xs font-semibold text-muted">{row.label}</th>{candidates.map((candidate) => <td key={candidate.sourceFeatureId} className="p-3 font-semibold text-[#344054]">{row.value(candidate)}</td>)}</tr>)}
+                    ...(["transport","retail_daily_needs","education","healthcare","open_space"] as const).map(group=>({label:CONTEXT_GROUP_LABELS[locale][group],group,value:(candidate:PointObjectFindCandidate)=>{const context=currentContext(candidate); if(!context || context.geoContext.coverage!=="available") return "—"; const metrics=normalizedResolvedContext(context).metrics; const count=metrics.find(m=>m.id===`${group}.count`)?.value; const distance=metrics.find(m=>m.id===`${group}.nearest`)?.value; return `${count ?? "—"} ${ru ? "зап." : "records"}${distance==null ? "" : ` · ${distance} ${ru ? "м по прямой" : "m straight-line"}`}`;}}))
+                  ].map((row) => <tr key={row.label} className="border-b border-line last:border-b-0"><th scope="row" className="p-3 text-xs font-semibold text-muted">{row.label}{"group" in row ? ["count", "nearest"].map(kind => {
+                    const metricId = `${row.group}.${kind}`;
+                    const assessment = comparisonMetricComparability(normalizedContexts, metricId, locale);
+                    return <details key={kind} className="mt-2 max-w-[240px] break-words text-[11px] font-normal leading-5" data-testid={`comparison-comparability-${metricId}`}>
+                      <summary className="min-h-11 cursor-pointer rounded-md focus-visible:outline-2 focus-visible:outline-[#087f8c]" title={assessment.explanation}><strong>{kind === "count" ? (ru ? "Количество" : "Count") : (ru ? "Близость" : "Proximity")}: </strong>{assessment.comparable ? (ru ? "Только выборки" : "Samples only") : (ru ? "Несопоставимо" : "Not comparable")}</summary>
+                      <p>{assessment.explanation}</p>
+                    </details>;
+                  }) : null}</th>{candidates.map((candidate) => <td key={candidate.sourceFeatureId} className="p-3 align-top font-semibold text-[#344054]">{row.value(candidate)}</td>)}</tr>)}
                 </tbody>
               </table>
             </div>

@@ -6,11 +6,11 @@ import { PointObjectContextDashboard } from "./context-dashboard";
 type Locale = "en" | "ru";
 
 export const EXPRESS_MISSING_DOMAIN_CHECKS = [
-  { group: "transport", en: "Check nearby stops and the walking route to their entrances.", ru: "Проверьте ближайшие остановки и пеший путь до входов." },
-  { group: "retail_daily_needs", en: "Confirm nearby daily services and their opening hours.", ru: "Уточните ближайшие повседневные услуги и часы работы." },
-  { group: "education", en: "Confirm schools, admission and access with their operators.", ru: "Уточните школы, условия приёма и доступ у операторов." },
-  { group: "healthcare", en: "Confirm clinics, available services and access with their operators.", ru: "Уточните клиники, действующие услуги и доступ у операторов." },
-  { group: "open_space", en: "Check parks and public spaces, entrances and public access on site.", ru: "Проверьте парки и общественные пространства, входы и доступ на месте." }
+  { group: "transport", reason: { en: "No held stop or road observations; access is unestablished.", ru: "Нет сохранённых наблюдений об остановках и дорогах; доступ не установлен." }, en: "Check nearby stops and the walking route to their entrances.", ru: "Проверьте ближайшие остановки и пеший путь до входов." },
+  { group: "retail_daily_needs", reason: { en: "No held daily-service observations; operation is unknown.", ru: "Нет сохранённых наблюдений о повседневных сервисах; работа неизвестна." }, en: "Confirm nearby daily services and their opening hours.", ru: "Уточните ближайшие повседневные услуги и часы работы." },
+  { group: "education", reason: { en: "No held school observations; admission and capacity are unknown.", ru: "Нет сохранённых наблюдений об учебных заведениях; приём и вместимость неизвестны." }, en: "Confirm schools, admission and capacity with their operators.", ru: "Уточните школы, условия приёма и вместимость у операторов." },
+  { group: "healthcare", reason: { en: "No held clinic observations; services and capacity are unknown.", ru: "Нет сохранённых наблюдений о клиниках; услуги и вместимость неизвестны." }, en: "Confirm clinics, available services and access with their operators.", ru: "Уточните клиники, действующие услуги и доступ у операторов." },
+  { group: "open_space", reason: { en: "No held park or public-space observations; public access is unknown.", ru: "Нет сохранённых наблюдений о парках и общественных пространствах; доступ неизвестен." }, en: "Check parks and public spaces, entrances and public access on site.", ru: "Проверьте парки и общественные пространства, входы и доступ на месте." }
 ] as const;
 
 function selectedPolygonAreaSqM(selection: LiveMapSelection): number | null {
@@ -236,10 +236,11 @@ export function PointObjectExpressOverview({ selection, locale }: { selection: L
     </div>
     {selection.resolvedObject ? <div className="mt-5"><PointObjectContextDashboard context={normalizedResolvedContext(selection.resolvedObject, [selection.longitude, selection.latitude])} locale={locale} /></div> : <section className="mt-5" aria-labelledby="express-missing-domains-title" data-testid="express-missing-domains">
       <h3 id="express-missing-domains-title" className="text-lg font-bold text-[#243447]">{ru ? "Инфраструктура и окружение" : "Infrastructure & surroundings"}</h3>
+      <p className="mt-2 text-xs leading-5 text-[#52657a]">{ru ? "Данные окружения не сохранены. Это не означает отсутствие объектов рядом; проверки ниже не запускаются автоматически." : "No surroundings snapshot is held. This does not mean nearby features are absent; the checks below do not run automatically."}</p>
       <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">{EXPRESS_MISSING_DOMAIN_CHECKS.map(check => <article key={check.group} className="min-w-0 rounded-xl border border-[#dce6e3] bg-[#f8fafc] p-3" data-testid={`express-missing-${check.group}`}>
         <h4 className="text-xs font-bold text-[#52657a]">{CONTEXT_GROUP_LABELS[locale][check.group]}</h4>
         <p className="mt-2 text-sm font-semibold text-[#087f8c]">{ru ? "Недоступно" : "Unavailable"}</p>
-        <p className="mt-1 text-[11px] leading-5 text-[#52657a]">{ru ? "В локальном снимке нет данных окружения." : "No surroundings data in the held snapshot."}</p>
+        <p className="mt-1 break-words text-xs leading-5 text-[#52657a]" data-testid={`express-missing-reason-${check.group}`}>{check.reason[locale]}</p>
         <p className="mt-2 text-xs leading-5 text-[#344054]">{check[locale]}</p>
       </article>)}</div>
     </section>}
