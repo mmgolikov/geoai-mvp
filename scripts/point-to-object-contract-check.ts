@@ -1241,6 +1241,7 @@ function assertStaticBoundaries(): void {
     "app/api/prototype/point-to-object/suggest/route.ts",
     "components/point-to-object/analysis-client.tsx",
     "components/point-to-object/climate-context.tsx",
+    "components/point-to-object/context-dashboard.tsx",
     "components/point-to-object/create-panel.tsx",
     "components/point-to-object/create-preflight.worker.ts",
     "components/point-to-object/create-result-dashboard.tsx",

@@ -229,8 +229,9 @@ const routeSource = readFileSync(routePath, "utf8")
     const requirePilotIdentity = async () => ({ allowed: true });
     const requirePilotMutationOrigin = () => null;
   `)
-  .replace(/import \{\s*generatePointObjectAiAnalysis,\s*PointObjectAiServiceError\s*\} from "@\/src\/lib\/prototype\/point-to-object-ai";/, `
+  .replace(/import \{\s*generatePointObjectAiAnalysis,\s*generatePointObjectAiComparison,\s*PointObjectAiServiceError\s*\} from "@\/src\/lib\/prototype\/point-to-object-ai";/, `
     class PointObjectAiServiceError extends Error {}
+    const generatePointObjectAiComparison = async () => { throw new Error("Unexpected comparison call in analysis provenance fixture."); };
     const generatePointObjectAiAnalysis = async (_evidencePack, analysisRequest) => {
       globalThis.__analysisProvenanceProviderCalls += 1;
       globalThis.__analysisProvenanceProviderRequest = analysisRequest;
