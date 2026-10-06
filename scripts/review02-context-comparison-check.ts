@@ -4,6 +4,7 @@ import { registerHooks, stripTypeScriptTypes } from "node:module";
 import { fileURLToPath } from "node:url";
 import type { LivePointObjectEvidencePack } from "../src/lib/prototype/point-to-object-live-evidence";
 import type { PointObjectAnalysisRequest } from "../src/lib/prototype/point-to-object-ai-core";
+import type { PointObjectComparisonInsight } from "../src/lib/prototype/point-to-object-comparison-core";
 
 const root = new URL("../",import.meta.url);
 registerHooks({ resolve(specifier, context, next) {
@@ -69,7 +70,7 @@ const previousFetch=globalThis.fetch,previousKey=process.env.OPENAI_API_KEY;
 let injectedProviderCalls=0;let responseContent:unknown=content;
 process.env.OPENAI_API_KEY="offline-test-placeholder-not-a-key";
 globalThis.fetch=async(url,init)=>{assert.equal(url,"https://api.openai.com/v1/responses");const body=JSON.parse(String(init?.body));check(body.store===false&&!body.tools,"comparison stores nothing and uses no tools");check(body.text.format.strict===true&&body.max_output_tokens<=3500,"bounded structured response");injectedProviderCalls++;return Response.json({status:"completed",output_text:JSON.stringify(responseContent),usage:{input_tokens:100,output_tokens:50,total_tokens:150}},{headers:{"x-request-id":"offline_review02"}});};
-let insight;
+let insight: PointObjectComparisonInsight;
 try {
   insight=await service.generatePointObjectAiComparison([a,b],request);
   check(injectedProviderCalls===1&&insight.telemetry.attempts===1,"one explicit injected provider call");

@@ -14,7 +14,7 @@ registerHooks({ resolve(specifier, context, next) {
   if (url.startsWith("file:") && url.endsWith(".ts")) return { format: "module", shortCircuit: true, source: stripTypeScriptTypes(readFileSync(fileURLToPath(url), "utf8"), { mode: "transform", sourceUrl: url }) };
   return next(url, context);
 } });
-const client = await import(new URL("src/lib/prototype/point-to-object-comparison-request.ts", root).href);
+const client = await import(new URL("src/lib/prototype/point-to-object-comparison-request.ts", root).href) as typeof import("../src/lib/prototype/point-to-object-comparison-request");
 const comparison = await import(new URL("src/lib/prototype/point-to-object-comparison-core.ts", root).href);
 const { LIVE_POINT_CAVEAT } = await import(new URL("src/lib/point-to-object/contracts.ts", root).href);
 const programme = await import(new URL("src/lib/prototype/point-to-object-programme-context.ts", root).href);
@@ -85,7 +85,7 @@ try {
 
   for(const [status,code] of [[504,"AI_TIMEOUT"],[502,"AI_OUTPUT_INVALID"],[429,"AI_PROVIDER_REJECTED"],[409,"AI_EVIDENCE_REFRESH_REQUIRED"],[403,"AI_RUNTIME_DISABLED"]] as const){
     let starts=0;const seen:unknown[]=[];
-    const failed=await client.requestPointObjectComparison({...options,signal:new AbortController().signal,onDiagnostic:(d:unknown)=>seen.push(d),fetchImpl:async (_url,init)=>{
+    const failed=await client.requestPointObjectComparison({...options,signal:new AbortController().signal,onDiagnostic:(d:unknown)=>seen.push(d),fetchImpl:async (_url: RequestInfo | URL,init?: RequestInit)=>{
       if(init?.method!=="POST")return ready();starts++;
       return Response.json({mode:"unavailable",code,error:"Bearer private-fixture-value",headers:{authorization:"never expose"},telemetry:{requestId:"private"}},{status});
     }});
@@ -99,8 +99,8 @@ try {
     (cause:unknown)=>cause instanceof client.PointObjectComparisonRequestError&&cause.code==="transport_failed"&&cause.diagnostic?.code==="COMPARISON_TRANSPORT_FAILED");checks++;
   check(transportStarts===1&&transportSeen.length===1&&!JSON.stringify(transportSeen).includes("private"),"transport failure is sanitized and never dispatches POST");
   let jsonStarts=0;
-  await assert.rejects(()=>client.requestPointObjectComparison({...options,signal:new AbortController().signal,fetchImpl:async (_url,init)=>{
-    if(init?.method!=="POST")return ready();jsonStarts++;return {ok:true,status:200,json:async()=>{throw new Error("private parse detail");}} as Response;
+  await assert.rejects(()=>client.requestPointObjectComparison({...options,signal:new AbortController().signal,fetchImpl:async (_url: RequestInfo | URL,init?: RequestInit)=>{
+    if(init?.method!=="POST")return ready();jsonStarts++;return {ok:true,status:200,json:async()=>{throw new Error("private parse detail");}} as unknown as Response;
   }}),(cause:unknown)=>cause instanceof client.PointObjectComparisonRequestError&&cause.code==="response_unreadable"&&cause.diagnostic?.httpStatus===200);checks++;
   check(jsonStarts===1,"malformed JSON does not retry");
   const unknownDiagnostic=client.comparisonFailureDiagnostic({...frozenPayload,secret:"private"},"response",502,"Bearer private arbitrary code",10);
@@ -111,7 +111,7 @@ try {
   await assert.rejects(()=>client.requestPointObjectComparison({...options,signal:new AbortController().signal,onDiagnostic:(d:unknown)=>timedSeen.push(d),fetchImpl:async()=>new Promise<Response>(()=>undefined)}),
     (cause:unknown)=>cause instanceof client.PointObjectComparisonRequestError&&cause.code==="timeout"&&cause.diagnostic?.stage==="challenge");checks++;
   check(timedSeen.length===1,"timeout records one diagnostic without resuming the paid POST");
-  const observationFailure=await client.requestPointObjectComparison({...options,signal:new AbortController().signal,onDiagnostic:()=>{throw new Error("observation must not alter response");},fetchImpl:async(_url,init)=>init?.method==="POST"?Response.json({code:"AI_TIMEOUT"},{status:504}):ready()});
+  const observationFailure=await client.requestPointObjectComparison({...options,signal:new AbortController().signal,onDiagnostic:()=>{throw new Error("observation must not alter response");},fetchImpl:async(_url: RequestInfo | URL,init?: RequestInit)=>init?.method==="POST"?Response.json({code:"AI_TIMEOUT"},{status:504}):ready()});
   check(!observationFailure.ok&&observationFailure.diagnostic?.code==="AI_TIMEOUT","diagnostic callback failure cannot change request outcome");
   // Minimal strict, synthetic response: no provider output is substituted for B.
   const snapshots=frozenPayload.comparison.map((c,index)=>({sourceFeatureId:c.expectedSourceFeatureId,evidencePackHash:c.evidenceReceipt.evidencePackHash,label:`Synthetic source ${index===0?"A":"B"}`}));
@@ -139,7 +139,7 @@ try {
   }
   for(const code of ["COMPARISON_COMPLETION_INVALID","COMPARISON_OUTPUT_INCOMPLETE","COMPARISON_OUTPUT_TOKEN_LIMIT","COMPARISON_OUTPUT_REFUSED","COMPARISON_OUTPUT_UNREADABLE"]){
     let posts=0;
-    const rejection=await client.requestPointObjectComparison({...options,signal:new AbortController().signal,fetchImpl:async(_url,init)=>{
+    const rejection=await client.requestPointObjectComparison({...options,signal:new AbortController().signal,fetchImpl:async(_url: RequestInfo | URL,init?: RequestInit)=>{
       if(init?.method!=="POST")return ready();posts++;return Response.json({code,error:"private provider prose"},{status:502});
     }});
     check(rejection.diagnostic?.code===code&&posts===1,"HTTP rejection category survives without retry or raw provider prose");
