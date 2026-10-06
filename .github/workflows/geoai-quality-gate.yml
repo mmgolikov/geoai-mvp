@@ -235,6 +235,13 @@ jobs:
           set -euo pipefail
           npm run test:point-to-object | tee artifacts/point-to-object-contract-check.txt
 
+      - name: REVIEW02 verification export and final UI contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/review02-verification-export-check.mjs | tee artifacts/review02-verification-export-check.txt
+          node scripts/review02-final-ui-check.mjs | tee artifacts/review02-final-ui-check.txt
+
       - name: Point-to-object autocomplete contract
         shell: bash
         run: |
@@ -559,6 +566,7 @@ jobs:
           npm run test:e2e:auth-session:demo -- --retries=0 | tee artifacts/auth-session-demo-e2e.txt
           npm run test:e2e:complete25 -- --workers=1 --retries=0 --fail-on-flaky-tests --output=artifacts/complete25-chromium | tee artifacts/complete25-chromium.txt
           npx playwright test tests/e2e/point-object-cloud-sync.spec.ts --grep='demo/anonymous' --workers=1 --retries=0 --fail-on-flaky-tests | tee artifacts/cloud-demo-isolation-e2e.txt
+          PLAYWRIGHT_JUNIT_OUTPUT_FILE=artifacts/review02-final-ui-chromium-junit.xml npx playwright test tests/e2e/review02-final-ui.spec.ts --workers=1 --retries=0 --max-failures=1 --fail-on-flaky-tests --output=artifacts/review02-final-ui-chromium | tee artifacts/review02-final-ui-chromium.txt
 
       - name: Browser explicit cloud persistence isolation (mocked provider)
         shell: bash
@@ -762,6 +770,7 @@ jobs:
             npm run test:e2e:point-to-object-v5:demo -- --config playwright.product-https.config.ts --workers=1 --retries=0 \
             --output=artifacts/playwright-point-to-object-webkit | tee artifacts/point-to-object-webkit-product.txt
           npm run test:e2e:complete25 -- --config playwright.product-https.config.ts --workers=1 --retries=0 --fail-on-flaky-tests --output=artifacts/complete25-webkit | tee artifacts/complete25-webkit.txt
+          PLAYWRIGHT_JUNIT_OUTPUT_FILE=artifacts/review02-final-ui-webkit-junit.xml npx playwright test tests/e2e/review02-final-ui.spec.ts --config=playwright.product-https.config.ts --workers=1 --retries=0 --max-failures=1 --fail-on-flaky-tests --output=artifacts/review02-final-ui-webkit | tee artifacts/review02-final-ui-webkit.txt
 
       - name: Preserve application log
         if: always()

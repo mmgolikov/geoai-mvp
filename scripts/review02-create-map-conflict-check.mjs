@@ -432,7 +432,7 @@ const observers = new WeakMap();
 const empty = {type:"FeatureCollection",features:[]};
 const layers = new Map(["geoai-buildings-3d","geoai-create-aoi-fill","geoai-create-aoi-low-zoom-mask","geoai-concept-fill","geoai-concept-volume"].map(id=>[id,{id}]));
 const visibility = new Map([ ["geoai-buildings-3d","visible"], ["geoai-concept-fill","none"], ["geoai-concept-volume","none"] ]);
-let sourceData = empty, native = [mixed], zoom = 16, restorations = 0, diagnostic;
+let sourceData = empty, native = [mixed], zoom = 16, restorations = 0, diagnostic, edgeVolumes = [];
 const sources = new Map([
   ["geoai-create-aoi",{setData:()=>{}}],
   ["geoai-concept-massing",{setData:data=>{sourceData=data;}}]
@@ -455,6 +455,7 @@ observers.set(map,state=>{diagnostic=state;});
 const scope = {
   CREATE_AOI_SOURCE_ID:"geoai-create-aoi",CONCEPT_SOURCE_ID:"geoai-concept-massing",BUILDINGS_3D_LAYER_ID:"geoai-buildings-3d",
   CREATE_AOI_MASK_LAYER_ID:"geoai-create-aoi-low-zoom-mask",CONCEPT_FILL_LAYER_ID:"geoai-concept-fill",CONCEPT_VOLUME_LAYER_ID:"geoai-concept-volume",
+  CONCEPT_EDGE_LAYER_ID:"geoai-concept-edges",setVolumeEdges:(_map,id,volumes)=>{assert.equal(id,"geoai-concept-edges");edgeVolumes=structuredClone(volumes);},
   NATIVE_VOLUME_MIN_ZOOM:14,pointObjectReplacementMinimumReliableZoom:13,
   SELECTED_NATIVE_FILTER_ACTIVE:new WeakSet(),CREATE_MAP_PRESENTATION_OBSERVERS:observers,
   createAoiData:()=>empty, restoreBuildingFilters:()=>{restorations++;},applyBuildingReplacement:()=>"partial",
@@ -471,6 +472,7 @@ assert.equal(setCreate(map,[],aoi,true,saved,"3d"),"partial");
 assert.equal(visibility.get("geoai-concept-volume"),"visible");
 assert.deepEqual(sourceData,saved.featureCollection); assert.equal(diagnostic.savedObjects,5);
 assert.equal(diagnostic.reason,"footprints-clear"); assert.equal(diagnostic.renderedParts,5); cases++;
+assert.deepEqual(edgeVolumes,saved.featureCollection.features.map(f=>({geometry:f.geometry,heightM:f.properties.heightM,baseM:f.properties.baseM}))); cases++;
 native = [concept]; setCreate(map,[],aoi,true,saved,"3d");
 assert.equal(visibility.get("geoai-concept-volume"),"none"); assert.equal(diagnostic.reason,"measured-overlap"); cases++;
 native = new Error("Synthetic worker query failure"); setCreate(map,[],aoi,true,saved,"3d");
@@ -489,6 +491,7 @@ for (const badZoom of [13.5,16]) {
   zoom=badZoom; setCreate(map,[],aoi,true,invalidSaved,"3d");
   assert.equal(visibility.get("geoai-concept-volume"),"none");
   assert.equal(diagnostic.reason,"saved-geometry-invalid","Invalid saved topology cannot bypass the guard through low zoom"); cases++;
+  assert.ok(edgeVolumes.every(v=>Number.isNaN(v.heightM)&&Number.isNaN(v.baseM)),"Missing saved heights do not invent drawable edge volumes");cases++;
 }
 zoom=16; sourceData=empty; setCreate(map,[],aoi,true,saved,"3d");
 assert.equal(sourceData.features.length,5,"Style recreation restores the unchanged legacy massing, without an alternative-generation dependency");
@@ -527,5 +530,8 @@ for (const [geometries,code,count] of [
   assert.equal(networkCalls,0); diagnosticCases++;
 }
 assert.ok(source.includes('className={`${containerClassName} isolate`}'),"Map controls stay in their local stacking context"); cases++;
+setCreate(map,[],null,false,null,"2d");
+assert.deepEqual(edgeVolumes,[],"Reset clears edges without regenerating saved geometry");cases++;
+assert.equal(JSON.stringify(saved),savedBytes);cases++;
 assert.equal(networkCalls,0);
 console.log(JSON.stringify({status:"PASS",cases,diagnosticCases,nativeCases,networkCalls,limits,benchmarks,scope:"existing negatives + bounded complete native envelopes and intentional aggregate-budget repair; hosted founder acceptance pending"}));

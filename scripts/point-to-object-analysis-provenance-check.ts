@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { registerHooks, stripTypeScriptTypes } from "node:module";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import ts from "typescript";
 
 const repositoryRoot = pathToFileURL(`${process.cwd()}/`);
 
@@ -363,8 +364,91 @@ assert.equal(fixture.__analysisProvenanceEvidenceCalls, 2);
 assert.equal(fixture.__analysisProvenanceProviderCalls, 2);
 
 const clientSource = readFileSync(path.join(process.cwd(), "components/point-to-object/analysis-client.tsx"), "utf8");
-assert.match(clientSource, /role: requestSnapshot\.role/);
-assert.match(clientSource, /scenario: requestSnapshot\.scenario/);
+// Verification capture introduced a shared intent builder. Assert the actual
+// snapshot -> builder -> capture/body chain, not the retired inline spelling.
+// Route/provider negatives above and stale-response guards below stay intact.
+function findClientNode(root: ts.Node, predicate: (node: ts.Node) => boolean): ts.Node | undefined {
+  if (predicate(root)) return root;
+  let found: ts.Node | undefined;
+  ts.forEachChild(root, child => { found ??= findClientNode(child, predicate); });
+  return found;
+}
+function assertClientSubmissionBinding(source: string): void {
+  const ast = ts.createSourceFile("analysis-client.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const builder = findClientNode(ast, node => ts.isFunctionDeclaration(node) && node.name?.text === "buildSubmissionIntent");
+  assert.ok(builder && ts.isFunctionDeclaration(builder));
+  // Execute only the extracted pure function against synthetic identities.
+  const executable = ts.transpileModule(builder.getText(ast), {
+    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext }
+  }).outputText;
+  const build = new Function("pointObjectSelectedLookupId", `${executable}\nreturn buildSubmissionIntent;`)(
+    (selection: { resolvedObject: { sourceFeatureId: string } }) => selection.resolvedObject.sourceFeatureId
+  ) as (selection: unknown, snapshot: typeof identity) => unknown;
+  const selected = { locationKey: "dubai", longitude: 55.27, latitude: 25.2,
+    resolvedObject: { sourceFeatureId: "way/91010", evidenceReceipt: { fixture: "bound-receipt" } } };
+  for (const snapshot of [identity, { ...identity, role: "developer", scenario: "b2b_redevelopment_selected_aoi" } as typeof identity]) {
+    assert.deepEqual(build(selected, snapshot), {
+      caseKey: selected.locationKey, longitude: selected.longitude, latitude: selected.latitude,
+      locale: snapshot.locale, role: snapshot.role, scenario: snapshot.scenario, question: snapshot.question, depth: snapshot.depth,
+      goal: snapshot.goal, perspective: snapshot.perspective, horizon: snapshot.horizon,
+      expectedSourceFeatureId: selected.resolvedObject.sourceFeatureId, evidenceReceipt: selected.resolvedObject.evidenceReceipt, consent: true
+    }, "Every submitted decision field must come from the exact captured request, not current UI state.");
+  }
+  const request = findClientNode(ast, node => ts.isVariableDeclaration(node) && node.name.getText(ast) === "requestAnalysis");
+  assert.ok(request && ts.isVariableDeclaration(request) && request.initializer && ts.isCallExpression(request.initializer));
+  const callback = request.initializer.arguments[0];
+  assert.ok(ts.isArrowFunction(callback) && ts.isBlock(callback.body));
+  assert.deepEqual(callback.parameters.map(p => p.name.getText(ast)), ["activeSelection", "requestSnapshot"]);
+  const declaration = (name: string) => {
+    const node = findClientNode(callback.body, node => ts.isVariableDeclaration(node) && node.name.getText(ast) === name);
+    assert.ok(node && ts.isVariableDeclaration(node) && node.initializer, `${name}: required bound declaration`);
+    return node;
+  };
+  const intent = declaration("submittedIntent");
+  assert.ok(intent.initializer && ts.isCallExpression(intent.initializer));
+  assert.equal(intent.initializer.expression.getText(ast), "buildSubmissionIntent");
+  assert.deepEqual(intent.initializer.arguments.map(a => a.getText(ast)), ["activeSelection", "requestSnapshot"],
+    "The builder must receive the request callback's exact captured snapshot.");
+  const capture = declaration("captureResponse");
+  assert.ok(capture.initializer && ts.isCallExpression(capture.initializer));
+  assert.equal(capture.initializer.expression.getText(ast), "verification.begin");
+  assert.deepEqual(capture.initializer.arguments.map(a => a.getText(ast)), ['"analyse"', "submittedIntent", "submittedSource"],
+    "Verification export captures the same object that is submitted.");
+  const response = declaration("response");
+  assert.ok(response.initializer && ts.isAwaitExpression(response.initializer) && ts.isCallExpression(response.initializer.expression));
+  const fetchCall = response.initializer.expression;
+  assert.equal(fetchCall.expression.getText(ast), "fetch");
+  assert.equal(fetchCall.arguments[0].getText(ast), '"/api/prototype/point-to-object/ai"');
+  const options = fetchCall.arguments[1];
+  assert.ok(options && ts.isObjectLiteralExpression(options));
+  const body = options.properties.find(p => ts.isPropertyAssignment(p) && p.name.getText(ast) === "body");
+  assert.ok(body && ts.isPropertyAssignment(body) && ts.isCallExpression(body.initializer));
+  assert.equal(body.initializer.expression.getText(ast), "JSON.stringify");
+  const payload = body.initializer.arguments[0];
+  assert.ok(ts.isObjectLiteralExpression(payload));
+  assert.equal(payload.properties.length, 2, "No hidden role/scenario override after the shared intent.");
+  const [spread, challenge] = payload.properties;
+  assert.ok(ts.isSpreadAssignment(spread));
+  assert.equal(spread.expression.getText(ast), "submittedIntent");
+  assert.ok(ts.isPropertyAssignment(challenge));
+  assert.equal(challenge.name.getText(ast), "challenge");
+  assert.equal(challenge.initializer.getText(ast), "challengePayload.challenge");
+  assert.ok(intent.pos < capture.pos && capture.pos < response.pos, "Capture follows the builder and precedes the fetch.");
+}
+assertClientSubmissionBinding(clientSource);
+const submissionMutations = [
+  ["missing role", "role: snapshot.role, ", ""],
+  ["missing scenario", "scenario: snapshot.scenario, ", ""],
+  ["unbound builder input", "buildSubmissionIntent(activeSelection, requestSnapshot)", "buildSubmissionIntent(activeSelection, roleScenarioContext)"],
+  ["different export intent", 'verification.begin("analyse", submittedIntent, submittedSource)', 'verification.begin("analyse", requestSnapshot, submittedSource)'],
+  ["different submitted body", "...submittedIntent,", "...requestSnapshot,"],
+  ["hidden role override", "...submittedIntent,", '...submittedIntent, role: "developer",']
+] as const;
+for (const [name, before, after] of submissionMutations) {
+  assert.ok(clientSource.includes(before), `${name}: negative fixture must alter the actual source`);
+  assert.throws(() => assertClientSubmissionBinding(clientSource.replace(before, after)), { code: "ERR_ASSERTION" },
+    `${name}: broken request/export provenance must fail closed.`);
+}
 assert.match(clientSource, /latestRoleScenario\.role !== requestSnapshot\.role/,
   "A role change while the provider is running must prevent the stale-context result from committing.");
 assert.match(clientSource, /latestRoleScenario\.scenario !== requestSnapshot\.scenario/,
@@ -374,4 +458,4 @@ assert.match(serviceSource, /role: roleScenario\.role/);
 assert.match(serviceSource, /scenario: roleScenario\.scenario/);
 assert.equal(core.POINT_OBJECT_AI_PROMPT_VERSION, "POINT_OBJECT_AI_PROMPT_V14_2026_09_26");
 
-console.log("point-to-object-analysis-provenance-check: PASS (registry validation, provider lens, exact receipt, legacy unspecified restore and pre-provider rejection)");
+console.log("point-to-object-analysis-provenance-check: PASS (registry validation, provider lens, exact receipt, legacy unspecified restore, pre-provider rejection, pure intent binding and 6 semantic submission negatives)");

@@ -1,6 +1,11 @@
 import type { ExpressionSpecification, Map as MapLibreMap } from "maplibre-gl";
 import { CONCEPT_TEMPLATE_IDS, type ConceptTemplateId } from "./point-to-object-create";
 
+// Generated 3D faces match selected volumes. Programme finishes remain intact
+// for the deterministic surface assets and original 2D fallback.
+export const conceptVolumeColor = "#087f8c";
+export const conceptVolumeOpacity = 0.5;
+
 // One accent; programme differences use neutral finishes and surface rhythm.
 const FINISHES: Record<ConceptTemplateId, { wall: string; inset: string; stride: number; band: number }> = {
   residential_mixed_use: { wall: "#e0dfd8", inset: "#8b9694", stride: 8, band: 8 },

@@ -6,7 +6,7 @@ import type { GeoJSONSource, Map as MapLibreMap, StyleSpecification } from "mapl
 import { PointObjectIcon } from "@/components/point-to-object/point-object-icons";
 import type { ConceptMassingResult, PointObjectCreateAoi } from "@/src/lib/prototype/point-to-object-create";
 import { buildPointObjectCreatePreviewModel } from "@/src/lib/prototype/point-to-object-create-preview";
-import { conceptMaterialColor } from "@/src/lib/prototype/point-to-object-create-appearance";
+import { conceptVolumeColor, conceptVolumeOpacity } from "@/src/lib/prototype/point-to-object-create-appearance";
 import { CONCEPT_ENVIRONMENT_SOURCE, ensureConceptEnvironmentLayers, updateConceptEnvironment } from "@/src/lib/prototype/point-to-object-create-environment-renderer";
 import { fitConceptCamera } from "@/src/lib/prototype/point-to-object-create-camera";
 import { ensureVolumeEdgeLayer, setVolumeEdges } from "@/src/lib/prototype/point-to-object-volume-edges";
@@ -199,10 +199,10 @@ export function CreateResultPreview3D({ locale, aoi, massing, fallback, dimensio
               type: "fill-extrusion",
               source: MASSING_SOURCE_ID,
               paint: {
-                "fill-extrusion-color": conceptMaterialColor,
+                "fill-extrusion-color": conceptVolumeColor,
                 "fill-extrusion-height": ["get", "heightM"],
                 "fill-extrusion-base": ["get", "baseM"],
-                "fill-extrusion-opacity": 0.9,
+                "fill-extrusion-opacity": conceptVolumeOpacity,
                 "fill-extrusion-vertical-gradient": true
               }
             });

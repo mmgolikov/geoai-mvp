@@ -6,6 +6,7 @@ const { buildConceptEnvironment }=await import("../src/lib/prototype/point-to-ob
 const { buildPointObjectCreatePreviewModel }=await import("../src/lib/prototype/point-to-object-create-preview.ts");
 const { pointObjectCompleteFootprintOverlap }=await import("../src/lib/prototype/point-to-object-map-partition.ts");
 const { setPointObjectLayerVisibilityIfChanged }=await import("../src/lib/prototype/point-to-object-map-replacement.ts");
+const { reviewPointObjectCreateMapConflict }=await import("../src/lib/prototype/point-to-object-create-map-conflict.ts");
 const { updateConceptEnvironment,setConceptEnvironmentVisibility }=await import("../src/lib/prototype/point-to-object-create-environment-renderer.ts");
 const source=readFileSync(new URL("../components/point-to-object/live-object-map.tsx",import.meta.url),"utf8");
 const extract=(start,end)=>stripTypeScriptTypes(source.slice(source.indexOf(start),source.indexOf(end,source.indexOf(start))),{mode:"transform"});
@@ -21,7 +22,11 @@ const safeFeatureId=new Function(extract("function safeFeatureId(","function san
 const state={coverage:"partial",restores:0};
 const names=["createAoiData","CREATE_AOI_SOURCE_ID","CONCEPT_SOURCE_ID","BUILDINGS_3D_LAYER_ID","CONCEPT_FILL_LAYER_ID","CONCEPT_VOLUME_LAYER_ID","CREATE_AOI_MASK_LAYER_ID","SELECTED_NATIVE_FILTER_ACTIVE","pointObjectReplacementMinimumReliableZoom","restoreBuildingFilters","applyBuildingReplacement","buildConceptEnvironment","updateConceptEnvironment","buildingLayerIds","sanitizeGeometry","pointObjectCompleteFootprintOverlap","safeFeatureId","setPointObjectLayerVisibilityIfChanged"];
 const values=[createAoiData,"aoi","massing","native3d","concept2d","concept3d","geoai-create-aoi-low-zoom-mask",new WeakSet(),14,()=>state.restores++,()=>state.coverage,buildConceptEnvironment,updateConceptEnvironment,()=>["native2d","native3d"],g=>g,pointObjectCompleteFootprintOverlap,safeFeatureId,setPointObjectLayerVisibilityIfChanged];
-const exported=new Function(...names,extract("function setCreateLayers(","function installGeoAiLayers(")+";return {setCreateLayers,visibleNativeConceptConflict};")(...values);
+names.push("CONCEPT_EDGE_LAYER_ID","setVolumeEdges");
+values.push("conceptEdges",(m,id,volumes)=>{assert.equal(id,"conceptEdges");m.edgeVolumes=structuredClone(volumes);});
+names.push("NATIVE_VOLUME_MIN_ZOOM","reviewPointObjectCreateMapConflict","CREATE_MAP_PRESENTATION_OBSERVERS");
+values.push(14,reviewPointObjectCreateMapConflict,new WeakMap());
+const exported=new Function(...names,extract("function publishCreateMapPresentation(","function installGeoAiLayers(")+";return {setCreateLayers,visibleNativeConceptConflict,reviewVisibleCreateConcept,publishCreateMapPresentation};")(...values);
 function fakeMap() {
  const sources=new Map(["aoi","massing","geoai-concept-environment"].map(id=>[id,{data:null,setData(data){this.data=structuredClone(data);}}]));
  const visibility=new Map(["native2d","native3d","concept2d","concept3d","geoai-concept-environment-fill","geoai-create-aoi-low-zoom-mask"].map(id=>[id,"visible"]));
@@ -43,12 +48,14 @@ assert.deepEqual(map.sources.get("aoi").data.features[0].geometry.coordinates,ao
 assert.deepEqual(buildPointObjectCreatePreviewModel(aoi,massing).aoiFeature.geometry.coordinates,aoi.coordinates);checks++;
 assert.equal(map.visibility.get("geoai-concept-environment-fill"),"none");assert.equal(map.visibility.get("concept2d"),"visible");assert.equal(map.visibility.get("concept3d"),"none");checks++;
 exported.setCreateLayers(map,[],aoi,true,massing,"3d");assert.equal(map.visibility.get("concept3d"),"visible");assert.equal(map.visibility.get("geoai-concept-environment-fill"),"none");checks++;
+assert.deepEqual(map.edgeVolumes,massing.featureCollection.features.map(f=>({geometry:f.geometry,heightM:f.properties.heightM,baseM:f.properties.baseM})));checks++;
 // Exercise the actual retained-source/idle callback, not just its initial gate.
 const callbackStart=source.indexOf("const publishReadyBuildingReplacement = () => {");
 const callbackEnd=source.indexOf("const handleMoveEnd",callbackStart);
 const callbackSource=stripTypeScriptTypes(source.slice(callbackStart,callbackEnd),{mode:"transform"});
 const callbackNames=["disposed","createAreaClearedRef","createAoiRef","map","pointObjectReplacementMinimumReliableZoom","BUILDING_FILTER_SNAPSHOTS","reconcilePointObjectCompleteFootprintRenderer","buildingLayerIds","replacementStatusCallbackRef","conceptMassingRef","visibleNativeConceptConflict","setPointObjectLayerVisibilityIfChanged","CONCEPT_FILL_LAYER_ID","CONCEPT_VOLUME_LAYER_ID","viewModeRef","setConceptEnvironmentVisibility","buildConceptEnvironment"];
-const callback=new Function(...callbackNames,callbackSource+";return publishReadyBuildingReplacement;")(false,{current:true},{current:aoi},map,14,new Map([[map,new Map()]]),()=>({coverage:state.coverage==="applied"?"complete":state.coverage}),()=>["native2d","native3d"],{current:()=>{}},{current:massing},exported.visibleNativeConceptConflict,(m,id,v)=>m.setLayoutProperty(id,"visibility",v),"concept2d","concept3d",{current:"3d"},setConceptEnvironmentVisibility,buildConceptEnvironment);
+callbackNames.push("NATIVE_VOLUME_MIN_ZOOM","reviewPointObjectCreateMapConflict","reviewVisibleCreateConcept","CREATE_AOI_MASK_LAYER_ID","publishCreateMapPresentation");
+const callback=new Function(...callbackNames,callbackSource+";return publishReadyBuildingReplacement;")(false,{current:true},{current:aoi},map,14,new Map([[map,new Map()]]),()=>({coverage:state.coverage==="applied"?"complete":state.coverage}),()=>["native2d","native3d"],{current:()=>{}},{current:massing},exported.visibleNativeConceptConflict,(m,id,v)=>m.setLayoutProperty(id,"visibility",v),"concept2d","concept3d",{current:"3d"},setConceptEnvironmentVisibility,buildConceptEnvironment,14,reviewPointObjectCreateMapConflict,exported.reviewVisibleCreateConcept,"geoai-create-aoi-low-zoom-mask",exported.publishCreateMapPresentation);
 callback();assert.equal(map.visibility.get("geoai-concept-environment-fill"),"none");assert.equal(map.visibility.get("concept3d"),"visible");checks++;
 map.native=[];callback();assert.equal(map.visibility.get("geoai-concept-environment-fill"),"visible");checks++;
 map.native=[{geometry:massing.featureCollection.features[0].geometry}];callback();assert.equal(map.visibility.get("concept3d"),"none");assert.equal(map.visibility.get("geoai-concept-environment-fill"),"none");checks++;
@@ -57,15 +64,19 @@ map.native=[];map.throwQuery=true;callback();assert.equal(map.visibility.get("ge
 // Removal/restore and a style source replacement cannot retain stale decorative data.
 exported.setCreateLayers(map,[],aoi,false,massing,"2d");assert.equal(map.visibility.get("geoai-concept-environment-fill"),"none");assert.ok(state.restores);checks++;
 exported.setCreateLayers(map,[],null,false,null,"2d");assert.equal(map.sources.get("geoai-concept-environment").data.features.length,0);checks++;
+assert.deepEqual(map.edgeVolumes,[],"Reset cannot retain stale generated edges");checks++;
 map.sources.set("geoai-concept-environment",{data:null,setData(data){this.data=structuredClone(data);}});state.coverage="applied";exported.setCreateLayers(map,[],aoi,true,massing,"2d");assert.deepEqual(map.sources.get("geoai-concept-environment").data,environment.featureCollection);assert.equal(map.visibility.get("geoai-concept-environment-fill"),"visible");checks++;
 map.zoom=13;exported.setCreateLayers(map,[],aoi,true,massing,"3d");assert.equal(map.visibility.get("concept3d"),"visible");assert.equal(map.visibility.get("geoai-create-aoi-low-zoom-mask"),"visible");assert.equal(map.visibility.get("geoai-concept-environment-fill"),"visible");checks++;
 assert.deepEqual(createAoiData(outer.slice(0,3),null).features[0].geometry.coordinates,[[...outer.slice(0,3),outer[0]]]);checks++;
 const clonedRings=createAoiData([],aoi).features[0].geometry.coordinates;clonedRings[1][0][0]+=1;assert.deepEqual(aoi.coordinates[1],hole);checks++;
 map.zoom=16;map.native=[];
 const optionB=structuredClone(massing);optionB.variantId="B";
+optionB.featureCollection.features[0].properties.heightM=30;
 exported.setCreateLayers(map,[],aoi,true,optionB,"3d");const bEnvironment=buildConceptEnvironment(aoi,optionB);
 assert.deepEqual(map.sources.get("geoai-concept-environment").data,bEnvironment.featureCollection);
+assert.equal(map.edgeVolumes[0].heightM,30,"A/B refresh uses each saved option's own height");checks++;
 exported.setCreateLayers(map,[],aoi,true,massing,"2d");assert.deepEqual(map.sources.get("geoai-concept-environment").data,environment.featureCollection);checks++;
+assert.equal(map.edgeVolumes[0].heightM,15,"Returning to A replaces B's edge data");checks++;
 const far={geometry:{type:"Polygon",coordinates:[ring([[120,120],[130,120],[130,130],[120,130]])]}};
 map.native=[far];assert.equal(exported.visibleNativeConceptConflict(map,environment,256),false);
 assert.equal(exported.visibleNativeConceptConflict(map,environment,0),true,"exhausted decorative comparison budget fails closed");checks++;

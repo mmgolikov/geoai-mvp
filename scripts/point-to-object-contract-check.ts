@@ -1262,18 +1262,24 @@ function assertStaticBoundaries(): void {
     "components/point-to-object/prototype-header.tsx",
     "components/point-to-object/reliable-select.tsx",
     "components/point-to-object/use-modal-shell.ts",
-    "components/point-to-object/use-point-object-cloud-sync.ts"
+    "components/point-to-object/use-point-object-cloud-sync.ts",
+    "components/point-to-object/verification-export.tsx"
   ]);
   const candidateSurfaceFiles = [
     ...collectFiles(path.join(ROOT, "app/prototype/point-to-object")),
     ...collectFiles(path.join(ROOT, "app/api/prototype/point-to-object")),
     ...collectFiles(path.join(ROOT, "components/point-to-object"))
   ].filter((entry) => /\.(?:ts|tsx)$/.test(entry));
-  assert.deepEqual(
-    candidateSurfaceFiles.map((filePath) => path.relative(ROOT, filePath).split(path.sep).join("/")).sort(),
-    [...candidateSurfaceAllowlist].sort(),
+  const assertExactCandidateSurface = (files: string[]): void => assert.deepEqual(
+    [...files].sort(), [...candidateSurfaceAllowlist].sort(),
     "Only the exact isolated point-to-object Candidate UI/API files are allowed."
   );
+  const candidateSurfacePaths = candidateSurfaceFiles.map((filePath) => path.relative(ROOT, filePath).split(path.sep).join("/"));
+  assertExactCandidateSurface(candidateSurfacePaths);
+  assert.throws(() => assertExactCandidateSurface([...candidateSurfacePaths, "components/point-to-object/unapproved.tsx"]),
+    { code: "ERR_ASSERTION" }, "An extra Candidate surface must still fail closed.");
+  assert.throws(() => assertExactCandidateSurface(candidateSurfacePaths.filter((file) => file !== "components/point-to-object/verification-export.tsx")),
+    { code: "ERR_ASSERTION" }, "A missing approved export surface must still fail closed.");
   const createPreflightWorker = readFileSync(path.join(ROOT, "components/point-to-object/create-preflight.worker.ts"), "utf8");
   assert.match(createPreflightWorker, /preflightPointObjectCreate/);
   assert.match(createPreflightWorker, /pointObjectCreateAoiHash/);

@@ -18,7 +18,7 @@ import type { GeoJsonGeometry } from "@/src/lib/point-to-object/contracts";
 import type { ConceptMassingResult, PointObjectCreateAoi } from "@/src/lib/prototype/point-to-object-create";
 import { buildConceptEnvironment } from "@/src/lib/prototype/point-to-object-create-environment";
 import { ensureConceptEnvironmentLayers, setConceptEnvironmentVisibility, updateConceptEnvironment } from "@/src/lib/prototype/point-to-object-create-environment-renderer";
-import { conceptMaterialColor } from "@/src/lib/prototype/point-to-object-create-appearance";
+import { conceptMaterialColor, conceptVolumeColor, conceptVolumeOpacity } from "@/src/lib/prototype/point-to-object-create-appearance";
 import type { PointObjectFindBounds, PointObjectFindCandidate } from "@/src/lib/prototype/point-to-object-find-contract";
 import { separateMapMarkerControls } from "@/src/lib/prototype/point-to-object-selection-context";
 import { projectResultCoordinateBounds, isCompletedNavigationCamera, type NavigationCamera } from "@/src/lib/prototype/point-to-object-find-viewport";
@@ -69,6 +69,7 @@ const CREATE_AOI_VERTEX_LAYER_ID = "geoai-create-aoi-vertices";
 const CONCEPT_SOURCE_ID = "geoai-concept-massing";
 const CONCEPT_FILL_LAYER_ID = "geoai-concept-fill";
 const CONCEPT_VOLUME_LAYER_ID = "geoai-concept-volume";
+const CONCEPT_EDGE_LAYER_ID = "geoai-concept-edges";
 const FIND_FOOTPRINT_SOURCE_ID = "geoai-find-footprints";
 const FIND_FOOTPRINT_FILL_LAYER_ID = "geoai-find-footprints-fill";
 const FIND_FOOTPRINT_LINE_LAYER_ID = "geoai-find-footprints-line";
@@ -1054,6 +1055,11 @@ function setCreateLayers(
 ): PointObjectReplacementStatus {
   (map.getSource(CREATE_AOI_SOURCE_ID) as GeoJSONSource | undefined)?.setData(createAoiData(draft, aoi));
   (map.getSource(CONCEPT_SOURCE_ID) as GeoJSONSource | undefined)?.setData(massing?.featureCollection ?? { type: "FeatureCollection", features: [] });
+  // The edge helper follows this volume layer's visibility and pitch. Refresh
+  // only the existing saved geometry; reset clears stale A/B/style data.
+  setVolumeEdges(map, CONCEPT_EDGE_LAYER_ID, massing?.featureCollection.features.map(feature => ({
+    geometry: feature.geometry, heightM: feature.properties?.heightM ?? Number.NaN, baseM: feature.properties?.baseM ?? Number.NaN
+  })) ?? []);
   let replacementStatus: PointObjectReplacementStatus = "idle";
   if (map.getLayer(BUILDINGS_3D_LAYER_ID)) map.setLayoutProperty(BUILDINGS_3D_LAYER_ID, "visibility", viewMode === "3d" ? "visible" : "none");
   if (suppressExistingBuildings && aoi) {
@@ -1320,13 +1326,14 @@ function installGeoAiLayers(map: MapLibreMap, viewMode: MapViewMode) {
     source: CONCEPT_SOURCE_ID,
     layout: { visibility: "none" },
     paint: {
-      "fill-extrusion-color": conceptColor,
+      "fill-extrusion-color": conceptVolumeColor,
       "fill-extrusion-height": ["get", "heightM"],
       "fill-extrusion-base": ["get", "baseM"],
-      "fill-extrusion-opacity": 0.88,
+      "fill-extrusion-opacity": conceptVolumeOpacity,
       "fill-extrusion-vertical-gradient": true
     }
   }, labelLayer);
+  ensureVolumeEdgeLayer(map, CONCEPT_EDGE_LAYER_ID, CONCEPT_VOLUME_LAYER_ID);
 }
 
 function applyViewMode(map: MapLibreMap, viewMode: MapViewMode, animate = true, updateCamera = true) {
