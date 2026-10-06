@@ -12,8 +12,8 @@ import { parseLiveResolvedObject } from "./live-session";
 import { CONTEXT_GROUP_LABELS, normalizedResolvedContext, type PointObjectNormalizedContext } from "@/src/lib/prototype/point-to-object-normalized-context";
 import { publicEvidenceReceiptIsCurrent } from "@/src/lib/prototype/point-to-object-evidence-receipt";
 import { nominatimLocale } from "@/src/lib/prototype/point-to-object-markets";
-import { parsePointObjectComparisonInsight, type PointObjectComparisonInsight } from "@/src/lib/prototype/point-to-object-comparison-core";
-import { requestPointObjectComparison, PointObjectComparisonRequestError } from "@/src/lib/prototype/point-to-object-comparison-request";
+import { parsePointObjectComparisonInsightDetailed, comparisonInsightMatchesSubmission, type PointObjectComparisonInsight } from "@/src/lib/prototype/point-to-object-comparison-core";
+import { requestPointObjectComparison, PointObjectComparisonRequestError, comparisonFailureDiagnostic, type PointObjectComparisonDiagnostic } from "@/src/lib/prototype/point-to-object-comparison-request";
 import { boundPointObjectComparisonInsight } from "@/src/lib/prototype/point-to-object-comparison-state";
 import { pointObjectSourceFailure, sourceFailureMessage, sourceRetryAfterSeconds } from "@/src/lib/prototype/point-to-object-source-recovery";
 import { PointObjectContextDashboard } from "./context-dashboard";
@@ -142,6 +142,7 @@ export function FindComparisonDashboard({ locale, result, candidates, roleLabel,
   const levelsCoverage = candidates.filter((candidate) => candidate.mappedBuildingLevels !== null).length;
   const [phase, setPhase] = useState<"idle" | "sources" | "ai">("idle");
   const [error, setError] = useState<string | null>(null);
+  const [failureDiagnostic, setFailureDiagnostic] = useState<PointObjectComparisonDiagnostic | null>(null);
   const [cooldownUntil, setCooldownUntil] = useState(0);
   const controllerRef = useRef<AbortController | null>(null);
   useEffect(() => () => { controllerRef.current?.abort(); }, [locale, role, scenario, candidates]);
@@ -198,15 +199,23 @@ export function FindComparisonDashboard({ locale, result, candidates, roleLabel,
   async function runComparison() {
     if (!ready || controllerRef.current || matchedInsight) return;
     const controller=new AbortController(); controllerRef.current=controller; setPhase("ai"); setError(null);
+    setFailureDiagnostic(null);
+    const startedAt = Date.now();
     try {
       const submittedIntent = buildComparisonIntent();
       const frozen = submittedIntent.comparison;
       const submittedSource = { cohort: result, contexts: candidates.map(candidate => readyContext(candidate)) };
       const captureResponse = verification.begin("compare", submittedIntent, submittedSource);
-      const response=await requestPointObjectComparison({signal:controller.signal,payload:submittedIntent});
+      const response=await requestPointObjectComparison({signal:controller.signal,payload:submittedIntent,onDiagnostic: diagnostic => { if (!controller.signal.aborted) setFailureDiagnostic(diagnostic); }});
       if (controller.signal.aborted) return;
-      const parsed=response.ok ? parsePointObjectComparisonInsight(response.payload) : null;
-      if (!parsed || parsed.locale!==locale || parsed.role!==role || parsed.scenario!==scenario || parsed.snapshots.length!==frozen.length || !parsed.snapshots.every(snapshot=>frozen.some(candidate=>candidate.expectedSourceFeatureId===snapshot.sourceFeatureId && candidate.evidenceReceipt.evidencePackHash===snapshot.evidencePackHash && contexts[candidate.expectedSourceFeatureId]?.name === snapshot.label))) throw new Error(response.status===409 ? (ru ? "Обновите снимки кандидатов перед AI-сравнением." : "Refresh candidate snapshots before AI comparison.") : (ru ? "AI-сравнение не завершилось; исходные данные сохранены." : "AI comparison did not complete; source data is preserved."));
+      const validation=response.ok ? parsePointObjectComparisonInsightDetailed(response.payload) : null;
+      const parsed=validation?.content ?? null;
+      const expectedSnapshots = frozen.map(candidate => ({ sourceFeatureId: candidate.expectedSourceFeatureId, evidencePackHash: candidate.evidenceReceipt.evidencePackHash, label: contexts[candidate.expectedSourceFeatureId]?.name }));
+      if (!comparisonInsightMatchesSubmission(parsed,{locale,role,scenario},expectedSnapshots)) {
+        const diagnostic = response.diagnostic ?? comparisonFailureDiagnostic(submittedIntent,"validation",response.status,parsed ? "COMPARISON_RESPONSE_MISMATCH" : validation?.rejectionCode ?? "COMPARISON_RESPONSE_REJECTED",Date.now()-startedAt);
+        setFailureDiagnostic(diagnostic);
+        throw new Error(response.status===409 ? (ru ? "Обновите снимки кандидатов перед AI-сравнением." : "Refresh candidate snapshots before AI comparison.") : diagnostic.code === "AI_TIMEOUT" ? (ru ? "AI-сервис завершил запрос по таймауту. Исходные данные сохранены." : "The AI service timed out. Source data is preserved.") : (ru ? "AI-сравнение не завершилось; исходные данные сохранены." : "AI comparison did not complete; source data is preserved."));
+      }
       onInsight(parsed);
       captureResponse(response.payload);
     } catch(cause) { if(!controller.signal.aborted) setError(cause instanceof PointObjectComparisonRequestError ? cause.code === "timeout" ? (ru ? "Время ожидания истекло. Данные сохранены; можно повторить запуск." : "Request timed out. Source data is preserved; you can start again.") : (ru ? "AI-сравнение сейчас недоступно. Попробуйте позднее." : "AI comparison is unavailable. Try again later.") : cause instanceof Error ? cause.message : (ru ? "AI-сравнение недоступно." : "AI comparison unavailable.")); }
@@ -236,6 +245,11 @@ export function FindComparisonDashboard({ locale, result, candidates, roleLabel,
           <div className="mt-4 flex flex-wrap gap-3"><button type="button" onClick={()=>void loadContexts()} disabled={phase!=="idle" || stale} data-testid="comparison-load-context" className="min-h-11 rounded-xl border border-[#d7dee4] bg-white px-4 text-sm font-bold text-[#087f8c] disabled:opacity-50">{phase==="sources" ? (ru ? "Получаем окружение…" : "Loading surroundings…") : (ru ? "Обновить данные окружения" : "Refresh surroundings data")}</button><button type="button" onClick={()=>void runComparison()} disabled={!ready || phase!=="idle" || Boolean(matchedInsight)} data-testid="comparison-run-ai" className="min-h-11 rounded-xl bg-[#087f8c] px-4 text-sm font-bold text-white disabled:bg-[#b7c4d7]">{phase==="ai" ? (ru ? "Выполняем AI-сравнение…" : "Running AI comparison…") : matchedInsight ? (ru ? "AI-сравнение сохранено" : "AI comparison saved") : (ru ? "Запустить AI-сравнение" : "Run AI comparison")}</button></div>
           {!ready ? <p className="mt-2 text-xs leading-5 text-muted">{stale ? (ru ? "Обновите поиск после изменения условий." : "Update the search after changing criteria.") : (ru ? "Для AI нужны точные записи и непустые снимки окружения всех кандидатов без достигнутого предела выборки. Получение данных не запускает AI." : "AI needs exact records and nonempty, uncapped surroundings snapshots for every candidate. Loading data does not run AI.")}</p> : null}
           {error ? <p className="mt-3 text-sm text-[#79520d]" role="alert">{error}</p> : null}
+          {error && failureDiagnostic ? <details className="mt-2 min-w-0 rounded-xl border border-line p-3 text-xs" data-testid="comparison-failure-diagnostic">
+            <summary className="min-h-11 cursor-pointer font-semibold focus-visible:outline focus-visible:outline-2">{ru ? "Диагностика запроса" : "Request diagnostics"} · {failureDiagnostic.httpStatus ?? "—"} · {failureDiagnostic.code}</summary>
+            <p className="mt-2 text-muted">{ru ? "Код показывает этап и причину отказа проверки; это не AI-результат. Стоимость этого запроса не установлена." : "The code identifies the failure stage and rejection category; this is not an AI result. The cost of this request is not established."}</p>
+            <pre className="mt-2 max-w-full whitespace-pre-wrap break-all" data-testid="comparison-failure-json">{JSON.stringify(failureDiagnostic,null,2)}</pre>
+          </details> : null}
           <dl className="mt-5 grid gap-3 sm:grid-cols-3">
             <div className="rounded-2xl bg-[#f4fbfb] p-4"><dt className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#667085]">{ru ? "Объекты" : "Candidates"}</dt><dd className="mt-1 text-3xl font-bold tabular-nums text-[#087f8c]">{candidates.length}</dd></div>
             <div className="rounded-2xl bg-[#f4fbfb] p-4"><dt className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#667085]">{ru ? "Область выборки" : "Sample area"}</dt><dd className="mt-1 text-3xl font-bold tabular-nums text-[#087f8c]">{result.coverage.approximateAreaSqKm.toLocaleString(locale, { maximumFractionDigits: 2 })}<span className="ml-1 text-sm">{ru ? "км²" : "km²"}</span></dd></div>

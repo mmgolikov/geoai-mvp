@@ -74,6 +74,12 @@ try {
   insight=await service.generatePointObjectAiComparison([a,b],request);
   check(injectedProviderCalls===1&&insight.telemetry.attempts===1,"one explicit injected provider call");
   check(insight.snapshots[0].evidencePackHash===a.evidencePackHash&&comparison.parsePointObjectComparisonInsight(insight),"response frozen hashes validated");
+  const conditions={locale:request.locale,role:request.role!,scenario:request.scenario!};
+  const expected=[a,b].map(p=>({sourceFeatureId:p.selectedObject.sourceFeatureId,evidencePackHash:p.evidencePackHash,label:p.selectedObject.name}));
+  check(comparison.comparisonInsightMatchesSubmission(insight,conditions,expected),"ordered response binds exact IDs, hashes, labels and intent");
+  for(const mutate of [(r:typeof insight)=>r.snapshots.reverse(),(r:typeof insight)=>{r.snapshots[0].evidencePackHash="f".repeat(64);},(r:typeof insight)=>{r.snapshots[0].sourceFeatureId="way/999";},(r:typeof insight)=>{r.snapshots[0].label="Changed label";},(r:typeof insight)=>{r.locale="ru";},(r:typeof insight)=>{r.role="other";},(r:typeof insight)=>{r.scenario="other";}]){const r=structuredClone(insight);mutate(r);check(!comparison.comparisonInsightMatchesSubmission(r,conditions,expected),"wrong order/ID/hash/label/locale/role/scenario rejected");}
+  check(!comparison.comparisonInsightMatchesSubmission(null,conditions,expected),"missing response is not a comparison");
+  check(!comparison.comparisonInsightMatchesSubmission(insight,conditions,[expected[0],expected[0]]),"duplicate expected subject rejected");
   await assert.rejects(()=>service.generatePointObjectAiComparison([a,cap],request));checks++;
   check(injectedProviderCalls===1,"insufficient snapshot never dispatches provider");
   responseContent={...content,summary:{statement:"Unsupported claim with 9999 metres.",evidenceRefs:refs}};

@@ -17,7 +17,8 @@ type Locale = "en" | "ru";
 type CreateOperation = Extract<PointObjectProjectOperationInput, { kind: "create" }>;
 type SavedCreate = { artifactId: string; payload: CreateOperation["payload"] };
 type PixelReport = { width: number; height: number; facePixels: number; adjacentEdgePixels: number; medianBlendedOpacity: number | null };
-type Signals = { calls: string[]; errors: string[]; publicPosts: unknown[]; allowGeneration: boolean; frames: Array<PixelReport & { name: string; path: string; sha256: string }>; nativePickerObserved: boolean; nativeArrowOptionSelection: "NATIVE_ARROW_OPTION_SELECTION_RUNTIME_UNVERIFIED" };
+type CameraReport = { phase: string; scene: string; attributionExpanded: boolean; before: { width: number; height: number }; zoomedIn: { width: number; height: number }; zoomedOut: { width: number; height: number }; restored: { width: number; height: number }; };
+type Signals = { calls: string[]; errors: string[]; publicPosts: unknown[]; allowGeneration: boolean; frames: Array<PixelReport & { name: string; path: string; sha256: string }>; cameras: CameraReport[]; nativePickerObserved: boolean; nativeArrowOptionSelection: "NATIVE_ARROW_OPTION_SELECTION_RUNTIME_UNVERIFIED" };
 declare global { interface Window { __review02FinalCity: { clicks: number; changes: number }; } }
 const identity = "demo:demo-user-geoai";
 const storeKey = `geoai:point-to-object:projects:v1:${encodeURIComponent(identity)}`;
@@ -55,6 +56,33 @@ function fixture(locale: Locale): CreateOperation {
   return input;
 }
 
+function singleAndLegacyFixtures(initial: CreateOperation): [CreateOperation, CreateOperation] {
+  const singleInput = structuredClone(initial);
+  const a = singleInput.payload.generated.alternatives?.find(alternative => alternative.id === "A");
+  if (!a) throw new Error("Initial validated fixture must contain A");
+  singleInput.label = "Independent UI QA single A";
+  singleInput.payload.generated.alternatives = [a];
+  singleInput.payload.generated.massing = a.massing;
+  singleInput.payload.activeAlternativeId = "A";
+  const single = parsePointObjectProjectOperationInput(singleInput);
+  if (!single || single.kind !== "create") throw new Error("Invalid saved A-only fixture");
+  const legacyInput = structuredClone(single);
+  legacyInput.label = "Independent UI QA legacy A";
+  delete legacyInput.payload.generated.alternatives;
+  delete legacyInput.payload.generated.areaContextUsed;
+  const legacy = parsePointObjectProjectOperationInput(legacyInput);
+  if (!legacy || legacy.kind !== "create") throw new Error("Invalid legacy single-massing fixture");
+  return [single, legacy];
+}
+
+function offlineReferenceStyle(pathname: string) {
+  // Empty real GeoJSON layer supplies attribution without tiles or fake GPU output.
+  return { version: 8, sources: { "qa-attribution": { type: "geojson", data: { type: "FeatureCollection", features: [] }, attribution: "OpenFreeMap © OpenMapTiles Data from OpenStreetMap" } }, layers: [
+    { id: "background", type: "background", paint: { "background-color": pathname.endsWith("/bright") ? "#e4e9ec" : "#edf2f0" } },
+    { id: "qa-attribution", type: "fill", source: "qa-attribution" }
+  ] };
+}
+
 // PNG decoding uses Node built-ins and reads real Playwright canvas screenshots.
 // This never draws, edits or substitutes image data in the application.
 function decodePng(bytes: Buffer) {
@@ -89,14 +117,121 @@ async function openTask(page: Page, locale: Locale) {
 async function toParameters(page: Page, locale: Locale) { await page.getByTestId("create-full-result-dashboard").getByRole("button",{name:word(locale,"Back to parameters","К параметрам"),exact:true}).click();await openTask(page,locale);await expect(page.locator("#point-object-create-prompt")).toBeVisible(); }
 async function showResult(page: Page) { await page.getByTestId("create-open-result-dashboard").click();await expect(page.getByTestId("create-full-result-dashboard")).toBeVisible(); }
 
+function renderedTealSpan(bytes: Buffer) {
+  const { width, height, channels, pixels } = decodePng(bytes);
+  let left = width, right = -1, top = height, bottom = -1;
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+    const at = (y * width + x) * channels, r = pixels[at], g = pixels[at + 1], b = pixels[at + 2];
+    if (g - r > 18 && b - r > 18 && Math.abs(g - b) < 55 && r < 200) {
+      left = Math.min(left, x); right = Math.max(right, x); top = Math.min(top, y); bottom = Math.max(bottom, y);
+    }
+  }
+  if (right < left || bottom < top) throw new Error("Native camera assertion requires rendered teal geometry");
+  return { width: right - left + 1, height: bottom - top + 1 };
+}
+
+async function nativeRenderedSpan(canvas: Locator) {
+  // Centre the viewport below the sticky header before reading actual pixels.
+  await canvas.evaluate(el => el.scrollIntoView({ block: "center", inline: "nearest" }));
+  return renderedTealSpan(await canvas.screenshot({ type: "png" }));
+}
+
+async function stableRenderedSpan(canvas: Locator) {
+  let last = await nativeRenderedSpan(canvas), stable = 0;
+  await expect.poll(async () => {
+    const next = await nativeRenderedSpan(canvas);
+    stable = Math.abs(next.width - last.width) <= 1 && Math.abs(next.height - last.height) <= 1 ? stable + 1 : 0;
+    last = next; return stable;
+  }, { message: "Read camera baseline only after native rendered scale settles", intervals: [100, 150, 250] }).toBeGreaterThanOrEqual(2);
+  return last;
+}
+
+async function cameraControls(preview: Locator, locale: Locale, phase: string, scene: string, signals: Signals, info: TestInfo) {
+  const beforeCalls = [...signals.calls], key = await preview.getAttribute("data-preview-geometry-key");
+  const canvas = preview.locator("canvas.maplibregl-canvas"), camera = preview.getByTestId("create-preview-camera-controls");
+  const attribution = preview.locator(".maplibregl-ctrl-attrib");
+  let attributionExpanded = false;
+  if (scene === "map") {
+    await expect(attribution).toHaveCount(1);
+    await expect(attribution).toBeVisible();
+    expect(await attribution.evaluate(el => el.tagName)).toBe("DETAILS");
+    if (!await attribution.evaluate(el => el.classList.contains("maplibregl-compact-show"))) await attribution.locator(".maplibregl-ctrl-attrib-button").click();
+    await expect(attribution).toHaveClass(/maplibregl-compact-show/);
+    await expect(attribution).toHaveJSProperty("open", true);
+    await expect(attribution.locator(".maplibregl-ctrl-attrib-inner")).toBeVisible();
+    await expect(attribution).toContainText("OpenStreetMap");
+    attributionExpanded = true;
+  }
+  const buttons = [camera.getByRole("button", { name: word(locale, "Zoom in", "Приблизить"), exact: true }), camera.getByRole("button", { name: word(locale, "Zoom out", "Отдалить"), exact: true }), camera.getByRole("button", { name: word(locale, "Reset view", "Сбросить вид"), exact: true })];
+  for (const button of buttons) {
+    await expect(button).toBeEnabled(); await button.evaluate(el => el.scrollIntoView({ block: "center", inline: "nearest" })); await expect(button).toBeVisible();
+    const box = await button.boundingBox(), viewport = await preview.getByTestId("create-result-preview-3d-canvas").boundingBox();
+    if (!box || !viewport) throw new Error("Camera and native viewport must have measurable rectangles");
+    expect(box.width).toBeGreaterThanOrEqual(44); expect(box.height).toBeGreaterThanOrEqual(44);
+    expect(box.y).toBeGreaterThanOrEqual(viewport.y + viewport.height);
+    if (attributionExpanded) {
+      const attr = await attribution.boundingBox(); if (!attr) throw new Error("Expanded attribution rectangle missing");
+      expect(Math.max(0, Math.min(box.x + box.width, attr.x + attr.width) - Math.max(box.x, attr.x)) * Math.max(0, Math.min(box.y + box.height, attr.y + attr.height) - Math.max(box.y, attr.y))).toBe(0);
+    }
+    expect(await button.evaluate(el => {
+      const box = el.getBoundingClientRect(), hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+      return hit === el || (hit !== null && el.contains(hit));
+    })).toBe(true);
+  }
+  await camera.screenshot({ path: info.outputPath(`${phase}-${scene}-camera-controls.png`) });
+  // Retain the prior zoom-in/reset path, then independently observe zoom-out.
+  const before = await stableRenderedSpan(canvas);
+  const viewportPixels = decodePng(await canvas.screenshot({ type: "png" }));
+  await buttons[0].click();
+  let zoomedIn = before;
+  await expect.poll(async () => {
+    zoomedIn = await nativeRenderedSpan(canvas);
+    return (zoomedIn.width >= Math.min(before.width * 1.1, viewportPixels.width) && zoomedIn.width - before.width >= 4) ||
+      (zoomedIn.height >= Math.min(before.height * 1.1, viewportPixels.height) && zoomedIn.height - before.height >= 4);
+  }, { message: "Zoom in must visibly increase native rendered span on at least one axis, allowing viewport clipping" }).toBe(true);
+  await buttons[2].click();
+  await expect.poll(async () => {
+    const span = await nativeRenderedSpan(canvas);
+    return Math.abs(span.width - before.width) <= Math.max(3, before.width * .08) && Math.abs(span.height - before.height) <= Math.max(3, before.height * .08);
+  }, { message: "Initial zoom-in/reset retains the native camera baseline" }).toBe(true);
+  await stableRenderedSpan(canvas);
+  await buttons[1].click();
+  let zoomedOut = before;
+  await expect.poll(async () => {
+    zoomedOut = await nativeRenderedSpan(canvas);
+    return zoomedOut.width < before.width * .8 && zoomedOut.height < before.height * .8;
+  }, { message: "Zoom out must reduce actual native rendered geometry, not merely invoke a callback" }).toBe(true);
+  await buttons[2].click();
+  let restored = zoomedOut;
+  await expect.poll(async () => {
+    restored = await nativeRenderedSpan(canvas);
+    return Math.abs(restored.width - before.width) <= Math.max(3, before.width * .08) && Math.abs(restored.height - before.height) <= Math.max(3, before.height * .08);
+  }, { message: "Reset must restore the prior rendered scale" }).toBe(true);
+  await expect(preview).toHaveAttribute("data-preview-geometry-key", key!);
+  expect(signals.calls, "Camera/attribution interaction must not acquire context or dispatch AI").toEqual(beforeCalls);
+  signals.cameras.push({ phase, scene, attributionExpanded, before, zoomedIn, zoomedOut, restored });
+}
+
+async function savedOptionsCopy(panel: Locator, locale: Locale, ids: Array<"A" | "B">) {
+  const copy = panel.getByTestId("create-saved-options-copy");
+  await expect(copy).toHaveAttribute("data-saved-option-count", String(ids.length));
+  await expect(copy).toContainText(ids.length === 1 ? word(locale, `One option is saved — ${ids[0]}.`, `Сохранён один вариант — ${ids[0]}.`) : `${ids.join("/")} ${word(locale, "are saved options", "— сохранённые варианты")}`);
+  if (ids.length === 1) {
+    await expect(panel.getByRole("tablist", { name: word(locale, "Concept options", "Варианты концепции"), exact: true })).toHaveCount(0);
+    await expect(panel.getByTestId("create-programme-option-delta")).toHaveCount(0);
+    expect(await copy.innerText()).not.toMatch(/A\/B|B\/A/);
+  }
+}
+
 async function volumeViews(page: Page, locale: Locale, generated: CreateOperation["payload"]["generated"], phase: string, signals: Signals, info: TestInfo) {
   for(const alternative of generated.alternatives??[]){
     const panel=page.getByTestId("create-full-result-dashboard");await panel.getByTestId("create-dashboard-alternative-"+alternative.id.toLowerCase()).click();
+    await savedOptionsCopy(panel,locale,generated.alternatives!.map(item=>item.id));
     const kpi=panel.getByTestId("create-result-kpis");await expect(kpi).toHaveAttribute("data-active-variant",alternative.id);await expect(kpi).toHaveAttribute("data-estimated-floor-area-sqm",String(alternative.massing.estimatedFloorAreaSqM));const kpiText=await kpi.innerText();
     await expect(panel.getByTestId("create-source-binding")).toHaveAttribute("data-source-binding","matched");
     await panel.getByTestId("create-preview-mode-3d").click();
     for(const scene of ["map","model"]){await panel.getByTestId("create-scene-"+scene).click();const preview=panel.getByTestId("create-result-preview-3d");await expect(preview).toHaveAttribute("data-preview-status","ready");await expect(preview).toHaveAttribute("data-preview-variant",alternative.id);await expect(preview).toHaveAttribute("data-preview-feature-count",String(alternative.massing.generatedFeatureCount));const key=await preview.getAttribute("data-preview-geometry-key");expect(key).toBeTruthy();if(!key)throw new Error("Native 3D preview geometry key is missing");const canvas=preview.locator("canvas.maplibregl-canvas");
-      await frame(canvas,`${phase}-${alternative.id}-${scene}-3d`,scene==="model"?"#f4fbfb":"#edf2f0",signals,info);await preview.getByRole("button",{name:word(locale,"Zoom in","Приблизить"),exact:true}).click();await preview.getByRole("button",{name:word(locale,"Reset view","Сбросить вид"),exact:true}).click();await expect(preview).toHaveAttribute("data-preview-geometry-key",key);
+      await frame(canvas,`${phase}-${alternative.id}-${scene}-3d`,scene==="model"?"#f4fbfb":"#edf2f0",signals,info);await cameraControls(preview,locale,`${phase}-${alternative.id}`,scene,signals,info);await expect(preview).toHaveAttribute("data-preview-geometry-key",key);
       await frame(canvas,`${phase}-${alternative.id}-${scene}-zoom-reset`,scene==="model"?"#f4fbfb":"#edf2f0",signals,info);
     }
     await panel.getByTestId("create-preview-mode-2d").click();await expect(panel.getByTestId("create-preview-mode-2d")).toHaveAttribute("aria-pressed","true");await panel.getByTestId("create-preview-mode-3d").click();await expect(kpi).toHaveText(kpiText);
@@ -127,8 +262,8 @@ async function cityHitbox(page: Page, locale: Locale, signals: Signals, info: Te
 for(const locale of ["en","ru"] as const)for(const width of [1440,390])test(`REVIEW02 final native teal new saved A/B and City ${locale} ${width}`,async({page,browserName},info)=>{
   test.setTimeout(300000);const baseURL=info.project.use.baseURL!,origin=requireLoopbackTestOrigin(baseURL).origin;await installLoopbackBrowserHarness(page,browserName,baseURL);await page.setViewportSize({width,height:width===390?844:900});
   const operation=fixture(locale),newGenerated=structuredClone(operation.payload.generated);newGenerated.promptVersion="POINT_OBJECT_CREATE_REVIEW02_FINAL_UI_NEW_OFFLINE";
-  const signals:Signals={calls:[],errors:[],publicPosts:[],allowGeneration:false,frames:[],nativePickerObserved:false,nativeArrowOptionSelection:"NATIVE_ARROW_OPTION_SELECTION_RUNTIME_UNVERIFIED"};page.on("pageerror",e=>signals.errors.push(e.message));
-  await page.route(externalHttpUrlPattern(baseURL),route=>{const u=new URL(route.request().url());if(u.hostname==="tiles.openfreemap.org"&&u.pathname.startsWith("/styles/"))return route.fulfill({json:{version:8,sources:{},layers:[{id:"background",type:"background",paint:{"background-color":u.pathname.endsWith("/bright")?"#e4e9ec":"#edf2f0"}}]}});return route.abort("blockedbyclient");});
+  const signals:Signals={calls:[],errors:[],publicPosts:[],allowGeneration:false,frames:[],cameras:[],nativePickerObserved:false,nativeArrowOptionSelection:"NATIVE_ARROW_OPTION_SELECTION_RUNTIME_UNVERIFIED"};page.on("pageerror",e=>signals.errors.push(e.message));
+  await page.route(externalHttpUrlPattern(baseURL),route=>{const u=new URL(route.request().url());if(u.hostname==="tiles.openfreemap.org"&&u.pathname.startsWith("/styles/"))return route.fulfill({json:offlineReferenceStyle(u.pathname)});return route.abort("blockedbyclient");});
   await page.route("**/api/auth/session",route=>route.fulfill({json:sessionMissingFixture}));
   await page.route("**/api/prototype/**",async route=>{const request=route.request(),u=new URL(request.url());expect(u.origin).toBe(origin);signals.calls.push(`${request.method()} ${u.pathname}`);if(signals.allowGeneration&&u.pathname==="/api/prototype/point-to-object/create"){if(request.method()==="GET")return route.fulfill({json:{mode:"ready",challenge:"P".repeat(43)}});if(request.method()==="POST"){const publicBody=Object.fromEntries(Object.entries(request.postDataJSON()).filter(([k])=>k!=="challenge"));expect(publicBody).toEqual({marketKey:"dubai",locale,depth:"standard",templateId:"residential_quarter",customPrompt:prompt,controls,lockedControlKeys:expect.arrayContaining(Object.keys(controls)),aoiCoordinates:operation.payload.aoi.coordinates});expect((publicBody.lockedControlKeys as string[]).length).toBe(6);signals.publicPosts.push(publicBody);return route.fulfill({json:newGenerated});}}return route.fulfill({status:503,json:{mode:"unavailable",error:"Unexpected offline source/provider request is recorded and fails QA"}});});
   const artifact={...operation,schemaVersion:1,artifactId:"review02-final-ui-saved",idempotencyKey:"review02-final-ui-offline",payloadHash:await hashPointObjectOperation(operation),completedAt:stamp,updatedAt:stamp,viewRevision:0};
@@ -144,6 +279,83 @@ for(const locale of ["en","ru"] as const)for(const width of [1440,390])test(`REV
     const baseline=[...signals.calls];await page.goto("/projects?view=spatial");const card=page.getByTestId("saved-result-card").filter({hasText:word(locale,"Generated concept","Созданная концепция")});await expect(card).toHaveCount(1);await card.getByRole("button",{name:word(locale,"Show on map","Показать на карте"),exact:true}).click();await expect(page.getByTestId("create-full-result-dashboard")).toBeVisible();const savedNew=(await saved(page)).find(x=>x.payload.generated.promptVersion===newGenerated.promptVersion);expect(savedNew?.payload.generated).toEqual(newGenerated);await expect(page.getByTestId("create-source-binding")).toHaveAttribute("data-source-binding","matched");await immutableOriginal();expect(signals.calls).toEqual(baseline);
     const beforeCity=await saved(page);await cityHitbox(page,locale,signals,info);expect(await saved(page)).toEqual(beforeCity);await immutableOriginal();expect(signals.errors).toEqual([]);completed=true;
   } finally {
-    const receipt={scope:"Synthetic loopback CI/native MapLibre QA; no hosted source/paid/Production acceptance",assertionsCompleted:completed,authoritativeStatus:"Playwright final test report",locale,width,browserName,material:{color:"#087f8c",opacity:0.5},pixelLimit:"Pixel blend interval is not an exact shader-opacity measurement; exact owner contract and independent PNG visual review remain required",sourceFixtureLimit:"Synthetic acquisition marker runtimeNetworkUsed=true satisfies the existing saved-source schema; no real source acquisition was exercised",originalGeometryHash:sha(JSON.stringify(operation.payload.generated)),calls:signals.calls,publicPosts:signals.publicPosts,pageErrors:signals.errors,frames:signals.frames,nativePickerObserved:signals.nativePickerObserved,nativeArrowOptionSelection:signals.nativeArrowOptionSelection,cityChangeMethod:"selectOption validates native SELECT change handler only; actual menu-item/Arrow selection remains unverified"};writeFileSync(info.outputPath("review02-final-ui-receipt.json"),JSON.stringify(receipt,null,2)+"\n");await page.screenshot({path:info.outputPath("review02-final-ui-terminal.png"),fullPage:false});
+    const receipt={scope:"Synthetic loopback CI/native MapLibre QA; no hosted source/paid/Production acceptance",assertionsCompleted:completed,authoritativeStatus:"Playwright final test report",locale,width,browserName,material:{color:"#087f8c",opacity:0.5},pixelLimit:"Pixel blend interval is not an exact shader-opacity measurement; exact owner contract and independent PNG visual review remain required",sourceFixtureLimit:"Synthetic acquisition marker runtimeNetworkUsed=true satisfies the existing saved-source schema; no real source acquisition was exercised",originalGeometryHash:sha(JSON.stringify(operation.payload.generated)),calls:signals.calls,publicPosts:signals.publicPosts,pageErrors:signals.errors,frames:signals.frames,cameras:signals.cameras,nativePickerObserved:signals.nativePickerObserved,nativeArrowOptionSelection:signals.nativeArrowOptionSelection,cityChangeMethod:"selectOption validates native SELECT change handler only; actual menu-item/Arrow selection remains unverified"};writeFileSync(info.outputPath("review02-final-ui-receipt.json"),JSON.stringify(receipt,null,2)+"\n");await page.screenshot({path:info.outputPath("review02-final-ui-terminal.png"),fullPage:false});
+  }
+});
+
+// Two definitions, each used by Chromium and WebKit: four additional cases.
+// No new generation and no broad repetition of the City/full-volume suite.
+for (const locale of ["en", "ru"] as const) test(`REVIEW02 final saved A-only legacy camera ${locale} 390`, async ({ page, browserName }, info) => {
+  test.setTimeout(180000);
+  const baseURL = info.project.use.baseURL!, origin = requireLoopbackTestOrigin(baseURL).origin;
+  await installLoopbackBrowserHarness(page, browserName, baseURL); await page.setViewportSize({ width: 390, height: 844 });
+  const initial = fixture(locale), [single, legacy] = singleAndLegacyFixtures(initial);
+  expect(single.payload.generated.massing).toEqual(initial.payload.generated.massing);
+  expect(legacy.payload.generated.massing).toEqual(single.payload.generated.massing);
+  expect(legacy.payload.generated.alternatives).toBeUndefined();
+  expect(Object.hasOwn(legacy.payload.generated, "areaContextUsed")).toBe(false);
+  const variants = [{ operation: single, id: "review02-single-saved", binding: "matched" }, { operation: legacy, id: "review02-legacy-saved", binding: "legacy_unknown" }] as const;
+  const artifacts = await Promise.all(variants.map(async ({ operation, id }) => ({ ...operation, schemaVersion: 1, artifactId: id, idempotencyKey: id, payloadHash: await hashPointObjectOperation(operation), completedAt: stamp, updatedAt: stamp, viewRevision: 0 })));
+  const store = parsePointObjectProjectStore({ schemaVersion: 1, identityKey: identity, activeProjectId: "review02-single-legacy-project", projects: [{ schemaVersion: 1, projectId: "review02-single-legacy-project", name: "Independent single/legacy UI QA", storageMode: "browser_local_on_this_device", createdAt: stamp, updatedAt: stamp, artifacts }] }, identity, 20, 30);
+  if (!store) throw new Error("Invalid independently validated single/legacy store");
+  const signals: Signals = { calls: [], errors: [], publicPosts: [], allowGeneration: false, frames: [], cameras: [], nativePickerObserved: false, nativeArrowOptionSelection: "NATIVE_ARROW_OPTION_SELECTION_RUNTIME_UNVERIFIED" };
+  page.on("pageerror", error => signals.errors.push(error.message));
+  await page.route(externalHttpUrlPattern(baseURL), route => {
+    const url = new URL(route.request().url());
+    if (url.hostname === "tiles.openfreemap.org" && url.pathname.startsWith("/styles/")) return route.fulfill({ json: offlineReferenceStyle(url.pathname) });
+    return route.abort("blockedbyclient");
+  });
+  await page.route("**/api/auth/session", route => route.fulfill({ json: sessionMissingFixture }));
+  await page.route("**/api/prototype/**", route => {
+    const request = route.request(), url = new URL(request.url()); expect(url.origin).toBe(origin);
+    signals.calls.push(`${request.method()} ${url.pathname}`);
+    return route.fulfill({ status: 503, json: { mode: "unavailable", error: "Saved single/legacy navigation must never reacquire source or dispatch AI" } });
+  });
+  await page.context().addCookies([{ name: "geoai_locale", value: locale, url: baseURL }]);
+  await page.addInitScript(({ store, key, identity }) => {
+    if (!sessionStorage.getItem("__review02_single_legacy_seed")) {
+      localStorage.setItem(key, JSON.stringify(store)); localStorage.setItem("geoai-mock-demo-session-v1", "active"); localStorage.setItem("geoai:point-to-object:browser-identity:v1", identity);
+      sessionStorage.setItem("__review02_single_legacy_seed", "1");
+    }
+  }, { store, key: storeKey, identity });
+  const preserved = async () => {
+    const current = await saved(page);
+    expect(current).toHaveLength(2);
+    for (const { operation, id } of variants) expect(current.find(item => item.artifactId === id)?.payload).toEqual(operation.payload);
+    expect(signals.calls).toEqual([]);
+  };
+  let completed = false;
+  const phases: Array<{ id: string; binding: string; geometryKey: string; kpis: string }> = [];
+  try {
+    let originalKey: string | null = null, originalKpis: string | null = null;
+    for (const { operation, id, binding } of variants) {
+      await page.goto("/projects?view=spatial");
+      const card = page.getByTestId("saved-result-card").filter({ hasText: operation.label }); await expect(card).toHaveCount(1);
+      await card.getByRole("button", { name: word(locale, "Show on map", "Показать на карте"), exact: true }).click();
+      const panel = page.getByTestId("create-full-result-dashboard"); await expect(panel).toBeVisible();
+      await savedOptionsCopy(panel, locale, ["A"]);
+      await expect(panel.getByTestId("create-dashboard-alternative-b")).toHaveCount(0);
+      const source = panel.getByTestId("create-source-binding"); await expect(source).toHaveAttribute("data-source-binding", binding);
+      if (binding === "legacy_unknown") await expect(source).toContainText(word(locale, "This legacy result has no source-use receipt", "В старом результате нет source-use receipt"));
+      expect(await panel.innerText()).not.toMatch(/A\/B are saved|A\/B — сохранённые|Geometry and A\/B|Геометрия и A\/B/);
+      const kpi = panel.getByTestId("create-result-kpis"), expected = operation.payload.generated.massing;
+      await expect(kpi).toHaveAttribute("data-active-variant", "A"); await expect(kpi).toHaveAttribute("data-estimated-floor-area-sqm", String(expected.estimatedFloorAreaSqM));
+      const kpis = await kpi.innerText(); if (originalKpis !== null) expect(kpis).toBe(originalKpis); else originalKpis = kpis;
+      await panel.getByTestId("create-preview-mode-3d").click();
+      const preview = panel.getByTestId("create-result-preview-3d"); await expect(preview).toHaveAttribute("data-preview-status", "ready");
+      await expect(preview).toHaveAttribute("data-preview-variant", "A"); await expect(preview).toHaveAttribute("data-preview-feature-count", String(expected.generatedFeatureCount));
+      const key = await preview.getAttribute("data-preview-geometry-key"); if (!key) throw new Error("Saved single/legacy native geometry key missing");
+      if (originalKey !== null) expect(key).toBe(originalKey); else originalKey = key;
+      await frame(preview.locator("canvas.maplibregl-canvas"), `${id}-map-3d`, "#edf2f0", signals, info);
+      await cameraControls(preview, locale, id, "map", signals, info);
+      await panel.getByTestId("create-preview-mode-2d").click(); await panel.getByTestId("create-preview-mode-3d").click();
+      await expect(panel.getByTestId("create-result-preview-3d")).toHaveAttribute("data-preview-geometry-key", key);
+      await expect(kpi).toHaveText(kpis); await expect(source).toHaveAttribute("data-source-binding", binding);
+      await preserved(); phases.push({ id, binding, geometryKey: key, kpis });
+    }
+    await preserved(); expect(signals.errors).toEqual([]); expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1); completed = true;
+  } finally {
+    writeFileSync(info.outputPath("review02-single-legacy-ui-receipt.json"), JSON.stringify({ scope: "Synthetic loopback native saved single/legacy UI only; not hosted paid acceptance", assertionsCompleted: completed, authoritativeStatus: "Playwright terminal report", locale, width: 390, browserName, phases, cameras: signals.cameras, frames: signals.frames, calls: signals.calls, pageErrors: signals.errors, originalMassingHash: sha(JSON.stringify(initial.payload.generated.massing)), limits: "No actual paid A/B, provider execution, native City coverage or exact shader-alpha measurement in these additional cases" }, null, 2) + "\n");
+    await page.screenshot({ path: info.outputPath("review02-single-legacy-terminal.png"), fullPage: false });
   }
 });
