@@ -1,4 +1,5 @@
 "use client";
+import { VerificationExport, useVerificationCapture } from "./verification-export";
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 
@@ -20,6 +21,7 @@ import {
   type PointObjectCreateEditorSnapshot
 } from "@/src/lib/prototype/point-to-object-create-editor";
 import {
+  pointObjectCreateFastPreflight,
   POINT_OBJECT_CREATE_COVERAGE_TOTAL_ATTEMPT_LIMIT,
   type PointObjectCreateCoverageSuggestion
 } from "@/src/lib/prototype/point-to-object-create-orchestration";
@@ -31,6 +33,8 @@ type CreateDepth = "quick" | "standard" | "deep";
 export type { PointObjectGeneratedConcept } from "@/src/lib/prototype/point-to-object-create-result";
 
 type CreatePanelProps = {
+  verificationEnabled?: boolean;
+  verificationSource?: unknown;
   locale: "en" | "ru";
   marketKey: string;
   aoi: PointObjectCreateAoi;
@@ -206,7 +210,8 @@ function RangeControl({
   );
 }
 
-export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generated, generatedLocale, activeAlternativeId, onGenerationStart, onGenerated, onAlternativeChange, onReset, editorSnapshot = null, onEditorSnapshotChange }: CreatePanelProps) {
+export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generated, generatedLocale, activeAlternativeId, onGenerationStart, onGenerated, onAlternativeChange, onReset, editorSnapshot = null, onEditorSnapshotChange, verificationEnabled = false, verificationSource = null }: CreatePanelProps) {
+  const verification = useVerificationCapture(verificationEnabled);
   const templates = useMemo(() => conceptTemplates(locale), [locale]);
   const editorScopeKey = createPointObjectCreateEditorScopeKey({ aoiId: aoi.id, marketKey });
   const restoredEditor = restorePointObjectCreateEditorSnapshot(editorSnapshot, editorScopeKey);
@@ -273,15 +278,23 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
       setLocalPreflight({ key: draftKey, kind: "failed", code: "program_invalid" });
       return;
     }
+    const admission = pointObjectCreateFastPreflight({ customPrompt, lockedControlKeys: [...lockedControlKeys] });
+    if (admission) {
+      setLocalPreflight({ ...admission, key: draftKey });
+      return;
+    }
+    let disposed = false;
+    const isCurrent = () => !disposed && currentDraftKeyRef.current === draftKey;
     setLocalPreflight({ key: draftKey, kind: "checking" });
     let worker: Worker | null = null;
     let deadline: number | undefined;
     const timer = window.setTimeout(() => {
+      if (!isCurrent()) return;
       try {
         worker = new Worker(new URL("./create-preflight.worker.ts", import.meta.url));
         worker.onmessage = (event) => {
           window.clearTimeout(deadline);
-          if (currentDraftKeyRef.current !== draftKey) { worker?.terminate(); return; }
+          if (!isCurrent()) { worker?.terminate(); return; }
           if (event.data.kind === "suggestion" && !explicitControlsRef.current && !customPrompt.trim()) {
             // Validate the message before adopting anything, even from the local
             // worker. Never use a solver failure as permission to lower controls.
@@ -294,19 +307,32 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
           worker?.terminate();
         };
         worker.onerror = () => {
+          if (!isCurrent()) return;
           window.clearTimeout(deadline);
           worker?.terminate();
           setLocalPreflight({ key: draftKey, kind: "failed", code: "worker_unavailable" });
         };
         deadline = window.setTimeout(() => {
+          if (!isCurrent()) return;
           worker?.terminate();
           setLocalPreflight({ key: draftKey, kind: "failed", code: "solver_timeout" });
         }, 15_000);
         worker.postMessage({ aoiCoordinates: aoi.coordinates, locale,
           templateId, customPrompt: customPrompt.trim() || null, controls, lockedControlKeys: [...lockedControlKeys] });
-      } catch { setLocalPreflight({ key: draftKey, kind: "failed", code: "worker_unavailable" }); }
+      } catch {
+        if (isCurrent()) setLocalPreflight({ key: draftKey, kind: "failed", code: "worker_unavailable" });
+      }
     }, 250);
-    return () => { window.clearTimeout(timer); window.clearTimeout(deadline); worker?.terminate(); };
+    return () => {
+      disposed = true;
+      window.clearTimeout(timer);
+      window.clearTimeout(deadline);
+      if (worker) {
+        worker.onmessage = null;
+        worker.onerror = null;
+        worker.terminate();
+      }
+    };
   }, [draftKey, aoi.coordinates, aoi.id, controls, customPrompt, locale, lockedControlKeys, parameterError, preflightAttempt, templateId]);
 
   useEffect(() => {
@@ -421,6 +447,10 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
     setLockedControlKeys(new Set());
   }
 
+  function buildSubmissionIntent() {
+    return { marketKey, locale, depth, templateId, customPrompt: customPrompt.trim() || null, controls, lockedControlKeys: [...lockedControlKeys], aoiCoordinates: aoi.coordinates };
+  }
+
   async function generate() {
     if (loading || generatedFromCurrentDraft || legacyResultNeedsExplicitEdit || preflightBlocked) return;
     requestRef.current?.abort();
@@ -430,6 +460,8 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
     const requestDraftKey = draftKey;
     requestIdRef.current = requestId;
     onGenerationStart?.();
+    const submittedIntent = buildSubmissionIntent();
+    const captureResponse = verification.begin("create", submittedIntent, verificationSource);
     setLoading(true);
     setError(null);
     setCoverageSuggestion(null);
@@ -444,14 +476,7 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
         headers: { "Content-Type": "application/json" },
         signal: controller.signal,
         body: JSON.stringify({
-          marketKey,
-          locale,
-          depth,
-          templateId,
-          customPrompt: customPrompt.trim() || null,
-          controls,
-          lockedControlKeys: [...lockedControlKeys],
-          aoiCoordinates: aoi.coordinates,
+          ...submittedIntent,
           challenge: challengePayload.challenge
         })
       });
@@ -471,6 +496,7 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
       const concept = parsePointObjectGeneratedConcept(payload, aoi);
       if (!concept) throw new Error(copy.error);
       if (controller.signal.aborted || requestId !== requestIdRef.current) return;
+      captureResponse(payload);
       const committedEditorSnapshot: PointObjectCreateEditorSnapshot = {
         version: 1,
         scopeKey: editorScopeKey,
@@ -616,6 +642,7 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
         </div>
       ) : null}
 
+      <VerificationExport enabled={verificationEnabled} locale={locale} preSubmit={{ operation: "create", intent: buildSubmissionIntent(), sourceSnapshot: verificationSource }} records={verification.records} captureRefused={verification.captureRefused} currentSelection={{ mode: "create", marketKey, locale, aoiCoordinates: aoi.coordinates }} />
       <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto] gap-2">
         <button
           type="button"

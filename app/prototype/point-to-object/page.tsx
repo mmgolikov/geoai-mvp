@@ -15,5 +15,5 @@ export default async function PointToObjectPrototypePage({ searchParams }: { sea
     ? "/prototype/point-to-object"
     : `/prototype/point-to-object?mode=${initialMode}`;
   await requirePilotPageIdentity(nextPath);
-  return <PointToObjectPrototype initialMode={initialMode} />;
+  return <PointToObjectPrototype initialMode={initialMode} verificationEnabled={process.env.VERCEL_ENV === "preview"} />;
 }

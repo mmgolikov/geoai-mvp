@@ -1,4 +1,5 @@
 "use client";
+import { VerificationExport, useVerificationCapture } from "./verification-export";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { LiveObjectMap } from "./live-object-map";
@@ -18,6 +19,7 @@ import { pointObjectSourceFailure, sourceFailureMessage, sourceRetryAfterSeconds
 import { PointObjectContextDashboard } from "./context-dashboard";
 
 type Props = {
+  verificationEnabled?: boolean;
   locale: "en" | "ru";
   result: PointObjectFindResult;
   candidates: PointObjectFindCandidate[];
@@ -132,7 +134,8 @@ function ComparisonContextLineage({ context, locale, asOfMs }: { context: PointO
   </details>;
 }
 
-export function FindComparisonDashboard({ locale, result, candidates, roleLabel, scenarioLabel, role, scenario, contexts, insight, stale, onContextResolved, onInsight, groupLabel, onBackToComparison, onBackToResults, onShowMap, onOpenAnalysis }: Props) {
+export function FindComparisonDashboard({ locale, result, candidates, roleLabel, scenarioLabel, role, scenario, contexts, insight, stale, onContextResolved, onInsight, groupLabel, onBackToComparison, onBackToResults, onShowMap, onOpenAnalysis, verificationEnabled = false }: Props) {
+  const verification = useVerificationCapture(verificationEnabled);
   const dialogRef = useModalShell(onBackToComparison);
   const ru = locale === "ru";
   const [activeId, setActiveId] = useState<string | null>(candidates[0]?.sourceFeatureId ?? null);
@@ -166,9 +169,11 @@ export function FindComparisonDashboard({ locale, result, candidates, roleLabel,
     const controller = new AbortController(); controllerRef.current = controller; setPhase("sources"); setError(null);
     try {
       for (const candidate of candidates) {
+        const submittedIntent = { caseKey: result.criteria.marketKey, longitude: candidate.longitude, latitude: candidate.latitude, locale, expectedSourceFeatureId: candidate.sourceFeatureId };
+        const captureResponse = verification.begin("context", submittedIntent, { cohort: result });
         // This is an explicit refresh, including after a server cache miss.
         // A current browser receipt does not prove the server still has its pack.
-        const response = await fetch("/api/prototype/point-to-object/context", { method: "POST", headers: {"Content-Type":"application/json"}, signal: AbortSignal.any([controller.signal, AbortSignal.timeout(18_000)]), body: JSON.stringify({caseKey:result.criteria.marketKey,longitude:candidate.longitude,latitude:candidate.latitude,locale,expectedSourceFeatureId:candidate.sourceFeatureId}) });
+        const response = await fetch("/api/prototype/point-to-object/context", { method: "POST", headers: {"Content-Type":"application/json"}, signal: AbortSignal.any([controller.signal, AbortSignal.timeout(18_000)]), body: JSON.stringify(submittedIntent) });
         const payload: unknown = await response.json();
         if (controller.signal.aborted) return;
         if (!response.ok) {
@@ -179,21 +184,31 @@ export function FindComparisonDashboard({ locale, result, candidates, roleLabel,
         const context = payload && typeof payload === "object" && "mode" in payload && payload.mode === "resolved" && "subject" in payload ? parseLiveResolvedObject(payload.subject) : null;
         if (!context || context.sourceFeatureId !== candidate.sourceFeatureId || context.coordinateAssociation !== "trusted_open_map_identity" || context.evidenceReceipt?.lookupSourceFeatureId !== candidate.sourceFeatureId) throw new Error(ru ? "Точная запись кандидата не подтверждена." : "The candidate's exact source record was not confirmed.");
         onContextResolved(candidate.sourceFeatureId,context);
+        captureResponse(payload);
       }
     } catch (cause) { if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : (ru ? "Не удалось получить окружение." : "Could not load surroundings.")); }
     finally { if (controllerRef.current === controller) { controllerRef.current=null; setPhase("idle"); } }
+  }
+
+  function buildComparisonIntent() {
+    const frozen = candidates.map(candidate => ({ longitude: candidate.longitude, latitude: candidate.latitude, expectedSourceFeatureId: candidate.sourceFeatureId, evidenceReceipt: readyContext(candidate)!.evidenceReceipt! }));
+    return { caseKey: result.criteria.marketKey, longitude: frozen[0].longitude, latitude: frozen[0].latitude, locale, role, scenario, depth: "standard", goal: "development_screening", perspective: "developer", horizon: "current", question: null, expectedSourceFeatureId: frozen[0].expectedSourceFeatureId, evidenceReceipt: frozen[0].evidenceReceipt, comparison: frozen, consent: true };
   }
 
   async function runComparison() {
     if (!ready || controllerRef.current || matchedInsight) return;
     const controller=new AbortController(); controllerRef.current=controller; setPhase("ai"); setError(null);
     try {
-      const frozen=candidates.map(candidate => ({longitude:candidate.longitude,latitude:candidate.latitude,expectedSourceFeatureId:candidate.sourceFeatureId,evidenceReceipt:readyContext(candidate)!.evidenceReceipt!}));
-      const response=await requestPointObjectComparison({signal:controller.signal,payload:{caseKey:result.criteria.marketKey,longitude:frozen[0].longitude,latitude:frozen[0].latitude,locale,role,scenario,depth:"standard",goal:"development_screening",perspective:"developer",horizon:"current",question:null,expectedSourceFeatureId:frozen[0].expectedSourceFeatureId,evidenceReceipt:frozen[0].evidenceReceipt,comparison:frozen,consent:true}});
+      const submittedIntent = buildComparisonIntent();
+      const frozen = submittedIntent.comparison;
+      const submittedSource = { cohort: result, contexts: candidates.map(candidate => readyContext(candidate)) };
+      const captureResponse = verification.begin("compare", submittedIntent, submittedSource);
+      const response=await requestPointObjectComparison({signal:controller.signal,payload:submittedIntent});
       if (controller.signal.aborted) return;
       const parsed=response.ok ? parsePointObjectComparisonInsight(response.payload) : null;
       if (!parsed || parsed.locale!==locale || parsed.role!==role || parsed.scenario!==scenario || parsed.snapshots.length!==frozen.length || !parsed.snapshots.every(snapshot=>frozen.some(candidate=>candidate.expectedSourceFeatureId===snapshot.sourceFeatureId && candidate.evidenceReceipt.evidencePackHash===snapshot.evidencePackHash && contexts[candidate.expectedSourceFeatureId]?.name === snapshot.label))) throw new Error(response.status===409 ? (ru ? "Обновите снимки кандидатов перед AI-сравнением." : "Refresh candidate snapshots before AI comparison.") : (ru ? "AI-сравнение не завершилось; исходные данные сохранены." : "AI comparison did not complete; source data is preserved."));
       onInsight(parsed);
+      captureResponse(response.payload);
     } catch(cause) { if(!controller.signal.aborted) setError(cause instanceof PointObjectComparisonRequestError ? cause.code === "timeout" ? (ru ? "Время ожидания истекло. Данные сохранены; можно повторить запуск." : "Request timed out. Source data is preserved; you can start again.") : (ru ? "AI-сравнение сейчас недоступно. Попробуйте позднее." : "AI comparison is unavailable. Try again later.") : cause instanceof Error ? cause.message : (ru ? "AI-сравнение недоступно." : "AI comparison unavailable.")); }
     finally { if(controllerRef.current===controller){controllerRef.current=null;setPhase("idle");} }
   }
@@ -204,6 +219,7 @@ export function FindComparisonDashboard({ locale, result, candidates, roleLabel,
 
   return (
     <section ref={dialogRef} className="fixed inset-0 z-[70] overflow-y-auto bg-[#f4fbfb] text-ink" role="dialog" aria-modal="true" aria-labelledby="find-comparison-dashboard-title" data-testid="find-full-comparison-dashboard">
+      <VerificationExport enabled={verificationEnabled} locale={locale} preSubmit={ready ? { operation: "compare", intent: buildComparisonIntent(), sourceSnapshot: { cohort: result, contexts: candidates.map(candidate => readyContext(candidate)) } } : null} records={verification.records} captureRefused={verification.captureRefused} currentSelection={{ mode: "compare", marketKey: result.criteria.marketKey, locale, candidateIds: candidates.map(candidate => candidate.sourceFeatureId) }} />
       <header className="sticky top-0 z-10 border-b border-line bg-white/95 px-4 py-3 backdrop-blur sm:px-6">
         <div className="mx-auto flex max-w-[1500px] flex-wrap items-center justify-between gap-3">
           <button data-modal-initial-focus type="button" onClick={onBackToComparison} className="min-h-11 rounded-xl border border-[#e5fafa] bg-white px-4 text-sm font-bold text-[#087f8c] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]">← {ru ? "К краткому сравнению" : "Back to compact comparison"}</button>

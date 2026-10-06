@@ -345,6 +345,6 @@ export function LegacyPointToObjectPrototype() {
   );
 }
 
-export function PointToObjectPrototype({ initialMode = "analyse" }: { initialMode?: "analyse" | "find" | "create" }) {
-  return <PointToObjectPrototypeV5 initialMode={initialMode} />;
+export function PointToObjectPrototype({ initialMode = "analyse", verificationEnabled = false }: { initialMode?: "analyse" | "find" | "create"; verificationEnabled?: boolean }) {
+  return <PointToObjectPrototypeV5 initialMode={initialMode} verificationEnabled={verificationEnabled} />;
 }

@@ -10,5 +10,5 @@ export const metadata: Metadata = {
 
 export default async function PointToObjectAnalysisPage() {
   await requirePilotPageIdentity("/prototype/point-to-object/analysis");
-  return <PointToObjectAnalysis />;
+  return <PointToObjectAnalysis verificationEnabled={process.env.VERCEL_ENV === "preview"} />;
 }

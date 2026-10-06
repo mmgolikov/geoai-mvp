@@ -60,6 +60,29 @@ function hasEveryFixedControl(keys: readonly PointObjectCreateControlKey[]): boo
   return POINT_OBJECT_CREATE_CONTROL_KEYS.every((key) => fixed.has(key));
 }
 
+/** Pure admission only; null retains the existing fixed-programme solver path. */
+export function pointObjectCreateFastPreflight(input: {
+  customPrompt: string | null;
+  lockedControlKeys: readonly PointObjectCreateControlKey[];
+}): Extract<PointObjectCreatePreflightResult, { kind: "not_applicable" }> | null {
+  const inferredStyle = inferPromptMassingStyle(input.customPrompt);
+  if (normalizePointObjectCreateCustomPrompt(input.customPrompt) !== null) {
+    return {
+      kind: "not_applicable",
+      requestedMassingStyle: inferredStyle,
+      reason: "custom_programme_requires_resolution"
+    };
+  }
+  if (!hasEveryFixedControl(input.lockedControlKeys)) {
+    return {
+      kind: "not_applicable",
+      requestedMassingStyle: inferredStyle,
+      reason: "numeric_programme_not_fully_fixed"
+    };
+  }
+  return null;
+}
+
 function validatedFixedProgram(input: {
   locale: ConceptLocale;
   templateId: ConceptTemplateId;
@@ -94,22 +117,9 @@ export function preflightPointObjectCreate(input: {
   controls: PointObjectCreateNumericControls;
   lockedControlKeys: readonly PointObjectCreateControlKey[];
 }): PointObjectCreatePreflightResult {
+  const admission = pointObjectCreateFastPreflight(input);
+  if (admission) return admission;
   const inferredStyle = inferPromptMassingStyle(input.customPrompt);
-  if (normalizePointObjectCreateCustomPrompt(input.customPrompt) !== null) {
-    return {
-      kind: "not_applicable",
-      requestedMassingStyle: inferredStyle,
-      reason: "custom_programme_requires_resolution"
-    };
-  }
-  if (!hasEveryFixedControl(input.lockedControlKeys)) {
-    return {
-      kind: "not_applicable",
-      requestedMassingStyle: inferredStyle,
-      reason: "numeric_programme_not_fully_fixed"
-    };
-  }
-
   const massingStyle = inferredStyle ?? conceptTemplate(input.templateId, input.locale).massingStyle;
   const program = validatedFixedProgram({
     locale: input.locale,

@@ -1,5 +1,7 @@
 import { calculatePolygonMeasurements, validatePolygonVertices } from "../polygon-aoi";
 import { semanticHash } from "../point-to-object/hash";
+import { POINT_OBJECT_AREA_FEATURE_LIMIT, POINT_OBJECT_AREA_UPSTREAM_LIMIT } from "./point-to-object-area-context-limits";
+export { POINT_OBJECT_AREA_FEATURE_LIMIT, POINT_OBJECT_AREA_UPSTREAM_LIMIT } from "./point-to-object-area-context-limits";
 import {
   isPointObjectLocale,
   isPointObjectMarketKey,
@@ -96,8 +98,6 @@ export type PointObjectAreaContextResult = {
   caveat: typeof POINT_OBJECT_AREA_CONTEXT_CAVEAT;
 };
 
-export const POINT_OBJECT_AREA_UPSTREAM_LIMIT = 300;
-export const POINT_OBJECT_AREA_FEATURE_LIMIT = 80;
 export const POINT_OBJECT_AREA_MAX_SQ_M = 1_000_000;
 export const POINT_OBJECT_AREA_MAX_VERTICES = 25;
 export const POINT_OBJECT_AREA_QUERY_TIMEOUT_SECONDS = 12;

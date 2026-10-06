@@ -1,4 +1,5 @@
 "use client";
+import { VerificationExport, useVerificationCapture } from "./verification-export";
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -212,7 +213,8 @@ function DepthReviewPanel({ review }: { review: PointObjectDepthReview }) {
   </section>;
 }
 
-export function PointToObjectAnalysis() {
+export function PointToObjectAnalysis({ verificationEnabled = false }: { verificationEnabled?: boolean } = {}) {
+  const verification = useVerificationCapture(verificationEnabled);
   const { locale, setLocale, t } = usePointObjectLocale();
   const { user, isSessionResolved } = useAuth();
   const [selection, setSelection] = useState<LiveMapSelection | null>(null);
@@ -280,6 +282,13 @@ export function PointToObjectAnalysis() {
       question: activeQuestion
     });
   }, [roleScenarioContext]);
+
+  function buildSubmissionIntent(activeSelection: LiveMapSelection, snapshot: PointObjectAnalysisRequestIdentity) {
+    return { caseKey: activeSelection.locationKey, longitude: activeSelection.longitude, latitude: activeSelection.latitude,
+      locale: snapshot.locale, role: snapshot.role, scenario: snapshot.scenario, question: snapshot.question, depth: snapshot.depth,
+      goal: snapshot.goal, perspective: snapshot.perspective, horizon: snapshot.horizon,
+      expectedSourceFeatureId: pointObjectSelectedLookupId(activeSelection), evidenceReceipt: activeSelection.resolvedObject?.evidenceReceipt ?? null, consent: true };
+  }
 
   useEffect(() => {
     if (!selection || !isSessionResolved) return;
@@ -372,25 +381,15 @@ export function PointToObjectAnalysis() {
         return;
       }
 
+      const submittedIntent = buildSubmissionIntent(activeSelection, requestSnapshot);
+      const submittedSource = { context: activeSelection.resolvedObject ?? null };
+      const captureResponse = verification.begin("analyse", submittedIntent, submittedSource);
       const response = await fetch("/api/prototype/point-to-object/ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         signal: controller.signal,
         body: JSON.stringify({
-          caseKey: activeSelection.locationKey,
-          longitude: activeSelection.longitude,
-          latitude: activeSelection.latitude,
-          locale: requestSnapshot.locale,
-          role: requestSnapshot.role,
-          scenario: requestSnapshot.scenario,
-          question: requestSnapshot.question,
-          depth: requestSnapshot.depth,
-          goal: requestSnapshot.goal,
-          perspective: requestSnapshot.perspective,
-          horizon: requestSnapshot.horizon,
-          expectedSourceFeatureId: pointObjectSelectedLookupId(activeSelection),
-          evidenceReceipt: activeSelection.resolvedObject?.evidenceReceipt ?? null,
-          consent: true,
+          ...submittedIntent,
           challenge: challengePayload.challenge
         })
       });
@@ -436,6 +435,7 @@ export function PointToObjectAnalysis() {
           setRequestError(mismatch);
           return;
         }
+        captureResponse(rawPayload);
         commitAnalysis(normalized, activeSelection, requestSnapshot, initiatingIdentity && destination && projectIdentityRef.current === initiatingIdentity
           ? { identityKey: initiatingIdentity, destination }
           : null);
@@ -669,6 +669,7 @@ export function PointToObjectAnalysis() {
       <p className="sr-only" aria-live="polite">{announcement}</p>
       <PointObjectHeader backToMap backToFind={backToFind} />
 
+      <div className="mx-auto max-w-[1920px] px-4 sm:px-6"><VerificationExport enabled={verificationEnabled} locale={locale} preSubmit={selection ? { operation: "analyse", intent: buildSubmissionIntent(selection, requestIdentity(selection, question.trim() || null, { depth, goal, perspective, horizon }, locale)), sourceSnapshot: { context: selection.resolvedObject ?? null } } : null} records={verification.records} captureRefused={verification.captureRefused} currentSelection={selection ? { mode: "analyse", marketKey: selection.locationKey, locale, longitude: selection.longitude, latitude: selection.latitude, sourceFeatureId: pointObjectSelectedLookupId(selection) } : null} /></div>
       <div className="mx-auto grid w-full max-w-[1920px] gap-5 p-4 sm:p-6 xl:grid-cols-[minmax(0,1fr)_340px]">
         <section className="min-w-0">
           <div className="rounded-[20px] border border-line bg-white p-5 shadow-soft sm:p-7" data-testid="analysis-selected-header">

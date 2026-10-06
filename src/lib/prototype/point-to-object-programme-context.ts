@@ -1,5 +1,7 @@
 import type { ConceptMassingAlternative, ConceptUse, PointObjectCreateAoi, ValidatedRedevelopmentProgram } from "./point-to-object-create";
 import type { PointObjectAreaContextResult } from "./point-to-object-area-context-contract";
+import { POINT_OBJECT_AREA_FEATURE_LIMIT, POINT_OBJECT_AREA_UPSTREAM_LIMIT } from "./point-to-object-area-context-limits";
+import { isPointObjectAreaContextResult, parsePointObjectCreateAoi, parsePointObjectCreateSourceUseReceipt, type PointObjectGeneratedConcept } from "./point-to-object-create-result";
 import { normalizePointObjectAreaContext, parseNormalizedPointObjectContext, type ContextGroup, type PointObjectNormalizedContext } from "./point-to-object-normalized-context";
 
 const USE_GROUP: Record<ConceptUse, ContextGroup> = {
@@ -17,6 +19,41 @@ const USE_CHECKS: Record<ConceptUse, ContextGroup[]> = {
 export function createProgrammeSourceContext(aoi: PointObjectCreateAoi, area: PointObjectAreaContextResult | null | undefined): PointObjectNormalizedContext | null {
   if (!area || JSON.stringify(area.request.aoiCoordinates) !== JSON.stringify(aoi.coordinates)) return null;
   return parseNormalizedPointObjectContext(normalizePointObjectAreaContext(area));
+}
+
+export type PointObjectProgrammeSourceBindingStatus = "matched" | "legacy_unknown" | "not_used" | "invalid_receipt" | "context_missing" | "context_mismatch";
+
+/** A held inventory is not proof that it grounded this generation. The receipt
+ * is historical source-use metadata, not authentication or a live-freshness claim. */
+export function createProgrammeSourceBinding(
+  aoi: PointObjectCreateAoi,
+  area: PointObjectAreaContextResult | null | undefined,
+  generated: Pick<PointObjectGeneratedConcept, "areaContextUsed">,
+  generatedLocale: "en" | "ru" | null
+): { status: PointObjectProgrammeSourceBindingStatus; context: PointObjectNormalizedContext | null } {
+  const validArea = isPointObjectAreaContextResult(area) ? area : null;
+  const context = parsePointObjectCreateAoi(aoi) && validArea ? createProgrammeSourceContext(aoi, validArea) : null;
+  const result = (status: PointObjectProgrammeSourceBindingStatus) => ({ status, context });
+  if (!Object.prototype.hasOwnProperty.call(generated, "areaContextUsed")) return result("legacy_unknown");
+  if (generated.areaContextUsed === null) return result("not_used");
+  const receipt = parsePointObjectCreateSourceUseReceipt(generated.areaContextUsed);
+  if (!receipt) return result("invalid_receipt");
+  if (!area) return result("context_missing");
+  if (!validArea || !context || generatedLocale === null || validArea.request.locale !== generatedLocale ||
+      context.scope.kind !== "aoi_interior" || context.scope.radiusM !== null ||
+      validArea.area.areaSqM !== Math.round(aoi.areaSqM) ||
+      validArea.coverage.upstreamQueryLimit !== POINT_OBJECT_AREA_UPSTREAM_LIMIT ||
+      validArea.coverage.normalizedInsideCount !== validArea.summary.sampleSize ||
+      validArea.coverage.returnedFeatureCount !== Math.min(validArea.summary.sampleSize, POINT_OBJECT_AREA_FEATURE_LIMIT) ||
+      validArea.summary.sampleSize > POINT_OBJECT_AREA_UPSTREAM_LIMIT + 1 ||
+      validArea.summary.mappedBuildingCount > validArea.summary.sampleSize ||
+      receipt.sourceResponseHash !== validArea.source.sourceResponseHash ||
+      receipt.sampleSize !== validArea.summary.sampleSize ||
+      receipt.mappedBuildingCount !== validArea.summary.mappedBuildingCount ||
+      receipt.capReached !== validArea.coverage.capReached ||
+      receipt.inclusionMethod !== validArea.coverage.inclusionMethod ||
+      receipt.completeInventory !== validArea.coverage.completeInventory) return result("context_mismatch");
+  return result("matched");
 }
 
 /** Programme weights and OSM record counts deliberately have different units.

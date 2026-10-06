@@ -1,5 +1,6 @@
 import type { Feature, Polygon } from "geojson";
 import type { PointObjectAreaContextGroup, PointObjectAreaContextResult } from "./point-to-object-area-context-contract";
+import { POINT_OBJECT_AREA_UPSTREAM_LIMIT } from "./point-to-object-area-context-limits";
 import { isPointObjectLocale, isPointObjectMarketKey } from "./point-to-object-markets";
 
 import {
@@ -21,6 +22,19 @@ const AREA_CONTEXT_GROUPS: readonly PointObjectAreaContextGroup[] = ["residentia
 // unbounded saved/server payloads.
 const MAX_MASSING_SEED_LENGTH = 1_024;
 
+export type PointObjectCreateSourceUseReceipt = {
+  sourceResponseHash: string;
+  sampleSize: number;
+  mappedBuildingCount: number;
+  capReached: boolean;
+  inclusionMethod: "returned_center_inside_aoi";
+  completeInventory: false;
+};
+
+/** Omission is legacy/unknown; null means no source context was used. An invalid
+ * marker survives save/reopen without retaining an untrusted payload or losing geometry. */
+export type PointObjectCreateSourceUse = PointObjectCreateSourceUseReceipt | { status: "invalid" } | null;
+
 export type PointObjectGeneratedConcept = {
   mode: "openai_concept";
   generatedAt: string;
@@ -28,6 +42,7 @@ export type PointObjectGeneratedConcept = {
   program: ValidatedRedevelopmentProgram;
   massing: ConceptMassingResult;
   alternatives?: ConceptMassingAlternative[];
+  areaContextUsed?: PointObjectCreateSourceUse;
   telemetry: {
     model: string;
     reasoningEffort: string;
@@ -54,6 +69,22 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function finite(value: unknown, minimum: number, maximum: number): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= minimum && value <= maximum;
+}
+
+export function parsePointObjectCreateSourceUseReceipt(value: unknown): PointObjectCreateSourceUseReceipt | null {
+  if (!isRecord(value) || Object.keys(value).sort().join(",") !== "capReached,completeInventory,inclusionMethod,mappedBuildingCount,sampleSize,sourceResponseHash" ||
+      typeof value.sourceResponseHash !== "string" || !/^[a-f0-9]{64}$/.test(value.sourceResponseHash) ||
+      !Number.isInteger(value.sampleSize) || !finite(value.sampleSize, 0, POINT_OBJECT_AREA_UPSTREAM_LIMIT + 1) ||
+      !Number.isInteger(value.mappedBuildingCount) || !finite(value.mappedBuildingCount, 0, value.sampleSize) ||
+      typeof value.capReached !== "boolean" || value.inclusionMethod !== "returned_center_inside_aoi" || value.completeInventory !== false) return null;
+  return {
+    sourceResponseHash: value.sourceResponseHash,
+    sampleSize: value.sampleSize,
+    mappedBuildingCount: value.mappedBuildingCount,
+    capReached: value.capReached,
+    inclusionMethod: value.inclusionMethod,
+    completeInventory: value.completeInventory
+  };
 }
 
 function boundedOneDecimal(value: unknown, minimum: number, maximum: number): value is number {
@@ -226,6 +257,9 @@ export function parsePointObjectGeneratedConcept(value: unknown, aoi: PointObjec
     program: program.value,
     massing,
     alternatives: parsedAlternatives,
+    ...(Object.prototype.hasOwnProperty.call(value, "areaContextUsed") ? {
+      areaContextUsed: value.areaContextUsed === null ? null : parsePointObjectCreateSourceUseReceipt(value.areaContextUsed) ?? { status: "invalid" as const }
+    } : {}),
     telemetry: value.telemetry,
     caveat: POINT_OBJECT_CREATE_RESULT_CAVEAT
   };
