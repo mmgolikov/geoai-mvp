@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
+
+const ts = createRequire(import.meta.url)("typescript");
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
@@ -25,6 +28,156 @@ function assertRejectedMutation(source, target, replacementText, check, expected
   assert.notEqual(mutated, source, "Negative mutations must change the consumer source");
   assert.throws(() => check(mutated), expectedFailure);
   rejectedMutationChecks += 1;
+}
+
+let submissionFixtureChecks = 0;
+const rejectedSubmissionMutations = [];
+function nodesMatching(root, predicate) {
+  const matches = [];
+  function visit(node) {
+    if (predicate(node)) matches.push(node);
+    ts.forEachChild(node, visit);
+  }
+  visit(root);
+  return matches;
+}
+function oneNode(root, predicate, message) {
+  const matches = nodesMatching(root, predicate);
+  assert.equal(matches.length, 1, message);
+  return matches[0];
+}
+function assertSubmissionBinding(source, operation, countFixtures = false) {
+  const ast = ts.createSourceFile(`${operation}.tsx`, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  assert.equal(ast.parseDiagnostics.length, 0, `${operation}: consumer must parse`);
+  const functionNamed = name => oneNode(ast,
+    node => ts.isFunctionDeclaration(node) && node.name?.text === name, `${operation}: unique ${name}`);
+  const builderName = operation === "find" ? "buildFindIntent" : "buildSubmissionIntent";
+  const builder = functionNamed(builderName);
+  const handler = functionNamed(operation === "find" ? "findInView" : "generate");
+  assert.ok(builder.body && handler.body, `${operation}: addressable builder and handler`);
+  assert.equal(builder.body.statements.length, 1, `${operation}: builder remains a pure return`);
+  const returned = builder.body.statements[0];
+  assert.ok(ts.isReturnStatement(returned) && returned.expression && ts.isObjectLiteralExpression(returned.expression),
+    `${operation}: pure intent object`);
+  assert.deepEqual(builder.parameters.map(parameter => parameter.name.getText(ast)), operation === "find" ? ["bounds"] : [],
+    `${operation}: builder input contract`);
+  const executable = ts.transpileModule(builder.getText(ast), {
+    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext }
+  }).outputText;
+  function evaluateBuilder(state, bounds) {
+    // Execute only the extracted pure builder, never the component/handler.
+    const build = new Function(...Object.keys(state), `${executable}\nreturn ${builderName};`)(...Object.values(state));
+    return operation === "find" ? build(bounds) : build();
+  }
+  const bounds = [55.28, 25.21, 55.29, 25.22];
+  if (operation === "find") {
+    for (const [market, language, group, minimum, maximum, expectedMinimum, expectedMaximum] of [
+      ["dubai", "en", "residential", " 3 ", "12", 3, 12],
+      ["abu_dhabi", "ru", "buildings", "", "  ", null, null],
+      ["dubai", "ru", "residential", "1", "", 1, null],
+      ["abu_dhabi", "en", "buildings", "", "4", null, 4]
+    ]) {
+      const state = { locationKey: market, locale: language, findGroup: group,
+        findMinimumLevels: minimum, findMaximumLevels: maximum };
+      assert.deepEqual(evaluateBuilder(state, bounds), { marketKey: market, locale: language, bounds, group,
+        mappedMinimumLevels: expectedMinimum, mappedMaximumLevels: expectedMaximum, limit: 12 },
+      "find: exact market/locale/bounds/group/level filters and bounded limit");
+      if (countFixtures) submissionFixtureChecks += 1;
+    }
+    assert.match(handler.getText(ast), /const requestIntent = \{ audience: findAudience, role: findRole, scenario: findScenario \}/,
+      "find: captured profile role and scenario remain separate from mapped filters");
+    assert.match(handler.getText(ast), /sourceResponseFinished = true;\s*if \(!pointObjectSourceResponseIsCurrent\(requestId, findRequestIdRef\.current, controller\.signal\)\) return;[\s\S]*captureResponse\(payload\);[\s\S]*setFindResult\(payload\);[\s\S]*setFindResultIntent\(requestIntent\)/,
+      "find: reject late responses before capture or result commit");
+  } else {
+    for (const [marketKey, locale, depth, templateId, customPrompt, fixed] of [
+      ["dubai", "en", "standard", "residential_mixed_use", "", []],
+      ["abu_dhabi", "ru", "deep", "residential_mixed_use", "  Synthetic alternative  ", ["blockCount", "levelsMax"]],
+      ["dubai", "ru", "quick", "residential_mixed_use", "   ", ["levelsMin", "levelsMax", "setbackM"]]
+    ]) {
+      const controls = { massingStyle: "courtyard", blockCount: fixed.length + 2, levelsMin: 3,
+        levelsMax: 8, targetSiteCoveragePct: 28, openSpacePct: 35, setbackM: 8 };
+      const aoi = { coordinates: [[[55.28, 25.21], [55.29, 25.21], [55.29, 25.22], [55.28, 25.21]]] };
+      const state = { marketKey, locale, depth, templateId, customPrompt, controls, lockedControlKeys: new Set(fixed), aoi };
+      assert.deepEqual(evaluateBuilder(state), { marketKey, locale, depth, templateId,
+        customPrompt: customPrompt.trim() || null, controls, lockedControlKeys: fixed, aoiCoordinates: aoi.coordinates },
+      "create: exact controls/locks/AOI and decision inputs");
+      if (countFixtures) submissionFixtureChecks += 1;
+    }
+  }
+  const declaration = name => oneNode(handler.body,
+    node => ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === name,
+    `${operation}: unique bound ${name}`);
+  const intent = declaration("submittedIntent");
+  assert.ok(intent.initializer && ts.isCallExpression(intent.initializer), `${operation}: builder call`);
+  assert.equal(intent.initializer.expression.getText(ast), builderName, `${operation}: real builder`);
+  assert.deepEqual(intent.initializer.arguments.map(argument => argument.getText(ast)), operation === "find" ? ["requestBounds"] : [],
+    `${operation}: exact builder inputs`);
+  assert.ok(ts.isVariableDeclarationList(intent.parent) && (intent.parent.flags & ts.NodeFlags.Const),
+    `${operation}: immutable intent binding`);
+  const capture = declaration("captureResponse");
+  assert.ok(capture.initializer && ts.isCallExpression(capture.initializer), `${operation}: capture call`);
+  assert.equal(capture.initializer.expression.getText(ast), "verification.begin", `${operation}: real capture`);
+  assert.deepEqual(capture.initializer.arguments.map(argument => argument.getText(ast)),
+    [JSON.stringify(operation), "submittedIntent", operation === "find" ? "{}" : "verificationSource"],
+    `${operation}: capture uses exact submitted intent and source`);
+  const response = declaration("response");
+  assert.ok(response.initializer && ts.isAwaitExpression(response.initializer) && ts.isCallExpression(response.initializer.expression),
+    `${operation}: awaited POST`);
+  const fetch = response.initializer.expression;
+  assert.equal(fetch.expression.getText(ast), "fetch", `${operation}: real POST call`);
+  assert.equal(fetch.arguments.length, 2, `${operation}: POST argument contract`);
+  assert.equal(fetch.arguments[0].getText(ast), JSON.stringify(`/api/prototype/point-to-object/${operation}`), `${operation}: exact endpoint`);
+  const options = fetch.arguments[1];
+  assert.ok(ts.isObjectLiteralExpression(options), `${operation}: explicit POST options`);
+  assert.deepEqual(options.properties.map(property => property.name?.getText(ast)), ["method", "headers", "signal", "body"],
+    `${operation}: no hidden POST option spread or override`);
+  const [method, headers, signal, body] = options.properties;
+  for (const property of options.properties) assert.ok(ts.isPropertyAssignment(property), `${operation}: explicit option assignment`);
+  assert.equal(method.initializer.getText(ast), '"POST"', `${operation}: POST method`);
+  assert.match(headers.initializer.getText(ast), /^\{\s*"Content-Type": "application\/json"\s*\}$/, `${operation}: JSON content type`);
+  assert.equal(signal.initializer.getText(ast), "controller.signal", `${operation}: abort signal retained`);
+  assert.ok(ts.isCallExpression(body.initializer), `${operation}: serialized body`);
+  assert.equal(body.initializer.expression.getText(ast), "JSON.stringify", `${operation}: JSON serialization`);
+  assert.equal(body.initializer.arguments.length, 1, `${operation}: one unmodified payload`);
+  const payload = body.initializer.arguments[0];
+  let bodyIntent;
+  if (operation === "find") {
+    assert.ok(ts.isIdentifier(payload) && payload.text === "submittedIntent", "find: same captured POST intent without overrides");
+    bodyIntent = payload;
+    const requestBounds = declaration("requestBounds");
+    assert.equal(requestBounds.initializer?.getText(ast), "findExplicitSearchBounds ?? visibleBounds", "find: explicit bounds or visible fallback");
+    for (const explicit of [bounds, null]) {
+      const visible = [55.3, 25.3, 55.31, 25.31];
+      const selected = new Function("findExplicitSearchBounds", "visibleBounds", `return ${requestBounds.initializer.getText(ast)};`)(explicit, visible);
+      assert.deepEqual(selected, explicit ?? visible, "find: exact bounds selection");
+      if (countFixtures) submissionFixtureChecks += 1;
+    }
+  } else {
+    assert.ok(ts.isObjectLiteralExpression(payload), "create: explicit shared intent plus challenge");
+    assert.equal(payload.properties.length, 2, "create: challenge is the only addition; no controls/locks/AOI override");
+    const [spread, challenge] = payload.properties;
+    assert.ok(ts.isSpreadAssignment(spread) && ts.isIdentifier(spread.expression) && spread.expression.text === "submittedIntent",
+      "create: same captured POST intent");
+    assert.ok(ts.isPropertyAssignment(challenge), "create: explicit challenge assignment");
+    assert.equal(challenge.name.getText(ast), "challenge", "create: only challenge may be added");
+    assert.equal(challenge.initializer.getText(ast), "challengePayload.challenge", "create: actual server challenge");
+    bodyIntent = spread.expression;
+  }
+  assert.ok(intent.pos < capture.pos && capture.pos < response.pos, `${operation}: builder then capture then POST`);
+  const references = nodesMatching(handler.body, node => ts.isIdentifier(node) && node.text === "submittedIntent");
+  const allowedReferences = [intent.name, capture.initializer.arguments[1], bodyIntent];
+  // Compare identities, not cyclic compiler trees; negative diagnostics stay bounded.
+  assert.equal(references.length, allowedReferences.length, `${operation}: no intermediate intent mutation or shadowing`);
+  assert.ok(references.every((reference, index) => reference === allowedReferences[index]),
+    `${operation}: exact bound intent references`);
+}
+function rejectSubmissionMutation(source, operation, label, target, replacementText) {
+  assert.equal(source.split(target).length - 1, 1, `${operation}/${label}: mutation target exists exactly once`);
+  const mutated = source.replace(target, replacementText);
+  assert.notEqual(mutated, source, `${operation}/${label}: mutation changes actual consumer source`);
+  assert.throws(() => assertSubmissionBinding(mutated, operation), error => error?.code === "ERR_ASSERTION",
+    `${operation}/${label}: changed submission semantics must fail closed`);
+  rejectedSubmissionMutations.push(`${operation}/${label}`);
 }
 
 assert.match(client, /expectedSourceFeatureId: exactOsmFeatureId\(selection\.object\.sourceFeatureId\)/);
@@ -166,8 +319,25 @@ assert.match(marketChange, /findRequestRef\.current\?\.abort\(\)/, "Market chang
 assert.match(findDrawer, /min-h-11 w-full rounded-xl bg-\[#087f8c\]/, "Find CTA must retain a 44px target");
 assert.match(client, /const requestBounds = findExplicitSearchBounds \?\? visibleBounds/,
   "Find must use the explicitly committed map area or the current visible fallback");
-assert.match(client, /body: JSON\.stringify\(\{ marketKey: locationKey, locale, bounds: requestBounds, group: findGroup, mappedMinimumLevels, mappedMaximumLevels, limit: 12 \}\)/,
-  "Visible Find settings must be sent to the bounded server request");
+// The verification-export refactor captures the real builder output. Check its
+// fields and consumer binding, not the retired inline object spelling.
+assertSubmissionBinding(client, "find", true);
+for (const [label, target, replacementText] of [
+  ["wrong-market", "return { marketKey: locationKey, locale, bounds, group: findGroup,", 'return { marketKey: "fixed-market", locale, bounds, group: findGroup,'],
+  ["missing-locale", "return { marketKey: locationKey, locale, bounds, group: findGroup,", "return { marketKey: locationKey, bounds, group: findGroup,"],
+  ["missing-bounds", "return { marketKey: locationKey, locale, bounds, group: findGroup,", "return { marketKey: locationKey, locale, group: findGroup,"],
+  ["missing-group", "return { marketKey: locationKey, locale, bounds, group: findGroup,", "return { marketKey: locationKey, locale, bounds,"],
+  ["missing-minimum", "mappedMinimumLevels: findMinimumLevels.trim() ? Number(findMinimumLevels) : null,", ""],
+  ["missing-maximum", "mappedMaximumLevels: findMaximumLevels.trim() ? Number(findMaximumLevels) : null, limit: 12", "limit: 12"],
+  ["unbounded-limit", "mappedMaximumLevels: findMaximumLevels.trim() ? Number(findMaximumLevels) : null, limit: 12", "mappedMaximumLevels: findMaximumLevels.trim() ? Number(findMaximumLevels) : null, limit: 99"],
+  ["wrong-builder-bounds", "buildFindIntent(requestBounds)", "buildFindIntent(visibleBounds)"],
+  ["wrong-export-intent", 'verification.begin("find", submittedIntent, {})', 'verification.begin("find", requestIntent, {})'],
+  ["wrong-post-intent", "body: JSON.stringify(submittedIntent)", "body: JSON.stringify(requestIntent)"],
+  ["hidden-filter-override", "body: JSON.stringify(submittedIntent)", 'body: JSON.stringify({ ...submittedIntent, group: "buildings" })'],
+  ["intent-mutated-after-capture", 'const captureResponse = verification.begin("find", submittedIntent, {});', 'const captureResponse = verification.begin("find", submittedIntent, {}); submittedIntent.limit = 99;'],
+  ["missing-role", "const requestIntent = { audience: findAudience, role: findRole, scenario: findScenario };", "const requestIntent = { audience: findAudience, scenario: findScenario };"],
+  ["late-response-bypass", "sourceResponseFinished = true;\n      if (!pointObjectSourceResponseIsCurrent(requestId, findRequestIdRef.current, controller.signal)) return;", "sourceResponseFinished = true;"]
+]) rejectSubmissionMutation(client, "find", label, target, replacementText);
 assert.match(capabilities, /b2b_lowrise_luxury_residential:[\s\S]*mappedLevelsPreset: \{ minimum: null, maximum: 4 \}/, "The low-rise scenario must set a real maximum-level preset");
 assert.match(client, /const \[sheet, setSheet\] = useState<"peek" \| "half" \| "full">\("peek"\)/, "Task sheet state must remain independent of product mode");
 assert.match(client, /data-sheet=\{effectiveSheet\} data-testid="mobile-workspace-shell"/);
@@ -264,6 +434,22 @@ assert.doesNotMatch(pendingInvalidation, /onReset\(\)/, "Draft edits must preser
 assert.match(create, /function selectTemplate[\s\S]*invalidatePendingRequest\(\);[\s\S]*setTemplateId/);
 assert.match(create, /function updateControl[\s\S]*invalidatePendingRequest\(\);[\s\S]*setControls/);
 assert.match(create, /lockedControlKeys: \[\.\.\.lockedControlKeys\]/, "Create must send the explicit fixed controls to the engine lock contract");
+assertSubmissionBinding(create, "create", true);
+for (const [label, target, replacementText] of [
+  ["missing-controls", "controls, lockedControlKeys: [...lockedControlKeys], aoiCoordinates: aoi.coordinates", "lockedControlKeys: [...lockedControlKeys], aoiCoordinates: aoi.coordinates"],
+  ["dropped-locks", "controls, lockedControlKeys: [...lockedControlKeys], aoiCoordinates: aoi.coordinates", "controls, lockedControlKeys: [], aoiCoordinates: aoi.coordinates"],
+  ["missing-aoi", "controls, lockedControlKeys: [...lockedControlKeys], aoiCoordinates: aoi.coordinates", "controls, lockedControlKeys: [...lockedControlKeys]"],
+  ["wrong-aoi", "controls, lockedControlKeys: [...lockedControlKeys], aoiCoordinates: aoi.coordinates", "controls, lockedControlKeys: [...lockedControlKeys], aoiCoordinates: []"],
+  ["untrimmed-prompt", "return { marketKey, locale, depth, templateId, customPrompt: customPrompt.trim() || null,", "return { marketKey, locale, depth, templateId, customPrompt,"],
+  ["missing-depth", "return { marketKey, locale, depth, templateId, customPrompt: customPrompt.trim() || null,", "return { marketKey, locale, templateId, customPrompt: customPrompt.trim() || null,"],
+  ["wrong-export-intent", 'verification.begin("create", submittedIntent, verificationSource)', 'verification.begin("create", controls, verificationSource)'],
+  ["wrong-export-source", 'verification.begin("create", submittedIntent, verificationSource)', 'verification.begin("create", submittedIntent, {})'],
+  ["wrong-post-intent", "...submittedIntent,", "...controls,"],
+  ["hidden-lock-override", "...submittedIntent,", "...submittedIntent, lockedControlKeys: [],"],
+  ["hidden-aoi-override", "...submittedIntent,", "...submittedIntent, aoiCoordinates: [],"],
+  ["wrong-challenge", "challenge: challengePayload.challenge", 'challenge: "synthetic-bypass"'],
+  ["intent-mutated-after-capture", 'const captureResponse = verification.begin("create", submittedIntent, verificationSource);', 'const captureResponse = verification.begin("create", submittedIntent, verificationSource); submittedIntent.controls = {};']
+]) rejectSubmissionMutation(create, "create", label, target, replacementText);
 function assertCreateControlIntent(source) {
   const templateStart = source.indexOf("function selectTemplate(");
   const manualStart = source.indexOf("function updateControl<", templateStart);
@@ -340,4 +526,6 @@ assert.match(map, /interactionMode === "find"/);
 assert.match(header, /sm:hidden[^>]*" aria-hidden="true">←/);
 assert.match(header, /hidden sm:inline/);
 
-console.log(`point-to-object V5 interaction contract checks passed (${rejectedMutationChecks} rejected bypass mutations)`);
+assert.equal(rejectedMutationChecks, 11, "All original map/control/admission bypass mutations must remain active");
+console.log(`point-to-object V5 interaction contract checks passed (${submissionFixtureChecks} submission fixtures; ${rejectedSubmissionMutations.length} semantic submission mutations; ${rejectedMutationChecks} original rejected bypass mutations)`);
+console.log(JSON.stringify({ submissionFixtures: submissionFixtureChecks, rejectedSubmissionMutations, originalRejectedBypassMutations: rejectedMutationChecks }));
