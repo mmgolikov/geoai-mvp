@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     # Expanded desktop/mobile Chromium+WebKit suites retain every prior case.
     # Individual test deadlines and retry=0 remain unchanged.
-    timeout-minutes: 60
+    timeout-minutes: 100
     env:
       CI: "true"
       NEXT_TELEMETRY_DISABLED: "1"

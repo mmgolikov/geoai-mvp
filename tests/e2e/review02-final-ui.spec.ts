@@ -17,7 +17,11 @@ type Locale = "en" | "ru";
 type CreateOperation = Extract<PointObjectProjectOperationInput, { kind: "create" }>;
 type SavedCreate = { artifactId: string; payload: CreateOperation["payload"] };
 type PixelReport = { width: number; height: number; facePixels: number; adjacentEdgePixels: number; medianBlendedOpacity: number | null };
-type CameraReport = { phase: string; scene: string; attributionExpanded: boolean; before: { width: number; height: number }; zoomedIn: { width: number; height: number }; zoomedOut: { width: number; height: number }; restored: { width: number; height: number }; };
+type CameraRect = { x: number; y: number; width: number; height: number };
+type CameraFrameRects = { canvas: CameraRect; attribution: CameraRect | null };
+type CameraPixelMask = { left: number; top: number; right: number; bottom: number };
+type CameraSpan = { width: number; height: number; measurement: { cssRects: CameraFrameRects; screenshot: { width: number; height: number }; scaleX: number; scaleY: number; attributionMask: CameraPixelMask | null } };
+type CameraReport = { phase: string; scene: string; attributionExpanded: boolean; before: CameraSpan; zoomedIn: CameraSpan; zoomedOut: CameraSpan; restored: CameraSpan; };
 type Signals = { calls: string[]; errors: string[]; publicPosts: unknown[]; allowGeneration: boolean; frames: Array<PixelReport & { name: string; path: string; sha256: string }>; cameras: CameraReport[]; nativePickerObserved: boolean; nativeArrowOptionSelection: "NATIVE_ARROW_OPTION_SELECTION_RUNTIME_UNVERIFIED" };
 declare global { interface Window { __review02FinalCity: { clicks: number; changes: number }; } }
 const identity = "demo:demo-user-geoai";
@@ -191,23 +195,70 @@ async function closeWorkspaceCamera(page: Page, locale: Locale) {
 async function toParameters(page: Page, locale: Locale) { await page.getByTestId("create-full-result-dashboard").getByRole("button",{name:word(locale,"Back to parameters","К параметрам"),exact:true}).click();await openTask(page,locale);await expect(page.locator("#point-object-create-prompt")).toBeVisible(); }
 async function showResult(page: Page) { await page.getByTestId("create-open-result-dashboard").click();await expect(page.getByTestId("create-full-result-dashboard")).toBeVisible(); }
 
-function renderedTealSpan(bytes: Buffer) {
+function cameraAttributionPixelMask(rects: CameraFrameRects, width: number, height: number): CameraPixelMask | null {
+  const validRect = (rect: CameraRect) => [rect.x, rect.y, rect.width, rect.height, rect.x + rect.width, rect.y + rect.height].every(Number.isFinite) && rect.width > 0 && rect.height > 0;
+  if (!validRect(rects.canvas) || (rects.attribution !== null && !validRect(rects.attribution)) ||
+      !Number.isInteger(width) || !Number.isInteger(height) || width <= 0 || height <= 0) throw new Error("Camera pixel measurement requires valid CSS and screenshot rectangles");
+  if (!rects.attribution) return null;
+  const canvas = rects.canvas, attribution = rects.attribution;
+  const left = Math.max(canvas.x, attribution.x), top = Math.max(canvas.y, attribution.y);
+  const right = Math.min(canvas.x + canvas.width, attribution.x + attribution.width), bottom = Math.min(canvas.y + canvas.height, attribution.y + attribution.height);
+  if (right <= left || bottom <= top) return null;
+  // Actual screenshot dimensions account for DPR/rounding independently on
+  // each axis. Clip in CSS space first; never exclude a fixed bottom strip.
+  return { left: (left - canvas.x) * width / canvas.width, top: (top - canvas.y) * height / canvas.height,
+    right: (right - canvas.x) * width / canvas.width, bottom: (bottom - canvas.y) * height / canvas.height };
+}
+
+async function cameraFrameRects(canvas: Locator): Promise<CameraFrameRects> {
+  return canvas.evaluate(el => {
+    // The product creates MapLibre inside this exact preview container; its
+    // attribution is a sibling overlay of this canvas, not canvas content.
+    const owner = el.closest('[data-testid="create-result-preview-3d-canvas"]');
+    const scene = owner?.closest('[data-testid="create-result-preview-3d"]')?.getAttribute("data-preview-scene");
+    if (!(el instanceof HTMLCanvasElement) || !owner || owner.querySelectorAll("canvas.maplibregl-canvas").length !== 1 ||
+        (scene !== "map" && scene !== "model")) throw new Error("Camera measurement requires its unique native preview canvas owner");
+    const controls = [...owner.querySelectorAll(".maplibregl-ctrl-attrib")];
+    if (controls.length > 1 || controls.some(control => !(control instanceof HTMLDetailsElement))) throw new Error("Ambiguous native preview attribution owner");
+    const rect = (element: Element) => { const box = element.getBoundingClientRect(); return { x: box.x, y: box.y, width: box.width, height: box.height }; };
+    const control = controls[0];
+    const box = control ? rect(control) : null;
+    if (box && (![box.x, box.y, box.width, box.height, box.x + box.width, box.y + box.height].every(Number.isFinite) ||
+        box.width < 0 || box.height < 0)) throw new Error("Native attribution has an invalid CSS rectangle");
+    const style = control ? getComputedStyle(control) : null;
+    const visible = box !== null && box.width > 0 && box.height > 0 && style?.display !== "none" &&
+      style?.visibility !== "hidden" && style?.visibility !== "collapse" && style?.opacity !== "0";
+    if (scene === "map" && !visible) throw new Error("On-map camera measurement requires visible native attribution");
+    return { canvas: rect(el), attribution: visible ? box : null };
+  });
+}
+
+function renderedTealSpan(bytes: Buffer, rects: CameraFrameRects): CameraSpan {
   const { width, height, channels, pixels } = decodePng(bytes);
+  const mask = cameraAttributionPixelMask(rects, width, height);
   let left = width, right = -1, top = height, bottom = -1;
   for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+    // Only pixel centres inside the current measured attribution intersection
+    // are excluded. Attribution stays visible/clickable in the real screenshot.
+    if (mask && x + .5 >= mask.left && x + .5 < mask.right && y + .5 >= mask.top && y + .5 < mask.bottom) continue;
     const at = (y * width + x) * channels, r = pixels[at], g = pixels[at + 1], b = pixels[at + 2];
     if (g - r > 18 && b - r > 18 && Math.abs(g - b) < 55 && r < 200) {
       left = Math.min(left, x); right = Math.max(right, x); top = Math.min(top, y); bottom = Math.max(bottom, y);
     }
   }
   if (right < left || bottom < top) throw new Error("Native camera assertion requires rendered teal geometry");
-  return { width: right - left + 1, height: bottom - top + 1 };
+  return { width: right - left + 1, height: bottom - top + 1, measurement: { cssRects: rects, screenshot: { width, height },
+    scaleX: width / rects.canvas.width, scaleY: height / rects.canvas.height, attributionMask: mask } };
 }
 
 async function nativeRenderedSpan(canvas: Locator) {
   // Centre the viewport below the sticky header before reading actual pixels.
   await canvas.evaluate(el => el.scrollIntoView({ block: "center", inline: "nearest" }));
-  return renderedTealSpan(await canvas.screenshot({ type: "png" }));
+  const before = await cameraFrameRects(canvas);
+  const bytes = await canvas.screenshot({ type: "png" });
+  const after = await cameraFrameRects(canvas);
+  expect(after, "Camera screenshot CSS rectangles must remain stable during capture").toEqual(before);
+  return renderedTealSpan(bytes, before);
 }
 
 async function stableRenderedSpan(canvas: Locator) {
