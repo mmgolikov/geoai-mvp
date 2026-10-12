@@ -72,14 +72,18 @@ async function fixture(page: Page, browserName: string, baseURL: string) {
     if (route.request().method() === "POST") paidPosts++;
     await route.abort("blockedbyclient");
   });
+  // Freeze a deterministic browser timeline before navigation/hydration. The
+  // future pause target is reached while no application timers exist, avoiding
+  // the race between an advancing browser clock and Node's `new Date()`.
+  const clockStart = new Date("2026-09-26T00:00:00.000Z");
+  await page.clock.install({ time: clockStart });
+  await page.clock.pauseAt(new Date(clockStart.getTime() + 3_600_000));
   await page.goto("/login?next=%2Fprofile", { waitUntil: "load" });
   await expect(page.locator("#login-identifier")).toBeEnabled();
   await page.locator("#login-identifier").fill(user.email);
   await page.locator("#login-password").fill("synthetic-fixture-password");
-  // Install after hydration, before the actual password action. Both timer and
-  // performance.now advance; the held response supplies the independent gate.
-  await page.clock.install();
-  await page.clock.pauseAt(new Date());
+  // Both timers and performance.now now advance only by the tested runFor;
+  // the held response supplies the independent server-confirmation gate.
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect.poll(() => confirmationReads).toBe(1);
   return { release, counts: () => ({ passwordPosts, confirmationReads, paidPosts }) };
