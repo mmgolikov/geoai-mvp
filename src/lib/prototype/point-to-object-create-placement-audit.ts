@@ -5,7 +5,7 @@ import type { PointObjectAreaContextFeature, PointObjectAreaContextResult } from
 import { isPointObjectAreaContextResult, parsePointObjectCreateAoi, parsePointObjectCreateSourceUseReceipt, type PointObjectGeneratedConcept } from "./point-to-object-create-result";
 import type { PointObjectProgrammeSourceBindingStatus } from "./point-to-object-programme-context";
 import { POINT_OBJECT_AREA_FEATURE_LIMIT, POINT_OBJECT_AREA_UPSTREAM_LIMIT } from "./point-to-object-area-context-limits";
-import { pointObjectMarket } from "./point-to-object-markets";
+import { isPointObjectLocale, pointObjectMarket } from "./point-to-object-markets";
 import { validatePointObjectReplacementAoi } from "./point-to-object-map-replacement";
 
 const MAX_BLOCKS = 80, MAX_GEOMETRY_POSITIONS = 1_000, MAX_TOTAL_POSITIONS = 8_000;
@@ -36,7 +36,7 @@ export type CreatePlacementAudit = {
 };
 type SavedFootprints = Pick<ConceptMassingResult, "variantId" | "featureCollection">;
 
-/** Same six receipt fields and saved-AOI/locale/sample anchors as the existing
+/** Same six receipt fields and saved-AOI/sample anchors as the existing
  * programme binding, before any spatial facts. Raw duplicate IDs are retained
  * for explicit dedup/conflict checks rather than borrowing normalized places. */
 function sourceBinding(aoi: PointObjectCreateAoi, area: PointObjectAreaContextResult | null | undefined, generated: Pick<PointObjectGeneratedConcept, "areaContextUsed">, generatedLocale: "en" | "ru" | null): PointObjectProgrammeSourceBindingStatus {
@@ -45,8 +45,8 @@ function sourceBinding(aoi: PointObjectCreateAoi, area: PointObjectAreaContextRe
   const receipt = parsePointObjectCreateSourceUseReceipt(generated.areaContextUsed);
   if (!receipt) return "invalid_receipt";
   if (!area) return "context_missing";
-  if (!parsePointObjectCreateAoi(aoi) || !isPointObjectAreaContextResult(area) || generatedLocale === null ||
-      area.request.locale !== generatedLocale || JSON.stringify(area.request.aoiCoordinates) !== JSON.stringify(aoi.coordinates) ||
+  if (!parsePointObjectCreateAoi(aoi) || !isPointObjectAreaContextResult(area) || !isPointObjectLocale(generatedLocale) ||
+      JSON.stringify(area.request.aoiCoordinates) !== JSON.stringify(aoi.coordinates) ||
       area.area.areaSqM !== Math.round(aoi.areaSqM) || area.coverage.upstreamQueryLimit !== POINT_OBJECT_AREA_UPSTREAM_LIMIT ||
       area.coverage.normalizedInsideCount !== area.summary.sampleSize || area.coverage.returnedFeatureCount !== Math.min(area.summary.sampleSize, POINT_OBJECT_AREA_FEATURE_LIMIT) ||
       area.summary.mappedBuildingCount > area.summary.sampleSize || area.summary.groups.reduce((n, group) => n + group.count, 0) !== area.summary.sampleSize ||

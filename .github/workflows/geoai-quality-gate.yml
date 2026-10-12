@@ -568,7 +568,8 @@ jobs:
           npm run test:e2e:auth-session:demo -- --retries=0 | tee artifacts/auth-session-demo-e2e.txt
           npm run test:e2e:complete25 -- --workers=1 --retries=0 --fail-on-flaky-tests --output=artifacts/complete25-chromium | tee artifacts/complete25-chromium.txt
           npx playwright test tests/e2e/point-object-cloud-sync.spec.ts --grep='demo/anonymous' --workers=1 --retries=0 --fail-on-flaky-tests | tee artifacts/cloud-demo-isolation-e2e.txt
-          PLAYWRIGHT_JUNIT_OUTPUT_FILE=artifacts/review02-final-ui-chromium-junit.xml npx playwright test tests/e2e/review02-final-ui.spec.ts --workers=1 --retries=0 --max-failures=1 --fail-on-flaky-tests --output=artifacts/review02-final-ui-chromium | tee artifacts/review02-final-ui-chromium.txt
+          # Native SELECT popup observation requires a real display, not focus-only headless inference.
+          PLAYWRIGHT_JUNIT_OUTPUT_FILE=artifacts/review02-final-ui-chromium-junit.xml xvfb-run --auto-servernum npx playwright test tests/e2e/review02-final-ui.spec.ts --headed --workers=1 --retries=0 --max-failures=1 --fail-on-flaky-tests --output=artifacts/review02-final-ui-chromium | tee artifacts/review02-final-ui-chromium.txt
 
       - name: Browser explicit cloud persistence isolation (mocked provider)
         shell: bash

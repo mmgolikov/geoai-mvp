@@ -55,8 +55,8 @@ export function parsePointObjectCreateSessionState(value: unknown): PointObjectC
   const expectedScopeKey = createPointObjectCreateEditorScopeKey({ aoiId: aoi.id, marketKey });
   const editorSnapshot = value.editorSnapshot === null ? null : restorePointObjectCreateEditorSnapshot(value.editorSnapshot, expectedScopeKey);
   if (value.editorSnapshot !== null && !editorSnapshot) return null;
+  // Acquisition language is immutable source metadata, independent of output language.
   if (value.areaContext !== null && (value.areaContext.request.marketKey !== value.marketKey ||
-      value.areaContext.request.locale !== value.generatedLocale ||
       JSON.stringify(value.areaContext.request.aoiCoordinates) !== JSON.stringify(aoi.coordinates))) return null;
   return {
     schemaVersion: 1,

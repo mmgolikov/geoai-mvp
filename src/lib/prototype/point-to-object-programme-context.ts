@@ -3,6 +3,7 @@ import type { PointObjectAreaContextResult } from "./point-to-object-area-contex
 import { POINT_OBJECT_AREA_FEATURE_LIMIT, POINT_OBJECT_AREA_UPSTREAM_LIMIT } from "./point-to-object-area-context-limits";
 import { isPointObjectAreaContextResult, parsePointObjectCreateAoi, parsePointObjectCreateSourceUseReceipt, type PointObjectGeneratedConcept } from "./point-to-object-create-result";
 import { normalizePointObjectAreaContext, parseNormalizedPointObjectContext, type ContextGroup, type PointObjectNormalizedContext } from "./point-to-object-normalized-context";
+import { isPointObjectLocale } from "./point-to-object-markets";
 
 const USE_GROUP: Record<ConceptUse, ContextGroup> = {
   residential: "residential", office: "commercial", retail: "retail_daily_needs",
@@ -39,7 +40,9 @@ export function createProgrammeSourceBinding(
   const receipt = parsePointObjectCreateSourceUseReceipt(generated.areaContextUsed);
   if (!receipt) return result("invalid_receipt");
   if (!area) return result("context_missing");
-  if (!validArea || !context || generatedLocale === null || validArea.request.locale !== generatedLocale ||
+  // Localized source labels may have a different hash. Only the exact receipt
+  // can bind that held snapshot, never acquisition/output language equality.
+  if (!validArea || !context || !isPointObjectLocale(generatedLocale) ||
       context.scope.kind !== "aoi_interior" || context.scope.radiusM !== null ||
       validArea.area.areaSqM !== Math.round(aoi.areaSqM) ||
       validArea.coverage.upstreamQueryLimit !== POINT_OBJECT_AREA_UPSTREAM_LIMIT ||

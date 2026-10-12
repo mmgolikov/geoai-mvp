@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test";
 import { createHash } from "node:crypto";
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { inflateSync } from "node:zlib";
 import { conceptTemplate, generateConceptMassingAlternatives, validatePointObjectCreateAoiVertices, validateRedevelopmentProgram } from "../../src/lib/prototype/point-to-object-create";
 import { hashPointObjectOperation, type PointObjectProjectOperationInput } from "../../src/lib/prototype/point-object-projects";
@@ -30,6 +30,7 @@ const controls = { blockCount: 4, targetSiteCoveragePct: 24, levelsMin: 4, level
 const prompt = "Independent final UI offline concept; official validation required.";
 
 function fixture(locale: Locale): CreateOperation {
+  verifyPixelMethod();
   // The same synthetic Dubai rectangle used by sprint10-create-preview.spec.ts.
   const vertices: [number, number][] = [[55.2700,25.2050],[55.2720,25.2050],[55.2720,25.2065],[55.2700,25.2065]];
   const valid = validatePointObjectCreateAoiVertices(vertices); if (!valid.ok) throw new Error(valid.message);
@@ -98,21 +99,94 @@ function decodePng(bytes: Buffer) {
   for(let y=0;y<height;y++){const filter=raw[at++];if(filter>4)throw new Error("Invalid native PNG filter");for(let x=0;x<stride;x++){const left=x>=channels?pixels[y*stride+x-channels]:0,up=y?pixels[(y-1)*stride+x]:0,corner=y&&x>=channels?pixels[(y-1)*stride+x-channels]:0;pixels[y*stride+x]=(raw[at++]+(filter===0?0:filter===1?left:filter===2?up:filter===3?Math.floor((left+up)/2):paeth(left,up,corner)))&255;}}
   return {width,height,channels,pixels};
 }
-function pixelReport(bytes: Buffer, background: string): PixelReport {
-  const {width,height,channels,pixels}=decodePng(bytes),faces=new Set<number>(),dark: [number,number][]=[],alphas:number[]=[],bg=parseInt(background.slice(1,3),16);
+// Independent of the accepted volume opacity: this is the existing AOI ground
+// paint, not a volume material. Pin its source below so paint drift fails closed.
+const AOI_GROUND_PAINT = { rgb: [18,165,148] as const, opacity: 0.16 };
+function groundPixel(background: string): [number,number,number] {
+  if (!/^#[a-f0-9]{6}$/i.test(background)) throw new Error("Pixel oracle requires a solid six-digit RGB background");
+  return [0,1,2].map(index => Math.round(parseInt(background.slice(1+index*2,3+index*2),16)*(1-AOI_GROUND_PAINT.opacity)+AOI_GROUND_PAINT.rgb[index]*AOI_GROUND_PAINT.opacity)) as [number,number,number];
+}
+function decodedPixelReport(decoded: ReturnType<typeof decodePng>, background: string): PixelReport {
+  const {width,height,channels,pixels}=decoded,faces=new Set<number>(),dark: [number,number][]=[],alphas:number[]=[],bg=parseInt(background.slice(1,3),16),ground=groundPixel(background);
   // Exclude top badges and lower camera buttons: inspect volume-face ROI only.
-  for(let y=Math.floor(height*.22);y<height*.77;y++)for(let x=Math.floor(width*.12);x<width*.88;x++){const at=(y*width+x)*channels,r=pixels[at],g=pixels[at+1],b=pixels[at+2];if(g-r>18&&b-r>18&&Math.abs(g-b)<55){if(r>=60&&r<=200){faces.add(y*width+x);alphas.push((bg-r)/(bg-8));}else if(r<60)dark.push([x,y]);}}
+  for(let y=Math.floor(height*.22);y<height*.77;y++)for(let x=Math.floor(width*.12);x<width*.88;x++){const at=(y*width+x)*channels,r=pixels[at],g=pixels[at+1],b=pixels[at+2];
+    // Contrast admits the flat AOI swatch (194/222/222) under the old r<=200
+    // bound; Street's 202/230/225 does not. Exclude only the exact independently
+    // derived ground RGB: no opacity-band filtering or antialias tolerance.
+    if(r===ground[0]&&g===ground[1]&&b===ground[2])continue;
+    if(g-r>18&&b-r>18&&Math.abs(g-b)<55){if(r>=60&&r<=200){faces.add(y*width+x);alphas.push((bg-r)/(bg-8));}else if(r<60)dark.push([x,y]);}}
   let adjacentEdgePixels=0;for(const [x,y]of dark){let close=false;for(let dy=-4;dy<=4&&!close;dy++)for(let dx=-4;dx<=4;dx++)if(faces.has((y+dy)*width+x+dx)){close=true;break;}if(close)adjacentEdgePixels++;}alphas.sort((a,b)=>a-b);
   return {width,height,facePixels:faces.size,adjacentEdgePixels,medianBlendedOpacity:alphas.length?alphas[Math.floor(alphas.length/2)]:null};
 }
+function pixelReport(bytes: Buffer, background: string): PixelReport { return decodedPixelReport(decodePng(bytes),background); }
+function hasTranslucentVolumeWithEdges(report: PixelReport): boolean {
+  return report.facePixels>=120&&report.adjacentEdgePixels>=8&&report.medianBlendedOpacity!==null&&report.medianBlendedOpacity>=.35&&report.medianBlendedOpacity<=.65;
+}
+function verifyPixelMethod() {
+  const mapSource=readFileSync("components/point-to-object/live-object-map.tsx","utf8");
+  const groundLayer=mapSource.match(/if \(!map\.getLayer\(CREATE_AOI_FILL_LAYER_ID\)\)[\s\S]*?\}, labelLayer\);/)?.[0];
+  expect(groundLayer).toContain('"fill-color": "#12a594"');
+  expect(groundLayer).toContain('"fill-opacity": 0.16');
+  // Pure in-memory method fixtures only: no browser, PNG output or substituted
+  // MapLibre rendering. All real frame acceptance still requires native PNGs.
+  for(const background of ["#edf2f0","#e4e9ec"]){
+    const bg=[0,1,2].map(index=>parseInt(background.slice(1+index*2,3+index*2),16));
+    const blend=(opacity:number)=>bg.map((value,index)=>Math.round(value*(1-opacity)+[8,127,140][index]*opacity));
+    const sample=(face:number[],edges=true)=>{
+      const width=80,height=80,channels=3,pixels=Buffer.alloc(width*height*channels);
+      for(let at=0;at<pixels.length;at+=channels)for(let channel=0;channel<channels;channel++)pixels[at+channel]=bg[channel];
+      for(let y=24;y<56;y++)for(let x=20;x<60;x++)for(let channel=0;channel<channels;channel++)pixels[(y*width+x)*channels+channel]=face[channel];
+      if(edges)for(let x=20;x<60;x++)for(let channel=0;channel<channels;channel++)pixels[(23*width+x)*channels+channel]=[8,127,140][channel];
+      return decodedPixelReport({width,height,channels,pixels},background);
+    };
+    const valid=sample(blend(.5));expect(hasTranslucentVolumeWithEdges(valid)).toBe(true);
+    expect(hasTranslucentVolumeWithEdges(sample(groundPixel(background)))).toBe(false);
+    expect(hasTranslucentVolumeWithEdges(sample([128,128,128]))).toBe(false);
+    expect(hasTranslucentVolumeWithEdges(sample(blend(1)))).toBe(false);
+    for(const opacity of [.25,.75]){const invalid=sample(blend(opacity));expect(invalid.facePixels).toBeGreaterThanOrEqual(120);expect(invalid.adjacentEdgePixels).toBeGreaterThanOrEqual(8);expect(hasTranslucentVolumeWithEdges(invalid)).toBe(false);}
+    const noEdges=sample(blend(.5),false);expect(noEdges.facePixels).toBeGreaterThanOrEqual(120);expect(noEdges.adjacentEdgePixels).toBe(0);expect(hasTranslucentVolumeWithEdges(noEdges)).toBe(false);
+  }
+}
 async function frame(canvas: Locator, name: string, background: string, signals: Signals, info: TestInfo) {
   let bytes:Buffer=Buffer.alloc(0),report:PixelReport={width:0,height:0,facePixels:0,adjacentEdgePixels:0,medianBlendedOpacity:null};await expect(canvas).toBeVisible();
-  await expect.poll(async()=>{bytes=await canvas.screenshot({type:"png"});report=pixelReport(bytes,background);return report.facePixels>=120&&report.adjacentEdgePixels>=8&&report.medianBlendedOpacity!==null&&report.medianBlendedOpacity>=.35&&report.medianBlendedOpacity<=.65;},{message:"Actual native translucent teal volume faces and adjacent edges must render"}).toBe(true);
+  await expect.poll(async()=>{bytes=await canvas.screenshot({type:"png"});report=pixelReport(bytes,background);return hasTranslucentVolumeWithEdges(report);},{message:"Actual native translucent teal volume faces and adjacent edges must render"}).toBe(true);
   const file=info.outputPath(name+".png");writeFileSync(file,bytes);signals.frames.push({name,path:file,sha256:sha(bytes),...report});
 }
 async function saved(page: Page) { return page.evaluate(key=>{const store=JSON.parse(localStorage.getItem(key)!);return store.projects.flatMap((p:{artifacts:SavedCreate[]})=>p.artifacts).filter((a:SavedCreate&{kind?:string})=>a.kind==="create") as SavedCreate[];},storeKey); }
 async function openTask(page: Page, locale: Locale) {
   if((page.viewportSize()?.width??1440)<1024){const task=page.locator("#workspace-task"),toggle=task.locator('button[aria-controls="workspace-task-content"]');await expect(toggle).toBeVisible();if(await toggle.getAttribute("aria-expanded")==="false")await task.getByRole("button",{name:word(locale,"Open task","Открыть задачу"),exact:true}).click();await expect(toggle).toHaveAttribute("aria-expanded","true");}
+}
+async function showWorkspaceMap(page: Page, locale: Locale) {
+  if((page.viewportSize()?.width??1440)<1024){
+    const task=page.locator("#workspace-task"),toggle=task.locator('button[aria-controls="workspace-task-content"]');
+    await expect(toggle).toBeVisible();
+    if(await toggle.getAttribute("aria-expanded")==="true")await task.getByRole("button",{name:word(locale,"Show map","На карту"),exact:true}).click();
+    await expect(toggle).toHaveAttribute("aria-expanded","false");
+    await expect(page.getByTestId("mobile-workspace-shell")).toHaveAttribute("data-sheet","peek");
+  }
+  const map=page.getByTestId("live-map-canvas");await expect(map).toBeVisible();
+  await expect.poll(()=>map.evaluate(element=>element.closest("[inert]")===null)).toBe(true);
+}
+async function openWorkspaceCamera(page: Page, locale: Locale) {
+  await showWorkspaceMap(page,locale);
+  const map=page.getByTestId("live-map-canvas").locator("xpath=..");
+  if((page.viewportSize()?.width??1440)<1024){
+    const camera=map.getByRole("button",{name:word(locale,"Camera","Камера"),exact:true});
+    await expect(camera).toBeVisible();
+    if(await camera.getAttribute("aria-expanded")==="false")await camera.click();
+    await expect(camera).toHaveAttribute("aria-expanded","true");
+  }
+  await expect(map.getByTestId("map-dimension-control")).toBeVisible();
+  await expect(map.getByRole("combobox",{name:word(locale,"Map style","Стиль карты"),exact:true})).toBeVisible();
+}
+async function closeWorkspaceCamera(page: Page, locale: Locale) {
+  if((page.viewportSize()?.width??1440)>=1024)return;
+  const map=page.getByTestId("live-map-canvas").locator("xpath=.."),camera=map.getByRole("button",{name:word(locale,"Camera","Камера"),exact:true});
+  await expect(camera).toBeVisible();
+  if(await camera.getAttribute("aria-expanded")==="true")await camera.click();
+  await expect(camera).toHaveAttribute("aria-expanded","false");
+  await expect(map.locator("[data-map-bottom-controls]")).toHaveAttribute("data-camera-open","false");
+  await expect(map.locator("#mobile-camera-actions")).toHaveCount(0);
 }
 async function toParameters(page: Page, locale: Locale) { await page.getByTestId("create-full-result-dashboard").getByRole("button",{name:word(locale,"Back to parameters","К параметрам"),exact:true}).click();await openTask(page,locale);await expect(page.locator("#point-object-create-prompt")).toBeVisible(); }
 async function showResult(page: Page) { await page.getByTestId("create-open-result-dashboard").click();await expect(page.getByTestId("create-full-result-dashboard")).toBeVisible(); }
@@ -234,16 +308,33 @@ async function volumeViews(page: Page, locale: Locale, generated: CreateOperatio
       await frame(canvas,`${phase}-${alternative.id}-${scene}-3d`,scene==="model"?"#f4fbfb":"#edf2f0",signals,info);await cameraControls(preview,locale,`${phase}-${alternative.id}`,scene,signals,info);await expect(preview).toHaveAttribute("data-preview-geometry-key",key);
       await frame(canvas,`${phase}-${alternative.id}-${scene}-zoom-reset`,scene==="model"?"#f4fbfb":"#edf2f0",signals,info);
     }
-    await panel.getByTestId("create-preview-mode-2d").click();await expect(panel.getByTestId("create-preview-mode-2d")).toHaveAttribute("aria-pressed","true");await panel.getByTestId("create-preview-mode-3d").click();await expect(kpi).toHaveText(kpiText);
+    await panel.getByTestId("create-preview-mode-2d").click();await expect(panel.getByTestId("create-preview-mode-2d")).toHaveAttribute("aria-pressed","true");await panel.getByTestId("create-preview-mode-3d").click();await expect(kpi).toHaveText(kpiText,{useInnerText:true});
     await panel.getByRole("button",{name:word(locale,"Show on map","Показать на карте"),exact:true}).click();await expect(panel).toHaveCount(0);const canvas=page.getByTestId("live-map-canvas").locator("canvas.maplibregl-canvas"),dimension=page.getByTestId("map-dimension-control");
-    await dimension.getByRole("button",{name:"3d",exact:true}).click();await frame(canvas,`${phase}-${alternative.id}-workspace`,"#edf2f0",signals,info);await dimension.getByRole("button",{name:"2d",exact:true}).click();await dimension.getByRole("button",{name:"3d",exact:true}).click();
-    const style=page.getByRole("combobox",{name:word(locale,"Map style","Стиль карты"),exact:true});await style.selectOption("contrast");await frame(canvas,`${phase}-${alternative.id}-workspace-contrast`,"#e4e9ec",signals,info);await style.selectOption("street");await frame(canvas,`${phase}-${alternative.id}-workspace-restored`,"#edf2f0",signals,info);await openTask(page,locale);await showResult(page);
-    await expect(page.getByTestId("create-result-kpis")).toHaveText(kpiText);await expect(page.getByTestId("create-source-binding")).toHaveAttribute("data-source-binding","matched");
+    await openWorkspaceCamera(page,locale);
+    await dimension.getByRole("button",{name:"3d",exact:true}).click();
+    await closeWorkspaceCamera(page,locale);await frame(canvas,`${phase}-${alternative.id}-workspace`,"#edf2f0",signals,info);
+    await openWorkspaceCamera(page,locale);await dimension.getByRole("button",{name:"2d",exact:true}).click();await dimension.getByRole("button",{name:"3d",exact:true}).click();
+    await openWorkspaceCamera(page,locale);
+    const style=page.getByRole("combobox",{name:word(locale,"Map style","Стиль карты"),exact:true});await style.selectOption("contrast");
+    await closeWorkspaceCamera(page,locale);await frame(canvas,`${phase}-${alternative.id}-workspace-contrast`,"#e4e9ec",signals,info);
+    await openWorkspaceCamera(page,locale);await style.selectOption("street");
+    await closeWorkspaceCamera(page,locale);await frame(canvas,`${phase}-${alternative.id}-workspace-restored`,"#edf2f0",signals,info);await openTask(page,locale);await showResult(page);
+    await expect(page.getByTestId("create-result-kpis")).toHaveText(kpiText,{useInnerText:true});await expect(page.getByTestId("create-source-binding")).toHaveAttribute("data-source-binding","matched");
   }
 }
 
 async function cityHitbox(page: Page, locale: Locale, signals: Signals, info: TestInfo) {
-  const before=[...signals.calls];await page.goto("/prototype/point-to-object?mode=find");await page.getByRole("button",{name:locale,exact:true}).click();const select=page.getByTestId("point-object-city-select"),pill=page.locator("label").filter({has:select});await expect(select).toBeVisible();await expect(pill).toHaveCount(1);expect(await select.evaluate(el=>el.tagName)).toBe("SELECT");
+  const before=[...signals.calls];await page.goto("/prototype/point-to-object?mode=find");
+  // A saved Create result may restore over the requested Find view. Wait for
+  // restoration, then leave through normal UI before reaching City controls.
+  await expect(page.locator("main[data-project-restoration]")).toHaveAttribute("data-project-restoration","ready");
+  const restoredCreate=page.getByTestId("create-full-result-dashboard");
+  if(await restoredCreate.isVisible())await restoredCreate.getByRole("button",{name:word(locale,"Show on map","Показать на карте"),exact:true}).click();
+  await expect(restoredCreate).toHaveCount(0);
+  await openTask(page,locale);
+  const findTab=page.getByRole("tab",{name:word(locale,"Find","Поиск"),exact:true});await findTab.click();await expect(findTab).toHaveAttribute("aria-selected","true");
+  await showWorkspaceMap(page,locale);
+  await page.getByRole("button",{name:locale,exact:true}).click();const select=page.getByTestId("point-object-city-select"),pill=page.locator("label").filter({has:select});await expect(select).toBeVisible();await expect(pill).toHaveCount(1);expect(await select.evaluate(el=>el.tagName)).toBe("SELECT");
   const observable=await select.evaluate(()=>CSS.supports("selector(select:open)"));if(!observable)throw new Error("QA_RUNTIME_NATIVE_POPUP_OBSERVATION_UNAVAILABLE: native popup coverage requires explicit browser/Root evidence; no inferred PASS");
   for(const [index,where]of ["left","center","right"].entries()){
     const box=await pill.boundingBox();expect(box).not.toBeNull();expect(box!.height).toBeGreaterThanOrEqual(44);const position={x:where==="left"?4:where==="right"?box!.width-4:box!.width/2,y:box!.height/2};
@@ -275,8 +366,18 @@ for(const locale of ["en","ru"] as const)for(const width of [1440,390])test(`REV
     await page.goto("/prototype/point-to-object?mode=create");await expect(page.getByTestId("create-full-result-dashboard")).toBeVisible();await volumeViews(page,locale,operation.payload.generated,"saved",signals,info);await immutableOriginal();expect(signals.calls).toEqual([]);
     await toParameters(page,locale);await page.locator("#point-object-create-prompt").fill(prompt);await page.getByTestId("create-programme-residential_quarter").click();await page.locator("#point-object-create-prompt").fill(prompt);const details=page.getByTestId("create-workspace").locator("details").filter({has:page.locator("summary").filter({hasText:word(locale,"Concept parameters","Параметры концепции")})});if(!await details.evaluate(el=>(el as HTMLDetailsElement).open))await details.locator("summary").click();
     for(const key of ["blockCount","targetSiteCoveragePct","levelsMax","levelsMin","openSpacePct","setbackM"] as const){const slider=page.getByRole("slider",{name:labels[key][locale==="ru"?1:0],exact:true}),current=Number(await slider.inputValue()),value=controls[key];if(current===value){await slider.press("ArrowRight");await slider.press("ArrowLeft");}else for(let n=0;n<Math.abs(current-value);n++)await slider.press(value>current?"ArrowRight":"ArrowLeft");await expect(slider).toHaveValue(String(value));}
-    signals.allowGeneration=true;await page.getByTestId("create-generate-action").click();await expect(page.getByTestId("generated-concept-summary")).toBeVisible();signals.allowGeneration=false;expect(signals.calls).toEqual(["GET /api/prototype/point-to-object/create","POST /api/prototype/point-to-object/create"]);expect(signals.publicPosts).toHaveLength(1);await expect.poll(async()=>(await saved(page)).some(x=>x.payload.generated.promptVersion===newGenerated.promptVersion)).toBe(true);await immutableOriginal();await showResult(page);await volumeViews(page,locale,newGenerated,"new",signals,info);
-    const baseline=[...signals.calls];await page.goto("/projects?view=spatial");const card=page.getByTestId("saved-result-card").filter({hasText:word(locale,"Generated concept","Созданная концепция")});await expect(card).toHaveCount(1);await card.getByRole("button",{name:word(locale,"Show on map","Показать на карте"),exact:true}).click();await expect(page.getByTestId("create-full-result-dashboard")).toBeVisible();const savedNew=(await saved(page)).find(x=>x.payload.generated.promptVersion===newGenerated.promptVersion);expect(savedNew?.payload.generated).toEqual(newGenerated);await expect(page.getByTestId("create-source-binding")).toHaveAttribute("data-source-binding","matched");await immutableOriginal();expect(signals.calls).toEqual(baseline);
+    signals.allowGeneration=true;await page.getByTestId("create-generate-action").click();await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
+    // The previous valid summary remains visible during generation. Keep the
+    // mock enabled until the exact GET/POST sequence and new saved receipt exist.
+    await expect.poll(()=>[...signals.calls]).toEqual(["GET /api/prototype/point-to-object/create","POST /api/prototype/point-to-object/create"]);
+    await expect.poll(async()=>(await saved(page)).some(x=>x.payload.generated.promptVersion===newGenerated.promptVersion)).toBe(true);
+    signals.allowGeneration=false;expect(signals.calls).toEqual(["GET /api/prototype/point-to-object/create","POST /api/prototype/point-to-object/create"]);expect(signals.publicPosts).toHaveLength(1);await immutableOriginal();await showResult(page);await volumeViews(page,locale,newGenerated,"new",signals,info);
+    const baseline=[...signals.calls];await page.goto("/projects?view=spatial");
+    const card=page.getByTestId("saved-result-card").filter({hasText:newGenerated.promptVersion}).filter({has:page.getByRole("heading",{name:newGenerated.program.title,exact:true})});
+    await expect(card).toHaveCount(1);await expect(card.getByRole("heading",{level:4})).toHaveText(newGenerated.program.title);
+    await card.getByRole("button",{name:word(locale,"Show on map","Показать на карте"),exact:true}).click();await expect(page.getByTestId("create-full-result-dashboard")).toBeVisible();const savedNew=(await saved(page)).find(x=>x.payload.generated.promptVersion===newGenerated.promptVersion);expect(savedNew?.payload.generated).toEqual(newGenerated);
+    expect(savedNew?.payload.aoi).toEqual(operation.payload.aoi);expect(savedNew?.payload.areaContext).toEqual(operation.payload.areaContext);
+    await expect(page.getByTestId("create-source-binding")).toHaveAttribute("data-source-binding","matched");await immutableOriginal();expect(signals.calls).toEqual(baseline);
     const beforeCity=await saved(page);await cityHitbox(page,locale,signals,info);expect(await saved(page)).toEqual(beforeCity);await immutableOriginal();expect(signals.errors).toEqual([]);completed=true;
   } finally {
     const receipt={scope:"Synthetic loopback CI/native MapLibre QA; no hosted source/paid/Production acceptance",assertionsCompleted:completed,authoritativeStatus:"Playwright final test report",locale,width,browserName,material:{color:"#087f8c",opacity:0.5},pixelLimit:"Pixel blend interval is not an exact shader-opacity measurement; exact owner contract and independent PNG visual review remain required",sourceFixtureLimit:"Synthetic acquisition marker runtimeNetworkUsed=true satisfies the existing saved-source schema; no real source acquisition was exercised",originalGeometryHash:sha(JSON.stringify(operation.payload.generated)),calls:signals.calls,publicPosts:signals.publicPosts,pageErrors:signals.errors,frames:signals.frames,cameras:signals.cameras,nativePickerObserved:signals.nativePickerObserved,nativeArrowOptionSelection:signals.nativeArrowOptionSelection,cityChangeMethod:"selectOption validates native SELECT change handler only; actual menu-item/Arrow selection remains unverified"};writeFileSync(info.outputPath("review02-final-ui-receipt.json"),JSON.stringify(receipt,null,2)+"\n");await page.screenshot({path:info.outputPath("review02-final-ui-terminal.png"),fullPage:false});
@@ -350,7 +451,7 @@ for (const locale of ["en", "ru"] as const) test(`REVIEW02 final saved A-only le
       await cameraControls(preview, locale, id, "map", signals, info);
       await panel.getByTestId("create-preview-mode-2d").click(); await panel.getByTestId("create-preview-mode-3d").click();
       await expect(panel.getByTestId("create-result-preview-3d")).toHaveAttribute("data-preview-geometry-key", key);
-      await expect(kpi).toHaveText(kpis); await expect(source).toHaveAttribute("data-source-binding", binding);
+      await expect(kpi).toHaveText(kpis, { useInnerText: true }); await expect(source).toHaveAttribute("data-source-binding", binding);
       await preserved(); phases.push({ id, binding, geometryKey: key, kpis });
     }
     await preserved(); expect(signals.errors).toEqual([]); expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1); completed = true;

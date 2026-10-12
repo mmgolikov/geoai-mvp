@@ -1130,6 +1130,18 @@ test("Create preserves the draft and last result when the local preflight worker
   await page.getByText("Concept parameters", { exact: true }).click();
   const coverage = page.getByRole("slider", { name: "Site coverage" });
   await coverage.press("ArrowRight");
+  // One fixed value leaves the other five in Auto, so no worker is admitted.
+  // Exercise the actual full-Manual gate before qualifying worker failure.
+  await expect(page.getByTestId("create-local-preflight")).toHaveAttribute("data-preflight-kind", "not_applicable");
+  await expect(page.getByTestId("create-local-preflight-retry")).toHaveCount(0);
+  expect(createPosts).toHaveLength(1);
+  expect(challengeGets).toBe(1);
+  for (const label of ["Blocks", "Minimum levels", "Maximum levels", "Open space", "Setback"]) {
+    const slider = page.getByRole("slider", { name: label, exact: true });
+    await slider.press("ArrowRight"); await slider.press("ArrowLeft");
+  }
+  await expect(page.getByText("Fixed", { exact: true })).toHaveCount(6);
+  await expect(page.getByTestId("create-local-preflight")).toHaveAttribute("data-preflight-kind", "failed");
   await expect(page.getByTestId("create-local-preflight")).toContainText("placement check is unavailable");
   await expect(coverage).toHaveValue("29");
   await expect(page.getByTestId("generated-concept-summary")).toContainText("Generation 1 committed result.");

@@ -69,7 +69,7 @@ try {
     ok(isPointObjectAreaContextResult(area), "synthetic held snapshot obeys current source schema");
     return { aoi, area, generated, massing };
   }
-  const run = f => audit(f.aoi, f.area, f.generated, "en", f.massing);
+  const run = f => audit(f.aoi, f.area, f.generated, f.generatedLocale ?? "en", f.massing);
   function reconciles(result) {
     const s = result.summary; ok(s, "spatial summary exists");
     equal(s.uniqueSourceCount, s.insideSourceCount + s.boundaryOnlySourceCount + s.outsideSourceCount + s.unresolvedSourceCount, "source classifications reconcile");
@@ -89,7 +89,9 @@ try {
     const result = run(changed); equal([result.summary, result.blocks], [null, []], `receipt ${key} mismatch emits no facts or actions`);
   }
   for (const changed of [{ ...f, generated: {} }, { ...f, generated: { areaContextUsed: undefined } }, { ...f, generated: { areaContextUsed: null } }, { ...f, area: null }]) equal(run(changed).summary, null, "legacy/undefined/null/missing sources emit no facts");
-  const changedLocale = copy(f); changedLocale.area.request.locale = "ru"; equal(run(changedLocale).summary, null, "saved locale mismatch fails closed");
+  const changedLocale = copy(f); changedLocale.area.request.locale = "de"; equal(run(changedLocale).summary, null, "invalid source locale fails closed");
+  equal(run({ ...f, generatedLocale: "ru" }), positive, "RU output retains exact EN acquisition snapshot and receipt-bound spatial facts");
+  equal(run({ ...f, generatedLocale: "de" }).summary, null, "invalid output locale fails closed");
   const changedAoi = copy(f); changedAoi.area.request.aoiCoordinates[0][0][0] += 0.0001; equal(run(changedAoi).summary, null, "held AOI mismatch fails closed");
   const changedGroups = copy(f); changedGroups.area.summary.groups[0].count++; equal(run(changedGroups).summary, null, "nonreconciling held groups fail closed");
   const changedLimit = copy(f); changedLimit.area.coverage.upstreamQueryLimit = 301; equal(run(changedLimit).summary, null, "producer query bound cannot drift");

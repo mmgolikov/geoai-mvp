@@ -97,7 +97,9 @@ function parseCreatePayload(value: unknown, locale: PointObjectLocale, marketKey
   if (!aoi) return null;
   const generated = parsePointObjectGeneratedConcept(value.generated, aoi);
   if (!generated) return null;
-  if (value.areaContext !== null && (value.areaContext.request.marketKey !== marketKey || value.areaContext.request.locale !== locale ||
+  // The held snapshot retains its acquisition/normalization language. It need
+  // not equal the new result language; source use is proved separately by its receipt.
+  if (value.areaContext !== null && (value.areaContext.request.marketKey !== marketKey ||
       JSON.stringify(value.areaContext.request.aoiCoordinates) !== JSON.stringify(aoi.coordinates))) return null;
   const alternativeIds = new Set(generated.alternatives?.map((item) => item.id) ?? [generated.massing.variantId]);
   if (!alternativeIds.has(value.activeAlternativeId)) return null;

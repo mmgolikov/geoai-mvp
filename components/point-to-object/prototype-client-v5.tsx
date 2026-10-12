@@ -1355,7 +1355,6 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse", verification
     if (!sessionAoi || !sessionGenerated || !sessionGeneratedLocale) return;
     const candidateAreaContext = input.areaContext === undefined ? areaContext : input.areaContext;
     const compatibleAreaContext = candidateAreaContext && candidateAreaContext.request.marketKey === locationKey &&
-      candidateAreaContext.request.locale === sessionGeneratedLocale &&
       JSON.stringify(candidateAreaContext.request.aoiCoordinates) === JSON.stringify(sessionAoi.coordinates)
       ? candidateAreaContext
       : null;

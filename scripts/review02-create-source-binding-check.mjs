@@ -74,6 +74,7 @@ try {
   equal([limits.POINT_OBJECT_AREA_UPSTREAM_LIMIT, limits.POINT_OBJECT_AREA_FEATURE_LIMIT], [300, 80], "shared server/browser limits retain exact producer values");
   equal([areaContract.POINT_OBJECT_AREA_UPSTREAM_LIMIT, areaContract.POINT_OBJECT_AREA_FEATURE_LIMIT], [limits.POINT_OBJECT_AREA_UPSTREAM_LIMIT, limits.POINT_OBJECT_AREA_FEATURE_LIMIT], "existing server contract exports the same immutable limits");
   const session = await import(new URL("src/lib/prototype/point-to-object-create-session.ts", root).href);
+  const projectContract = await import(new URL("src/lib/prototype/point-object-projects-contract.ts", root).href);
   const projects = sessionOnly ? null : await import(new URL("src/lib/prototype/point-object-projects.ts", root).href);
   const stamp = "2026-10-05T18:00:00.000Z";
   const coordinates = [[[55.2808, 25.2182], [55.2828, 25.2182], [55.2828, 25.2197], [55.2808, 25.2197], [55.2808, 25.2182]]];
@@ -151,8 +152,35 @@ try {
   equal(programme.createProgrammeSourceBinding(aoi, matched.areaContext, matched.generated, "en").status, "matched", "reopened result binds to exact held source");
   const ruArea = makeArea(4, "ru");
   const ruReceipt = { ...receipt, sourceResponseHash: ruArea.source.sourceResponseHash };
+  ok(ruArea.source.sourceResponseHash !== area.source.sourceResponseHash, "real normalizer's localized labels can change the source hash without a new raw source request");
   const ru = await roundTrip("matched-ru", { ...generated, areaContextUsed: ruReceipt }, ruArea, "ru");
   equal(programme.createProgrammeSourceBinding(aoi, ru.areaContext, ru.generated, "ru").status, "matched", "RU source/reopen binding uses generation locale");
+  const translated = await roundTrip("en-source-ru-result", { ...generated, areaContextUsed: receipt }, area, "ru");
+  equal(translated.areaContext, area, "RU result preserves entire EN acquisition snapshot byte-for-byte");
+  equal(JSON.stringify(translated.areaContext), JSON.stringify(area), "acquisition locale, hash, times, labels and source geometry are not restamped or translated");
+  equal(translated.generatedLocale, "ru", "RU result keeps its own output language");
+  equal(programme.createProgrammeSourceBinding(aoi, translated.areaContext, translated.generated, "ru").status, "matched", "six exact fields, not source/output language equality, bind reopened RU result");
+  const translatedMismatch = await roundTrip("en-source-ru-other-hash", { ...generated, areaContextUsed: ruReceipt }, area, "ru");
+  equal(translatedMismatch.areaContext, area, "other server hash never replaces or strips held EN snapshot");
+  equal(programme.createProgrammeSourceBinding(aoi, translatedMismatch.areaContext, translatedMismatch.generated, "ru").status, "context_mismatch", "different server hash remains unbound after RU save/reopen");
+  const translatedLegacy = await roundTrip("en-source-ru-legacy", generated, area, "ru");
+  equal(programme.createProgrammeSourceBinding(aoi, translatedLegacy.areaContext, translatedLegacy.generated, "ru").status, "legacy_unknown", "cross-language legacy result never acquires invented source-use proof");
+  const operation = { kind: "create", locale: "ru", marketKey: "dubai", label: "Synthetic output language regression", payload: translated };
+  ok(projectContract.parsePointObjectProjectOperationInput(operation), "actual operation parser admits EN source and RU artifact");
+  const guest = { schemaVersion: 1, marketKey: "dubai", locale: "ru", ...translated, dashboardOpen: true, updatedAt: stamp };
+  for (const [name, mutate] of [
+    ["wrong AOI", value => { value.payload.areaContext.request.aoiCoordinates[0][0][0] += 0.00001; }],
+    ["wrong market", value => { value.payload.areaContext.request.marketKey = "singapore"; }],
+    ["invalid source locale", value => { value.payload.areaContext.request.locale = "de"; }],
+    ["artifact/output locale mismatch", value => { value.payload.generatedLocale = "en"; }],
+    ["invalid output locale", value => { value.payload.generatedLocale = "de"; }]
+  ]) {
+    const changed = structuredClone(operation); mutate(changed);
+    equal(projectContract.parsePointObjectProjectOperationInput(changed), null, `${name}: project operation rejects invalid scope/language`);
+    // A session may display a different UI language, but scope and declared
+    // source/output locales must still be individually valid.
+    if (name !== "artifact/output locale mismatch") equal(session.parsePointObjectCreateSessionState({ ...guest, ...changed.payload }), null, `${name}: guest parser rejects invalid scope/language`);
+  }
   const legacy = await roundTrip("legacy", generated);
   equal(programme.createProgrammeSourceBinding(aoi, area, legacy.generated, "en").status, "legacy_unknown", "old save never infers source use from held context");
   const noSource = await roundTrip("null", { ...generated, areaContextUsed: null });
@@ -182,7 +210,7 @@ try {
   for (const [name, mutate] of [
     ["AOI coordinates", value => { value.request.aoiCoordinates[0][0][0] += 0.00001; }],
     ["AOI area", value => { value.area.areaSqM += 1; }],
-    ["locale", value => { value.request.locale = "ru"; }],
+    ["invalid source locale", value => { value.request.locale = "de"; }],
     ["inside count", value => { value.coverage.normalizedInsideCount += 1; }],
     ["query cap", value => { value.coverage.upstreamQueryLimit = 80; }],
     ["return cap", value => { value.coverage.featureReturnLimit = 4; }],
@@ -194,6 +222,7 @@ try {
     equal(programme.createProgrammeSourceBinding(aoi, changed, { areaContextUsed: receipt }, "en").status, "context_mismatch", `${name}: held extent/coverage must remain valid and exact`);
   }
   equal(programme.createProgrammeSourceBinding(aoi, area, { areaContextUsed: receipt }, null).status, "context_mismatch", "unknown generation locale never binds");
+  equal(programme.createProgrammeSourceBinding(aoi, area, { areaContextUsed: receipt }, "de").status, "context_mismatch", "malformed generation locale never binds");
   for (const count of [0, 80, 81, 301]) {
     const snapshot = makeArea(count);
     const use = { ...receipt, sourceResponseHash: snapshot.source.sourceResponseHash, sampleSize: snapshot.summary.sampleSize,
@@ -213,6 +242,9 @@ try {
   ok(dashboard.includes('data-testid="create-source-binding"') && dashboard.includes("data-source-binding={sourceBinding.status}"), "actual dashboard exposes binding state for independent browser QA (static wiring only)");
   ok(dashboard.includes("sourceMatched ? context : null") && dashboard.includes("programme={sourceMatched}"), "actual dashboard cannot present unbound inventory as programme grounding (static wiring only)");
   for (const status of ["matched", "legacy_unknown", "not_used", "invalid_receipt", "context_missing", "context_mismatch"]) ok(dashboard.includes(`${status}:`), `dashboard declares EN/RU message for ${status} (static wiring only)`);
+  const client = readFileSync(new URL("components/point-to-object/prototype-client-v5.tsx", root), "utf8");
+  const guestPersistence = client.slice(client.indexOf("function persistGuestCreateSession("), client.indexOf("async function saveCreateArtifact("));
+  ok(guestPersistence.includes("areaContext: compatibleAreaContext") && !guestPersistence.includes("candidateAreaContext.request.locale"), "guest producer retains cross-language held source instead of stripping it (static wiring only)");
   equal(JSON.stringify({ aoi, area, generated }), originalInput, "fixture input/last successful result stays immutable throughout checks");
   equal(networkCalls, 0, "no source/provider/API request or implicit regeneration during parse/save/reopen");
   console.log(JSON.stringify({ protocol: "REVIEW02_CREATE_SOURCE_BINDING_OWNER_V1", result: sessionOnly ? "PARTIAL" : "PASS", contractChecks: "PASS", checks,

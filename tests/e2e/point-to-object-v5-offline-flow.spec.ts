@@ -939,6 +939,10 @@ test("V5.1 keeps exact identity and the complete Find comparison flow coherent o
   contextRequests.length = 0;
   findPostRequests.length = 0;
   createPostRequests.length = 0;
+  const aiRequestMethods: string[] = [];
+  page.on("request", request => {
+    if (new URL(request.url()).pathname === "/api/prototype/point-to-object/ai") aiRequestMethods.push(request.method());
+  });
   const unexpectedExternal = await installOfflineRoutes(page);
   await page.setViewportSize({ width: 1280, height: 900 });
   await signInDemo(page, "/prototype/point-to-object");
@@ -1028,7 +1032,10 @@ test("V5.1 keeps exact identity and the complete Find comparison flow coherent o
   await expect(page.getByTestId("find-full-comparison-dashboard")).toBeVisible();
   await expect(page.getByTestId("find-comparison-map-context")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Common observed metrics" })).toBeVisible();
-  await expect(page.getByTestId("find-comparison-basis")).toContainText("no separate comparison AI run");
+  await expect(page.getByTestId("find-comparison-basis")).toHaveText("Basis: observed OSM data · AI synthesis runs separately");
+  await expect(page.getByTestId("comparison-ai-insight")).toHaveCount(0);
+  await expect(page.getByTestId("comparison-run-ai")).toBeDisabled();
+  expect(aiRequestMethods).toEqual([]); // Opening observed comparison never dispatches AI.
   await expect(page.getByText(/Next step: open an object analysis/)).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("find-full-comparison-dashboard-en.png"), fullPage: true });
   await expect(page.getByRole("button", { name: "← Back to compact comparison", exact: true })).toBeFocused();
@@ -1428,9 +1435,22 @@ test("auth-persona: public demo reopens saved A/B Create without AI while protec
       coordinates: guestCreateAoiCoordinates
     }))
   });
+  // Auto is not a fully fixed local programme. Make the intended Manual
+  // fixture explicit through real controls, retaining every seeded value.
+  await expect(page.getByTestId("create-local-preflight")).toHaveAttribute("data-preflight-kind", "not_applicable");
+  await page.getByText("Concept parameters", { exact: true }).click();
+  await expect(page.getByText("Auto", { exact: true })).toHaveCount(6);
+  for (const label of ["Blocks", "Minimum levels", "Maximum levels", "Site coverage", "Open space", "Setback"]) {
+    const slider = page.getByRole("slider", { name: label, exact: true });
+    await slider.press("ArrowRight"); await slider.press("ArrowLeft");
+  }
+  await expect(page.getByText("Fixed", { exact: true })).toHaveCount(6);
+  expect(createRequestMethods).toEqual([]);
   await expect(page.getByTestId("create-local-preflight")).toHaveAttribute("data-preflight-kind", "ready");
   await page.getByTestId("create-generate-action").click();
   await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
+  expect([...(createPostRequests[0].lockedControlKeys as string[])].sort()).toEqual(
+    ["blockCount", "levelsMin", "levelsMax", "targetSiteCoveragePct", "openSpacePct", "setbackM"].sort());
   await page.getByTestId("create-alternative-b").click();
   await page.getByTestId("create-open-result-dashboard").click();
   await expect(page.getByTestId("create-dashboard-alternative-b")).toHaveAttribute("aria-selected", "true");
@@ -1670,8 +1690,17 @@ test("Create A/B and mobile profile remain coherent offline", async ({ page }, t
   await page.getByText("Concept parameters", { exact: true }).click();
   await page.getByTestId("reset-edited-create-controls").click();
   await expect(page.getByText("Edited", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Auto", { exact: true })).toHaveCount(6);
   await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
   await expect(generateConcept).toHaveText("Update concept");
+  // Reset intentionally restores Auto. Re-establish the six-lock Manual
+  // scenario through visible controls; do not pretend reset retained locks.
+  for (const label of ["Blocks", "Minimum levels", "Maximum levels", "Site coverage", "Open space", "Setback"]) {
+    const slider = page.getByRole("slider", { name: label, exact: true });
+    await slider.press("ArrowRight"); await slider.press("ArrowLeft");
+  }
+  await expect(page.getByText("Fixed", { exact: true })).toHaveCount(6);
+  expect(createPostRequests).toHaveLength(1);
   await page.getByRole("button", { name: "ru", exact: true }).click();
   await expect(generateConcept).toHaveText("Обновить концепцию");
   await generateConcept.click();
@@ -1688,6 +1717,22 @@ test("Create A/B and mobile profile remain coherent offline", async ({ page }, t
     const store = key ? JSON.parse(localStorage.getItem(key) ?? "null") : null;
     return store?.projects?.reduce((count: number, project: { artifacts?: unknown[] }) => count + (project.artifacts?.length ?? 0), 0) ?? 0;
   })).toBe(2);
+  const savedLanguageLineage = await page.evaluate(() => {
+    const key = Object.keys(localStorage).find((item) => item.startsWith("geoai:point-to-object:projects:v1:"));
+    const store = key ? JSON.parse(localStorage.getItem(key) ?? "null") : null;
+    const artifacts = store?.projects?.flatMap((project: { artifacts?: { kind: string; locale: string; payload: { generatedLocale: string; areaContext: unknown } }[] }) => project.artifacts ?? []) ?? [];
+    const creates = artifacts.filter((artifact: { kind: string }) => artifact.kind === "create");
+    return {
+      locales: creates.map((artifact: { locale: string }) => artifact.locale).sort(),
+      generatedLocales: creates.map((artifact: { payload: { generatedLocale: string } }) => artifact.payload.generatedLocale).sort(),
+      heldSources: creates.map((artifact: { payload: { areaContext: unknown } }) => JSON.stringify(artifact.payload.areaContext))
+    };
+  });
+  expect(savedLanguageLineage.locales).toEqual(["en", "ru"]);
+  expect(savedLanguageLineage.generatedLocales).toEqual(["en", "ru"]);
+  expect(savedLanguageLineage.heldSources).toHaveLength(2);
+  expect(savedLanguageLineage.heldSources[0]).not.toBe("null");
+  expect(savedLanguageLineage.heldSources[1]).toBe(savedLanguageLineage.heldSources[0]);
   await page.goto("/projects?view=spatial");
   await page.getByRole("button", { name: "en", exact: true }).click();
   await page.getByRole("button", { name: "Show on map", exact: true }).first().click();
