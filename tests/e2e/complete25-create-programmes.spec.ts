@@ -4,8 +4,10 @@ import { POINT_OBJECT_CREATE_RESULT_CAVEAT } from "../../src/lib/prototype/point
 import { externalHttpUrlPattern, installLoopbackBrowserHarness } from "./helpers/local-webkit-csp";
 import { sessionMissingFixture } from "./helpers/auth-persona";
 import { inspectSavedConceptCamera } from "./helpers/complete25-create-camera";
+import type { PointObjectCreateProjectPayload } from "../../src/lib/prototype/point-object-projects-contract";
 
 const coordinates: [number, number][][] = [[[55.278, 25.216], [55.281, 25.216], [55.281, 25.219], [55.278, 25.219], [55.278, 25.216]]];
+const controlKeys = ["blockCount", "levelsMin", "levelsMax", "targetSiteCoveragePct", "openSpacePct", "setbackM"] as const;
 
 for (const { locale, width } of [{ locale: "en", width: 1440 }, { locale: "ru", width: 390 }] as const) {
   test(`COMPLETE25 five Create programmes, preserved result and saved B: ${locale}/${width}`, async ({ page, browserName }, testInfo) => {
@@ -24,12 +26,19 @@ for (const { locale, width } of [{ locale: "en", width: 1440 }, { locale: "ru", 
     await page.route("**/api/auth/session", route => route.fulfill({ json: sessionMissingFixture }));
     await page.route("**/api/prototype/point-to-object/area-context", route => route.fulfill({ status: 503, json: { mode: "unavailable", error: "Offline source fixture" } }));
     const requests: Array<{ templateId: ConceptTemplateId; locale: "en" | "ru" }> = [];
+    let expectedControls: Record<(typeof controlKeys)[number], number> | null = null;
     await page.route("**/api/prototype/point-to-object/create", async route => {
       if (route.request().method() === "GET") {
         await route.fulfill({ json: { mode: "ready", challenge: "P".repeat(43) } });
         return;
       }
+      expect(route.request().method()).toBe("POST");
       const body = route.request().postDataJSON();
+      expect(expectedControls).not.toBeNull();
+      expect(body.controls).toEqual(expectedControls);
+      expect([...(body.lockedControlKeys as string[])].sort()).toEqual([...controlKeys].sort());
+      expect(body.customPrompt).toBeNull();
+      expect(body.aoiCoordinates).toEqual(coordinates);
       requests.push({ templateId: body.templateId, locale: body.locale });
       const parsed = validateRedevelopmentProgram({ ...conceptTemplate(body.templateId, body.locale), ...body.controls });
       expect(parsed.ok).toBe(true);
@@ -46,14 +55,49 @@ for (const { locale, width } of [{ locale: "en", width: 1440 }, { locale: "ru", 
     if (locale === "ru") await page.getByRole("button", { name: "ru", exact: true }).click();
     await page.getByLabel(locale === "ru" ? "Загрузить GeoJSON" : "Upload GeoJSON").setInputFiles({ name: "complete25.geojson", mimeType: "application/geo+json", buffer: Buffer.from(JSON.stringify({ type: "Polygon", coordinates })) });
     const programme = (id: ConceptTemplateId) => page.getByTestId(`create-programme-${id}`);
+    const labels = locale === "ru"
+      ? ["Корпуса", "Минимум этажей", "Максимум этажей", "Плотность застройки", "Открытые пространства", "Отступ"]
+      : ["Blocks", "Minimum levels", "Maximum levels", "Site coverage", "Open space", "Setback"];
+    const parameters = page.locator("details").filter({ has: page.getByRole("slider", { name: labels[0], exact: true }) });
+    const fixed = locale === "ru" ? "Задано" : "Fixed", auto = locale === "ru" ? "Авто" : "Auto";
+    const fixCurrentControls = async () => {
+      if (!await parameters.evaluate(element => (element as HTMLDetailsElement).open)) await parameters.locator("summary").click();
+      const values = Object.fromEntries(await Promise.all(controlKeys.map(async (key, index) =>
+        [key, Number(await page.getByRole("slider", { name: labels[index], exact: true }).inputValue())]))) as Record<(typeof controlKeys)[number], number>;
+      // Auto is a seed, not a fixed value. Real changes lock each field while
+      // returning to the exact pre-existing numeric programme, including maxima.
+      for (const [index, key] of controlKeys.entries()) {
+        const slider = page.getByRole("slider", { name: labels[index], exact: true });
+        const atMaximum = values[key] === Number(await slider.getAttribute("max"));
+        await slider.press(atMaximum ? "ArrowLeft" : "ArrowRight");
+        await slider.press(atMaximum ? "ArrowRight" : "ArrowLeft");
+        await expect(slider).toHaveValue(String(values[key]));
+        await expect(slider.locator("xpath=..").getByText(fixed, { exact: true })).toBeVisible();
+      }
+      await expect(parameters.getByText(fixed, { exact: true })).toHaveCount(6);
+      await expect(parameters.getByText(auto, { exact: true })).toHaveCount(0);
+      return values;
+    };
+    await page.getByText(locale === "ru" ? "Параметры концепции" : "Concept parameters", { exact: true }).click();
+    await expect(parameters).toHaveJSProperty("open", true);
     for (const id of CONCEPT_TEMPLATE_IDS) {
       await programme(id).click();
       await expect(programme(id)).toHaveAttribute("aria-pressed", "true");
+      await expect(parameters).toHaveJSProperty("open", true);
+      await expect(parameters.getByText(auto, { exact: true })).toHaveCount(6);
+      await expect(page.getByTestId("create-local-preflight")).toHaveAttribute("data-preflight-kind", "not_applicable");
+      await expect(page.getByTestId("create-generate-action")).toBeEnabled();
+      expect(requests).toHaveLength(0);
+      await fixCurrentControls();
       await expect(page.getByTestId("create-local-preflight")).toHaveAttribute("data-preflight-kind", "ready");
+      expect(requests).toHaveLength(0);
     }
     expect(requests).toHaveLength(0);
     await programme("residential_quarter").click();
     await expect(programme("residential_quarter")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByTestId("create-local-preflight")).toHaveAttribute("data-preflight-kind", "not_applicable");
+    expectedControls = await fixCurrentControls();
+    expect(requests).toHaveLength(0);
     await expect(page.getByTestId("create-local-preflight")).toHaveAttribute("data-preflight-kind", "ready");
     await page.getByTestId("create-generate-action").click();
     const summary = page.getByTestId("generated-concept-summary");
@@ -110,6 +154,10 @@ for (const { locale, width } of [{ locale: "en", width: 1440 }, { locale: "ru", 
     await expect(summary).toContainText(conceptTemplate("residential_quarter", locale).summary);
     await expect(mainMap).toHaveAttribute("data-concept-environment-key", residentialKey!);
     expect(requests).toHaveLength(1);
+    await expect(parameters.getByText(auto, { exact: true })).toHaveCount(6);
+    await expect(page.getByTestId("create-local-preflight")).toHaveAttribute("data-preflight-kind", "not_applicable");
+    expectedControls = await fixCurrentControls();
+    expect(requests).toHaveLength(1);
     await expect(page.getByTestId("create-local-preflight")).toHaveAttribute("data-preflight-kind", "ready");
     await page.getByTestId("create-generate-action").click();
     await expect(summary).toContainText(conceptTemplate("hospitality_recreation", locale).summary);
@@ -128,11 +176,41 @@ for (const { locale, width } of [{ locale: "en", width: 1440 }, { locale: "ru", 
       const key = Object.keys(localStorage).find(key => key.startsWith("geoai:point-to-object:projects:v1:"));
       return key ? localStorage.getItem(key) : "";
     })).toContain('"activeAlternativeId":"B"');
+    const savedHospitality = await page.evaluate(() => {
+      const key = Object.keys(localStorage).find(key => key.startsWith("geoai:point-to-object:projects:v1:"));
+      const store = key ? JSON.parse(localStorage.getItem(key) ?? "null") : null;
+      return store?.projects?.flatMap((project: { artifacts: Array<{ kind: string; payload: PointObjectCreateProjectPayload }> }) => project.artifacts)
+        .find((artifact: { kind: string; payload: PointObjectCreateProjectPayload }) =>
+          artifact.kind === "create" && artifact.payload.generated.program.templateId === "hospitality_recreation")?.payload as PointObjectCreateProjectPayload | undefined;
+    });
+    if (!savedHospitality || !expectedControls) throw new Error("The exact saved hospitality result and manually fixed programme are required");
+    expect(savedHospitality.activeAlternativeId).toBe("B");
+    expect(savedHospitality.aoi.coordinates).toEqual(coordinates);
+    expect(savedHospitality.areaContext).toBeNull(); // Offline fixture must not invent matched source evidence.
+    expect(savedHospitality.editorSnapshot?.controls).toEqual(expectedControls);
+    expect([...(savedHospitality.editorSnapshot?.lockedControlKeys ?? [])].sort()).toEqual([...controlKeys].sort());
+    expect(Object.fromEntries(controlKeys.map(key => [key, savedHospitality.generated.program[key]]))).toEqual(expectedControls);
+    expect(savedHospitality.generated.program.massingStyle).toBe("campus");
+    const savedB = savedHospitality.generated.alternatives?.find(alternative => alternative.id === "B")?.massing;
+    if (!savedB) throw new Error("The saved B geometry is required, not a regenerated or base-template count");
+    // Site-scaled Auto seeds are manually fixed before generation. The base
+    // template's seven blocks are not this AOI's count. Independently require
+    // one primary campus feature per fixed block, then bind preview to saved B.
+    expect(savedB.variantId).toBe("B");
+    expect(savedB.requestedBlockCount).toBe(expectedControls.blockCount);
+    expect(savedB.generatedBlockCount).toBe(expectedControls.blockCount);
+    expect(savedB.featureCollection.features).toHaveLength(expectedControls.blockCount);
+    expect(savedB.generatedFeatureCount).toBe(savedB.featureCollection.features.length);
+    for (const feature of savedB.featureCollection.features) {
+      expect(feature.properties).toMatchObject({ primaryBlock: true, volumeRole: "campus_block", variantId: "B" });
+      expect(feature.properties.levels).toBeGreaterThanOrEqual(expectedControls.levelsMin);
+      expect(feature.properties.levels).toBeLessThanOrEqual(expectedControls.levelsMax);
+    }
     await page.getByTestId("create-open-result-dashboard").click();
     await expect(page.getByTestId("create-full-result-dashboard")).toBeVisible();
     const preview = page.getByTestId("create-result-preview-3d");
     await expect(preview).toHaveAttribute("data-preview-status", "ready");
-    await expect(preview).toHaveAttribute("data-preview-feature-count", "7");
+    await expect(preview).toHaveAttribute("data-preview-feature-count", String(savedB.generatedFeatureCount));
     await expect(preview).toHaveAttribute("data-environment-key", hospitalityBKey!);
     await expect(preview).toHaveAttribute("data-environment-status", "ready");
     const resultMap = page.getByTestId("create-result-preview-3d-canvas");
@@ -182,6 +260,7 @@ for (const { locale, width } of [{ locale: "en", width: 1440 }, { locale: "ru", 
     await expect(page.getByTestId("create-full-result-dashboard")).toBeVisible();
     await expect(page.getByTestId("create-dashboard-alternative-b")).toHaveAttribute("aria-selected", "true");
     await expect(preview).toHaveAttribute("data-preview-status", "ready");
+    await expect(preview).toHaveAttribute("data-preview-feature-count", String(savedB.generatedFeatureCount));
     await expect(preview).toHaveAttribute("data-environment-key", hospitalityBKey!);
     await expect.poll(async () => Number(await resultMap.getAttribute("data-concept-environment-rendered-count"))).toBeGreaterThan(0);
     if (locale === "ru" && width === 390) {

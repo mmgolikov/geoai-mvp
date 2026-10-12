@@ -24,6 +24,7 @@ const shapes = {
   radial25: radialStar(25)
 };
 const baseControls = { blockCount: 9, levelsMin: 6, levelsMax: 53, targetSiteCoveragePct: 38, openSpacePct: 35, setbackM: 8 };
+const controlKeys = ["blockCount", "levelsMin", "levelsMax", "targetSiteCoveragePct", "openSpacePct", "setbackM"] as const;
 const families = [
   { shape: "oblique", programme: "residential_mixed_use", variants: ["B"] },
   { shape: "oblique", programme: "civic_green", variants: ["B"] },
@@ -96,6 +97,8 @@ for (const { locale, width } of [{ locale: "en", width: 1440 }, { locale: "ru", 
         expect(body.locale).toBe(locale);
         expect(body.aoiCoordinates).toEqual(aoiCoordinates);
         expect(body.controls).toEqual(controls);
+        expect([...(body.lockedControlKeys as string[])].sort()).toEqual([...controlKeys].sort());
+        expect(body.customPrompt).toBeNull();
         const parsed = validateRedevelopmentProgram({ ...conceptTemplate(body.templateId, locale), ...body.controls });
         expect(parsed.ok).toBe(true);
         if (!parsed.ok) throw new Error(parsed.errors.join(";"));
@@ -128,9 +131,25 @@ for (const { locale, width } of [{ locale: "en", width: 1440 }, { locale: "ru", 
       const labels = locale === "ru"
         ? ["Корпуса", "Минимум этажей", "Максимум этажей", "Плотность застройки", "Открытые пространства", "Отступ"]
         : ["Blocks", "Minimum levels", "Maximum levels", "Site coverage", "Open space", "Setback"];
+      const parameters = page.locator("details").filter({ has: page.getByRole("slider", { name: labels[0], exact: true }) });
+      const fixed = locale === "ru" ? "Задано" : "Fixed", auto = locale === "ru" ? "Авто" : "Auto";
+      await expect(parameters.getByText(auto, { exact: true })).toHaveCount(6);
+      await expect(page.getByTestId("create-local-preflight")).toHaveAttribute("data-preflight-kind", "not_applicable");
+      expect(posts).toBe(0);
       for (const [index, value] of [controls.blockCount, 6, 53, 38, 35, 8].entries()) {
-        await page.getByRole("slider", { name: new RegExp(`^${labels[index]}`) }).fill(String(value));
+        const slider = page.getByRole("slider", { name: new RegExp(`^${labels[index]}`) });
+        if (Number(await slider.inputValue()) === value) {
+          // Same-value fill is not a manual edit. At the maximum (12 blocks),
+          // step down first so a real UI change occurs, then restore the value.
+          const atMaximum = value === Number(await slider.getAttribute("max"));
+          await slider.press(atMaximum ? "ArrowLeft" : "ArrowRight");
+          await slider.press(atMaximum ? "ArrowRight" : "ArrowLeft");
+        } else await slider.fill(String(value));
+        await expect(slider).toHaveValue(String(value));
+        await expect(slider.locator("xpath=..").getByText(fixed, { exact: true })).toBeVisible();
       }
+      await expect(parameters.getByText(fixed, { exact: true })).toHaveCount(6);
+      await expect(parameters.getByText(auto, { exact: true })).toHaveCount(0);
       await expect(page.getByTestId("create-local-preflight")).toHaveAttribute("data-preflight-kind", "ready");
       expect(posts).toBe(0);
       await page.getByTestId("create-generate-action").click();

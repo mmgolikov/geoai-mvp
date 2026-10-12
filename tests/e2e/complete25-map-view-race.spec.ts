@@ -80,6 +80,9 @@ test("COMPLETE25 native visibility survives 2D→3D during real source loading; 
     if (route.request().method() === "GET") return route.fulfill({ json: { mode: "ready", challenge: "P".repeat(43) } });
     posts++;
     const body = route.request().postDataJSON();
+    expect([...(body.lockedControlKeys as string[])].sort()).toEqual(
+      ["blockCount", "targetSiteCoveragePct", "levelsMin", "levelsMax", "openSpacePct", "setbackM"].sort());
+    expect(body.controls).toEqual({ blockCount: 4, targetSiteCoveragePct: 38, levelsMin: 6, levelsMax: 12, openSpacePct: 35, setbackM: 4 });
     const program = validateRedevelopmentProgram({ ...conceptTemplate(body.templateId, "en"), ...body.controls });
     if (!program.ok) throw new Error(program.errors.join(";"));
     const alternatives = generateConceptMassingAlternatives(body.aoiCoordinates, program.value, "renderer-fixture", "en");
@@ -91,6 +94,23 @@ test("COMPLETE25 native visibility survives 2D→3D during real source loading; 
   await expect(page.locator("main[data-project-restoration]")).toHaveAttribute("data-project-restoration", "ready");
   await page.getByLabel("Upload GeoJSON").setInputFiles({ name: "outer-only.geojson", mimeType: "application/geo+json",
     buffer: Buffer.from(JSON.stringify({ type: "Polygon", coordinates: [outer] })) });
+  await expect(page.getByTestId("create-local-preflight")).toHaveAttribute("data-preflight-kind", "not_applicable");
+  expect(posts).toBe(0);
+  const parameters = page.getByTestId("create-workspace");
+  await parameters.getByText("Concept parameters", { exact: true }).click();
+  await expect(parameters.getByText("Auto", { exact: true })).toHaveCount(6);
+  // Keep the original numeric fixture; only explicit user edits admit the
+  // fully fixed programme into local geometric preflight.
+  for (const [label, value] of [["Blocks", 4], ["Site coverage", 38], ["Minimum levels", 6],
+    ["Maximum levels", 12], ["Open space", 35], ["Setback", 4]] as const) {
+    const slider = parameters.getByRole("slider", { name: label, exact: true });
+    await expect(slider).toHaveValue(String(value));
+    await slider.press("ArrowRight");
+    await slider.press("ArrowLeft");
+    await expect(slider).toHaveValue(String(value));
+  }
+  await expect(parameters.getByText("Fixed", { exact: true })).toHaveCount(6);
+  expect(posts).toBe(0);
   await expect(page.getByTestId("create-local-preflight")).toHaveAttribute("data-preflight-kind", "ready");
   await page.getByTestId("create-generate-action").click();
   await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
