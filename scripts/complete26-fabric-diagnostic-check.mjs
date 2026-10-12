@@ -36,13 +36,19 @@ const {semanticHash}=await import('../src/lib/point-to-object/hash.ts');
 const {acquirePublicEvidenceLease:acquire,reusePublicEvidenceLease:reuse}=await import('../src/lib/prototype/point-to-object-evidence-lease.ts');
 const {POST}=await import('../app/api/prototype/point-to-object/context/route.ts');
 const {parseLiveResolvedObject}=await import('../components/point-to-object/live-session.ts');
+const {parseNormalizedPointObjectContext}=await import('../src/lib/prototype/point-to-object-normalized-context.ts');
 const oldNow=Date.now,now=Date.parse('2026-09-26T08:03:00.000Z');Date.now=()=>now;
 const input={longitude:55.27,latitude:25.2,locale:'en',osmFeatureId:'way/123',expectedCountryCode:'ae'};
 let coverage='unavailable',diagnostic={failureCode:'timeout'},sourceStatus='unavailable';
 globalThis.__fabricBuild=async lookup=>{
   sourceCalls++;
   const core={protocol:'POINT_TO_OBJECT_001_AI_EVIDENCE_PACK_LIVE_V2',caseKey:'live',caseId:'live_way_123',coordinates:{longitude:lookup.longitude,latitude:lookup.latitude,crs:'EPSG:4326'},resolution:{coordinateAssociation:'trusted_open_map_identity',resultCentroidDistanceM:0},selectedObject:{sourceFeatureId:'way/123',name:'Synthetic object',displayAddress:null,featureClass:'building:yes',geometryType:null,addressParts:{},tags:{'tag.building':'yes'},metrics:null},linkedEntity:null,
-    source:{sourceResponseHash:'a'.repeat(64),acquiredAt:new Date(now).toISOString(),fabricStatus:sourceStatus,...(diagnostic===undefined?{}:{fabricDiagnostic:diagnostic}),endpoint:'not-public-adapter-metadata'},
+    // Match the real producer's explicit nullable context lineage. Omitting
+    // these fields produces undefined normalized metadata, which the strict
+    // subject parser correctly rejects before reading its failure enum.
+    source:{sourceResponseHash:'a'.repeat(64),acquiredAt:new Date(now).toISOString(),fabricStatus:sourceStatus,
+      fabricResponseHash:coverage==='available'?'b'.repeat(64):null,fabricObservedAt:null,fabricAcquiredAt:coverage==='available'?new Date(now).toISOString():null,
+      ...(diagnostic===undefined?{}:{fabricDiagnostic:diagnostic}),endpoint:'not-public-adapter-metadata'},
     nearbyContext:[],geoContext:{radiusM:400,coverage,sampleSize:0,capReached:false,groups:[],mappedBuildingCount:0,mappedLevelsKnownCount:0,medianMappedLevels:null,nearestTransitM:null,nearestMajorRoadM:null,districtCharacter:{code:'low_signal',confidence:'low',ruleVersion:'POINT_OBJECT_DISTRICT_RULE_V1',driverGroups:[]}},evidence:[],conflicts:[],missingInformation:[],limitations:[],caveat:'Synthetic fixture'};
   const hash=semanticHash(core);return {...core,evidencePackHash:hash,evidencePackId:`p2o_live_evidence_${hash.slice(0,24)}`,displayGeometry:null};
 };
@@ -53,9 +59,13 @@ async function context(){
   eq(response.status,200);eq(response.headers.get('cache-control'),'private, no-store, max-age=0');return response.json();
 }
 try{
-  // Fails on the unchanged route: the already-hashed diagnostic is omitted.
+  // The real projection and strict parser must preserve the same frozen enum.
   const first=await context();
   eq(first.subject.fabricDiagnostic,{failureCode:'timeout'},'Context must preserve the same frozen fabric failure enum');
+  assert.ok(parseNormalizedPointObjectContext(first.subject.normalizedContext),'Fixture must obey the actual normalized producer contract');checks++;
+  assert.ok(parseLiveResolvedObject(first.subject),'Whole subject must parse before qualifying its diagnostic');checks++;
+  const omittedLineage=structuredClone(first.subject);delete omittedLineage.normalizedContext.source.observedAt;
+  eq(parseLiveResolvedObject(omittedLineage),null,'Missing required nullable lineage still fails closed; no parser weakening');
   const {parsePointObjectFabricDiagnostic:parse,projectPointObjectFabricDiagnostic:project}=await import('../src/lib/prototype/point-to-object-fabric-diagnostic.ts');
   const codes=['timeout','rate_limited','invalid_response','response_too_large','unavailable'];
   for(const code of [...codes,null]){

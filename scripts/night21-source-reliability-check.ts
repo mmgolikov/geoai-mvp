@@ -37,6 +37,7 @@ const climateQueries: string[] = [];
 // Adapters intentionally sanitize fetch errors. Keep mock-contract violations
 // outside that catch boundary so an assertion cannot masquerade as an outage.
 const fetchContractErrors: unknown[] = [];
+let mockRequests = 0;
 let nextId = 810001;
 function element(id: number, longitude = 55.27) {
   return { type: "way", id, tags: { name: "Synthetic exact-source test building", building: "yes", height: "42" },
@@ -52,6 +53,7 @@ function mockFetch(handler: (query: string) => Response | Promise<Response>, inc
   queries.length = 0;
   climateQueries.length = 0;
   globalThis.fetch = async (input, init) => {
+    mockRequests += 1;
     const url = new URL(String(input));
     try {
       assert.equal(init?.redirect, "error");
@@ -74,13 +76,57 @@ function mockFetch(handler: (query: string) => Response | Promise<Response>, inc
     return handler(query);
   };
 }
+// Independent wire-shape oracle: both bounded scopes share one provider query,
+// not merely a lower request count that could hide an omitted enrichment.
+function assertCombinedContextQuery(query: string) {
+  // Anchor the complete statement order and capture only the blocks whose
+  // outputs enter the union. Global selector matches can qualify dead sets.
+  const sections = query.match(/^\[out:json\]\[timeout:4\]\[maxsize:33554432\];\n\(\n([\s\S]*?)\)->\.nearby;\nnwr\(around:400,25\.200100,55\.270100\)->\.fabric;\n\(\n([\s\S]*?)\)->\.uses;\n\(\.nearby;\.uses;\);\nout tags center 440;$/);
+  assert.ok(sections, "Exactly nearby, fabric scope, uses, final union and one output in that order; no excluded side blocks.");
+  const [, nearby, uses] = sections;
+  const nearbyLines = nearby.trimEnd().split("\n"), usesLines = uses.trimEnd().split("\n");
+  assert.ok(nearbyLines.every(line => /^(?:nwr|node|way)\(around:800,25\.200100,55\.270100\)(?:\["[^"\n]+"(?:[=~]"[^"\n]*")?\])+;$/.test(line)),
+    "Every nearby member uses the 800m point scope; no nested/excluded set assignment.");
+  assert.ok(usesLines.every(line => /^(?:nwr|node|way)\.fabric(?:\["[^"\n]+"(?:[=~]"[^"\n]*")?\])+;$/.test(line)),
+    "Every uses member comes from the preceding 400m fabric set; no other named-set binding.");
+  assert.match(nearby, /^nwr\(around:800,25\.200100,55\.270100\)\["amenity"~/m);
+  assert.match(nearby, /^nwr\(around:800,25\.200100,55\.270100\)\["shop"~/m);
+  assert.match(uses, /^nwr\.fabric\["building"\];$/m);
+  assert.match(uses, /^nwr\.fabric\["landuse"~/m);
+  assert.equal((query.match(/out tags center/g) ?? []).length, 1, "One combined bounded result, not two requests or inventories.");
+}
 let checks = 0;
 try {
   const id = nextId++;
   mockFetch((query) => query.includes(`way(${id});`) ? Response.json({ elements: [element(id)] }) : new Response("unavailable", { status: 503 }));
   const pack = await buildLivePointObjectEvidencePack(request(id));
   assert.match(queries[0], new RegExp(`way\\(${id}\\);`), "Mandatory exact-source lookup must take the first source admission slot, before optional context.");
-  assert.equal(queries.length, 3);
+  assert.equal(queries.length, 2, "Exactly one mandatory identity request plus one combined optional context request.");
+  assertCombinedContextQuery(queries[1]);
+  for (const broken of [
+    queries[1].replaceAll("around:800", "around:400"),
+    queries[1].replace('nwr.fabric["building"];', ""),
+    queries[1].replace("(.nearby;.uses;);", "(.nearby;);"),
+    queries[1].replace("out tags center 440;", "out tags center 441;"),
+    `${queries[1]}\nout tags center 440;`
+  ]) assert.throws(() => assertCombinedContextQuery(broken), assert.AssertionError,
+    "The wire oracle rejects dropped scope, missing building inventory, broken union/cap and duplicate output.");
+  function moveSelectorsToExcluded(pattern: RegExp) {
+    const moved = queries[1].split("\n").filter(line => pattern.test(line));
+    assert.equal(moved.length, 2, "Mutation must actually move both required selectors, not create a no-op fixture.");
+    const retained = queries[1].split("\n").filter(line => !pattern.test(line)).join("\n");
+    return retained.replace("(.nearby;.uses;);", `(\n${moved.join("\n")}\n)->.excluded;\n(.nearby;.uses;);`);
+  }
+  for (const broken of [
+    moveSelectorsToExcluded(/^nwr\(around:800[^\n]*\["(?:amenity|shop)"~/),
+    moveSelectorsToExcluded(/^nwr\.fabric\["(?:building|landuse)"/),
+    queries[1].replace(")->.nearby;", ")->.excluded;"),
+    queries[1].replace(")->.uses;", ")->.excluded;"),
+    queries[1].replace("->.fabric;", "->.excluded;"),
+    queries[1].replace('nwr.fabric["building"];', 'nwr.excluded["building"];'),
+    queries[1].replace("(.nearby;.uses;);", "(.uses;.nearby;);")
+  ]) assert.throws(() => assertCombinedContextQuery(broken), assert.AssertionError,
+    "Required selectors must belong to the exact included named sections, not excluded or rebound sets.");
   assert.equal(pack.selectedObject.sourceFeatureId, `way/${id}`);
   assert.equal(pack.selectedObject.tags["tag.height"], "42");
   assert.equal(pack.displayGeometry?.type, "Polygon");
@@ -137,7 +183,8 @@ try {
   assert.equal(climateQueries.length, 1, "Exactly one explicit optional climate request; no retry or fallback.");
   assert.equal(warm.climate?.status, "unavailable");
   assert.equal(warm.climate?.status === "unavailable" && warm.climate.reason, "http_error");
-  assert.equal(queries.length, 2, "A valid server-owned Find snapshot needs only optional context requests.");
+  assert.equal(queries.length, 1, "A valid server-owned Find snapshot needs only the combined optional context request.");
+  assertCombinedContextQuery(queries[0]);
   assert.ok(queries.every((query) => !query.includes(`way(${warmId});`)));
   assert.equal(warm.source.acquiredAt, acquiredAt);
   assert.equal(warm.source.sourceResponseHash, semanticHash(element(warmId)));
@@ -201,7 +248,8 @@ try {
     const receipt = parsePublicEvidenceReceipt(body.evidenceReceipt);
     assert.ok(receipt, "Context must return an exact, well-formed public evidence lease.");
     assert.deepEqual(body.subject.evidenceReceipt, receipt, "Subject and response must expose the same source receipt.");
-    assert.equal(queries.length, 2, "The route also reuses the original exact Find snapshot.");
+    assert.equal(queries.length, 1, "The route also reuses the original exact Find snapshot with one combined context request.");
+    assertCombinedContextQuery(queries[0]);
     assert.equal(climateQueries.length, 1);
     assert.deepEqual(body.subject.climate, warm.climate, "Direct and route packs use the same explicit optional-source fixture.");
     assert.equal(receipt.evidencePackHash, warm.evidencePackHash);
@@ -220,3 +268,5 @@ try {
   globalThis.fetch = originalFetch;
 }
 console.log(`NIGHT21 source reliability PASS: ${checks} offline cases; exact identity first; bounded sanitized errors; no retries/fallback; server snapshot geometry/height/hash/time preserved; optional outage is unavailable, not zero.`);
+console.log(JSON.stringify({ status: "PASS", offlineCases: checks, combinedQueryOracles: 3, combinedQueryNegatives: 12, sectionBindingNegatives: 7, mockRequests,
+  externalNetworkCalls: 0, sourceContractViolations: fetchContractErrors.length, liveAcceptance: false }));

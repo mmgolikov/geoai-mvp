@@ -7,6 +7,10 @@ import { pathToFileURL } from "node:url";
 const integrationRoot = resolve(process.argv[2] ?? process.cwd());
 const routePath = `${integrationRoot}/app/api/prototype/point-to-object/context/route.ts`;
 const original = readFileSync(routePath, "utf8");
+const { parseNormalizedPointObjectContext } = await import(pathToFileURL(resolve(integrationRoot,
+  "src/lib/prototype/point-to-object-normalized-context.ts")).href);
+const { createPointObjectContextSourceAdmission, PointObjectSourceAdmissionError } = await import(pathToFileURL(resolve(integrationRoot,
+  "src/lib/prototype/point-to-object-source-admission.ts")).href);
 
 function replaceRequired(source, pattern, replacement, label) {
   const updated = source.replace(pattern, replacement);
@@ -48,6 +52,11 @@ transformed = replaceRequired(transformed,
   'from "@/src/lib/prototype/point-to-object-fabric-diagnostic"',
   `from ${JSON.stringify(pathToFileURL(resolve(integrationRoot, "src/lib/prototype/point-to-object-fabric-diagnostic.ts")).href)}`,
   "actual fabric-diagnostic helper");
+for (const module of ["point-to-object-normalized-context", "point-to-object-source-admission"]) {
+  transformed = replaceRequired(transformed, `from "@/src/lib/prototype/${module}"`,
+    `from ${JSON.stringify(pathToFileURL(resolve(integrationRoot, `src/lib/prototype/${module}.ts`)).href)}`,
+    `actual ${module} helper`);
+}
 transformed = replaceRequired(transformed,
   'import { explicitSourceHeight } from "@/src/lib/prototype/point-to-object-source-geometry";',
   "const explicitSourceHeight = () => ({});",
@@ -81,14 +90,17 @@ transformed = replaceRequired(transformed,
 transformed = replaceRequired(transformed,
   'import { acquirePublicEvidenceLease, PublicEvidenceLeaseError } from "@/src/lib/prototype/point-to-object-evidence-lease";',
   `class PublicEvidenceLeaseError extends Error {}
-   const acquirePublicEvidenceLease = async (lookup) => {
+   const acquirePublicEvidenceLease = async (lookup, admit) => {
+     admit();
+     globalThis.__quality20AdmissionCalls += 1;
      globalThis.__quality20AcquisitionCalls += 1;
      globalThis.__quality20LeaseLookup = lookup;
      return {
        receipt: ${JSON.stringify(actualReceipt)},
        pack: {
          evidencePackHash: ${JSON.stringify(actualEvidencePackHash)},
-         source: { sourceResponseHash: ${JSON.stringify(actualSourceResponseHash)}, rawProviderPayload: "DO_NOT_EXPOSE_SOURCE_PAYLOAD", fabricStatus: "unavailable", fabricDiagnostic: { failureCode: "timeout" } },
+         source: { sourceResponseHash: ${JSON.stringify(actualSourceResponseHash)}, acquiredAt: ${JSON.stringify(actualReceipt.acquiredAt)}, rawProviderPayload: "DO_NOT_EXPOSE_SOURCE_PAYLOAD", fabricStatus: "unavailable", fabricResponseHash: null, fabricObservedAt: null, fabricAcquiredAt: null, fabricDiagnostic: { failureCode: "timeout" } },
+         coordinates: { longitude: lookup.longitude, latitude: lookup.latitude, crs: "EPSG:4326" }, nearbyContext: [],
          selectedObject: {
            name: "Synthetic object", displayAddress: "Synthetic address", featureClass: "building",
            sourceFeatureId: "way/123", geometryType: "Polygon", addressParts: {}, tags: {}, metrics: {},
@@ -129,7 +141,12 @@ function request(body, origin = "https://preview.example.test", extraHeaders = {
 }
 
 const validBody = { caseKey: "dubai", longitude: 55.27, latitude: 25.20, locale: "en", expectedSourceFeatureId: "way/123" };
+const originalFetch = globalThis.fetch;
+let networkCalls = 0;
+globalThis.fetch = async () => { networkCalls += 1; throw new Error("Offline receipt check forbids network"); };
+try {
 globalThis.__quality20AcquisitionCalls = 0;
+globalThis.__quality20AdmissionCalls = 0;
 globalThis.__quality20IdentityAllowed = false;
 const authDenied = await route.POST(request(validBody));
 assert.equal(authDenied.status, 401);
@@ -149,6 +166,7 @@ const clientHashBody = {
 const clientHashDenied = await route.POST(request(clientHashBody));
 assert.equal(clientHashDenied.status, 400, "Client-supplied evidence receipt fields must be rejected as unknown input.");
 assert.equal(globalThis.__quality20AcquisitionCalls, 0, "Rejected client hashes must not trigger evidence acquisition.");
+assert.equal(globalThis.__quality20AdmissionCalls, 0, "Auth, origin and input denial must not spend source admission.");
 
 const resolved = await route.POST(request(validBody, "https://preview.example.test", {
   "x-evidence-pack-hash": clientEvidencePackHash,
@@ -156,6 +174,7 @@ const resolved = await route.POST(request(validBody, "https://preview.example.te
 }));
 assert.equal(resolved.status, 200);
 assert.equal(globalThis.__quality20AcquisitionCalls, 1);
+assert.equal(globalThis.__quality20AdmissionCalls, 1, "The actual route's real source-admission callback must run before the synthetic acquisition.");
 assert.deepEqual(globalThis.__quality20LeaseLookup, {
   longitude: validBody.longitude, latitude: validBody.latitude, locale: "en",
   osmFeatureId: validBody.expectedSourceFeatureId, expectedCountryCode: "ae"
@@ -169,7 +188,30 @@ assert.notEqual(payload.evidenceReceipt.evidencePackHash, clientEvidencePackHash
 assert.notEqual(payload.evidenceReceipt.sourceResponseHash, clientSourceResponseHash);
 assert.deepEqual(payload.subject.geoContext, actualGeoContext, "Unavailable fabric must retain its explicit source profile, not a null/zero-success substitute.");
 assert.deepEqual(payload.subject.fabricDiagnostic, { failureCode: "timeout" }, "The actual helper must project the safe same-pack failure code.");
+assert.ok(parseNormalizedPointObjectContext(payload.subject.normalizedContext), "Fixture must satisfy the real normalized-context parser.");
+assert.deepEqual(payload.subject.normalizedContext.source, {
+  name: "OpenStreetMap", acquiredAt: null, observedAt: null, responseHash: null, attribution: "© OpenStreetMap contributors"
+}, "Unavailable optional context retains explicit null lineage, not the selected object's unrelated hash/time.");
+const missingLineage = structuredClone(payload.subject.normalizedContext);
+delete missingLineage.source.observedAt;
+assert.equal(parseNormalizedPointObjectContext(missingLineage), null, "Missing required nullable source metadata still rejects.");
 assert.doesNotMatch(JSON.stringify(payload), /DO_NOT_EXPOSE|rawProviderPayload|internalSecret/,
   "The public response must not expose raw provider data or internal fixture fields.");
+// Use the real limiter with a deterministic local policy, not hosted env or a
+// no-op admission stub. An ambiguous authenticated context shares public quota.
+const admit = createPointObjectContextSourceAdmission(() => created);
+const ambiguousIdentity = { allowed: true, mode: "supabase_auth", context: null };
+for (let i = 0; i < 12; i += 1) assert.doesNotThrow(() => admit(ambiguousIdentity, { environment: {}, surfaceEnabled: true }));
+assert.throws(() => admit(ambiguousIdentity, { environment: {}, surfaceEnabled: true }), error =>
+  error instanceof PointObjectSourceAdmissionError && error.httpStatus === 429 && error.code === "APPLICATION_RATE_LIMITED",
+"Real local source admission still rejects exhausted public quota.");
+assert.equal(globalThis.__quality20AcquisitionCalls, 1, "An admission rejection must not dispatch another synthetic acquisition.");
+assert.equal(networkCalls, 0);
 
-console.log("Quality20 evidence receipt actual-route check PASS: exact server lease preserved at both scopes; client hashes rejected; auth/origin negatives acquire nothing; no raw data or secret sentinel exposed.");
+console.log(JSON.stringify({ status: "PASS", scope: "synthetic exact server receipt with actual route/normalizer/admission", networkCalls,
+  sourceAcquisitions: globalThis.__quality20AcquisitionCalls, sourceAdmissions: globalThis.__quality20AdmissionCalls,
+  routeCases: 4, normalizedContextCases: 3, admissionChecks: 13, liveAcceptance: false }));
+} finally {
+  globalThis.fetch = originalFetch;
+  for (const key of ["__quality20AcquisitionCalls", "__quality20AdmissionCalls", "__quality20IdentityAllowed", "__quality20LeaseLookup"]) delete globalThis[key];
+}
