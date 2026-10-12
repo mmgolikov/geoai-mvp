@@ -15,6 +15,7 @@ import { nominatimLocale } from "@/src/lib/prototype/point-to-object-markets";
 import { parsePointObjectComparisonInsightDetailed, comparisonInsightMatchesSubmission, type PointObjectComparisonInsight } from "@/src/lib/prototype/point-to-object-comparison-core";
 import { requestPointObjectComparison, PointObjectComparisonRequestError, comparisonFailureDiagnostic, type PointObjectComparisonDiagnostic } from "@/src/lib/prototype/point-to-object-comparison-request";
 import { boundPointObjectComparisonInsight } from "@/src/lib/prototype/point-to-object-comparison-state";
+import { buildComparisonDecision } from "@/src/lib/prototype/point-to-object-comparison-decision";
 import { pointObjectSourceFailure, sourceFailureMessage, sourceRetryAfterSeconds } from "@/src/lib/prototype/point-to-object-source-recovery";
 import { PointObjectContextDashboard } from "./context-dashboard";
 
@@ -156,6 +157,7 @@ export function FindComparisonDashboard({ locale, result, candidates, roleLabel,
   };
   const ready = !stale && candidates.every(candidate => readyContext(candidate));
   const matchedInsight = !stale ? boundPointObjectComparisonInsight(insight, { locale, role, scenario }, candidates, contexts) : null;
+  const decision = useMemo(() => buildComparisonDecision(matchedInsight, { locale, role, scenario }, candidates, contexts, Boolean(stale)), [matchedInsight, locale, role, scenario, candidates, contexts, stale]);
   // Capture the display clock only after hydration or a held-context update.
   // Locale/view renders must neither reacquire evidence nor start a timer.
   const [displayedAtMs, setDisplayedAtMs] = useState<number | null>(null);
@@ -292,7 +294,23 @@ export function FindComparisonDashboard({ locale, result, candidates, roleLabel,
           <CandidateMapContext candidates={candidates} marketKey={result.criteria.marketKey} locale={locale} activeId={activeId} onSelect={setActiveId} />
         </div>
 
-        {matchedInsight ? <section className="rounded-[24px] border border-line bg-white p-5 sm:p-7" data-testid="comparison-ai-insight"><h2 className="text-xl font-bold">{ru ? "AI-синтез по сценарию" : "Scenario AI synthesis"}</h2><p className="mt-3 text-sm leading-6 text-[#344054]">{matchedInsight.summary.statement}</p><ul className="mt-4 space-y-3">{matchedInsight.differences.map((difference,index)=><li key={index} className="rounded-xl bg-[#f4fbfb] p-3 text-sm leading-6">{difference.statement}<span className="mt-1 block break-all text-[11px] text-muted">{difference.evidenceRefs.join(" · ")}</span></li>)}</ul><div className="mt-4 grid gap-3 md:grid-cols-3">{matchedInsight.checks.map((check,index)=><article key={index} className="rounded-xl border border-line p-3"><h3 className="text-xs font-bold text-[#087f8c]">{candidates.find(c=>c.sourceFeatureId===check.candidateId)?.label ?? check.candidateId}</h3><p className="mt-2 text-sm leading-6">{check.action}</p></article>)}</div><p className="mt-3 text-[11px] text-muted">{matchedInsight.telemetry.model} · {new Date(matchedInsight.generatedAt).toLocaleString(locale)} · {ru ? "Один явный запрос на зафиксированных снимках" : "One explicit request on frozen snapshots"}</p></section> : null}
+        {matchedInsight ? <section className="rounded-[24px] border border-line bg-white p-5 sm:p-7" data-testid="comparison-ai-insight"><h2 className="text-xl font-bold">{ru ? "AI-синтез по сценарию" : "Scenario AI synthesis"}</h2><p className="mt-3 text-sm leading-6 text-[#344054]">{matchedInsight.summary.statement}</p><ul className="mt-4 space-y-3">{matchedInsight.differences.map((difference,index)=><li key={index} className="rounded-xl bg-[#f4fbfb] p-3 text-sm leading-6">{difference.statement}<span className="mt-1 block break-all text-[11px] text-muted">{difference.evidenceRefs.join(" · ")}</span></li>)}</ul><div className="mt-4 grid gap-3 md:grid-cols-3">{matchedInsight.checks.map((check,index)=><article key={index} className="rounded-xl border border-line p-3"><h3 className="text-xs font-bold text-[#087f8c]">{candidates.find(c=>c.sourceFeatureId===check.candidateId)?.label ?? check.candidateId}</h3><p className="mt-2 text-sm leading-6">{check.action}</p></article>)}</div><p className="mt-3 text-[11px] text-muted">{matchedInsight.telemetry.model} · {new Date(matchedInsight.generatedAt).toLocaleString(locale)} · {ru ? "Один явный запрос на зафиксированных снимках" : "One explicit request on frozen snapshots"}</p>
+          {decision ? <aside className="mt-5 min-w-0 border-t border-line pt-5" aria-labelledby="comparison-decision-title" data-testid="comparison-decision-complement" data-method={decision.method}>
+            <h3 id="comparison-decision-title" className="text-lg font-bold">{ru ? "Какой объект проверить перед следующим выездом?" : "Which candidate should be checked before the next visit?"}</h3>
+            <p className="mt-1 text-xs leading-5 text-muted">{ru ? "Расчётное дополнение по сохранённым выборкам 400 м; AI-ответ выше не изменён." : "Calculated complement from held 400 m samples; the saved AI response above is unchanged."}</p>
+            {decision.countShareContrast ? <p className="mt-3 text-sm leading-6 text-[#344054]" data-testid="comparison-count-share-contrast">{decision.countShareContrast}</p> : null}
+            <div className="mt-3 grid min-w-0 gap-3 lg:grid-cols-2">{decision.candidates.map(item => <article key={item.id} className="min-w-0 rounded-2xl bg-[#f4fbfb] p-4" data-testid="comparison-decision-candidate" data-source-id={item.id} data-evidence-pack-hash={item.evidencePackHash} data-context-response-hash={item.contextResponseHash}>
+              <h4 className="break-words text-sm font-bold text-[#087f8c]">{item.label}</h4><p className="mt-1 break-all text-[11px] text-muted">{item.id}</p>
+              <dl className="mt-3 space-y-2 text-sm leading-5">{([{ key: "daily", label: ru ? "Повседневные сервисы" : "Daily services" }, { key: "transit", label: ru ? "Транспорт" : "Transit" }, { key: "business", label: ru ? "Деловая группа OSM" : "OSM business group" }] as const).map(row => {
+                const metric = item[row.key];
+                return <div key={row.key} data-testid={`comparison-decision-${row.key}`}><dt className="font-semibold text-[#344054]">{row.label}</dt><dd className="mt-0.5 tabular-nums text-[#475467]">{metric.count}/{metric.denominator} {ru ? "записей" : "records"} · {metric.sharePct.toLocaleString(locale, { maximumFractionDigits: 1 })}% · {metric.nearestM === null ? (ru ? "близость неизвестна" : "proximity unknown") : `${metric.nearestM} ${ru ? "м до ближайшего центра по прямой" : "m to nearest centre, straight-line"}`}</dd></div>;
+              })}</dl>
+              <p className="mt-3 text-sm leading-6 text-[#344054]" data-testid="comparison-decision-access-check">{item.accessCheck}</p><p className="mt-2 text-xs leading-5 text-muted">{item.businessCheck}</p>
+            </article>)}</div>
+            <p className="mt-3 text-sm leading-6 text-[#344054]" data-testid="comparison-decision-visit-condition">{decision.visitCondition}</p>
+            <p className="mt-2 text-xs leading-5 text-muted">{ru ? "Знаменатель — все возвращённые записи своей выборки. Количество и доля — не плотность или вместимость; расстояние от точки запроса до центра записи — не маршрут или время ходьбы." : "The denominator is all returned records in each sample. Count and share are not density or capacity; query-point-to-record-centre distance is not a route or walking time."}</p>
+          </aside> : null}
+        </section> : null}
         {currentContext(candidates.find(c=>c.sourceFeatureId===activeId) ?? candidates[0]) ? <PointObjectContextDashboard locale={locale} context={normalizedResolvedContext(currentContext(candidates.find(c=>c.sourceFeatureId===activeId) ?? candidates[0])!)} /> : null}
         <section className="rounded-[24px] border border-line bg-white p-5 shadow-soft sm:p-7" aria-labelledby="candidate-tradeoffs-title">
           <h2 id="candidate-tradeoffs-title" className="text-xl font-bold">{ru ? "Что различает объекты — и чего не хватает" : "Observed trade-offs and evidence gaps"}</h2>

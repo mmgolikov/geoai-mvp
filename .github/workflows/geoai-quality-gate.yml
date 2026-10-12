@@ -242,6 +242,7 @@ jobs:
           node scripts/review02-verification-export-check.mjs | tee artifacts/review02-verification-export-check.txt
           node scripts/review02-final-ui-check.mjs | tee artifacts/review02-final-ui-check.txt
           node scripts/review02-create-placement-audit-check.mjs | tee artifacts/review02-create-placement-audit-check.txt
+          node scripts/review02-comparison-decision-check.mjs | tee artifacts/review02-comparison-decision-check.txt
 
       - name: Point-to-object autocomplete contract
         shell: bash

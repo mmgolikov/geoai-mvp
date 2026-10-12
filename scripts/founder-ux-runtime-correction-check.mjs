@@ -93,10 +93,31 @@ requireCondition(
     correctionCss.includes("transition-property: opacity, box-shadow, transform !important;"),
   "Workspace selected primary controls must resolve immediately to exact spatial teal without transient blue/grey color interpolation."
 );
+// Follow the approved security patch; use the same exact-pin predicate for the
+// real manifest and regression fixtures, without weakening other UX contracts.
+function hasRequiredNextVersion(manifest) {
+  return manifest?.dependencies?.next === "15.5.27";
+}
+
 requireCondition(
-  packageJson.dependencies?.next === "15.5.25",
-  "Next.js must resolve to patched Maintenance LTS version 15.5.25."
+  hasRequiredNextVersion(packageJson),
+  "Next.js must resolve to patched Maintenance LTS version 15.5.27."
 );
+
+for (const [label, manifest] of [
+  ["unpatched 15.5.25", { dependencies: { next: "15.5.25" } }],
+  ["unpatched 15.5.26", { dependencies: { next: "15.5.26" } }],
+  ["a different release family", { dependencies: { next: "16.0.0" } }],
+  ["a non-exact version range", { dependencies: { next: "^15.5.27" } }],
+  ["a missing Next dependency", { dependencies: {} }],
+  ["a missing dependency root", {}],
+  ["Next in the wrong dependency root", { devDependencies: { next: "15.5.27" } }],
+  ["mismatched dependency roots", {
+    dependencies: { next: "15.5.25" }, devDependencies: { next: "15.5.27" }
+  }]
+]) {
+  requireCondition(!hasRequiredNextVersion(manifest), `Next.js version guard must reject ${label}.`);
+}
 
 const evidence = {
   schemaVersion: "1.1",
