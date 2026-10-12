@@ -3,9 +3,18 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {registerHooks,stripTypeScriptTypes} from 'node:module';
 import {fileURLToPath} from 'node:url';
-let networkCalls=0,mockReplies=null,requests=[];
-globalThis.fetch=async(_url,options)=>{if(!mockReplies){networkCalls++;throw Error('Network forbidden');}requests.push(JSON.parse(options.body));assert(mockReplies.length,'No third provider attempt');return new Response(JSON.stringify({status:'completed',output_text:JSON.stringify(mockReplies.shift()),usage:{input_tokens:100,input_tokens_details:{cached_tokens:0,cache_write_tokens:0},output_tokens:20,total_tokens:120}}),{status:200});};
-registerHooks({resolve(s,c,n){if(s==='server-only')return{url:'data:text/javascript,export{}',shortCircuit:true};if(s.startsWith('@/'))return n(new URL('../'+s.slice(2)+'.ts',import.meta.url).href,c);if(/^\.\.?\//.test(s)&&!/\.[cm]?[jt]s(?:\?|$)/.test(s))return n(s+'.ts',c);return n(s,c);},load(url,c,n){if(url.startsWith('file:')&&new URL(url).pathname.endsWith('.ts')){let source=readFileSync(fileURLToPath(url),'utf8');
+let networkCalls=0,mockCalls=0,mockReplies=null,requests=[];
+let fixtureHooks;
+const originalFetch=globalThis.fetch;
+const fixtureName='__complete27AnswerCompletionFixture';
+const originalFixture=Object.getOwnPropertyDescriptor(globalThis,fixtureName);
+const fixtureConfig={enabled:true,apiKey:'offline-no-credential'};
+Object.defineProperty(globalThis,fixtureName,{value:fixtureConfig,configurable:true});
+// Only this explicit in-process fake transport can consume the dummy key. It
+// never delegates to real fetch, and missing/disabled fixture admission is tested.
+globalThis.fetch=async(url,options)=>{if(!mockReplies){networkCalls++;throw Error('Network forbidden');}assert.equal(url,'https://api.openai.com/v1/responses');assert.equal(options.method,'POST');assert(options.headers.Authorization==='Bearer offline-no-credential','Only dummy fixture authorization is permitted');const body=JSON.parse(options.body);assert.equal(body.store,false);requests.push(body);assert(mockReplies.length,'No third provider attempt');mockCalls++;return new Response(JSON.stringify({status:'completed',output_text:JSON.stringify(mockReplies.shift()),usage:{input_tokens:100,input_tokens_details:{cached_tokens:0,cache_write_tokens:0},output_tokens:20,total_tokens:120}}),{status:200});};
+try{
+fixtureHooks=registerHooks({resolve(s,c,n){if(s==='server-only')return{url:'data:text/javascript,export{}',shortCircuit:true};if(s.startsWith('@/'))return n(new URL('../'+s.slice(2)+'.ts',import.meta.url).href,c);if(/^\.\.?\//.test(s)&&!/\.[cm]?[jt]s(?:\?|$)/.test(s))return n(s+'.ts',c);return n(s,c);},load(url,c,n){if(url.startsWith('file:')&&new URL(url).pathname.endsWith('.ts')){let source=readFileSync(fileURLToPath(url),'utf8');
  if(new URL(url).pathname.endsWith('point-to-object-ai-core.ts')){
   if(new URL(url).search==='?baseline'){
    const guard=/    \/\/ Near the prose ceiling,[\s\S]*?    }\n(?=  }\n  if \(!Array\.isArray\(value\.evidenceRefs\))/;
@@ -14,7 +23,17 @@ registerHooks({resolve(s,c,n){if(s==='server-only')return{url:'data:text/javascr
   source+='\nexport {evidenceSupport,validateFocusedAnswer};';
  }
  if(url.endsWith('point-to-object-semantic-v6-check.ts'))source=source.slice(0,source.indexOf('\nconst requests ='));
- if(url.endsWith('/point-to-object-ai.ts'))source=source.replace('import { getPointObjectUpstreamStatus } from "@/src/lib/ai/openai-upstream-gate";','const getPointObjectUpstreamStatus=()=>({enabled:true});').replace('process.env.OPENAI_API_KEY?.trim()','"offline-no-credential"');
+ if(url.endsWith('/point-to-object-ai.ts')){
+  const gateImport='import { getPointObjectUpstreamStatus } from "@/src/lib/ai/openai-upstream-gate";';
+  assert.equal(source.split(gateImport).length-1,1,'Exact fixture admission import must remain inspectable');
+  source=source.replace(gateImport,'const getPointObjectUpstreamStatus=()=>({enabled:globalThis.__complete27AnswerCompletionFixture.enabled});');
+  // Compare now precedes Analyse: a first-occurrence key replacement hit the
+  // wrong function. Assert and isolate only the Analyse fixture seam, preserving
+  // the real missing-key branch and leaving Compare/key/env code untouched.
+  const analysisKey=/(export async function generatePointObjectAiAnalysis\([\s\S]*?\n  const apiKey = )process\.env\.OPENAI_API_KEY\?\.trim\(\);/g;
+  assert.equal([...source.matchAll(analysisKey)].length,1,'Exact Analyse key seam must remain inspectable');
+  source=source.replace(analysisKey,'$1globalThis.__complete27AnswerCompletionFixture.apiKey?.trim();');
+ }
  return{format:'module',shortCircuit:true,source:stripTypeScriptTypes(source,{mode:'transform'})};}return n(url,c);}});
 const core=await import('../src/lib/prototype/point-to-object-ai-core.ts');
 const fixture=await import('./point-to-object-semantic-v6-check.ts');
@@ -54,6 +73,11 @@ assert.equal(provenance.isPointObjectFocusedRecoveryCode('focused_answer_stateme
 const r=req(),valid='Verify mapped object and official parcel identity before choosing an asset strategy.';
 const originalWarn=console.warn;console.warn=()=>{};
 try{
+ fixtureConfig.apiKey=null;requests=[];
+ await assert.rejects(()=>service.generatePointObjectAiAnalysis(pack,r),e=>e.code==='AI_NOT_CONFIGURED'&&e.httpStatus===503);assert.equal(requests.length,0);assert.equal(mockCalls,0);checks+=3;
+ fixtureConfig.apiKey='offline-no-credential';fixtureConfig.enabled=false;
+ await assert.rejects(()=>service.generatePointObjectAiAnalysis(pack,r),e=>e.code==='AI_RUNTIME_DISABLED'&&e.httpStatus===403);assert.equal(requests.length,0);assert.equal(mockCalls,0);checks+=3;
+ fixtureConfig.enabled=true;
  const validPlan=plan(valid,r);validPlan.focusedAnswer.evidenceRefs=validPlan.focusedAnswer.evidenceRefs.filter(x=>x!=='EVD-CONTEXT-SUMMARY');
  mockReplies=[plan(actual,r),validPlan];requests=[];
  const repaired=await service.generatePointObjectAiAnalysis(pack,r);assert.equal(requests.length,2);assert.match(requests[1].input[1].content[0].text,/focused_answer_statement_incomplete/);assert.deepEqual(repaired.answerProvenance,{kind:'model_validated',rejectionCode:null});assert.equal(repaired.content.answerToQuestion.statement,valid);checks+=4;
@@ -77,4 +101,9 @@ for(const locale of ['en','ru'])for(const depth of ['quick','standard','deep']){
  const artifact=savedContract.parseSavedPointObjectArtifact({schemaVersion:1,artifactId:'artifact_offline',idempotencyKey:'operation_offline',payloadHash:'a'.repeat(64),completedAt:response.generatedAt,updatedAt:response.generatedAt,viewRevision:0,kind:'analyse',locale,marketKey:'dubai',label:'Offline historical completion compatibility',payload:{selection:f.sprint10SelectionWithReceipt(f.sprint10Selection,locale),analysis:response}});
  assert.equal(artifact.payload.analysis.content.answerToQuestion.statement,actual);assert.deepEqual(artifact.payload.analysis.answerProvenance,response.answerProvenance);checks+=3;
 }
-console.log(JSON.stringify({status:'PASS',checks,networkCalls,scope:'near-limit completeness only; synthetic source, recorded public wording; no full grammar proof'}));
+console.log(JSON.stringify({status:'PASS',checks,networkCalls,mockCalls,scope:'near-limit completeness only; synthetic source, recorded public wording; explicit Analyse-only fake provider/config seam; no full grammar or hosted config proof'}));
+}finally{
+ fixtureHooks?.deregister();
+ globalThis.fetch=originalFetch;
+ if(originalFixture)Object.defineProperty(globalThis,fixtureName,originalFixture);else delete globalThis[fixtureName];
+}

@@ -3,9 +3,24 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { registerHooks, stripTypeScriptTypes } from 'node:module';
 import { fileURLToPath } from 'node:url';
-let networkCalls = 0;
-globalThis.fetch = async () => { networkCalls++; throw new Error('Network forbidden'); };
-registerHooks({
+let networkCalls = 0, mockCalls = 0, fixtureHooks;
+const originalFetch = globalThis.fetch;
+const fixtureGlobals = ['__screeningFixtureConfig', '__screeningFixtureCalls', '__screeningFixturePayload'];
+const originalGlobals = fixtureGlobals.map(name => [name, Object.getOwnPropertyDescriptor(globalThis, name)]);
+const fixtureConfig = { enabled: true, apiKey: 'offline-fixture-only' };
+for (const [name, value] of [['__screeningFixtureConfig', fixtureConfig], ['__screeningFixtureCalls', 0], ['__screeningFixturePayload', null]]) Object.defineProperty(globalThis, name, { value, writable: true, configurable: true });
+// Keep the real service request construction/limits, substituting only its
+// explicit local transport. No URL, method or non-dummy authorization escapes.
+globalThis.fetch = async (url, options) => {
+  if (!globalThis.__screeningFixturePayload) { networkCalls++; throw new Error('Network forbidden'); }
+  assert.equal(url, 'https://api.openai.com/v1/responses'); assert.equal(options.method, 'POST');
+  assert(options.headers.Authorization === 'Bearer offline-fixture-only', 'Only dummy fixture authorization is permitted');
+  assert.equal(JSON.parse(options.body).store, false);
+  globalThis.__screeningFixtureCalls++; mockCalls++;
+  return new Response(JSON.stringify(globalThis.__screeningFixturePayload), { status: 200 });
+};
+try {
+fixtureHooks = registerHooks({
   resolve(s, c, next) {
     if (s === 'server-only') return { url:'data:text/javascript,export{}', shortCircuit:true };
     if (s.startsWith('@/')) return next(new URL(`../${s.slice(2)}.ts`, import.meta.url).href, c);
@@ -17,11 +32,14 @@ registerHooks({
       let source = readFileSync(fileURLToPath(url), 'utf8');
       if (url.endsWith('point-to-object-ai-core.ts')) source += '\nexport { evidenceSupport, validateFocusedAnswer };';
       if (url.endsWith('/point-to-object-ai.ts')) {
-        source=source.replace('import { getPointObjectUpstreamStatus } from "@/src/lib/ai/openai-upstream-gate";', 'const getPointObjectUpstreamStatus = () => ({enabled:true});')
-          .replace('const apiKey = process.env.OPENAI_API_KEY?.trim();', 'const apiKey = "offline-fixture-only";').replaceAll('process.env','({})');
-        const start=source.indexOf('async function requestOpenAi('), end=source.indexOf('function assertCompleteResponse',start);
-        assert.ok(start>0&&end>start);
-        source=source.slice(0,start)+'async function requestOpenAi() { globalThis.__screeningFixtureCalls++; return {requestId:null,payload:globalThis.__screeningFixturePayload}; }\n'+source.slice(end);
+        const gateImport = 'import { getPointObjectUpstreamStatus } from "@/src/lib/ai/openai-upstream-gate";';
+        assert.equal(source.split(gateImport).length - 1, 1, 'Exact fixture admission import must remain inspectable');
+        source = source.replace(gateImport, 'const getPointObjectUpstreamStatus = () => ({enabled:globalThis.__screeningFixtureConfig.enabled});');
+        const analysisKey = /(export async function generatePointObjectAiAnalysis\([\s\S]*?\n  const apiKey = )process\.env\.OPENAI_API_KEY\?\.trim\(\);/g;
+        assert.equal([...source.matchAll(analysisKey)].length, 1, 'Exact Analyse key seam must remain inspectable');
+        source = source.replace(analysisKey, '$1globalThis.__screeningFixtureConfig.apiKey?.trim();').replaceAll('process.env', '({})');
+        // No function slicing: real request limits, body, retry/cost/provenance
+        // flow remain intact; mock transport is the sole dispatch destination.
       }
       return { format:'module', shortCircuit:true, source:stripTypeScriptTypes(source, { mode:'transform' }) };
     }
@@ -117,6 +135,13 @@ const service=await import('../src/lib/prototype/point-to-object-ai.ts');
 async function generate(raw,r) {globalThis.__screeningFixtureCalls=0;globalThis.__screeningFixturePayload={status:'completed',output:[{type:'message',role:'assistant',content:[{type:'output_text',text:JSON.stringify(raw)}]}],usage:{input_tokens:100,output_tokens:50,total_tokens:150}};const result=await service.generatePointObjectAiAnalysis(pack(),r);assert.equal(globalThis.__screeningFixtureCalls,1,'no additional paid retry');return result;}
 const baseRequest=request('en','development_screening','standard');
 const rawAnswer={status:'partial',scope:'screening_implication',perspective:'developer',horizon:'current',confidence:'low',statement:'The mapped building supports a preliminary identity-led review before committing to any asset strategy.',evidenceRefs:['EVD-OSM-OBJECT'],missingEvidenceCodes:['official_identity','parcel_boundary','title_rights','planning_controls','physical_baseline','current_market','cost_financials'],unsupportedReasonCode:null};
+fixtureConfig.apiKey = null;
+await assert.rejects(() => service.generatePointObjectAiAnalysis(pack(), baseRequest), error => error.code === 'AI_NOT_CONFIGURED' && error.httpStatus === 503);
+assert.equal(globalThis.__screeningFixtureCalls, 0); assert.equal(mockCalls, 0); checks += 3;
+fixtureConfig.apiKey = 'offline-fixture-only'; fixtureConfig.enabled = false;
+await assert.rejects(() => service.generatePointObjectAiAnalysis(pack(), baseRequest), error => error.code === 'AI_RUNTIME_DISABLED' && error.httpStatus === 403);
+assert.equal(globalThis.__screeningFixtureCalls, 0); assert.equal(mockCalls, 0); checks += 3;
+fixtureConfig.enabled = true;
 const model=await generate({...plan(),focusedAnswer:rawAnswer},baseRequest);assert.deepEqual(model.answerProvenance,accepted[0]);assert.equal(model.content.answerToQuestion.statement,rawAnswer.statement);
 for(const [rejectionCode,mutate,r]of[
   ['focused_answer_novel_number',v=>v.statement+=' 987654321 levels.',baseRequest],
@@ -126,4 +151,8 @@ for(const [rejectionCode,mutate,r]of[
 ]) {const answer=structuredClone(rawAnswer);mutate(answer);const result=await generate({...plan(),focusedAnswer:answer},r);assert.deepEqual(result.answerProvenance,{kind:'deterministic_recovery',rejectionCode});assert.notEqual(result.content.answerToQuestion.statement,answer.statement);checks++;}
 const first=await generate({...plan(),answerCode:null,focusedAnswer:null},{...baseRequest,question:null});assert.equal(Object.hasOwn(first,'answerProvenance'),false);checks++;
 assert.equal(networkCalls,0);
-console.log(JSON.stringify({status:'PASS',checks,networkCalls}));
+console.log(JSON.stringify({status:'PASS',checks,networkCalls,mockCalls,scope:'synthetic depth/provenance; explicit Analyse-only fixture admission and fake transport, not hosted config/provider acceptance'}));
+} finally {
+  fixtureHooks?.deregister(); globalThis.fetch = originalFetch;
+  for (const [name, descriptor] of originalGlobals) { if (descriptor) Object.defineProperty(globalThis, name, descriptor); else delete globalThis[name]; }
+}
