@@ -241,6 +241,7 @@ jobs:
           set -euo pipefail
           node scripts/review02-verification-export-check.mjs | tee artifacts/review02-verification-export-check.txt
           node scripts/review02-final-ui-check.mjs | tee artifacts/review02-final-ui-check.txt
+          node scripts/review02-create-placement-audit-check.mjs | tee artifacts/review02-create-placement-audit-check.txt
 
       - name: Point-to-object autocomplete contract
         shell: bash

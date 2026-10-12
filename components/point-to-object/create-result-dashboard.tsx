@@ -13,6 +13,7 @@ import { CONTEXT_GROUP_LABELS } from "@/src/lib/prototype/point-to-object-normal
 import { createProgrammeSourceBinding, pointObjectProgrammeContextReview, pointObjectProgrammeOptionDelta } from "@/src/lib/prototype/point-to-object-programme-context";
 import type { PointObjectAreaContextResult } from "@/src/lib/prototype/point-to-object-area-context-contract";
 import { PointObjectContextDashboard } from "./context-dashboard";
+import { CreatePlacementAudit } from "./create-placement-audit";
 
 const CreateResultPreview3D = dynamic(
   () => import("@/components/point-to-object/create-result-preview-3d").then((module) => module.CreateResultPreview3D),
@@ -156,6 +157,7 @@ export function CreateResultDashboard({ locale, aoi, generated, generatedLocale,
           }[sourceBinding.status]}</p>
         </section>
         {context ? <PointObjectContextDashboard context={context} locale={locale} programme={sourceMatched} /> : <section className="rounded-[20px] border border-line bg-white p-5" data-testid="create-context-unavailable"><h2 className="text-lg font-bold">{ru ? "Контекст программы" : "Programme context"}</h2><p className="mt-2 text-sm leading-6 text-muted">{ru ? "Нет подтверждённого сохранённого снимка для этой зоны. Школы, медицина, сервисы и транспорт не оценены; состав программы пока является сценарной гипотезой." : "No verified snapshot is saved for this zone. Education, health, services and transit have not been assessed; programme composition remains a scenario hypothesis."}</p></section>}
+        <CreatePlacementAudit locale={locale} aoi={aoi} generated={generated} generatedLocale={generatedLocale} areaContext={areaContext} massing={massing} />
         <section className="grid min-w-0 gap-5 rounded-[24px] border border-line bg-white p-5 shadow-soft sm:p-7 lg:grid-cols-2" data-testid="create-programme-rationale">
           <div className="min-w-0"><h2 className="text-xl font-bold">{ru ? "Состав программы и наблюдаемые функции" : "Programme mix and observed uses"}</h2>
             <p className="mt-2 text-sm leading-6 text-muted">{programmeReview.uses[0] ? (ru ? `Ведущая функция — ${useLabels[programmeReview.uses[0].use].toLowerCase()} (${programmeReview.uses[0].scenarioSharePct}% сценарного веса).` : `The programme is led by ${useLabels[programmeReview.uses[0].use].toLowerCase()} (${programmeReview.uses[0].scenarioSharePct}% scenario weight).`) : null} {ru ? "Вес программы не равен доле площади или числу объектов OSM." : "Programme weights are not floor-area shares or OSM record shares."}</p>

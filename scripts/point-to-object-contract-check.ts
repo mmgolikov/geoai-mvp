@@ -1243,6 +1243,7 @@ function assertStaticBoundaries(): void {
     "components/point-to-object/climate-context.tsx",
     "components/point-to-object/context-dashboard.tsx",
     "components/point-to-object/create-panel.tsx",
+    "components/point-to-object/create-placement-audit.tsx",
     "components/point-to-object/create-preflight.worker.ts",
     "components/point-to-object/create-result-dashboard.tsx",
     "components/point-to-object/create-result-preview-3d.tsx",
@@ -1280,6 +1281,8 @@ function assertStaticBoundaries(): void {
     { code: "ERR_ASSERTION" }, "An extra Candidate surface must still fail closed.");
   assert.throws(() => assertExactCandidateSurface(candidateSurfacePaths.filter((file) => file !== "components/point-to-object/verification-export.tsx")),
     { code: "ERR_ASSERTION" }, "A missing approved export surface must still fail closed.");
+  assert.throws(() => assertExactCandidateSurface(candidateSurfacePaths.filter((file) => file !== "components/point-to-object/create-placement-audit.tsx")),
+    { code: "ERR_ASSERTION" }, "A missing approved placement audit surface must still fail closed.");
   const createPreflightWorker = readFileSync(path.join(ROOT, "components/point-to-object/create-preflight.worker.ts"), "utf8");
   assert.match(createPreflightWorker, /preflightPointObjectCreate/);
   assert.match(createPreflightWorker, /pointObjectCreateAoiHash/);
