@@ -17,7 +17,7 @@ const {
 } =
   await import("../tests/e2e/helpers/sprint20-live-create");
 const { preflightPointObjectCreate } = await import("../src/lib/prototype/point-to-object-create-orchestration");
-const { POINT_OBJECT_CREATE_RESULT_CAVEAT } = await import("../src/lib/prototype/point-to-object-create-result");
+const { POINT_OBJECT_CREATE_RESULT_CAVEAT, parsePointObjectCreateSourceUseReceipt } = await import("../src/lib/prototype/point-to-object-create-result");
 const { POINT_OBJECT_CREATE_PROMPT_VERSION } = await import("../src/lib/prototype/point-to-object-create-ai-core");
 const { sprint10PaidPostDecision } = await import("../tests/e2e/helpers/sprint10-live-journey-gate");
 assert.deepEqual(sprint10PaidPostDecision("dubai-create", "create", 1), { ok: true });
@@ -42,8 +42,49 @@ const payload = { mode: "openai_concept", generatedAt: "2026-09-20T10:00:00Z", p
   caveat: POINT_OBJECT_CREATE_RESULT_CAVEAT };
 assertDubaiCreateGeometry(payload);
 const envelope = { ...payload, areaContextUsed: { sourceResponseHash: "a".repeat(64), sampleSize: 3 } };
-assert.deepEqual(assertDubaiCreateGeometry(envelope), payload,
-  "Save parity compares the canonical concept, not the route-only areaContextUsed envelope field");
+const invalidSourceConcept = { ...payload, areaContextUsed: { status: "invalid" } };
+assert.deepEqual(assertDubaiCreateGeometry(envelope), invalidSourceConcept,
+  "Malformed source lineage must become an explicit invalid marker without changing the canonical concept geometry/metrics");
+assert.deepEqual(assertDubaiCreateGeometry(JSON.parse(JSON.stringify(invalidSourceConcept))), invalidSourceConcept,
+  "The invalid source marker survives saved-result JSON round-trip; it is not valid source evidence");
+assert.equal(parsePointObjectCreateSourceUseReceipt(invalidSourceConcept.areaContextUsed), null);
+const validSourceReceipt = { sourceResponseHash: "a".repeat(64), sampleSize: 3, mappedBuildingCount: 2,
+  capReached: false, inclusionMethod: "returned_center_inside_aoi", completeInventory: false };
+assert.deepEqual(parsePointObjectCreateSourceUseReceipt(validSourceReceipt), validSourceReceipt);
+for (const areaContextUsed of [validSourceReceipt, null]) {
+  const saved = { ...payload, areaContextUsed };
+  assert.deepEqual(assertDubaiCreateGeometry(saved), saved,
+    "Valid six-field lineage and explicit no-source null must retain exact concept and source state");
+  assert.deepEqual(assertDubaiCreateGeometry(JSON.parse(JSON.stringify(saved))), saved,
+    "Source state and all concept geometry/metrics survive saved-result JSON round-trip");
+}
+assert.deepEqual(assertDubaiCreateGeometry(JSON.parse(JSON.stringify(payload))), payload);
+assert.equal(Object.hasOwn(assertDubaiCreateGeometry(payload), "areaContextUsed"), false,
+  "Legacy omission remains unknown; never fabricate source use or substitute null");
+const corruptSourceReceipts: unknown[] = [
+  { ...validSourceReceipt, sourceResponseHash: "invalid-hash" },
+  { ...validSourceReceipt, sampleSize: -1 },
+  { ...validSourceReceipt, sampleSize: 3.5 },
+  { ...validSourceReceipt, mappedBuildingCount: 4 },
+  { ...validSourceReceipt, mappedBuildingCount: 1.5 },
+  { ...validSourceReceipt, capReached: "false" },
+  { ...validSourceReceipt, inclusionMethod: "surveyed_polygon_intersection" },
+  { ...validSourceReceipt, completeInventory: true },
+  { ...validSourceReceipt, privateSource: "PRIVATE_SOURCE_SENTINEL" },
+  undefined, {}, []
+];
+for (const key of Object.keys(validSourceReceipt)) {
+  const missing = { ...validSourceReceipt } as Record<string, unknown>; delete missing[key];
+  corruptSourceReceipts.push(missing);
+}
+for (const areaContextUsed of corruptSourceReceipts) {
+  assert.equal(parsePointObjectCreateSourceUseReceipt(areaContextUsed), null,
+    "Malformed, incomplete or extra-field source receipt is never valid evidence");
+  const parsed = assertDubaiCreateGeometry({ ...payload, areaContextUsed });
+  assert.deepEqual(parsed, invalidSourceConcept, "Corruption keeps an invalid marker and exact concept geometry/metrics");
+  assert.deepEqual(assertDubaiCreateGeometry(JSON.parse(JSON.stringify(parsed))), invalidSourceConcept);
+  assert.doesNotMatch(JSON.stringify(parsed), /PRIVATE_SOURCE_SENTINEL|privateSource/);
+}
 const reduced = structuredClone(payload); reduced.program.targetSiteCoveragePct = 15;
 assert.throws(() => assertDubaiCreateGeometry(reduced), /targetSiteCoveragePct/);
 const overlap = structuredClone(payload);
@@ -107,4 +148,6 @@ assert.equal(new Set(programmeScopes.map(scope => dubaiCreateProgrammeCase(scope
 console.log(JSON.stringify({ result: "PASS offline only", areaSqM: aoi.areaSqM, coordinates: fixture.coordinates,
   controls: fixture.controls, variants: preflight.alternatives.map(a => a.id), programmeScopes,
   coverageRegressionCases: { coherentBothAlternativesRejected: 6, singleAlternativeDriftRejected: 12,
-    toleranceBoundaryAccepted: 2, outsideToleranceRejected: 2 }, providerCalls: 0 }));
+    toleranceBoundaryAccepted: 2, outsideToleranceRejected: 2 },
+  sourceLineageCases: { malformedOriginal: 1, invalidMarkerRoundTrip: 1, validSixField: 1, explicitNull: 1,
+    missingLegacy: 1, corruptionNegatives: corruptSourceReceipts.length }, providerCalls: 0 }));

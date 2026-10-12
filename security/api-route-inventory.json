@@ -1797,7 +1797,7 @@
             ],
             "verification": "permanent_static_and_runtime_contract"
           },
-          "requestSizeLimitBytes": 4096,
+          "requestSizeLimitBytes": 8192,
           "requestSizeLimitStatus": "explicit_read_bounded_json",
           "positiveResponse": {
             "expectedStatuses": [
