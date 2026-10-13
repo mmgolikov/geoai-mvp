@@ -353,6 +353,19 @@ for (const locale of ["en", "ru"] as const) for (const width of [1440, 390]) {
     await listButton.click();
     await expect(listButton).toHaveAttribute("aria-pressed", "true");
     await selectedSourceEvidence(independent, binsina, source.places.indexOf(binsina) + 1, locale, dates);
+    const overview = independent.getByTestId("independent-map-overview");
+    const focus = independent.getByTestId("independent-map-focus");
+    await nativeTarget44(overview); await nativeTarget44(focus);
+    for (const activation of ["pointer", "Enter"]) {
+      await overview.click();
+      await expect(independent.getByTestId("independent-point-plot")).toHaveAttribute("data-map-view", "overview");
+      await expect(focus).toHaveAttribute("aria-pressed", "false");
+      if (activation === "pointer") await focus.click();
+      else { await focus.focus(); await page.keyboard.press("Enter"); await expect(focus).toBeFocused(); }
+      await expect(focus).toHaveAttribute("aria-pressed", "true");
+      await selectedSourceEvidence(independent, binsina, source.places.indexOf(binsina) + 1, locale, dates);
+      await expect(independent.getByTestId("independent-place-list").getByTestId("independent-place-select")).toHaveCount(source.places.length);
+    }
     const mapPoint = exactRecord(independent.getByTestId("independent-point-plot"), "independent-point-marker", binsina.id);
     await mapPoint.click();
     await mapPoint.focus(); await page.keyboard.press(" ");
