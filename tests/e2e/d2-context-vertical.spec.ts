@@ -324,11 +324,101 @@ async function exerciseSourceMarkers(page: Page, independent: Locator, item: D2C
   return dates;
 }
 
+async function analysisSetupNavigation(page: Page, item: D2Case, signals: D2Signals, width: number, info: TestInfo) {
+  await page.locator("[data-point-object-header]").scrollIntoViewIfNeeded();
+  const header = page.getByTestId("analysis-selected-header");
+  const trigger = header.getByTestId("analysis-mobile-controls-trigger");
+  const form = page.getByTestId("analysis-controls-form");
+  const widget = page.getByTestId("verification-export");
+  const summary = widget.locator(":scope > summary");
+  await expect(header).toHaveCount(1); await expect(trigger).toHaveCount(1); await expect(form).toHaveCount(1);
+  await expect(form).toHaveAttribute("tabindex", "-1");
+  const formId = await form.getAttribute("id");
+  expect(formId).toBeTruthy();
+  await expect(trigger).toHaveAttribute("aria-controls", formId!);
+  const labelledBy = await form.getAttribute("aria-labelledby");
+  expect(labelledBy).toBeTruthy();
+  const label = form.locator('label[id="' + labelledBy + '"]');
+  await expect(label).toBeVisible();
+  const formName = (await label.innerText()).trim();
+  expect(formName.length).toBeGreaterThan(0);
+  const namedForm = page.getByRole("form", { name: formName, exact: true });
+  await expect(namedForm).toHaveCount(1); await expect(namedForm).toHaveAttribute("id", formId!);
+  await expect(widget).toHaveAttribute("data-mobile-layout", "compact");
+  await expect(widget).toHaveJSProperty("open", false);
+  expect(await summary.evaluate(el => el.tagName)).toBe("SUMMARY");
+  const summaryBox = await summary.boundingBox();
+  expect(summaryBox).not.toBeNull(); expect(summaryBox!.height).toBeGreaterThanOrEqual(44);
+  if (width >= 640) {
+    await expect(trigger).toBeHidden();
+    await info.attach("d2-analysis-setup-navigation", { body: JSON.stringify({ locale: item.locale, width,
+      layout: "desktop", mobileTrigger: "hidden", formId, compactAnalyseVerification: true }), contentType: "application/json" });
+    return;
+  }
+  const box = await nativeTarget44(trigger);
+  expect(box.width).toBeGreaterThanOrEqual(48); expect(box.height).toBeGreaterThanOrEqual(48);
+  expect(box.x).toBeGreaterThanOrEqual(0); expect(box.y).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(width);
+  expect(box.y + box.height).toBeLessThanOrEqual(page.viewportSize()!.height);
+  const requestState = form.getByTestId("analysis-request-state");
+  const draftDepth = await requestState.getAttribute("data-draft-depth");
+  expect(["quick", "standard", "deep"]).toContain(draftDepth);
+  await expect(trigger).toHaveAttribute("data-draft-depth", draftDepth!);
+  const activeDepth = form.locator("fieldset").getByRole("button", { pressed: true });
+  await expect(activeDepth).toHaveCount(1);
+  await expect(trigger).toContainText((item.locale === "ru" ? "Черновик" : "Draft") + " · " + (await activeDepth.innerText()).trim());
+  const publicSetup = (value: Record<string, unknown>) => {
+    const pre = publicObject(value.preSubmit, "setup pre-submit");
+    publicObject(pre.intent, "setup current intent");
+    publicObject(publicObject(pre.sourceSnapshot, "setup source snapshot").context, "setup source context");
+    publicObject(value.currentSelection, "setup current selection");
+    expect(Array.isArray(value.records)).toBe(true);
+    return { preSubmit: pre, currentSelection: value.currentSelection, records: value.records };
+  };
+  const draftUi = () => form.evaluate(el => ({
+    question: el.querySelector<HTMLTextAreaElement>("#analysis-follow-up")!.value,
+    state: Object.fromEntries([...el.querySelector('[data-testid="analysis-request-state"]')!.attributes]
+      .filter(attribute => attribute.name.startsWith("data-")).map(attribute => [attribute.name, attribute.value])),
+    choices: [...el.querySelectorAll("button[aria-pressed]")].map(button => ({ text: button.textContent, pressed: button.getAttribute("aria-pressed") }))
+  }));
+  const sourceBefore = await visibleSourceSnapshot(page, item);
+  const before = publicSetup(JSON.parse(await widget.getByTestId("verification-json").inputValue()) as Record<string, unknown>);
+  const draftBefore = await draftUi();
+  const resultBefore = await page.getByTestId("ai-success").allTextContents();
+  const counts = { context: signals.contextPosts.length, ai: signals.aiPosts.length, challenges: signals.challenges };
+  for (const activation of ["pointer", "Enter"]) {
+    if (await widget.evaluate(el => el.hasAttribute("open"))) await summary.click();
+    await page.locator("[data-point-object-header]").scrollIntoViewIfNeeded();
+    await expect(trigger).toBeVisible();
+    if (activation === "pointer") await trigger.click();
+    else { await trigger.focus(); await page.keyboard.press("Enter"); }
+    await expect(namedForm).toBeFocused(); await expect(form).toHaveAttribute("id", formId!);
+    const labelBox = await label.boundingBox();
+    expect(labelBox).not.toBeNull(); expect(labelBox!.y).toBeGreaterThanOrEqual(0);
+    expect(labelBox!.y + labelBox!.height).toBeLessThanOrEqual(page.viewportSize()!.height);
+    expect(await draftUi()).toEqual(draftBefore);
+    expect(await page.getByTestId("ai-success").allTextContents()).toEqual(resultBefore);
+    expect(publicSetup(await publicD2Snapshot(page))).toEqual(before);
+    await expect(widget.getByTestId("verification-prepare")).toBeVisible();
+    await expect(widget.getByTestId("verification-download")).toBeVisible();
+    expect(signals.contextPosts).toHaveLength(counts.context); expect(signals.aiPosts).toHaveLength(counts.ai);
+    expect(signals.challenges).toBe(counts.challenges);
+  }
+  expect(await visibleSourceSnapshot(page, item)).toEqual(sourceBefore);
+  await summary.click(); await expect(widget).toHaveJSProperty("open", false);
+  await page.locator("[data-point-object-header]").scrollIntoViewIfNeeded();
+  await info.attach("d2-analysis-setup-navigation", { body: JSON.stringify({ locale: item.locale, width,
+    layout: "mobile", formId, draftDepth, firstViewportTarget: box, pointerAndKeyboardSameForm: true,
+    unchangedCounts: counts, draftResultSourceAndPublicRecordsPreserved: true,
+    scope: "Public DOM + ordinary Verification export only; download control visible, no download acceptance claimed" }), contentType: "application/json" });
+}
+
 for (const locale of ["en", "ru"] as const) for (const width of [1440, 390]) {
   test("D2 ordinary intake→actual envelope→linked evidence→save/reopen " + locale + " " + width, async ({ page }, info) => {
     const { item, signals } = await intake(page, info.project.use.baseURL!, locale, width);
     const bundle = bundles[locale];
     const dashboard = page.getByTestId("normalized-context-dashboard");
+    await analysisSetupNavigation(page, item, signals, width, info);
     await expect(page.getByRole("button", { name: locale, exact: true })).toHaveAttribute("aria-pressed", "true");
     const breakdown = dashboard.getByTestId("context-sample-breakdown");
     await expect(breakdown).toHaveJSProperty("open", false);
