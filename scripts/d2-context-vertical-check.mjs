@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { registerHooks, createRequire } from "node:module";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import path from "node:path";
@@ -28,7 +28,7 @@ const { readIndependentPointObjectContext } = await import("../src/lib/prototype
 const { contextDetailsFromEvidence, parseContextDetailsV2, contextExplicitTag } = await import("../src/lib/prototype/point-to-object-context-details-v2.ts");
 const { normalizePointObjectContext, normalizedResolvedContext, parseNormalizedPointObjectContext } = await import("../src/lib/prototype/point-to-object-normalized-context.ts");
 const { buildLivePointObjectEvidencePack, normalizeOverpassUrbanFabric } = await import("../src/lib/prototype/point-to-object-live-evidence.ts");
-const { parseLiveResolvedObject, parsePointObjectAiResponse } = await import("../components/point-to-object/live-session.ts");
+const { parseLiveResolvedObject, parsePointObjectAiResponse, parsePointObjectSelection } = await import("../components/point-to-object/live-session.ts");
 const ai = await import("../src/lib/prototype/point-to-object-ai-core.ts");
 const Ajv2020 = require("ajv/dist/2020.js").default;
 const React = await import("react");
@@ -51,11 +51,12 @@ function inspectClientImports(file, seen = new Set()) {
     const specifier = match[1]; runtimeImports.add(specifier);
     if (specifier.startsWith("@/") || specifier.startsWith(".")) {
       const local = specifier.startsWith("@/") ? path.join(root, specifier.slice(2)) : path.resolve(path.dirname(file), specifier);
-      inspectClientImports(/\.tsx?$/.test(local) ? local : `${local}.ts`, seen);
+      inspectClientImports(/\.tsx?$/.test(local) ? local : existsSync(`${local}.ts`) ? `${local}.ts` : `${local}.tsx`, seen);
     }
   }
 }
 inspectClientImports(path.join(root, "src/lib/prototype/point-to-object-normalized-context.ts"));
+inspectClientImports(path.join(root, "components/point-to-object/context-dashboard.tsx"));
 check(![...runtimeImports].some(s => s.startsWith("node:") || s.endsWith("point-to-object/hash") || s === "server-only"), "Real normalized-context runtime import graph contains no Node-only module, crypto polyfill or server-only source loader");
 const actual = cases.map(c => readIndependentPointObjectContext(c.sourceFeatureId, c.anchor, c.caseId === "U3" ? independent.INDEPENDENT_U3_POLYGON : undefined));
 for (const [index, count] of [165, 174, 169].entries()) {
@@ -164,6 +165,27 @@ const createdAt = new Date().toISOString();
 publicSubject.evidenceReceipt = { version: "PUBLIC_EVIDENCE_LEASE_V1", evidencePackHash: pack.evidencePackHash, sourceResponseHash: pack.source.sourceResponseHash, acquiredAt: pack.source.acquiredAt, createdAt, expiresAt: new Date(Date.parse(createdAt) + 15 * 60_000).toISOString(), cacheWindow: Math.floor(Date.parse(createdAt) / (15 * 60_000)), sourceLocale: "en", lookupSourceFeatureId: pack.selectedObject.sourceFeatureId };
 const reopened = parseLiveResolvedObject(JSON.parse(JSON.stringify(publicSubject)));
 check(reopened && reopened.normalizedContext.independentContext.places.some(p => p.id === binsina.id), "Existing shared strict save/reopen parser preserves new source record");
+const savedSelection = {
+  locationKey: "dubai", longitude: anchor[0], latitude: anchor[1], clickedAt: now,
+  object: { name: publicSubject.name, featureClass: publicSubject.featureClass, sourceFeatureId: publicSubject.sourceFeatureId, geometry: clone(pack.displayGeometry), geometryProvenance: "confirmed_complete_footprint" },
+  resolvedObject: publicSubject, viewport: { center: anchor, zoom: 16 },
+  provider: "OpenFreeMap / OpenStreetMap", nearbyLabels: []
+};
+check(parsePointObjectSelection(clone(savedSelection)), "Actual public selection parser accepts unchanged enriched selection");
+const roundedSelection = clone(savedSelection);
+roundedSelection.longitude = Number(anchor[0].toFixed(6)); roundedSelection.latitude = Number(anchor[1].toFixed(6));
+check(parsePointObjectSelection(roundedSelection), "Six-decimal transport rounding retains exact held source binding");
+for (const edit of [
+  s => s.longitude += 0.01,
+  s => s.latitude += 0.01,
+  s => s.object.sourceFeatureId = "way/123",
+  s => s.object.geometry.coordinates[0][1][0] += 0.00001
+]) {
+  const forged = clone(savedSelection); delete forged.resolvedObject.normalizedContext.details; edit(forged);
+  check(parsePointObjectSelection(forged) === null, "Removing details cannot detach retained independent context from outer point, source or complete geometry");
+}
+const nullLookup = clone(publicSubject); nullLookup.evidenceReceipt.lookupSourceFeatureId = null;
+check(parseLiveResolvedObject(nullLookup) === null, "Trusted selected V2 measurements require exact selected lookup ID");
 for (const edit of [
   c => c.places[0].name = "Different admitted-looking name",
   c => c.places[0].address = "Another street",
@@ -196,10 +218,20 @@ for (const edit of [
 check(parseLiveResolvedObject(publicSubject)?.normalizedContext.details.metrics.find(m => m.id === "height").value === 30.48, "Rejected imports do not mutate the held valid subject");
 const legacy = clone(publicSubject); delete legacy.normalizedContext.details; delete legacy.normalizedContext.independentContext;
 check(parseLiveResolvedObject(legacy) && normalizedResolvedContext(parseLiveResolvedObject(legacy)).details === undefined, "V1 save remains readable without invented metrics, geometry or enrichment");
+legacy.evidenceReceipt.lookupSourceFeatureId = null;
+const legacySelection = clone(savedSelection); legacySelection.resolvedObject = legacy;
+check(parsePointObjectSelection(legacySelection), "Genuine unenriched V1 with null lookup remains unchanged and readable");
 const nearestPack = clone(pack); nearestPack.resolution.coordinateAssociation = "reverse_nearest_indexed_object_not_point_in_polygon";
 const nearest = contextDetailsFromEvidence(nearestPack);
 check(nearest.metrics.every(m => m.value === null) && nearest.geometry === null, "Nearest source cannot donate selected properties");
 check(parseContextDetailsV2(nearest, nearest.subjectId, nearest.anchor, "point_radius"), "Honest nearest unknowns remain parseable");
+for (const association of ["reverse_nearest_indexed_object_not_point_in_polygon", "open_map_geometry_contains_point"]) {
+  const contextPack = clone(pack); contextPack.resolution.coordinateAssociation = association;
+  const contextSubject = clone(publicSubject); contextSubject.coordinateAssociation = association;
+  contextSubject.normalizedContext = normalizePointObjectContext(contextPack);
+  contextSubject.evidenceReceipt.lookupSourceFeatureId = null;
+  check(parseLiveResolvedObject(contextSubject), "Legitimate reverse/contains V2 retains null lookup and unknown selected measurements");
+}
 const tempPack = clone(pack); tempPack.selectedObject.tags = { "tag.building": "tent", "tag.leisure": "outdoor_seating", "tag.building:levels": "3" };
 check(contextDetailsFromEvidence(tempPack).metrics.find(m => m.id === "levels").value === null, "Tent/seating tags cannot certify permanent floors");
 check(contextDetailsFromEvidence(tempPack).semanticWarnings.length === 2, "Temporary shelter and outdoor-seating qualifications retain source-specific interpretation limits");

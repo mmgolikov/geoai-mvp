@@ -143,6 +143,7 @@ export function contextDetailsMatchResolvedSubject(details: PointObjectContextDe
   if (details.subjectId !== subject.sourceFeatureId || details.association !== association ||
       !receipt || !objectSource || objectSource.responseHash !== receipt.sourceResponseHash ||
       objectSource.acquiredAt !== receipt.acquiredAt ||
+      exact && receipt.lookupSourceFeatureId !== subject.sourceFeatureId ||
       receipt.lookupSourceFeatureId !== null && receipt.lookupSourceFeatureId !== subject.sourceFeatureId) return false;
   const tags = subject.tags;
   const building = tags["tag.building"] ?? tags.building;

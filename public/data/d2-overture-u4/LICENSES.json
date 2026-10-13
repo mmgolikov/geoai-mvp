@@ -1,0 +1,60 @@
+{
+  "licenseId": "CDLA-Permissive-2.0",
+  "licenseText": "Community Data License Agreement - Permissive - Version 2.0\n\nThis is the Community Data License Agreement - Permissive, Version 2.0 (the \"agreement\"). Data Provider(s) and Data Recipient(s) agree as follows:\n\n1. Provision of the Data\n\n1.1. A Data Recipient may use, modify, and share the Data made available by Data Provider(s) under this agreement if that Data Recipient follows the terms of this agreement.\n\n1.2. This agreement does not impose any restriction on a Data Recipient's use, modification, or sharing of any portions of the Data that are in the public domain or that may be used, modified, or shared under any other legal exception or limitation.\n\n2. Conditions for Sharing Data\n\n2.1. A Data Recipient may share Data, with or without modifications, so long as the Data Recipient makes available the text of this agreement with the shared Data.\n\n3. No Restrictions on Results\n\n3.1. This agreement does not impose any restriction or obligations with respect to the use, modification, or sharing of Results.\n\n4. No Warranty; Limitation of Liability\n\n4.1. All Data Recipients receive the Data subject to the following terms:\n\nTHE DATA IS PROVIDED ON AN \"AS IS\" BASIS, WITHOUT REPRESENTATIONS, WARRANTIES OR CONDITIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED INCLUDING, WITHOUT LIMITATION, ANY WARRANTIES OR CONDITIONS OF TITLE, NON-INFRINGEMENT, MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.\n\nNO DATA PROVIDER SHALL HAVE ANY LIABILITY FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING WITHOUT LIMITATION LOST PROFITS), HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE DATA OR RESULTS, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.\n\n5. Definitions\n\n5.1. \"Data\" means the material received by a Data Recipient under this agreement.\n\n5.2. \"Data Provider\" means any person who is the source of Data provided under this agreement and in reliance on a Data Recipient's agreement to its terms.\n\n5.3. \"Data Recipient\" means any person who receives Data directly or indirectly from a Data Provider and agrees to the terms of this agreement.\n\n5.4. \"Results\" means any outcome obtained by computational analysis of Data, including for example machine learning models and models' insights.\n",
+  "officialLicenseUrl": "https://cdla.dev/permissive-2-0/",
+  "textUrl": "https://raw.githubusercontent.com/Community-Data-License-Agreements/Releases/main/CDLA-Permissive-2.0.txt",
+  "textRetrievedAt": "2026-10-13T12:03:04.666340+00:00",
+  "textSha256": "4531a67d443284d93ffed0803df5b10634aff21c3d77e381f2d48af01d875868",
+  "evidenceMode": "Reuse unchanged official licence text retrieved today; actual new U4 per-source licence fields independently screened. No new licence network download.",
+  "packagedAt": "2026-10-13T13:11:47.732001+00:00",
+  "appliesToSubset": {
+    "path": "overture_u4_admitted.geojson",
+    "records": 24,
+    "bytes": 30418,
+    "sha256": "6ce26a323102cf8e01c3107250f648d54180ccd0d1befc7d0900a3472b8ff63d",
+    "licences": [
+      "CDLA-Permissive-2.0"
+    ],
+    "modifications": "Bounded bbox source point extraction, exact400m screening, licence/provider/name/taxonomy/confidence and reviewable role/location quarantine. Original source properties and IDs preserved, no record/entity merging."
+  },
+  "providers": [
+    {
+      "dataset": "meta",
+      "provider": "meta",
+      "records": 19,
+      "licence": "CDLA-Permissive-2.0",
+      "attribution": "Data from Meta"
+    },
+    {
+      "dataset": "Microsoft",
+      "provider": "microsoft",
+      "records": 5,
+      "licence": "CDLA-Permissive-2.0",
+      "attribution": "Data from Microsoft"
+    },
+    {
+      "dataset": "Overture",
+      "provider": "overture",
+      "sourceEntries": 24,
+      "licence": "CDLA-Permissive-2.0",
+      "attribution": "Overture Maps Foundation",
+      "role": "Derived confidence calculation; not another independent physical provider"
+    }
+  ],
+  "sharingCondition": "Supply full agreement text with shared Data; preserve attribution/source lineage. No warranty or provider endorsement; no hosted API/S3 service entitlement.",
+  "notAdmitted": [
+    {
+      "dataset": "Foursquare",
+      "sourceEntries": 8,
+      "licenceDeclaredByActualRecord": "Apache-2.0",
+      "reason": "Outside validated/packaged CDLA-only scope; separate Apache/NOTICE review needed before display/export/API"
+    },
+    {
+      "dataset": "AllThePlaces",
+      "sourceEntries": 1,
+      "licenceDeclaredByActualRecord": "CC0-1.0",
+      "reason": "Outside current provider/licence scope; not an assertion CC0 is forbidden"
+    }
+  ],
+  "geometrySeparateLicence": "OSM input under ODbL1.0, not embedded in Places GeoJSON. Bundled exports must preserve separate OSM attribution/terms; combined-database compatibility not established by this source screening."
+}

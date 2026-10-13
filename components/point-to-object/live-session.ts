@@ -480,8 +480,13 @@ export function parsePointObjectSelection(value: unknown): LiveMapSelection | nu
       ? null
       : parseLiveResolvedObject(value.resolvedObject);
     if (value.resolvedObject !== null && value.resolvedObject !== undefined && !restoredResolvedObject) return null;
-    const heldAnchor = restoredResolvedObject?.normalizedContext?.details?.anchor;
+    const heldNormalized = restoredResolvedObject?.normalizedContext;
+    const enriched = Boolean(heldNormalized?.details || heldNormalized?.independentContext);
+    const heldAnchor = enriched ? heldNormalized?.scope.anchor : null;
     if (heldAnchor && (Math.abs(heldAnchor[0] - point[0]) > 0.000001 || Math.abs(heldAnchor[1] - point[1]) > 0.000001)) return null;
+    if (enriched && restoredResolvedObject?.coordinateAssociation === "trusted_open_map_identity" &&
+        (sourceFeatureId !== restoredResolvedObject.sourceFeatureId ||
+         geometryProvenance === "confirmed_complete_footprint" && JSON.stringify(restoredGeometry) !== JSON.stringify(restoredResolvedObject.displayGeometry))) return null;
     const pitch = value.viewport.pitch === undefined ? 0 : finiteNumber(value.viewport.pitch, 0, 85);
     const bearing = value.viewport.bearing === undefined ? 0 : finiteNumber(value.viewport.bearing, -360, 360);
     const viewMode = value.viewport.viewMode === "2d" || value.viewport.viewMode === "3d"

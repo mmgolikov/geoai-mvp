@@ -4,9 +4,35 @@ import { useId, useRef, useState } from "react";
 import { CONTEXT_GROUP_LABELS, type ContextGroup, type PointObjectNormalizedContext } from "@/src/lib/prototype/point-to-object-normalized-context";
 import { CONTEXT_DETAILS_CAVEAT, type ContextPhysicalMetric } from "@/src/lib/prototype/point-to-object-context-details-v2";
 import { IndependentSourceContext } from "./independent-source-context";
+import { normalizeAreaSourceDashboard, type AreaSourceContextV2 } from "@/src/lib/prototype/point-to-object-area-source-context-v2";
 
 type Props = { context: PointObjectNormalizedContext; locale: "en" | "ru"; programme?: boolean };
 const control = "min-h-11 min-w-0 rounded-xl border p-3 text-start focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087f8c]";
+
+/** Source-only AOI consumer. Not mounted as a fake selected-building/point AI
+ * response; ordinary AOI Analyse intake is a separate integration gate. */
+export function PointObjectAreaSourceDashboard({ context, locale }: { context: AreaSourceContextV2; locale: "en" | "ru" }) {
+  const ru = locale === "ru";
+  const model = normalizeAreaSourceDashboard(context);
+  const [west, south, east, north] = model.geometryMeasurements.bbox;
+  const boundary = model.binding.geometry.coordinates[0].map(([lon, lat]) =>
+    `${20 + (lon - west) / (east - west) * 180},${200 - (lat - south) / (north - south) * 180}`).join(" ");
+  const fmt = (n: number) => n.toLocaleString(ru ? "ru-RU" : "en-US", { maximumFractionDigits: 1 });
+  const date = (s: string) => new Date(s).toLocaleString(ru ? "ru-RU" : "en-GB", { timeZone: "UTC", timeZoneName: "short" });
+  return <section className="min-w-0 rounded-2xl border border-line bg-white p-4 sm:p-5" data-testid="area-source-context-v2" data-area-source-case={context.caseId}>
+    <h3 className="text-base font-bold text-[#243447]">{ru ? "Источники выбранной зоны" : "Selected-area source context"} · {context.caseId}</h3>
+    <p className="mt-2 break-words text-xs leading-6 text-[#52657a]" dir="auto">{model.binding.aoiId} · {model.binding.origin === "user_aoi" ? (ru ? "исходный пользовательский AOI" : "original user-drawn AOI") : (ru ? "исходный полигон OSM v1, не кадастровый участок" : "original OSM v1 polygon, not a cadastral parcel")}.</p>
+    <figure className="mt-3 max-w-[280px]"><svg viewBox="0 0 220 220" className="w-full rounded-xl bg-[#f8fafc]" role="img" aria-label={ru ? "Исходная граница зоны · схема, не масштабная карта" : "Original area boundary · diagram, not a scale map"}><polygon points={boundary} fill="#087f8c19" stroke="#087f8c" strokeWidth="2" /></svg><figcaption className="mt-2 text-[11px] leading-5 text-[#52657a]">{ru ? "Приблизительные измерения исходного контура" : "Approximate original-boundary measurements"}: {fmt(model.geometryMeasurements.areaSqM)} m² · {fmt(model.geometryMeasurements.perimeterM)} m. {ru ? "WGS84, локальная плоская модель; не разрешённая площадь строительства." : "WGS84, local planar model; not permitted development area."}</figcaption></figure>
+    {model.osmContext ? <PointObjectContextDashboard context={model.osmContext} locale={locale} programme /> : <div className="mt-4 rounded-xl bg-[#fff8ec] p-3 text-xs leading-6 text-[#6b4b16]" data-testid="area-osm-unknown" aria-live="polite">
+      <p>{model.osmInterior.status === "source_error_not_empty" ? (ru ? "Чтение OSM завершилось ошибкой памяти. Количество объектов внутри зоны неизвестно, не ноль." : "The OSM read failed with an out-of-memory error. Interior feature count is unknown, not zero.") : (ru ? "Ответ OSM для зоны не сохранён. Число объектов неизвестно; данные окружения не подставлены внутрь." : "No area OSM response was retained. Interior count is unknown; surrounding data was not substituted.")}</p>
+      {model.osmInterior.error ? <p>{ru ? "Историческое чтение" : "Frozen read"}: {date(model.osmInterior.error.acquiredAt)} · {ru ? "это не новое чтение или подтверждение отсутствия объектов" : "not a new read or proof of absence"}.</p> : null}
+    </div>}
+    <IndependentSourceContext key={`${context.caseId}:${context.independentContext.snapshotHash}`} context={model.independentContext} locale={locale} />
+    <p className="mt-3 text-[11px] leading-5 text-[#667085]">{ru ? "Снимок источников сохраняется только локально в браузере. AOI не передаётся в точечный AI-анализ. Вместимость, спрос, маршруты и права застройки неизвестны." : "Source snapshots are browser-local only. The AOI is not sent through point AI. Capacity, demand, routes and development rights remain unknown."}</p>
+    {model.binding.origin === "mapped_osm_polygon" ? <p className="mt-2 text-[11px] leading-5 text-[#667085]">© OpenStreetMap contributors · <a className="inline-flex min-h-11 items-center text-[#087f8c] underline" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">ODbL-1.0</a> · {ru ? "права на геометрию отделены от лицензии Places" : "geometry rights are separate from the Places licence"}.</p> : null}
+    <p className="mt-2 text-[11px] leading-5 text-[#667085]">{model.caveat}</p>
+  </section>;
+}
 
 export function PointObjectContextDashboard({ context, locale, programme = false }: Props) {
   const ru = locale === "ru";
