@@ -9,6 +9,14 @@
   },
   "cases": [
     {
+      "key": "unavailable_u2",
+      "sourceFeatureId": "way/393391114",
+      "anchor": [55.2823691, 25.21764615],
+      "label": "D2 synthetic missing-independent-source U2",
+      "expectedIndependentStatus": "source_unavailable",
+      "independentSnapshot": "missing_before_cache"
+    },
+    {
       "key": "u1",
       "sourceFeatureId": "way/254666300",
       "anchor": [
@@ -51,7 +59,8 @@
   "limits": {
     "sourceNetworkCalls": 0,
     "paidCalls": 0,
-    "caseCount": 3,
+    "caseCount": 4,
+    "maximumInjectedOSMTransportRequests": 32,
     "maxChildStdoutBytes": 1500000,
     "timeoutMs": 30000
   },

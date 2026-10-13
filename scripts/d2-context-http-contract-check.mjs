@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createRequire, registerHooks } from "node:module";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -52,6 +53,7 @@ globalThis.fetch = async input => {
   assert.equal(url.protocol, "https:");
   assert.equal(url.hostname, "overpass-api.de", "Unexpected source/network request forbidden");
   injectedRequests++;
+  assert.ok(injectedRequests <= transport.limits.maximumInjectedOSMTransportRequests, "Synthetic OSM request cap exceeded");
   const query = url.searchParams.get("data") ?? "";
   const [lon, lat] = current.anchor;
   const delta = transport.osm.polygonHalfDeltaDegrees;
@@ -92,10 +94,26 @@ try {
     check(candidate.geometryProvenance==="confirmed_complete_footprint","Verified selected geometry remains distinct from Place points");
   }
   const cases = [];
-  for (const item of transport.cases) {
+  for (const [index, item] of transport.cases.entries()) {
     current = item;
-    const pack = await buildLivePointObjectEvidencePack({ longitude:item.anchor[0],latitude:item.anchor[1],
-      osmFeatureId:item.sourceFeatureId,locale:"en",expectedCountryCode:"ae",deadlineAtMs:Date.now()+12000 });
+    let pack;
+    if (item.independentSnapshot === "missing_before_cache") {
+      check(index === 0, "Missing-snapshot producer must run before admitted source reader cache fills");
+      const empty = mkdtempSync(path.join(tmpdir(), "geoai-d2-missing-snapshot-"));
+      try {
+        check(!existsSync(path.join(empty, transport.realIndependentSnapshot.path)), "Fresh temporary cwd has no snapshot; actual admitted bytes are never overwritten");
+        process.chdir(empty);
+        // Actual server reader fails its literal cwd-based file read. Module
+        // URLs/OSM transport stay fixed; no fabricated source status or data.
+        pack = await buildLivePointObjectEvidencePack({ longitude:item.anchor[0],latitude:item.anchor[1],
+          osmFeatureId:item.sourceFeatureId,locale:"en",expectedCountryCode:"ae",deadlineAtMs:Date.now()+12000 });
+      } finally { process.chdir(root); rmSync(empty, { recursive:true, force:false }); }
+      const rawIndependent = pack.evidence.find(e => e.id === "EVD-OVERTURE-SNAPSHOT");
+      check(rawIndependent && JSON.parse(rawIndependent.value).status === "source_unavailable", "Actual producer receipt carries unreadable snapshot status before route projection");
+    } else {
+      pack = await buildLivePointObjectEvidencePack({ longitude:item.anchor[0],latitude:item.anchor[1],
+        osmFeatureId:item.sourceFeatureId,locale:"en",expectedCountryCode:"ae",deadlineAtMs:Date.now()+12000 });
+    }
     const created = Date.now();
     const receipt = { version:"PUBLIC_EVIDENCE_LEASE_V1",evidencePackHash:pack.evidencePackHash,
       sourceResponseHash:pack.source.sourceResponseHash,acquiredAt:pack.source.acquiredAt,
@@ -153,6 +171,12 @@ try {
       check(live.parsePointObjectSelection(withoutDetails) === null, "Known444 negative: retained independent context without details cannot move outer selection anchor");
       const missingExactLookup = structuredClone(envelope.subject);missingExactLookup.evidenceReceipt.lookupSourceFeatureId=null;
       check(live.parseLiveResolvedObject(missingExactLookup) === null, "Known444 negative: trusted selected V2 must retain exact lookup identity");
+      const missingDetailsAndLookup = structuredClone(envelope.subject);
+      delete missingDetailsAndLookup.normalizedContext.details;
+      missingDetailsAndLookup.evidenceReceipt.lookupSourceFeatureId=null;
+      check(live.parseLiveResolvedObject(missingDetailsAndLookup) === null, "Combined F4 negative: retained available independent source without details cannot lose trusted exact lookup");
+      const combinedSelection = structuredClone(selection);combinedSelection.resolvedObject=missingDetailsAndLookup;
+      check(live.parsePointObjectSelection(combinedSelection) === null, "Combined F4 negative: selection cannot reopen retained independent source without details and exact lookup");
       // Legitimate non-exact contexts are projected by the actual route too.
       // They may carry null lookup but never selected metrics/geometry.
       for (const association of ["reverse_nearest_indexed_object_not_point_in_polygon", "open_map_geometry_contains_point"]) {
@@ -170,19 +194,27 @@ try {
           "Legitimate nearest/contains-null positive preserves unknown selected measurements: "+association);
       }
     } else {
-      check(parsed.normalizedContext.independentContext.sampleSize === null && parsed.normalizedContext.independentContext.places.length === 0, "Unsupported is unknown, not zero/nearest case");
+      check(parsed.normalizedContext.independentContext.sampleSize === null && parsed.normalizedContext.independentContext.interiorSampleSize === null && parsed.normalizedContext.independentContext.places.length === 0, "Missing/unsupported independent source is unknown, not zero/old facts");
+      if (item.expectedIndependentStatus === "source_unavailable") {
+        check(parsed.normalizedContext.coverage === "available" && parsed.normalizedContext.details.metrics.some(m => m.value !== null), "Valid OSM context/selected measurements survive missing independent source");
+        check(parsed.normalizedContext.independentContext.caseId === "U2", "Missing source keeps exact admitted U2 domain identity, not unsupported scope");
+      }
     }
     const wrongOrigin = await actualRoute.POST(new Request("https://d2.example.test/api/prototype/point-to-object/context", {
       method:"POST",headers:{origin:"https://foreign.example.test","content-type":"application/json"},body:JSON.stringify(intent)
     }));
     check(wrongOrigin.status === 403, "Actual same-origin boundary retained");
   }
+  check(cases.length === transport.limits.caseCount, "Bounded case count matches transport manifest");
+  check(injectedRequests <= transport.limits.maximumInjectedOSMTransportRequests, "Synthetic OSM request cap retained; no remote source traffic");
+  assert.equal(createHash("sha256").update(readFileSync(path.join(root, transport.realIndependentSnapshot.path))).digest("hex"), transport.realIndependentSnapshot.sha256);
   const result = { classification:transport.classification,baseCommit:transport.baseCommit,checks,
     assertionStatus:"EXECUTED_ONLY_BY_ROOT_WHEN_INVOKED",networkCalls:0,paidCalls:0,injectedOSMTransportRequests:injectedRequests,
     sourceHash:transport.realIndependentSnapshot.sha256,cases };
   if (process.argv.includes("--fixtures")) process.stdout.write(JSON.stringify(result)+"\n");
   else process.stdout.write(JSON.stringify({...result,cases:cases.map(({key,sourceFeatureId,expectedIndependentStatus})=>({key,sourceFeatureId,expectedIndependentStatus})),status:"PASS_OFFLINE_ROUTE_CONTRACT_ONLY"})+"\n");
 } finally {
+  process.chdir(root);
   globalThis.fetch = oldFetch;
   delete state.__d2RouteLease;
   delete state.__d2RouteLeaseInputs;

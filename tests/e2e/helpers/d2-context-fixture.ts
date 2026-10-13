@@ -8,8 +8,8 @@ import { externalHttpUrlPattern, requireLoopbackTestOrigin } from "./local-webki
 
 export type D2Envelope = { mode: "resolved"; schemaVersion: 2; evidenceReceipt: PublicEvidenceReceipt; subject: LiveResolvedObjectContext };
 export type D2Case = {
-  key: "u1" | "u2" | "outside_u2"; sourceFeatureId: string; anchor: [number, number];
-  label: string; expectedIndependentStatus: "available" | "unsupported_scope";
+  key: "u1" | "u2" | "outside_u2" | "unavailable_u2"; sourceFeatureId: string; anchor: [number, number];
+  label: string; expectedIndependentStatus: "available" | "unsupported_scope" | "source_unavailable";
   envelope: D2Envelope; legacyEnvelope: D2Envelope;
 };
 export type D2Bundle = { classification: string; baseCommit: string; checks: number; sourceHash: string; cases: D2Case[] };
@@ -32,7 +32,7 @@ export function loadD2FixtureBundle(): D2Bundle {
     cwd: root, encoding: "utf8", timeout: 30_000, maxBuffer: 1_500_000
   });
   const bundle = JSON.parse(raw) as D2Bundle;
-  if (bundle.baseCommit !== "622f48f191bb8e968d2e7efcfabdb571774ff3cb" || bundle.cases.length !== 3 ||
+  if (bundle.baseCommit !== "622f48f191bb8e968d2e7efcfabdb571774ff3cb" || bundle.cases.length !== 4 ||
       bundle.classification !== "OFFLINE_SYNTHETIC_OSM_AND_AI_TRANSPORT_NOT_REAL_CASE_ACCEPTANCE") throw new Error("D2 fixture boundary mismatch");
   return bundle;
 }

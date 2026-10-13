@@ -86,9 +86,16 @@ async function visibleSourceSnapshot(page: Page, item: D2Case, legacy = false) {
     } else {
       expect(independent.sampleSize).toBeNull();
       expect(independent.interiorSampleSize).toBeNull();
-      expect(independent.caseId).toBeNull();
       expect(independent.places).toEqual([]);
-      expect(publicObject(independent.spatialCoverage, "unsupported spatial coverage").state).toBe("unsupported_scope");
+      const coverage = publicObject(independent.spatialCoverage, "unknown-source spatial coverage");
+      if (item.expectedIndependentStatus === "unsupported_scope") {
+        expect(independent.caseId).toBeNull();
+        expect(coverage.state).toBe("unsupported_scope");
+      } else {
+        expect(independent.caseId).toBe("U2");
+        expect(coverage.state).toBe("full_circle_within_acquisition_extent");
+        expect(details.independentEnrichment).toBe("not_admitted");
+      }
     }
   }
   expect(normalized).toEqual(expected.normalizedContext);
@@ -190,6 +197,26 @@ test("D2 ordinary coordinate drift >1m stays unsupported and unknown", async ({ 
   await expect(page.getByTestId("independent-source-context")).not.toContainText("BinSina Pharmacy");
   await visibleSourceSnapshot(page, item);
   expect(signals.aiPosts).toHaveLength(0);
+  expectD2TransportQuiet(signals);
+});
+
+test("D2 valid OSM with actual unreadable independent snapshot remains unknown without AI", async ({ page }, info) => {
+  const { item, signals } = await intake(page, info.project.use.baseURL!, "en", 1440, "unavailable_u2");
+  const independent = page.getByTestId("independent-source-context");
+  await expect(independent).toHaveAttribute("data-source-status", "source_unavailable");
+  await expect(independent.getByTestId("independent-source-unknown")).toContainText("Data is unknown, not zero");
+  await expect(independent.getByTestId("independent-service-brief")).toHaveCount(0);
+  await expect(independent.getByTestId("independent-place-select")).toHaveCount(0);
+  await expect(independent).not.toContainText("BinSina Pharmacy");
+  const context = await visibleSourceSnapshot(page, item);
+  expect(publicObject(context.normalizedContext, "available OSM context").coverage).toBe("available");
+  await expect(page.getByTestId("context-physical-height")).toBeVisible();
+  expect(signals.aiPosts).toHaveLength(0);
+  expect(signals.contextPosts).toHaveLength(1);
+  await info.attach("d2-missing-independent-source-boundary", { body: JSON.stringify({
+    producer: "Actual local source reader missing literal snapshot in fresh temporary cwd before cache fill",
+    wholeHttpContextFailure: false, publicSourceStatus: "source_unavailable", sampleSize: null, interiorSampleSize: null,
+    independentPlaces: [], realCaseUsefulness: "NOT_SCORED", paidCalls: 0, sourceNetworkCalls: 0 }), contentType: "application/json" });
   expectD2TransportQuiet(signals);
 });
 
