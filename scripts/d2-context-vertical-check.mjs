@@ -34,7 +34,7 @@ const Ajv2020 = require("ajv/dist/2020.js").default;
 const React = await import("react");
 const { renderToStaticMarkup } = await import("react-dom/server");
 const { PointObjectContextDashboard } = await import("../components/point-to-object/context-dashboard.tsx");
-const { IndependentSourceContext } = await import("../components/point-to-object/independent-source-context.tsx");
+const { IndependentSourceContext, clusterIndependentSourceMarkers } = await import("../components/point-to-object/independent-source-context.tsx");
 const verification = await import("../src/lib/prototype/point-to-object-verification-export.ts");
 let checks = 0;
 const check = (v, message) => { assert.ok(v, message); checks++; };
@@ -120,6 +120,24 @@ for (const edit of [
 }
 const profile = { model: "gpt-5.6-sol", reasoningEffort: "high", verbosity: "medium", maxOutputTokens: 4000 }; // Pure request fixture; no model/API call.
 const rawPlan = { decision: { path: "existing_asset_screen", disposition: "continue_screening", confidence: "medium", reasonCodes: ["object_identity_available", "use_classification_available", "nearby_context_available"] }, signalCodes: ["object_identity", "use_classification", "building_form", "address_context"], opportunityCodes: ["existing_asset_repositioning", "redevelopment_envelope_test"], risks: [{ code: "non_official_source", severity: "high", confidence: "medium" }, { code: "identity_uncertainty", severity: "high", confidence: "low" }, { code: "geometry_not_parcel", severity: "high", confidence: "low" }], answerCode: "source_evidence_only", focusedAnswer: null, caveat: pack.caveat };
+// Synthetic CSS-pixel inputs exercise presentation only, not source admission.
+const screenPoints = Object.freeze([
+  Object.freeze({ id: "screen-a", index: 7, x: 10, y: 10 }),
+  Object.freeze({ id: "screen-b", index: 12, x: 50, y: 10 }),
+  Object.freeze({ id: "screen-c", index: 19, x: 90, y: 10 }),
+  Object.freeze({ id: "screen-d", index: 20, x: 160, y: 160 })
+]);
+const screenBefore = JSON.stringify(screenPoints);
+const screenClusters = clusterIndependentSourceMarkers(screenPoints, { x: 10, y: 10 });
+check(JSON.stringify(screenClusters.map(c => c.members.map(p => p.id))) === JSON.stringify([["screen-a", "screen-b", "screen-c"], ["screen-d"]]), "Transitive screen-hit overlap produces deterministic groups, not merged source facts");
+check(JSON.stringify(screenClusters.flatMap(c => c.members.map(p => p.index))) === "[7,12,19,20]", "Original record indexes survive grouping without renumbering");
+check(screenClusters[0].anchor === screenPoints[2] && screenClusters[0].members[0] === screenPoints[0], "Group button uses an actual member away from the origin without reordering its members");
+check(JSON.stringify(screenPoints) === screenBefore, "Screen grouping never mutates input points or indexes");
+check(JSON.stringify(screenClusters) === JSON.stringify(clusterIndependentSourceMarkers(screenPoints, { x: 10, y: 10 })), "Identical screen inputs yield identical groups");
+check(clusterIndependentSourceMarkers([]).length === 0, "Empty screen input invents no marker or zero-source claim");
+check(clusterIndependentSourceMarkers([screenPoints[0]])[0].members[0] === screenPoints[0], "Singleton keeps its exact point and record identity");
+check(clusterIndependentSourceMarkers([{ id: "a", index: 1, x: 0, y: 0 }, { id: "b", index: 2, x: 49, y: 0 }]).length === 2, "Non-overlapping 44px targets with clearance remain separate");
+check(clusterIndependentSourceMarkers([{ id: "a", index: 1, x: 0, y: 0 }, { id: "b", index: 2, x: 48, y: 0 }]).length === 1, "Exact screen clearance boundary groups conservatively");
 for (const locale of ["en", "ru"]) {
   const request = { depth: "standard", goal: "custom", perspective: "developer", horizon: "current", locale, question: locale === "en" ? "What does the BinSina Pharmacy record change about testing additional pharmacy space?" : "Как запись BinSina Pharmacy меняет проверку гипотезы дополнительных аптечных площадей?" };
   const body = ai.buildPointObjectResponsesRequest(pack, request, profile);
@@ -289,12 +307,18 @@ for (const edit of [c => c.metrics[0].unit = "count", c => c.metrics[0].method =
   const bad = clone(normalized.details); edit(bad);
   check(parseContextDetailsV2(bad, bad.subjectId, bad.anchor, "point_radius") === null, "Physical unit/method/scope/geometry contradictions fail closed");
 }
+const renderedContextBefore = JSON.stringify(reopened.normalizedContext);
 for (const locale of ["en", "ru"]) {
   const html = renderToStaticMarkup(React.createElement(PointObjectContextDashboard, { context: reopened.normalizedContext, locale }));
   check(html.includes("BinSina Pharmacy") && html.includes("context-physical-footprint_area") && html.includes("independent-service-brief"), "Free context surface renders physical metrics and new service before paid analysis");
   check(html.includes("/data/d2-overture/LICENSES.json") && html.includes("Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."), "Licence and exact caveat retained in both locales");
   check(html.includes("aria-pressed") && html.includes("tabindex=\"0\"") && html.includes("aria-live=\"polite\""), "Keyboard/select/polite announcement hooks present (not browser certification)");
   check(/data-testid="context-linked-map"/.test(html) && /<details[^>]+open=""[^>]+data-testid="context-linked-map"/.test(html), "Linked physical metric map is expanded by default, not an invisible outline");
+  check(html.includes("independent-marker-cluster") && html.includes("data-member-ids=") && html.includes("data-record-indexes=") && html.includes("independent-map-focus"), "Public native cluster/member/focus controls exist; runtime pointer and keyboard qualification remains a separate gate");
+  check(html.includes("independent-origin") && html.includes("independent-map-legend") && html.includes("h-[44px] w-[44px]"), "Distinct origin legend and fixed CSS-pixel hit targets are authored (not measured browser acceptance)");
+  check(/<details[^>]+data-testid="context-sample-breakdown"/.test(html) && !/<details[^>]+open[^>]+data-testid="context-sample-breakdown"/.test(html), "Tall OSM group summaries are retained in a closed disclosure, not removed or substituted by zero");
+  check(html.split("Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.").length - 1 === 1, "Common exact caveat appears once per complete point dashboard");
+  check(JSON.stringify(reopened.normalizedContext) === renderedContextBefore, "UI rendering preserves all held source coordinates, indexes, hashes and facts");
   const unknownHtml = renderToStaticMarkup(React.createElement(IndependentSourceContext, { context: independent.buildIndependentContext(null, "way/123", anchor, now), locale }));
   check(unknownHtml.includes("unsupported_scope") && !unknownHtml.includes("independent-service-brief"), "Unsupported coverage does not render service claims");
 }
