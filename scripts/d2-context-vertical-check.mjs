@@ -175,10 +175,12 @@ const exported = JSON.parse(await verification.createVerificationBundle(true, {
     response: { mode: "resolved", schemaVersion: 2, subject: reopened, evidenceReceipt: reopened.evidenceReceipt }, submittedAt: now, completedAt: now }]
 }));
 check(semanticHash(exported.records[0].response.subject) === semanticHash(reopened) && semanticHash(exported.records[0].sourceSnapshot.context) === semanticHash(reopened), "Actual public verification bundle retains exact reopened new context in response and held snapshot, not a field-stripped equality");
-const frozenExport = JSON.stringify(observed);
-const mutableExportInput = clone(reopened); verification.snapshotVerificationSubmission("context", contextIntent, { context: mutableExportInput });
+const mutableExportInput = clone(reopened);
+const expectedCapturedName = mutableExportInput.normalizedContext.independentContext.places[0].name;
+const capturedMutableExport = verification.snapshotVerificationSubmission("context", contextIntent, { context: mutableExportInput });
+const frozenExport = JSON.stringify(capturedMutableExport);
 mutableExportInput.normalizedContext.independentContext.places[0].name = "Later state";
-check(JSON.stringify(observed) === frozenExport, "Observation copies held source facts, never a later mutable state");
+check(JSON.stringify(capturedMutableExport) === frozenExport && capturedMutableExport.sourceSnapshot.context.normalizedContext.independentContext.places[0].name === expectedCapturedName && expectedCapturedName !== mutableExportInput.normalizedContext.independentContext.places[0].name, "The snapshot returned for this mutable input retains its original nested source fact after input mutation");
 for (const edit of [
   s => s.normalizedContext.details.secret = "synthetic forbidden field",
   s => s.normalizedContext.independentContext.token = "synthetic forbidden field",
