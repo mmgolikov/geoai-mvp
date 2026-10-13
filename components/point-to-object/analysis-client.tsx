@@ -397,6 +397,11 @@ export function PointToObjectAnalysis({ verificationEnabled = false }: { verific
       });
       const rawPayload: unknown = await response.json();
       if (!isCurrent()) return;
+      // Capture only the already received public POST error, separately from reports.
+      // Missing/partial telemetry stays unknown; observation never retries POST.
+      if (rawPayload && typeof rawPayload === "object" && "mode" in rawPayload && rawPayload.mode === "unavailable") {
+        captureResponse(rawPayload, response.status);
+      }
       if (response.status === 409 && rawPayload && typeof rawPayload === "object" && "code" in rawPayload && rawPayload.code === "AI_EVIDENCE_REFRESH_REQUIRED") {
         // Preserve the last good report, but invalidate only the reusable source
         // receipt. The next explicit retry refreshes Context once before AI.
@@ -680,7 +685,7 @@ export function PointToObjectAnalysis({ verificationEnabled = false }: { verific
       <p className="sr-only" aria-live="polite">{announcement}</p>
       <PointObjectHeader backToMap backToFind={backToFind} />
 
-      <div className="mx-auto max-w-[1920px] px-4 sm:px-6"><VerificationExport enabled={verificationEnabled} locale={locale} compactMobile preSubmit={selection ? { operation: "analyse", intent: buildSubmissionIntent(selection, requestIdentity(selection, question.trim() || null, { depth, goal, perspective, horizon }, locale)), sourceSnapshot: { context: selection.resolvedObject ?? null } } : null} records={verification.records} captureRefused={verification.captureRefused} currentSelection={selection ? { mode: "analyse", marketKey: selection.locationKey, locale, longitude: selection.longitude, latitude: selection.latitude, sourceFeatureId: pointObjectSelectedLookupId(selection) } : null} /></div>
+      <div className="mx-auto max-w-[1920px] px-4 sm:px-6"><VerificationExport enabled={verificationEnabled} locale={locale} compactMobile preSubmit={selection ? { operation: "analyse", intent: buildSubmissionIntent(selection, requestIdentity(selection, question.trim() || null, { depth, goal, perspective, horizon }, locale)), sourceSnapshot: { context: selection.resolvedObject ?? null } } : null} records={verification.records} failedResponses={verification.failedResponses} captureRefused={verification.captureRefused} currentSelection={selection ? { mode: "analyse", marketKey: selection.locationKey, locale, longitude: selection.longitude, latitude: selection.latitude, sourceFeatureId: pointObjectSelectedLookupId(selection) } : null} /></div>
       <div className="mx-auto grid w-full max-w-[1920px] gap-5 p-4 sm:p-6 xl:grid-cols-[minmax(0,1fr)_340px]">
         <section className="min-w-0">
           <div className="rounded-[20px] border border-line bg-white p-4 shadow-soft sm:p-7" data-testid="analysis-selected-header">

@@ -1,6 +1,6 @@
 // Browser-safe observation of already received public contracts. No transport,
 // storage, credentials, server imports or source/provider execution belongs here.
-import { parseLiveResolvedObject, parsePointObjectAiResponse } from "../../../components/point-to-object/live-session";
+import { parseLiveResolvedObject, parsePointObjectAiResponse, parsePointObjectAiFailureResponse, parsePointObjectAiTelemetry } from "../../../components/point-to-object/live-session";
 import { isPointObjectFindResult } from "./point-to-object-find-session";
 import { isPointObjectAreaContextResult, parsePointObjectCreateAoi, parsePointObjectGeneratedConcept } from "./point-to-object-create-result";
 import { parsePointObjectComparisonInsight } from "./point-to-object-comparison-core";
@@ -11,6 +11,10 @@ export const VERIFICATION_BUNDLE_MAX_BYTES = 4 * 1024 * 1024;
 export const VERIFICATION_CAVEAT = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
 export type VerificationOperation = "context" | "find" | "area-context" | "analyse" | "compare" | "create";
 export type VerificationRecord = { operation: VerificationOperation; originalSubmissionIntent: unknown; sourceSnapshot: unknown; response: unknown; submittedAt: string; completedAt: string };
+export type VerificationFailureTelemetryQualification = "not_reported" | "reported_schema_valid" | "rejected";
+export type VerificationFailureRecord = Omit<VerificationRecord, "operation"> & {
+  operation: "analyse"; httpStatus: number; telemetryQualification: VerificationFailureTelemetryQualification;
+};
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 type Shape = "primitive" | "coordinates" | { array: Shape } | { fields: Record<string, Shape> };
 const P = "primitive" as const;
@@ -72,6 +76,7 @@ const subject = fields("name address featureClass sourceFeatureId geometryType c
 });
 const trace = fields("attempt purpose model reasoningEffort requestId inputTokens cachedInputTokens cacheWriteTokens outputTokens totalTokens estimatedCostUsd");
 const telemetry = fields("provider schemaVersion model reasoningEffort depth promptVersion requestId latencyMs attempts inputTokens cachedInputTokens cacheWriteTokens outputTokens totalTokens estimatedCostUsd costRateSource stored toolCalls", { attemptTrace: array(trace) });
+const analyseFailure = fields("mode code error retryable", { telemetry });
 const claim = fields("statement", { evidenceRefs: array(P) });
 const signal = fields("title observation implication evidenceClass confidence", { evidenceRefs: array(P) });
 const request = fields("role scenario depth goal perspective horizon question focused locale");
@@ -178,6 +183,38 @@ export function snapshotVerificationResponse(operation: VerificationOperation, r
   sized(result, VERIFICATION_RESPONSE_MAX_BYTES);
   return result;
 }
+/** Separate, public route-error observation. Never export rejected provider output. */
+export function snapshotVerificationFailureResponse(response: unknown, httpStatus: number) {
+  if (!Number.isInteger(httpStatus) || httpStatus < 100 || httpStatus > 599) throw new Error("EXPORT_FAILURE_STATUS_REFUSED");
+  if (!response || typeof response !== "object" || Array.isArray(response) ||
+      ![Object.prototype, null].includes(Object.getPrototypeOf(response))) throw new Error("EXPORT_FAILURE_RESPONSE_REFUSED");
+  const base: Record<string, unknown> = Object.create(null);
+  for (const key of Object.keys(response)) {
+    if (!["mode", "code", "error", "retryable", "telemetry"].includes(key)) throw new Error("EXPORT_UNKNOWN_FIELD_REFUSED");
+    if (key === "telemetry") continue;
+    const descriptor = Object.getOwnPropertyDescriptor(response, key);
+    if (!descriptor || !("value" in descriptor)) throw new Error("EXPORT_ACCESSOR_REFUSED");
+    base[key] = descriptor.value;
+  }
+  let telemetryQualification: VerificationFailureTelemetryQualification = "not_reported";
+  const descriptor = Object.getOwnPropertyDescriptor(response, "telemetry");
+  if (descriptor) {
+    telemetryQualification = "rejected";
+    try {
+      if (!("value" in descriptor)) throw new Error("EXPORT_ACCESSOR_REFUSED");
+      const candidate = project(descriptor.value, telemetry);
+      sized(candidate, VERIFICATION_RESPONSE_MAX_BYTES);
+      if (parsePointObjectAiTelemetry(candidate)) {
+        base.telemetry = candidate;
+        telemetryQualification = "reported_schema_valid";
+      }
+    } catch { /* Preserve the public error, never the rejected diagnostic value. */ }
+  }
+  const result = project(base, analyseFailure);
+  sized(result, VERIFICATION_RESPONSE_MAX_BYTES);
+  if (!parsePointObjectAiFailureResponse(result)) throw new Error("EXPORT_FAILURE_RESPONSE_REFUSED");
+  return { response: result, telemetryQualification };
+}
 export async function verificationSha256(json: string): Promise<string> {
   const hash = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(json));
   return Array.from(new Uint8Array(hash), byte => byte.toString(16).padStart(2, "0")).join("");
@@ -234,7 +271,7 @@ function validResponse(operation: VerificationOperation, response: Json, sourceS
   })();
   if (!valid) throw new Error("EXPORT_RESPONSE_REFUSED");
 }
-export async function createVerificationBundle(enabled: boolean, input: { preSubmit: { operation: VerificationOperation; intent: unknown; sourceSnapshot: unknown } | null; records: readonly VerificationRecord[]; currentSelection: unknown }) {
+export async function createVerificationBundle(enabled: boolean, input: { preSubmit: { operation: VerificationOperation; intent: unknown; sourceSnapshot: unknown } | null; records: readonly VerificationRecord[]; failedResponses?: readonly VerificationFailureRecord[]; currentSelection: unknown }) {
   if (enabled !== true) throw new Error("EXPORT_PREVIEW_ONLY");
   const currentSelection = project(input.currentSelection, selection);
   const records: Json[] = [];
@@ -254,12 +291,39 @@ export async function createVerificationBundle(enabled: boolean, input: { preSub
     const payloadSha256 = await verificationSha256(sized(originalSubmissionIntent, VERIFICATION_RESPONSE_MAX_BYTES));
     records.push({ operation: record.operation, originalSubmissionIntent, payloadSha256, sourceSnapshot, response, submittedAt: record.submittedAt, completedAt: record.completedAt, correspondence: "captured_by_original_ui_handler_not_server_signed" });
   }
+  const failedResponses: Json[] = [];
+  if (input.records.length + (input.failedResponses?.length ?? 0) > 16) throw new Error("EXPORT_FAILURE_COUNT_REFUSED");
+  for (const record of input.failedResponses ?? []) {
+    if (record.operation !== "analyse" || !Number.isFinite(Date.parse(record.submittedAt)) ||
+        !Number.isFinite(Date.parse(record.completedAt)) || record.completedAt < record.submittedAt) throw new Error("EXPORT_TIME_REFUSED");
+    const originalSubmissionIntent = project(record.originalSubmissionIntent, intents.analyse);
+    const sourceSnapshot = project(record.sourceSnapshot, sources);
+    const i = row(originalSubmissionIntent); const c = row(row(sourceSnapshot).context);
+    const lease = parsePublicEvidenceReceipt(i.evidenceReceipt);
+    if (!parseLiveResolvedObject(c) || (i.expectedSourceFeatureId && i.expectedSourceFeatureId !== c.sourceFeatureId) ||
+        !lease || lease.lookupSourceFeatureId !== (i.expectedSourceFeatureId ?? null) ||
+        lease.sourceLocale !== (i.locale === "ru" ? "ru,en" : "en") ||
+        JSON.stringify(i.evidenceReceipt) !== JSON.stringify(c.evidenceReceipt)) throw new Error("EXPORT_CORRESPONDENCE_REFUSED");
+    if (c.normalizedContext && (typeof i.longitude !== "number" || typeof i.latitude !== "number" ||
+        JSON.stringify(row(row(c.normalizedContext).scope).anchor) !== JSON.stringify([Number(i.longitude.toFixed(6)), Number(i.latitude.toFixed(6))]))) throw new Error("EXPORT_CORRESPONDENCE_REFUSED");
+    const snapshot = snapshotVerificationFailureResponse(record.response, record.httpStatus);
+    if (record.telemetryQualification === "rejected" ? snapshot.telemetryQualification !== "not_reported" :
+        record.telemetryQualification !== snapshot.telemetryQualification) throw new Error("EXPORT_FAILURE_QUALIFICATION_REFUSED");
+    const response = snapshot.response;
+    const payloadSha256 = await verificationSha256(sized(originalSubmissionIntent, VERIFICATION_RESPONSE_MAX_BYTES));
+    failedResponses.push({ protocol: "GEOAI_PREVIEW_FAILED_RESPONSE_OBSERVATION_V1", operation: "analyse", observationKind: "failed_response", requestPhase: "analysis_post", httpStatus: record.httpStatus,
+      originalSubmissionIntent, payloadSha256, sourceSnapshot, response, telemetryQualification: record.telemetryQualification,
+      responseScope: record.telemetryQualification === "rejected" ? "public_error_fields_with_rejected_telemetry_omitted" : "complete_public_parsed_error_response",
+      submittedAt: record.submittedAt, completedAt: record.completedAt,
+      correspondence: "captured_by_original_ui_handler_not_server_signed", accounting: "unqualified_failure_observation" });
+  }
   let preSubmit: Json = null;
   if (input.preSubmit) {
     const intent = project(input.preSubmit.intent, intents[input.preSubmit.operation]);
     preSubmit = { operation: input.preSubmit.operation, intent, payloadSha256: await verificationSha256(sized(intent, VERIFICATION_RESPONSE_MAX_BYTES)), sourceSnapshot: project(input.preSubmit.sourceSnapshot, sources), status: "current_ui_intent_not_yet_submitted" };
   }
-  if (!records.length && !preSubmit) throw new Error("EXPORT_LEGACY_OR_EMPTY_REFUSED");
-  const bundle: Json = { protocol: "GEOAI_PREVIEW_VERIFICATION_V1", exportedAt: new Date().toISOString(), hashScope: "canonical_ui_intent_excluding_challenge_cookie_headers_not_wire_or_server_signed", preSubmit, currentSelection, records, caveat: VERIFICATION_CAVEAT };
+  if (!records.length && !failedResponses.length && !preSubmit) throw new Error("EXPORT_LEGACY_OR_EMPTY_REFUSED");
+  const bundle: Json = { protocol: "GEOAI_PREVIEW_VERIFICATION_V1", exportedAt: new Date().toISOString(), hashScope: "canonical_ui_intent_excluding_challenge_cookie_headers_not_wire_or_server_signed", preSubmit, currentSelection, records,
+    ...(failedResponses.length ? { failedResponses } : {}), caveat: VERIFICATION_CAVEAT };
   return sized(bundle, VERIFICATION_BUNDLE_MAX_BYTES);
 }

@@ -1197,16 +1197,28 @@ export function parsePointObjectAiTelemetry(value: unknown): PointObjectAiTeleme
   )) as PointObjectAiTelemetry | null;
 }
 
+export type PointObjectAiFailureResponse = Extract<PointObjectAiResponse, { mode: "unavailable" }> & {
+  telemetry?: PointObjectAiTelemetry;
+};
+
+/** Public failure diagnostics only; valid telemetry does not make a report successful. */
+export function parsePointObjectAiFailureResponse(value: unknown): PointObjectAiFailureResponse | null {
+  if (!isRecord(value) || value.mode !== "unavailable" ||
+      !hasOnlyKeys(value, ["mode", "code", "error", "retryable", "telemetry"])) return null;
+  const code = value.code === undefined ? undefined : nonEmptyText(value.code, 100) ?? null;
+  const error = value.error === undefined ? undefined : nonEmptyText(value.error, 500) ?? null;
+  const retryable = value.retryable === undefined ? undefined : typeof value.retryable === "boolean" ? value.retryable : null;
+  const descriptor = Object.getOwnPropertyDescriptor(value, "telemetry");
+  const telemetry = descriptor && "value" in descriptor ? parsePointObjectAiTelemetry(descriptor.value) : null;
+  if (code === null || error === null || retryable === null) return null;
+  // Invalid optional diagnostics are never adopted as telemetry. The known
+  // failure remains unavailable; the separate observation records rejection.
+  return { mode: "unavailable", code, error, retryable, ...(telemetry ? { telemetry } : {}) };
+}
+
 export function parsePointObjectAiResponse(value: unknown): PointObjectAiResponse | null {
   if (!isRecord(value) || (value.mode !== "openai" && value.mode !== "unavailable")) return null;
-  if (value.mode === "unavailable") {
-    if (!hasOnlyKeys(value, ["mode", "code", "error", "retryable"])) return null;
-    const code = value.code === undefined ? undefined : nonEmptyText(value.code, 100) ?? null;
-    const error = value.error === undefined ? undefined : nonEmptyText(value.error, 500) ?? null;
-    const retryable = value.retryable === undefined ? undefined : typeof value.retryable === "boolean" ? value.retryable : null;
-    if (code === null || error === null || retryable === null) return null;
-    return { mode: "unavailable", code, error, retryable };
-  }
+  if (value.mode === "unavailable") return parsePointObjectAiFailureResponse(value);
   const hasAnswerProvenance = Object.prototype.hasOwnProperty.call(value, "answerProvenance");
   if (!hasExactKeys(value, ["mode", "schemaVersion", "generatedAt", "evidencePackId", "evidencePackHash", "request", "content", "subject", "telemetry", ...(hasAnswerProvenance ? ["answerProvenance"] : [])]) ||
       value.schemaVersion !== POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION) return null;

@@ -1,9 +1,9 @@
 "use client";
 
 import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from "react";
-import { createVerificationBundle, snapshotVerificationSubmission, snapshotVerificationResponse, VERIFICATION_BUNDLE_MAX_BYTES, type VerificationOperation, type VerificationRecord } from "@/src/lib/prototype/point-to-object-verification-export";
+import { createVerificationBundle, snapshotVerificationSubmission, snapshotVerificationResponse, snapshotVerificationFailureResponse, VERIFICATION_BUNDLE_MAX_BYTES, type VerificationOperation, type VerificationRecord, type VerificationFailureRecord } from "@/src/lib/prototype/point-to-object-verification-export";
 
-type Capture = { records: VerificationRecord[]; captureRefused: boolean; begin: (operation: VerificationOperation, intent: unknown, sourceSnapshot: unknown) => (response: unknown) => void };
+type Capture = { records: VerificationRecord[]; failedResponses: VerificationFailureRecord[]; captureRefused: boolean; begin: (operation: VerificationOperation, intent: unknown, sourceSnapshot: unknown) => (response: unknown, httpStatus?: number) => void };
 const CaptureContext = createContext<Capture | null>(null);
 export function VerificationCaptureBoundary({ value, children }: { value: Capture; children: ReactNode }) {
   return <CaptureContext.Provider value={value}>{children}</CaptureContext.Provider>;
@@ -13,30 +13,43 @@ export function useVerificationCapture(enabled: boolean): Capture {
   const shared = useContext(CaptureContext);
   const [records, setRecords] = useState<VerificationRecord[]>([]);
   const heldRecords = useRef<VerificationRecord[]>([]);
+  const [failedResponses, setFailedResponses] = useState<VerificationFailureRecord[]>([]);
+  const heldFailures = useRef<VerificationFailureRecord[]>([]);
   const [captureRefused, setCaptureRefused] = useState(false);
   const begin = useCallback((operation: VerificationOperation, intent: unknown, sourceSnapshot: unknown) => {
     if (!enabled) return () => {};
     try {
       const submission = snapshotVerificationSubmission(operation, intent, sourceSnapshot);
       const submittedAt = new Date().toISOString();
-      return (response: unknown) => {
+      return (response: unknown, httpStatus?: number) => {
         try {
+          if (operation === "analyse" && response && typeof response === "object" && "mode" in response && response.mode === "unavailable") {
+            if (httpStatus === undefined) throw new Error("EXPORT_FAILURE_STATUS_REFUSED");
+            const snapshot = snapshotVerificationFailureResponse(response, httpStatus);
+            const record: VerificationFailureRecord = { operation, ...submission, httpStatus,
+              ...snapshot, submittedAt, completedAt: new Date().toISOString() };
+            const next = heldFailures.current.concat(record);
+            if (next.length + heldRecords.current.length > 16 || new TextEncoder().encode(JSON.stringify([heldRecords.current, next])).byteLength > VERIFICATION_BUNDLE_MAX_BYTES) { setCaptureRefused(true); return; }
+            heldFailures.current = next;
+            setFailedResponses(next);
+            return;
+          }
           const record: VerificationRecord = { operation, ...submission, response: snapshotVerificationResponse(operation, response), submittedAt, completedAt: new Date().toISOString() };
           const next = heldRecords.current.concat(record);
-          if (next.length > 16 || new TextEncoder().encode(JSON.stringify(next)).byteLength > VERIFICATION_BUNDLE_MAX_BYTES) { setCaptureRefused(true); return; }
+          if (next.length + heldFailures.current.length > 16 || new TextEncoder().encode(JSON.stringify([next, heldFailures.current])).byteLength > VERIFICATION_BUNDLE_MAX_BYTES) { setCaptureRefused(true); return; }
           heldRecords.current = next;
           setRecords(next);
         } catch { setCaptureRefused(true); }
       };
     } catch { setCaptureRefused(true); return () => {}; }
   }, [enabled]);
-  return shared ?? { records, begin, captureRefused };
+  return shared ?? { records, failedResponses, begin, captureRefused };
 }
 
-export function VerificationExport({ enabled, locale, preSubmit = null, records = [], currentSelection, captureRefused = false, compactMobile = false }: {
+export function VerificationExport({ enabled, locale, preSubmit = null, records = [], failedResponses = [], currentSelection, captureRefused = false, compactMobile = false }: {
   enabled: boolean; locale: "en" | "ru";
   preSubmit?: { operation: VerificationOperation; intent: unknown; sourceSnapshot: unknown } | null;
-  records?: readonly VerificationRecord[]; currentSelection: unknown; captureRefused?: boolean; compactMobile?: boolean;
+  records?: readonly VerificationRecord[]; failedResponses?: readonly VerificationFailureRecord[]; currentSelection: unknown; captureRefused?: boolean; compactMobile?: boolean;
 }) {
   const [json, setJson] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -47,7 +60,7 @@ export function VerificationExport({ enabled, locale, preSubmit = null, records 
     setBusy(true); setError(false); setJson(null);
     try {
       if (captureRefused) throw new Error("EXPORT_CAPTURE_REFUSED");
-      const result = await createVerificationBundle(enabled, { preSubmit, records, currentSelection });
+      const result = await createVerificationBundle(enabled, { preSubmit, records, failedResponses, currentSelection });
       setJson(result);
     } catch { setError(true); }
     finally { setBusy(false); }
