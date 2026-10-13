@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { expect, test, type Page, type Route, type TestInfo } from "@playwright/test";
 import {
   chooseD2ThroughSearch, expectD2TransportQuiet, installD2Transport, loadD2FixtureBundle,
-  openD2Analysis, publicD2Snapshot, type D2Bundle, type D2Case, type D2Signals
+  openD2Analysis, openD2Projects, publicD2Snapshot, type D2Bundle, type D2Case, type D2Signals
 } from "./helpers/d2-context-fixture";
 import { installLoopbackBrowserHarness, requireLoopbackTestOrigin } from "./helpers/local-webkit-csp";
 
@@ -145,7 +145,7 @@ for (const locale of ["en", "ru"] as const) for (const width of [1440, 390]) {
     const posts = signals.aiPosts.length;
     const contextPosts = signals.contextPosts.length;
     // Save is automatic after completed Analyse; verify it through Projects UI.
-    await page.goto("/prototype/point-to-object/projects");
+    await openD2Projects(page, locale);
     await expect(page.getByTestId("hub-count-analyse").getByTestId("hub-count-value")).toHaveText("1");
     const saved = page.getByTestId("saved-result-card").filter({ hasText: item.label });
     await expect(saved).toHaveCount(1);
@@ -226,7 +226,7 @@ test("D2 V1 absence through normal context intake/save/reopen never gains curren
   await expect(page.getByTestId("independent-source-context")).toHaveCount(0);
   const before = await visibleSourceSnapshot(page, item, true);
   await runOfflineAnalysis(page, "en");
-  await page.goto("/prototype/point-to-object/projects");
+  await openD2Projects(page, "en");
   const saved = page.getByTestId("saved-result-card").filter({ hasText: item.label });
   await expect(saved).toHaveCount(1);
   await saved.getByRole("button", { name: "Open result", exact: true }).click();
@@ -298,7 +298,7 @@ test("D2 last valid analysis survives failed refresh/cancel and late completion 
   await expect(page.getByText("D2 offline result 3", { exact: true })).toHaveCount(0);
   expect(await visibleSourceSnapshot(page, item)).toEqual(before);
   const posts = signals.aiPosts.length;
-  await page.goto("/prototype/point-to-object/projects");
+  await openD2Projects(page, "en");
   const saved = page.getByTestId("saved-result-card").filter({ hasText: item.label });
   await expect(saved).toHaveCount(1);
   await saved.getByRole("button", { name: "Open result", exact: true }).click();
@@ -323,7 +323,7 @@ test("D2 leaving an in-flight context request preserves the saved source and doe
   late.envelope.evidenceReceipt.evidencePackHash = "d".repeat(64);
   late.envelope.subject.evidenceReceipt!.evidencePackHash = "d".repeat(64);
   late.envelope.subject.normalizedContext!.independentContext!.cacheServedAt = new Date().toISOString();
-  await page.goto("/prototype/point-to-object/projects");
+  await openD2Projects(page, "en");
   const saved = page.getByTestId("saved-result-card").filter({ hasText: item.label });
   await expect(saved).toHaveCount(1);
   await saved.getByRole("button", { name: "Open result", exact: true }).click();

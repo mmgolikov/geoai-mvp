@@ -137,6 +137,19 @@ export async function openD2Analysis(page: Page, locale: "en" | "ru") {
   await expect(page).toHaveURL(/\/prototype\/point-to-object\/analysis$/);
 }
 
+export async function openD2Projects(page: Page, locale: "en" | "ru") {
+  // Use the actual header link. Its aria-label stays available on mobile
+  // where the visible Projects text is hidden; no private state or URL seed.
+  const link = page.getByTestId("point-object-project-control").getByRole("link", {
+    name: locale === "ru" ? "Проекты" : "Projects", exact: true
+  });
+  await expect(link).toBeVisible();
+  await expect(link).toHaveAttribute("href", "/projects");
+  await link.click();
+  await expect(page).toHaveURL(/\/projects$/);
+  await expect(page.getByTestId("point-object-projects-page")).toBeVisible();
+}
+
 export async function publicD2Snapshot(page: Page): Promise<Record<string, unknown>> {
   const widget = page.getByTestId("verification-export");
   await expect(widget).toBeVisible();
