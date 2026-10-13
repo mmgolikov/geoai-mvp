@@ -547,6 +547,9 @@ jobs:
       - name: Browser demo-public product flow
         shell: bash
         env:
+          # Local server only: exercise the existing Preview-only public
+          # verification UI required by D2 source/save continuity assertions.
+          VERCEL_ENV: preview
           NEXT_PUBLIC_AUTH_MODE: demo_public
           GEOAI_ACCESS_ENFORCEMENT_MODE: soft
           GEOAI_ALLOW_DEMO_PUBLIC: "true"
@@ -754,6 +757,7 @@ jobs:
       - name: Optimized HTTPS product WebKit
         shell: bash
         env:
+          VERCEL_ENV: preview
           NEXT_PUBLIC_AUTH_MODE: demo_public
           GEOAI_ACCESS_ENFORCEMENT_MODE: soft
           GEOAI_ALLOW_DEMO_PUBLIC: "true"

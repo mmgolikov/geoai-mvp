@@ -118,6 +118,23 @@ test("Review02 helpers keep new contracts and downstream journeys in CI", () => 
   assert.ok(pkg.scripts["test:review02-map"].includes("scripts/review02-create-map-conflict-check.mjs"), "Create conflict safety stays in the existing CI map gate");
 });
 
+test("D2 local browser servers explicitly exercise the Preview-only public verification UI", () => {
+  const workflow = readFileSync(new URL(".github/workflows/geoai-quality-gate.yml", repo), "utf8");
+  for (const name of ["Browser demo-public product flow", "Optimized HTTPS product WebKit"]) {
+    const marker = `      - name: ${name}\n`;
+    const offset = workflow.indexOf(marker);
+    assert.notEqual(offset, -1, name);
+    const next = workflow.indexOf("\n      - name:", offset + marker.length);
+    const step = workflow.slice(offset, next < 0 ? undefined : next);
+    assert.match(step, /\n        env:\n(?:[^\n]*\n)*?          VERCEL_ENV: preview\n/, name);
+    assert.match(step, /GEOAI_ALLOW_DEMO_PUBLIC: "true"/, name);
+  }
+  assert.equal(workflow.match(/VERCEL_ENV: preview/g)?.length, 2, "Preview flag is bounded to the two local browser-server steps, not hosted configuration");
+  for (const path of ["app/prototype/point-to-object/page.tsx", "app/prototype/point-to-object/analysis/page.tsx"]) {
+    assert.match(readFileSync(new URL(path, repo), "utf8"), /verificationEnabled=\{process\.env\.VERCEL_ENV === "preview"\}/, path);
+  }
+});
+
 test("Workspace return regression remains in both product browser gates", () => {
   const spec = "tests/e2e/review02-workspace-return.spec.ts";
   const plan = selectPlan(["components/point-to-object/prototype-client-v5.tsx"]);
