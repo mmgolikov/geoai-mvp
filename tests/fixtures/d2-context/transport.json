@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "classification": "OFFLINE_SYNTHETIC_OSM_AND_AI_TRANSPORT_NOT_REAL_CASE_ACCEPTANCE",
+  "baseCommit": "622f48f191bb8e968d2e7efcfabdb571774ff3cb",
+  "realIndependentSnapshot": {
+    "path": "src/data/prototype/d2-overture-places.json",
+    "sha256": "f55ad27098707b5a6efd1ee6d5bd7d8373cff9bd1eddd656207cf70cb15fe67d",
+    "licensePath": "/data/d2-overture/LICENSES.json"
+  },
+  "cases": [
+    {
+      "key": "u1",
+      "sourceFeatureId": "way/254666300",
+      "anchor": [
+        55.280154550000006,
+        25.22041245
+      ],
+      "label": "D2 synthetic OSM transport U1",
+      "expectedIndependentStatus": "available"
+    },
+    {
+      "key": "u2",
+      "sourceFeatureId": "way/393391114",
+      "anchor": [
+        55.2823691,
+        25.21764615
+      ],
+      "label": "D2 synthetic OSM transport U2",
+      "expectedIndependentStatus": "available"
+    },
+    {
+      "key": "outside_u2",
+      "sourceFeatureId": "way/393391114",
+      "anchor": [
+        55.2823991,
+        25.21764615
+      ],
+      "label": "D2 synthetic outside-anchor U2",
+      "expectedIndependentStatus": "unsupported_scope"
+    }
+  ],
+  "osm": {
+    "polygonHalfDeltaDegrees": 0.0001,
+    "building": "office",
+    "height": "100 ft",
+    "levels": "10",
+    "fabricTimestamp": "2026-10-13T11:00:00Z",
+    "nearbyNodeId": 910130013,
+    "nearbyName": "D2 synthetic bus-stop transport"
+  },
+  "limits": {
+    "sourceNetworkCalls": 0,
+    "paidCalls": 0,
+    "caseCount": 3,
+    "maxChildStdoutBytes": 1500000,
+    "timeoutMs": 30000
+  },
+  "caveat": "Synthetic OSM geometries/tags/heights/AI content never establish actual U1/U2/U3/U4 or usefulness. Real admitted Places bytes remain separately identified."
+}

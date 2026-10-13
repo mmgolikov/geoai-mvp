@@ -1,0 +1,800 @@
+{
+  "classification": "ACTUAL_HISTORICAL_PUBLIC_V1_CONTEXT_ONLY_NOT_ORIGINAL_PAID_RESPONSE",
+  "originalExportSha256": "0285d7746d2adea01f82b3c7ee55104f18662028859b7817d7b6ee95f6117aa4",
+  "originalExportedAt": "2026-10-13T12:15:42.116Z",
+  "contextCanonicalSha256": "93574cdbbd53fae54e86fc6f54a00498ab2989e37d5738daafac61cc624dbf4e",
+  "sourceProvenance": "D2 baseline-ui/U1_SAVED_ANALYSE_BEFORE.json; public Verification preSubmit.sourceSnapshot.context, unchanged fields",
+  "context": {
+    "address": null,
+    "addressParts": {},
+    "climate": {
+      "months": [
+        {
+          "maximumTemperatureC": 25.85,
+          "month": 1,
+          "relativeHumidityPct": 60.1,
+          "temperatureC": 20.48
+        },
+        {
+          "maximumTemperatureC": 31.31,
+          "month": 2,
+          "relativeHumidityPct": 62.57,
+          "temperatureC": 21.69
+        },
+        {
+          "maximumTemperatureC": 33.52,
+          "month": 3,
+          "relativeHumidityPct": 57.23,
+          "temperatureC": 24.2
+        },
+        {
+          "maximumTemperatureC": 39.02,
+          "month": 4,
+          "relativeHumidityPct": 51.76,
+          "temperatureC": 28.81
+        },
+        {
+          "maximumTemperatureC": 41.13,
+          "month": 5,
+          "relativeHumidityPct": 60.6,
+          "temperatureC": 31.57
+        },
+        {
+          "maximumTemperatureC": 40.26,
+          "month": 6,
+          "relativeHumidityPct": 63.05,
+          "temperatureC": 33.13
+        },
+        {
+          "maximumTemperatureC": 43.88,
+          "month": 7,
+          "relativeHumidityPct": 57.19,
+          "temperatureC": 35.26
+        },
+        {
+          "maximumTemperatureC": 45.15,
+          "month": 8,
+          "relativeHumidityPct": 50.46,
+          "temperatureC": 36.34
+        },
+        {
+          "maximumTemperatureC": 41.71,
+          "month": 9,
+          "relativeHumidityPct": 59.06,
+          "temperatureC": 34.1
+        },
+        {
+          "maximumTemperatureC": 37.16,
+          "month": 10,
+          "relativeHumidityPct": 57.84,
+          "temperatureC": 30.97
+        },
+        {
+          "maximumTemperatureC": 33.29,
+          "month": 11,
+          "relativeHumidityPct": 52.16,
+          "temperatureC": 27.15
+        },
+        {
+          "maximumTemperatureC": 30.1,
+          "month": 12,
+          "relativeHumidityPct": 60.91,
+          "temperatureC": 23.24
+        }
+      ],
+      "proofLimit": "Regional MERRA-2 grid (0.5° latitude × 0.625° longitude), 2 m air temperature; not site or surface temperature, thermal comfort, or an absolute temperature extreme.",
+      "requestedPoint": [
+        55.280155,
+        25.220412
+      ],
+      "source": {
+        "acquiredAt": "2026-10-06T17:17:13.496Z",
+        "apiVersion": "v2.10.0",
+        "attribution": "NASA POWER Project, NASA Langley Research Center",
+        "dataset": "MERRA2",
+        "endpoint": "https://power.larc.nasa.gov/api/temporal/monthly/point",
+        "observedEnd": "2025-12-31",
+        "observedStart": "2025-01-01",
+        "referenceUrl": "https://power.larc.nasa.gov/docs/referencing/",
+        "responseBytes": 1224,
+        "responseHash": "cfd34df70a72c4eec74386d3ad15fce8d1edabc8cd67156183a9ca5c7c66ddc5",
+        "sourceId": "NASA-POWER",
+        "timeStandard": "LST"
+      },
+      "status": "available",
+      "version": "NASA_POWER_MONTHLY_V1",
+      "year": 2025
+    },
+    "coordinateAssociation": "trusted_open_map_identity",
+    "displayGeometry": {
+      "coordinates": [
+        [
+          [
+            55.2805734,
+            25.2204772
+          ],
+          [
+            55.2804614,
+            25.2203152
+          ],
+          [
+            55.2803563,
+            25.2201631
+          ],
+          [
+            55.2802735,
+            25.2200434
+          ],
+          [
+            55.2797357,
+            25.2203476
+          ],
+          [
+            55.2799288,
+            25.2206269
+          ],
+          [
+            55.2800356,
+            25.2207815
+          ],
+          [
+            55.2804914,
+            25.2205236
+          ],
+          [
+            55.2805734,
+            25.2204772
+          ]
+        ]
+      ],
+      "type": "Polygon"
+    },
+    "evidenceReceipt": {
+      "acquiredAt": "2026-10-06T17:17:12.328Z",
+      "cacheWindow": 1990341,
+      "createdAt": "2026-10-06T17:17:12.302Z",
+      "evidencePackHash": "fb01e79bb1a924bcc67933d67a12016c691341bbf799e89f17e72b63ea05c0fb",
+      "expiresAt": "2026-10-06T17:32:12.302Z",
+      "lookupSourceFeatureId": "way/254666300",
+      "sourceLocale": "en",
+      "sourceResponseHash": "b2117b6a621c9504d23a6a5af10984e31b71172457a4dcdea922198fe72f4778",
+      "version": "PUBLIC_EVIDENCE_LEASE_V1"
+    },
+    "fabricDiagnostic": {
+      "failureCode": null
+    },
+    "featureClass": "building:commercial",
+    "geoContext": {
+      "capReached": false,
+      "coverage": "available",
+      "districtCharacter": {
+        "code": "mixed_use_urban",
+        "confidence": "medium",
+        "driverGroups": [
+          "retail_daily_needs",
+          "residential",
+          "commercial"
+        ],
+        "ruleVersion": "POINT_OBJECT_DISTRICT_RULE_V1"
+      },
+      "groups": [
+        {
+          "count": 14,
+          "group": "access",
+          "nearestDistanceM": 126,
+          "sharePct": 11.1
+        },
+        {
+          "count": 10,
+          "group": "transport",
+          "nearestDistanceM": 94,
+          "sharePct": 7.9
+        },
+        {
+          "count": 16,
+          "group": "retail_daily_needs",
+          "nearestDistanceM": 13,
+          "sharePct": 12.7
+        },
+        {
+          "count": 12,
+          "group": "residential",
+          "nearestDistanceM": 62,
+          "sharePct": 9.5
+        },
+        {
+          "count": 5,
+          "group": "open_space",
+          "nearestDistanceM": 27,
+          "sharePct": 4
+        },
+        {
+          "count": 5,
+          "group": "commercial",
+          "nearestDistanceM": 166,
+          "sharePct": 4
+        },
+        {
+          "count": 4,
+          "group": "hospitality",
+          "nearestDistanceM": 0,
+          "sharePct": 3.2
+        },
+        {
+          "count": 3,
+          "group": "healthcare",
+          "nearestDistanceM": 307,
+          "sharePct": 2.4
+        },
+        {
+          "count": 1,
+          "group": "civic_culture",
+          "nearestDistanceM": 220,
+          "sharePct": 0.8
+        },
+        {
+          "count": 56,
+          "group": "other_built",
+          "nearestDistanceM": 68,
+          "sharePct": 44.4
+        }
+      ],
+      "mappedBuildingCount": 74,
+      "mappedLevelsKnownCount": 37,
+      "medianMappedLevels": 11,
+      "nearestMajorRoadM": 126,
+      "nearestTransitM": 94,
+      "radiusM": 400,
+      "sampleSize": 126
+    },
+    "geometryProvenance": "confirmed_complete_footprint",
+    "geometryType": "Polygon",
+    "linkedEntity": null,
+    "metrics": {
+      "footprintAreaSqM": 3613,
+      "footprintPerimeterM": 241,
+      "geometryGeneralized": true,
+      "method": "local_equirectangular_wgs84_approximation"
+    },
+    "name": "Millenium Plaza Downtown",
+    "normalizedContext": {
+      "capReached": false,
+      "completeInventory": false,
+      "coverage": "available",
+      "metrics": [
+        {
+          "evidenceRef": "EVD-DISTRICT-PROFILE",
+          "group": "residential",
+          "id": "residential.count",
+          "method": "mapped_feature_count",
+          "status": "derived",
+          "unit": "count",
+          "value": 12
+        },
+        {
+          "evidenceRef": "EVD-DISTRICT-PROFILE",
+          "group": "residential",
+          "id": "residential.share",
+          "method": "share_of_returned_features",
+          "status": "derived",
+          "unit": "%",
+          "value": 9.5
+        },
+        {
+          "evidenceRef": "EVD-DISTRICT-PROFILE",
+          "group": "residential",
+          "id": "residential.nearest",
+          "method": "straight_line_to_returned_center",
+          "status": "derived",
+          "unit": "m",
+          "value": 62
+        },
+        {
+          "evidenceRef": "EVD-DISTRICT-PROFILE",
+          "group": "commercial",
+          "id": "commercial.count",
+          "method": "mapped_feature_count",
+          "status": "derived",
+          "unit": "count",
+          "value": 5
+        },
+        {
+          "evidenceRef": "EVD-DISTRICT-PROFILE",
+          "group": "commercial",
+          "id": "commercial.share",
+          "method": "share_of_returned_features",
+          "status": "derived",
+          "unit": "%",
+          "value": 4
+        },
+        {
+          "evidenceRef": "EVD-DISTRICT-PROFILE",
+          "group": "commercial",
+          "id": "commercial.nearest",
+          "method": "straight_line_to_returned_center",
+          "status": "derived",
+          "unit": "m",
+          "value": 166
+        },
+        {
+          "evidenceRef": "EVD-DISTRICT-PROFILE",
+          "group": "hospitality",
+          "id": "hospitality.count",
+          "method": "mapped_feature_count",
+          "status": "derived",
+          "unit": "count",
+          "value": 4
+        },
+        {
+          "evidenceRef": "EVD-DISTRICT-PROFILE",
+          "group": "hospitality",
+          "id": "hospitality.share",
+          "method": "share_of_returned_features",
+          "status": "derived",
+          "unit": "%",
+          "value": 3.2
+        },
+        {
+          "evidenceRef": "EVD-DISTRICT-PROFILE",
+          "group": "hospitality",
+          "id": "hospitality.nearest",
+          "method": "straight_line_to_returned_center",
+          "status": "derived",
+          "unit": "m",
+          "value": 0
+        },
+        {
+          "evidenceRef": "EVD-DISTRICT-PROFILE",
+          "group": "retail_daily_needs",
+          "id": "retail_daily_needs.count",
+          "method": "mapped_feature_count",
+          "status": "derived",
+          "unit": "count",
+          "value": 16
+        },
+        {
+          "evidenceRef": "EVD-DISTRICT-PROFILE",
+          "group": "retail_daily_needs",
+          "id": "retail_daily_needs.share",
+          "method": "share_of_returned_features",
+          "status": "derived",
+          "unit": "%",
+          "value": 12.7
+        },
+        {
+          "evidenceRef": "EVD-DISTRICT-PROFILE",
+          "group": "retail_daily_needs",
+          "id": "retail_daily_needs.nearest",
+          "method": "straight_line_to_returned_center",
+          "status": "derived",
+          "unit": "m",
+          "value": 13
+        },
+        {
+          "evidenceRef": "EVD-DISTRICT-PROFILE",
+          "group": "education",
+          "id": "education.count",
+          "method": "mapped_feature_count",
+          "status": "derived",
+          "unit": "count",
+          "value": 0
+        },
+        {
+          "evidenceRef": "EVD-DISTRICT-PROFILE",
+          "group": "education",
+          "id": "education.share",
+          "method": "share_of_returned_features",
+          "status": "derived",
+          "unit": "%",
+          "value": 0
+        },
+        {
+          "evidenceRef": "EVD-DISTRICT-PROFILE",
+          "group": "education",
+          "id": "education.nearest",
+          "method": "straight_line_to_returned_center",
+          "status": "unknown",
+          "unit": "m",
+          "value": null
+        },
+        {
+          "evidenceRef": "EVD-DISTRICT-PROFILE",
+          "group": "healthcare",
+          "id": "healthcare.count",
+          "method": "mapped_feature_count",
+          "status": "derived",
+          "unit": "count",
+          "value": 3
+        },
+        {
+          "evidenceRef": "EVD-DISTRICT-PROFILE",
+          "group": "healthcare",
+          "id": "healthcare.share",
+          "method": "share_of_returned_features",
+          "status": "derived",
+          "unit": "%",
+          "value": 2.4
+        },
+        {
+          "evidenceRef": "EVD-DISTRICT-PROFILE",
+          "group": "healthcare",
+          "id": "healthcare.nearest",
+          "method": "straight_line_to_returned_center",
+          "status": "derived",
+          "unit": "m",
+          "value": 307
+        },
+        {
+          "evidenceRef": "EVD-DISTRICT-PROFILE",
+          "group": "civic_culture",
+          "id": "civic_culture.count",
+          "method": "mapped_feature_count",
+          "status": "derived",
+          "unit": "count",
+          "value": 1
+        },
+        {
+          "evidenceRef": "EVD-DISTRICT-PROFILE",
+          "group": "civic_culture",
+          "id": "civic_culture.share",
+          "method": "share_of_returned_features",
+          "status": "derived",
+          "unit": "%",
+          "value": 0.8
+        },
+        {
+          "evidenceRef": "EVD-DISTRICT-PROFILE",
+          "group": "civic_culture",
+          "id": "civic_culture.nearest",
+          "method": "straight_line_to_returned_center",
+          "status": "derived",
+          "unit": "m",
+          "value": 220
+        },
+        {
+          "evidenceRef": "EVD-DISTRICT-PROFILE",
+          "group": "transport",
+          "id": "transport.count",
+          "method": "mapped_feature_count",
+          "status": "derived",
+          "unit": "count",
+          "value": 10
+        },
+        {
+          "evidenceRef": "EVD-DISTRICT-PROFILE",
+          "group": "transport",
+          "id": "transport.share",
+          "method": "share_of_returned_features",
+          "status": "derived",
+          "unit": "%",
+          "value": 7.9
+        },
+        {
+          "evidenceRef": "EVD-DISTRICT-PROFILE",
+          "group": "transport",
+          "id": "transport.nearest",
+          "method": "straight_line_to_returned_center",
+          "status": "derived",
+          "unit": "m",
+          "value": 94
+        },
+        {
+          "evidenceRef": "EVD-DISTRICT-PROFILE",
+          "group": "access",
+          "id": "access.count",
+          "method": "mapped_feature_count",
+          "status": "derived",
+          "unit": "count",
+          "value": 14
+        },
+        {
+          "evidenceRef": "EVD-DISTRICT-PROFILE",
+          "group": "access",
+          "id": "access.share",
+          "method": "share_of_returned_features",
+          "status": "derived",
+          "unit": "%",
+          "value": 11.1
+        },
+        {
+          "evidenceRef": "EVD-DISTRICT-PROFILE",
+          "group": "access",
+          "id": "access.nearest",
+          "method": "straight_line_to_returned_center",
+          "status": "derived",
+          "unit": "m",
+          "value": 126
+        },
+        {
+          "evidenceRef": "EVD-DISTRICT-PROFILE",
+          "group": "open_space",
+          "id": "open_space.count",
+          "method": "mapped_feature_count",
+          "status": "derived",
+          "unit": "count",
+          "value": 5
+        },
+        {
+          "evidenceRef": "EVD-DISTRICT-PROFILE",
+          "group": "open_space",
+          "id": "open_space.share",
+          "method": "share_of_returned_features",
+          "status": "derived",
+          "unit": "%",
+          "value": 4
+        },
+        {
+          "evidenceRef": "EVD-DISTRICT-PROFILE",
+          "group": "open_space",
+          "id": "open_space.nearest",
+          "method": "straight_line_to_returned_center",
+          "status": "derived",
+          "unit": "m",
+          "value": 27
+        },
+        {
+          "evidenceRef": "EVD-DISTRICT-PROFILE",
+          "group": "industrial",
+          "id": "industrial.count",
+          "method": "mapped_feature_count",
+          "status": "derived",
+          "unit": "count",
+          "value": 0
+        },
+        {
+          "evidenceRef": "EVD-DISTRICT-PROFILE",
+          "group": "industrial",
+          "id": "industrial.share",
+          "method": "share_of_returned_features",
+          "status": "derived",
+          "unit": "%",
+          "value": 0
+        },
+        {
+          "evidenceRef": "EVD-DISTRICT-PROFILE",
+          "group": "industrial",
+          "id": "industrial.nearest",
+          "method": "straight_line_to_returned_center",
+          "status": "unknown",
+          "unit": "m",
+          "value": null
+        },
+        {
+          "evidenceRef": "EVD-DISTRICT-PROFILE",
+          "group": "construction",
+          "id": "construction.count",
+          "method": "mapped_feature_count",
+          "status": "derived",
+          "unit": "count",
+          "value": 0
+        },
+        {
+          "evidenceRef": "EVD-DISTRICT-PROFILE",
+          "group": "construction",
+          "id": "construction.share",
+          "method": "share_of_returned_features",
+          "status": "derived",
+          "unit": "%",
+          "value": 0
+        },
+        {
+          "evidenceRef": "EVD-DISTRICT-PROFILE",
+          "group": "construction",
+          "id": "construction.nearest",
+          "method": "straight_line_to_returned_center",
+          "status": "unknown",
+          "unit": "m",
+          "value": null
+        },
+        {
+          "evidenceRef": "EVD-DISTRICT-PROFILE",
+          "group": "other_built",
+          "id": "other_built.count",
+          "method": "mapped_feature_count",
+          "status": "derived",
+          "unit": "count",
+          "value": 56
+        },
+        {
+          "evidenceRef": "EVD-DISTRICT-PROFILE",
+          "group": "other_built",
+          "id": "other_built.share",
+          "method": "share_of_returned_features",
+          "status": "derived",
+          "unit": "%",
+          "value": 44.4
+        },
+        {
+          "evidenceRef": "EVD-DISTRICT-PROFILE",
+          "group": "other_built",
+          "id": "other_built.nearest",
+          "method": "straight_line_to_returned_center",
+          "status": "derived",
+          "unit": "m",
+          "value": 68
+        }
+      ],
+      "places": [
+        {
+          "coordinates": [
+            55.2819263,
+            25.2226628
+          ],
+          "distanceM": 307,
+          "evidenceRef": "EVD-CONTEXT-2",
+          "group": "healthcare",
+          "id": "node/13691083165",
+          "name": "Invisible Braces Dental And Skin Polyclinic"
+        },
+        {
+          "coordinates": [
+            55.2809767,
+            25.2219608
+          ],
+          "distanceM": 191,
+          "evidenceRef": "EVD-CONTEXT-3",
+          "group": "retail_daily_needs",
+          "id": "node/4147305044",
+          "name": "Zoom"
+        },
+        {
+          "coordinates": [
+            55.280033,
+            25.2195707
+          ],
+          "distanceM": 94,
+          "evidenceRef": "EVD-CONTEXT-4",
+          "group": "transport",
+          "id": "node/10577991596",
+          "name": "Durrah Tower"
+        },
+        {
+          "coordinates": [
+            55.279443,
+            25.2210741
+          ],
+          "distanceM": 103,
+          "evidenceRef": "EVD-CONTEXT-5",
+          "group": "other_built",
+          "id": "way/254666463",
+          "name": "Crown Plaza Public Parking"
+        },
+        {
+          "coordinates": [
+            55.2818004,
+            25.2191064
+          ],
+          "distanceM": 220,
+          "evidenceRef": "EVD-CONTEXT-7",
+          "group": "civic_culture",
+          "id": "way/1054289435",
+          "name": "Museum Of The Future"
+        },
+        {
+          "coordinates": [
+            55.2800149,
+            25.2169138
+          ],
+          "distanceM": 389,
+          "evidenceRef": "EVD-CONTEXT-8",
+          "group": "healthcare",
+          "id": "node/13999245001",
+          "name": "Life Pharmacy 12"
+        },
+        {
+          "coordinates": [
+            55.2819926,
+            25.2225732
+          ],
+          "distanceM": 303,
+          "evidenceRef": "EVD-CONTEXT-9",
+          "group": "retail_daily_needs",
+          "id": "node/4787887029",
+          "name": "I General Trading"
+        },
+        {
+          "coordinates": [
+            55.2801498,
+            25.2175728
+          ],
+          "distanceM": 316,
+          "evidenceRef": "EVD-CONTEXT-10",
+          "group": "transport",
+          "id": "node/6582545007",
+          "name": "Emirates Towers"
+        },
+        {
+          "coordinates": [
+            55.2810482,
+            25.2196227
+          ],
+          "distanceM": 126,
+          "evidenceRef": "EVD-CONTEXT-11",
+          "group": "access",
+          "id": "way/497743991",
+          "name": "Sheikh Zayed Road (north)"
+        },
+        {
+          "coordinates": [
+            55.2785292,
+            25.2182528
+          ],
+          "distanceM": 291,
+          "evidenceRef": "EVD-CONTEXT-12",
+          "group": "hospitality",
+          "id": "node/11064740105",
+          "name": "تاور پلازار"
+        }
+      ],
+      "programmeChecks": [
+        {
+          "adequacy": "not_assessed",
+          "capacity": "unknown",
+          "group": "education",
+          "mappedCount": 0,
+          "nextCheck": "operator_capacity_and_access"
+        },
+        {
+          "adequacy": "not_assessed",
+          "capacity": "unknown",
+          "group": "healthcare",
+          "mappedCount": 3,
+          "nextCheck": "operator_capacity_and_access"
+        },
+        {
+          "adequacy": "not_assessed",
+          "capacity": "unknown",
+          "group": "retail_daily_needs",
+          "mappedCount": 16,
+          "nextCheck": "site_access_and_service"
+        },
+        {
+          "adequacy": "not_assessed",
+          "capacity": "unknown",
+          "group": "transport",
+          "mappedCount": 10,
+          "nextCheck": "site_access_and_service"
+        },
+        {
+          "adequacy": "not_assessed",
+          "capacity": "unknown",
+          "group": "open_space",
+          "mappedCount": 5,
+          "nextCheck": "site_access_and_service"
+        }
+      ],
+      "sampleSize": 126,
+      "scope": {
+        "anchor": [
+          55.280155,
+          25.220412
+        ],
+        "kind": "point_radius",
+        "radiusM": 400
+      },
+      "source": {
+        "acquiredAt": "2026-10-06T17:17:16.444Z",
+        "attribution": "© OpenStreetMap contributors",
+        "name": "OpenStreetMap",
+        "observedAt": "2026-10-06T17:15:48.000Z",
+        "responseHash": "a6fe5e1d757dce22a5061ad83a0068b5a611b267a4ee48b01f44bfaea0fa6859"
+      },
+      "subjectId": "way/254666300",
+      "version": "POINT_OBJECT_NORMALIZED_CONTEXT_V1"
+    },
+    "renderHeightM": 10,
+    "renderMinHeightM": null,
+    "resultCentroidDistanceM": 0,
+    "sourceFeatureId": "way/254666300",
+    "tags": {
+      "classification.category": "building",
+      "classification.type": "commercial",
+      "tag.building": "commercial",
+      "tag.building:levels": "2",
+      "tag.height": "10",
+      "tag.start_date": "1994",
+      "tag.tourism": "hotel",
+      "tag.wheelchair": "limited"
+    }
+  }
+}

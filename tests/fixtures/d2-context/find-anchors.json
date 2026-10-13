@@ -1,0 +1,174 @@
+{
+  "classification": "ACTUAL_HISTORICAL_SELECTED_GEOMETRY_ANCHOR_CONTRACT_ONLY",
+  "sourceExportSha256": "398e472dff2948a71a069f0c36d8c8110f0b168bad4c37ce14dd010fe9e0959a",
+  "source": "REVIEW02_COMPARE_FRESH_INPUT_20261012.json; held complete selected geometry, not raw Overpass body or a new source read",
+  "transform": "Original geometries and selected source-tag values retained; bounds independently derived from original geometry. No explicit element.center supplied, exercising actual Find bbox midpoint fallback.",
+  "cases": [
+    {
+      "caseId": "U1",
+      "sourceFeatureId": "way/254666300",
+      "anchor": [
+        55.280154550000006,
+        25.22041245
+      ],
+      "geometry": {
+        "coordinates": [
+          [
+            [
+              55.2805734,
+              25.2204772
+            ],
+            [
+              55.2804614,
+              25.2203152
+            ],
+            [
+              55.2803563,
+              25.2201631
+            ],
+            [
+              55.2802735,
+              25.2200434
+            ],
+            [
+              55.2797357,
+              25.2203476
+            ],
+            [
+              55.2799288,
+              25.2206269
+            ],
+            [
+              55.2800356,
+              25.2207815
+            ],
+            [
+              55.2804914,
+              25.2205236
+            ],
+            [
+              55.2805734,
+              25.2204772
+            ]
+          ]
+        ],
+        "type": "Polygon"
+      },
+      "geometryCanonicalSha256": "36b40231d0d37bab0081fd869e2ecc8495d5221ae6fab5b1a6c3ba30d627fb10",
+      "bounds": {
+        "minlon": 55.2797357,
+        "minlat": 25.2200434,
+        "maxlon": 55.2805734,
+        "maxlat": 25.2207815
+      },
+      "observedTags": {
+        "building": "commercial",
+        "building:levels": "2",
+        "height": "10",
+        "start_date": "1994",
+        "tourism": "hotel",
+        "wheelchair": "limited"
+      },
+      "sourceRecordPointer": "/records/2",
+      "expectedDistanceBBoxCenterToFrozenAnchorM": 0
+    },
+    {
+      "caseId": "U2",
+      "sourceFeatureId": "way/393391114",
+      "anchor": [
+        55.2823691,
+        25.21764615
+      ],
+      "geometry": {
+        "coordinates": [
+          [
+            [
+              55.2821013,
+              25.2174524
+            ],
+            [
+              55.2821588,
+              25.217534
+            ],
+            [
+              55.2822427,
+              25.2176531
+            ],
+            [
+              55.2823312,
+              25.2177787
+            ],
+            [
+              55.2823895,
+              25.2178614
+            ],
+            [
+              55.2824428,
+              25.2177687
+            ],
+            [
+              55.2825571,
+              25.2175697
+            ],
+            [
+              55.2825834,
+              25.217524
+            ],
+            [
+              55.2826149,
+              25.2174691
+            ],
+            [
+              55.2826263,
+              25.2174493
+            ],
+            [
+              55.2826369,
+              25.2174309
+            ],
+            [
+              55.2826148,
+              25.2174318
+            ],
+            [
+              55.28259,
+              25.2174328
+            ],
+            [
+              55.2825245,
+              25.2174354
+            ],
+            [
+              55.2824689,
+              25.2174376
+            ],
+            [
+              55.2822165,
+              25.2174478
+            ],
+            [
+              55.2821013,
+              25.2174524
+            ]
+          ]
+        ],
+        "type": "Polygon"
+      },
+      "geometryCanonicalSha256": "51b18b6026ecfa744b568f4dbbd8468b111075272950007129141a992fe05805",
+      "bounds": {
+        "minlon": 55.2821013,
+        "minlat": 25.2174309,
+        "maxlon": 55.2826369,
+        "maxlat": 25.2178614
+      },
+      "observedTags": {
+        "building": "commercial",
+        "building:levels": "54",
+        "height": "355",
+        "wikidata": "Q845182"
+      },
+      "sourceRecordPointer": "/records/3",
+      "expectedDistanceBBoxCenterToFrozenAnchorM": 0
+    }
+  ]
+}
