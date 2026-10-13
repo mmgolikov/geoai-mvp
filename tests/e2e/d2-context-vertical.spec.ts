@@ -518,7 +518,10 @@ test("D2 last valid analysis survives failed refresh/cancel and late completion 
   const before = await visibleSourceSnapshot(page, item);
   signals.aiMode = "error";
   await page.getByRole("button", { name: "Refresh analysis", exact: true }).click();
-  await expect(page.getByRole("alert")).toContainText("D2 offline refresh failure");
+  const refreshError = page.getByRole("alert").filter({ hasText: "D2 offline refresh failure" });
+  await expect(refreshError).toHaveCount(1);
+  await expect(refreshError).toBeVisible();
+  await expect(refreshError).toContainText("D2 offline refresh failure");
   await expect(page.getByText("D2 offline result 1", { exact: true })).toBeVisible();
   expect(await visibleSourceSnapshot(page, item)).toEqual(before);
   signals.aiMode = "hold";
