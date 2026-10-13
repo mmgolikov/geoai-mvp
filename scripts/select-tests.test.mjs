@@ -54,19 +54,37 @@ test("D2 admitted sources retain strict contracts and downstream coverage", () =
     "src/data/prototype/d2-overture-places.json",
     "public/data/d2-overture/LICENSES.json",
     "components/point-to-object/independent-source-context.tsx",
-    "scripts/d2-context-vertical-check.mjs"
+    "scripts/d2-context-vertical-check.mjs",
+    "src/lib/prototype/point-to-object-u4-independent-context.ts",
+    "src/lib/prototype/point-to-object-u4-snapshot.ts",
+    "src/data/prototype/d2-overture-u4-places.json",
+    "public/data/d2-overture-u4/LICENSES.json",
+    "scripts/d2-context-http-contract-check.mjs",
+    "tests/e2e/d2-context-vertical.spec.ts",
+    "tests/e2e/helpers/d2-context-fixture.ts",
+    "tests/fixtures/d2-context/transport.json"
   ]) {
     const plan = selectPlan([path]);
     assert.equal(plan.fullCiRequired, false, path);
     for (const id of ["D2_CONTEXT", "CONTEXT", "ANALYSE", "COMPARE", "CREATE", "STORAGE", "LIMITS"]) assert.ok(plan.components.includes(id), `${path}: ${id}`);
     assert.equal(plan.npmScripts.filter(name => name === "test:d2-context-vertical").length, 1, path);
+    assert.equal(plan.npmScripts.filter(name => name === "test:d2-context-http-contract").length, 1, path);
     assert.equal(plan.liveReviewRequired, true, path);
     assert.ok(plan.e2eFiles.includes("tests/e2e/point-object-project-restoration-readiness.spec.ts"), path);
+    assert.ok(plan.e2eFiles.includes("tests/e2e/d2-context-vertical.spec.ts"), path);
   }
   const workflow = readFileSync(new URL(".github/workflows/geoai-quality-gate.yml", repo), "utf8");
   assert.equal(pkg.scripts["test:d2-context-vertical"], "node scripts/d2-context-vertical-check.mjs");
   assert.equal(workflow.split("npm run test:d2-context-vertical").length - 1, 1);
   assert.ok(workflow.includes("artifacts/d2-context-vertical-check.txt"));
+  assert.equal(pkg.scripts["test:d2-context-http-contract"], "node scripts/d2-context-http-contract-check.mjs");
+  assert.equal(workflow.split("npm run test:d2-context-http-contract").length - 1, 1);
+  assert.ok(workflow.includes("artifacts/d2-context-http-contract-check.txt"));
+  assert.ok(pkg.scripts["test:e2e:point-to-object-v5:demo"].includes("tests/e2e/d2-context-vertical.spec.ts"));
+  const webkit = readFileSync(new URL("playwright.product-https.config.ts", repo), "utf8");
+  assert.ok(webkit.includes('"d2-context-vertical.spec.ts"'));
+  const harness = readFileSync(new URL("scripts/product-https-harness-check.mjs", repo), "utf8");
+  assert.ok(harness.includes('"d2-context-vertical.spec.ts"'));
   assert.equal(selectPlan(["src/lib/prototype/point-to-object-unadmitted-source.ts"]).fullCiRequired, true);
 });
 

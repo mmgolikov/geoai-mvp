@@ -112,7 +112,8 @@ const productSpecs = [
   "sprint10-analysis-state.spec.ts",
   "sprint10-analysis-provenance.spec.ts",
   "sprint10-find-state.spec.ts",
-  "sprint10-create-preview.spec.ts"
+  "sprint10-create-preview.spec.ts",
+  "d2-context-vertical.spec.ts"
 ];
 for (const name of productSpecs) {
   const source = await readFile(new URL(`../tests/e2e/${name}`, import.meta.url), "utf8");
