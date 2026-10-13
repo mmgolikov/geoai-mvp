@@ -638,7 +638,7 @@ export function PointToObjectAnalysis({ verificationEnabled = false }: { verific
   const evidenceClassLabel = (value: "observed" | "derived" | "hypothesis") => value === "observed" ? t("analysis.observed") : value === "derived" ? t("analysis.derived") : t("analysis.hypothesis");
   const geoContext = content?.geoContext ?? subject?.geoContext ?? null;
   const frozenSourceContext = analysis?.mode === "openai" && selection?.resolvedObject && analysis.evidencePackHash === selection.resolvedObject.evidenceReceipt?.evidencePackHash
-    ? normalizedResolvedContext(selection.resolvedObject) : null;
+    ? normalizedResolvedContext(selection.resolvedObject, [selection.longitude, selection.latitude]) : null;
   const lowValueStandaloneReceipts = new Set([
     "EVD-OSM-OBJECT", "EVD-OBJECT", "EVD-CLASSIFICATION", "EVD-ADDRESS", "EVD-GEOMETRY",
     "EVD-CONTEXT-SUMMARY", "EVD-DISTRICT-PROFILE", "EVD-SOURCE", "EVD-SNAPSHOT", "EVD-RIGHTS"
@@ -715,6 +715,7 @@ export function PointToObjectAnalysis({ verificationEnabled = false }: { verific
 
             {content ? (
               <div className="space-y-5" data-testid="ai-success">
+                {frozenSourceContext ? <PointObjectContextDashboard context={frozenSourceContext} locale={locale} /> : null}
                 {analysis?.mode === "openai" && analysis.request.locale !== locale ? <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-white p-3 text-xs text-muted"><span>{locale === "ru" ? "Текст отчёта сохранён на исходном языке. Обновление — отдельный AI-запрос." : "Report text is kept in its saved language. Updating is a separate AI request."}</span><button type="button" disabled={loading} className="min-h-11 rounded-lg border border-line px-3 font-bold text-[#087f8c] disabled:opacity-50" onClick={() => selection && void requestAnalysis(selection, requestIdentity(selection, analysis.request.question, analysis.request, locale))}>{locale === "ru" ? "Обновить на русском" : "Update in English"}</button></div> : null}
                 <section className="rounded-[20px] border border-[#c8d9ec] bg-white p-5 shadow-soft sm:p-7">
                   <div className="flex flex-wrap items-center gap-2">
@@ -755,7 +756,6 @@ export function PointToObjectAnalysis({ verificationEnabled = false }: { verific
                 {analysis?.mode === "openai" ? <PointObjectClimateContext climate={analysis.subject?.climate} /> : null}
                 {content.depthReview ? <DepthReviewPanel review={content.depthReview} /> : null}
 
-                {frozenSourceContext ? <PointObjectContextDashboard context={frozenSourceContext} locale={locale} /> : null}
                 {geoContext ? <details className="rounded-[20px] border border-line bg-white p-5 shadow-soft sm:p-7" data-testid="analysis-geocontext">
                   <summary className="cursor-pointer text-sm font-bold text-[#087f8c]">{locale === "ru" ? "Измерения и состав выборки" : "Measurements & sample details"}</summary>
                   <section className="mt-4">

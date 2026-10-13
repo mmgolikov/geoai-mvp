@@ -1,6 +1,8 @@
 import type { LivePointObjectEvidencePack } from "./point-to-object-live-evidence";
 import type { LiveResolvedObjectContext, PointObjectGeoContext } from "../../../components/point-to-object/live-types";
 import type { PointObjectAreaContextResult } from "./point-to-object-area-context-contract";
+import { contextDetailsFromArea, contextDetailsFromEvidence, parseContextDetailsV2, type PointObjectContextDetailsV2 } from "./point-to-object-context-details-v2";
+import { parseIndependentContext, type IndependentPointObjectContext } from "./point-to-object-independent-context";
 
 export const NORMALIZED_CONTEXT_VERSION = "POINT_OBJECT_NORMALIZED_CONTEXT_V1" as const;
 export const CONTEXT_GROUPS = ["residential", "commercial", "hospitality", "retail_daily_needs", "education", "healthcare", "civic_culture", "transport", "access", "open_space", "industrial", "construction", "other_built"] as const;
@@ -13,6 +15,10 @@ export type ContextMetric = {
 };
 export type PointObjectNormalizedContext = {
   version: typeof NORMALIZED_CONTEXT_VERSION;
+  /** Optional V2 measurements; omitted on historical V1 saves, never inferred. */
+  details?: PointObjectContextDetailsV2;
+  /** Separate counts, dates and provider lineage. Never folded into OSM mix. */
+  independentContext?: IndependentPointObjectContext;
   subjectId: string;
   scope: { kind: "point_radius" | "aoi_interior"; radiusM: number | null; anchor: [number, number] | null };
   source: { name: "OpenStreetMap"; acquiredAt: string | null; observedAt: string | null; responseHash: string | null; attribution: "© OpenStreetMap contributors" };
@@ -24,8 +30,8 @@ export type PointObjectNormalizedContext = {
 };
 
 export const CONTEXT_GROUP_LABELS: Record<"en" | "ru", Record<ContextGroup, string>> = {
-  en: { residential: "Residential", commercial: "Business", hospitality: "Hospitality", retail_daily_needs: "Daily services", education: "Education", healthcare: "Healthcare", civic_culture: "Civic & culture", transport: "Transit", access: "Major roads", open_space: "Green & public space", industrial: "Industrial", construction: "Construction", other_built: "Other buildings" },
-  ru: { residential: "Жильё", commercial: "Деловые объекты", hospitality: "Гостиницы", retail_daily_needs: "Повседневные сервисы", education: "Образование", healthcare: "Медицина", civic_culture: "Общественные и культурные", transport: "Транспорт", access: "Магистрали", open_space: "Зелёные и общественные пространства", industrial: "Промышленность", construction: "Строительство", other_built: "Прочие здания" }
+  en: { residential: "Residential", commercial: "Business", hospitality: "Hospitality", retail_daily_needs: "Daily services", education: "Education", healthcare: "Healthcare", civic_culture: "Civic & culture", transport: "Transit", access: "Major roads", open_space: "Open & recreation", industrial: "Industrial", construction: "Construction", other_built: "Other buildings" },
+  ru: { residential: "Жильё", commercial: "Деловые объекты", hospitality: "Гостиницы", retail_daily_needs: "Повседневные сервисы", education: "Образование", healthcare: "Медицина", civic_culture: "Общественные и культурные", transport: "Транспорт", access: "Магистрали", open_space: "Открытые и рекреационные", industrial: "Промышленность", construction: "Строительство", other_built: "Прочие здания" }
 };
 const CHECK_GROUPS = ["education", "healthcare", "retail_daily_needs", "transport", "open_space"] as const;
 function checks(metrics: ContextMetric[]): PointObjectNormalizedContext["programmeChecks"] {
@@ -64,7 +70,17 @@ function placeGroup(categories: string[], featureClass: string): ContextGroup {
  * a nearest POI cannot replace the selected footprint, but context remains useful. */
 export function normalizePointObjectContext(pack: LivePointObjectEvidencePack): PointObjectNormalizedContext {
   const metrics = metricsFromProfile(pack.geoContext, "EVD-DISTRICT-PROFILE");
-  return { version: NORMALIZED_CONTEXT_VERSION, subjectId: pack.selectedObject.sourceFeatureId,
+  const anchor: [number, number] = [pack.coordinates.longitude, pack.coordinates.latitude];
+  const sourceReceipt = pack.evidence?.find(e => e.id === "EVD-OVERTURE-SNAPSHOT");
+  let independentContext: IndependentPointObjectContext | null = null;
+  if (sourceReceipt && typeof sourceReceipt.value === "string") {
+    try { independentContext = parseIndependentContext(JSON.parse(sourceReceipt.value), pack.selectedObject.sourceFeatureId, anchor); } catch { /* Invalid optional evidence is not admitted. */ }
+  }
+  // Reduced historical V1 inputs do not supply measurement/source receipts.
+  // Preserve their old inventory without upgrading them into V2 facts.
+  const details = pack.resolution && pack.selectedObject.tags && typeof pack.source.sourceResponseHash === "string" ? contextDetailsFromEvidence(pack) : undefined;
+  if (details && independentContext?.status === "available") details.independentEnrichment = "separate_source_snapshot";
+  return { version: NORMALIZED_CONTEXT_VERSION, ...(details ? { details } : {}), ...(independentContext ? { independentContext } : {}), subjectId: pack.selectedObject.sourceFeatureId,
     scope: { kind: "point_radius", radiusM: pack.geoContext.radiusM, anchor: [pack.coordinates.longitude, pack.coordinates.latitude] },
     source: { name: "OpenStreetMap", acquiredAt: pack.source.fabricAcquiredAt ?? null, observedAt: pack.source.fabricObservedAt, responseHash: pack.source.fabricResponseHash, attribution: "© OpenStreetMap contributors" },
     coverage: pack.geoContext.coverage === "unavailable" ? "unavailable" : pack.geoContext.capReached ? "partial" : "available",
@@ -91,7 +107,8 @@ export function normalizePointObjectAreaContext(area: PointObjectAreaContextResu
     return [{ id: `${group}.count`, group, value: entry?.count ?? 0, unit: "count" as const, status: "derived" as const, method: "mapped_feature_count" as const, evidenceRef: "EVD-AOI-CONTEXT" },
       { id: `${group}.share`, group, value: area.summary.sampleSize ? entry?.sharePct ?? 0 : null, unit: "%" as const, status: area.summary.sampleSize ? "derived" as const : "unknown" as const, method: "share_of_returned_features" as const, evidenceRef: "EVD-AOI-CONTEXT" }];
   });
-  return { version: NORMALIZED_CONTEXT_VERSION, subjectId: `aoi:${area.source.sourceResponseHash}`, scope: { kind: "aoi_interior", radiusM: null, anchor }, source: { name: "OpenStreetMap", acquiredAt: area.source.acquiredAt, observedAt: area.source.observedAt, responseHash: area.source.sourceResponseHash, attribution: "© OpenStreetMap contributors" },
+  const details = area.request?.aoiCoordinates && Number.isFinite(area.area.areaSqM) && Number.isFinite(area.area.perimeterM) ? contextDetailsFromArea(area) : undefined;
+  return { version: NORMALIZED_CONTEXT_VERSION, ...(details ? { details } : {}), subjectId: `aoi:${area.source.sourceResponseHash}`, scope: { kind: "aoi_interior", radiusM: null, anchor }, source: { name: "OpenStreetMap", acquiredAt: area.source.acquiredAt, observedAt: area.source.observedAt, responseHash: area.source.sourceResponseHash, attribution: "© OpenStreetMap contributors" },
     coverage: area.coverage.capReached ? "partial" : "available", sampleSize: area.summary.sampleSize, capReached: area.coverage.capReached, completeInventory: false, metrics,
     places: area.features.slice(0, 80).map((place, index) => ({ id: place.sourceFeatureId, name: place.label, group: place.group, coordinates: [place.longitude, place.latitude], distanceM: null, evidenceRef: `EVD-AOI-CONTEXT-${index + 1}` })), programmeChecks: checks(metrics) };
 }
@@ -124,6 +141,13 @@ export function parseNormalizedPointObjectContext(value: unknown): PointObjectNo
   // Both normalizers assign one primary group per returned element. This
   // denominator does not sum multi-tag usages or areas.
   if (c.sampleSize !== null && c.metrics.filter(m => m.unit === "count").reduce((sum,m) => sum+(m.value ?? 0),0) !== c.sampleSize) return null;
+  if (c.details !== undefined) {
+    const details = parseContextDetailsV2(c.details, c.subjectId, c.scope.anchor, c.scope.kind);
+    const source = details?.sources.find(s => s.id === (c.scope.kind === "aoi_interior" ? "osm_aoi_interior" : "osm_surroundings"));
+    if (!details || !source || source.acquiredAt !== c.source.acquiredAt || source.observedAt !== c.source.observedAt || source.responseHash !== c.source.responseHash || (source.coverage === "unavailable") !== (c.coverage === "unavailable")) return null;
+    if ((details.independentEnrichment === "separate_source_snapshot") !== (c.independentContext?.status === "available")) return null;
+  }
+  if (c.independentContext !== undefined && !parseIndependentContext(c.independentContext, c.subjectId, c.scope.anchor, c.scope.kind === "aoi_interior" && c.details?.geometry?.type === "Polygon" ? c.details.geometry.coordinates as [number, number][][] : undefined)) return null;
   return JSON.parse(JSON.stringify(value)) as PointObjectNormalizedContext;
 }
 

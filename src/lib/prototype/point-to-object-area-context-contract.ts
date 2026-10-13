@@ -310,7 +310,9 @@ function contextGroup(tags: Record<string, string>): PointObjectAreaContextGroup
   if (["residential", "apartments", "house", "detached", "terrace", "semidetached_house", "dormitory"].includes(building ?? "") || landuse === "residential") return "residential";
   if (tags.public_transport || tags.railway || tags.highway === "bus_stop") return "transport";
   if (["motorway", "trunk", "primary", "secondary", "tertiary"].includes(tags.highway ?? "")) return "access";
-  if (tags.leisure || tags.natural || ["recreation_ground", "forest"].includes(landuse ?? "")) return "open_space";
+  // Outdoor seating is not a park; temporary shelter is not public green space.
+  if (["park", "garden", "playground", "recreation_ground", "sports_centre", "pitch", "golf_course", "nature_reserve"].includes(tags.leisure ?? "") ||
+      ["wood", "water", "grassland", "scrub"].includes(tags.natural ?? "") || ["recreation_ground", "forest"].includes(landuse ?? "")) return "open_space";
   return building ? "other_built" : null;
 }
 

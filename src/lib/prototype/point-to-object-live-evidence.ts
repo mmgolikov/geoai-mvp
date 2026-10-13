@@ -1,4 +1,5 @@
 import "server-only";
+import { readIndependentPointObjectContext } from "./point-to-object-overture-snapshot";
 import { acquirePointObjectClimate } from "./point-to-object-climate";
 import { CLIMATE_EVIDENCE_ID, type PointObjectClimate } from "./point-to-object-climate-contract";
 import { readExactSourceElement, exactSourcePlacePayload } from "./point-to-object-exact-source";
@@ -1239,7 +1240,8 @@ function contextGroup(tags: Record<string, unknown>): PointObjectContextGroup | 
   if (["residential", "apartments", "house", "detached", "terrace", "semidetached_house", "dormitory"].includes(building ?? "") || landuse === "residential") return "residential";
   if (publicTransport || railway || highway === "bus_stop") return "transport";
   if (["motorway", "trunk", "primary", "secondary", "tertiary"].includes(highway ?? "")) return "access";
-  if (leisure || natural || ["recreation_ground", "forest"].includes(landuse ?? "")) return "open_space";
+  if (["park", "garden", "playground", "recreation_ground", "sports_centre", "pitch", "golf_course", "nature_reserve"].includes(leisure ?? "") ||
+      ["wood", "water", "grassland", "scrub"].includes(natural ?? "") || ["recreation_ground", "forest"].includes(landuse ?? "")) return "open_space";
   if (building) return "other_built";
   return null;
 }
@@ -2064,6 +2066,7 @@ export async function buildLivePointObjectEvidencePack(
   };
   const resolutionHash = semanticHash(resolutionCore);
   const acquiredAt = placeReceipt.receipt.acquiredAt;
+  const independentContext = readIndependentPointObjectContext(sourceFeatureId, point);
   const core = {
     protocol: "POINT_TO_OBJECT_001_AI_EVIDENCE_PACK_LIVE_V2" as const,
     caseKey: "live" as const,
@@ -2135,6 +2138,7 @@ export async function buildLivePointObjectEvidencePack(
     nearbyContext: nearby.items,
     geoContext: fabric.profile,
     evidence: [
+      { id: "EVD-OVERTURE-SNAPSHOT", label: "Admitted Overture Places snapshot, separate from OSM", value: JSON.stringify(independentContext), sourceId: "OVERTURE-PLACES", proofLimit: "Known-case 400m snapshot only; provider update is not physical observation. Points are not entrances, capacity or parcel geometry. No cross-source count merge or current-operation inference." },
       ...(climate?.status === "available" ? [{ id: CLIMATE_EVIDENCE_ID, label: "NASA POWER regional monthly climate", value: JSON.stringify(climate), sourceId: "NASA-POWER", proofLimit: climate.proofLimit }] : []),
       ...evidenceFor(place, point, matchMethod, coordinateAssociation, place.geometryHash, selectedTags, selectedMetrics),
       ...evidenceForNearby(nearby.items),

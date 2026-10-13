@@ -1,0 +1,71 @@
+{
+  "retrievedAt": "2026-10-13T12:03:04.666340+00:00",
+  "licenseId": "CDLA-Permissive-2.0",
+  "officialLicenseUrl": "https://cdla.dev/permissive-2-0/",
+  "textUrl": "https://raw.githubusercontent.com/Community-Data-License-Agreements/Releases/main/CDLA-Permissive-2.0.txt",
+  "textSha256": "4531a67d443284d93ffed0803df5b10634aff21c3d77e381f2d48af01d875868",
+  "licenseText": "Community Data License Agreement - Permissive - Version 2.0\n\nThis is the Community Data License Agreement - Permissive, Version 2.0 (the \"agreement\"). Data Provider(s) and Data Recipient(s) agree as follows:\n\n1. Provision of the Data\n\n1.1. A Data Recipient may use, modify, and share the Data made available by Data Provider(s) under this agreement if that Data Recipient follows the terms of this agreement.\n\n1.2. This agreement does not impose any restriction on a Data Recipient's use, modification, or sharing of any portions of the Data that are in the public domain or that may be used, modified, or shared under any other legal exception or limitation.\n\n2. Conditions for Sharing Data\n\n2.1. A Data Recipient may share Data, with or without modifications, so long as the Data Recipient makes available the text of this agreement with the shared Data.\n\n3. No Restrictions on Results\n\n3.1. This agreement does not impose any restriction or obligations with respect to the use, modification, or sharing of Results.\n\n4. No Warranty; Limitation of Liability\n\n4.1. All Data Recipients receive the Data subject to the following terms:\n\nTHE DATA IS PROVIDED ON AN \"AS IS\" BASIS, WITHOUT REPRESENTATIONS, WARRANTIES OR CONDITIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED INCLUDING, WITHOUT LIMITATION, ANY WARRANTIES OR CONDITIONS OF TITLE, NON-INFRINGEMENT, MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.\n\nNO DATA PROVIDER SHALL HAVE ANY LIABILITY FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING WITHOUT LIMITATION LOST PROFITS), HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE DATA OR RESULTS, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.\n\n5. Definitions\n\n5.1. \"Data\" means the material received by a Data Recipient under this agreement.\n\n5.2. \"Data Provider\" means any person who is the source of Data provided under this agreement and in reliance on a Data Recipient's agreement to its terms.\n\n5.3. \"Data Recipient\" means any person who receives Data directly or indirectly from a Data Provider and agrees to the terms of this agreement.\n\n5.4. \"Results\" means any outcome obtained by computational analysis of Data, including for example machine learning models and models' insights.\n",
+  "appliesToSubset": "overture_places_admitted.geojson",
+  "subsetSha256": "f55ad27098707b5a6efd1ee6d5bd7d8373cff9bd1eddd656207cf70cb15fe67d",
+  "providers": [
+    {
+      "dataset": "meta",
+      "provider": "meta",
+      "records": 192,
+      "licenseId": "CDLA-Permissive-2.0",
+      "attribution": "Data from Meta"
+    },
+    {
+      "dataset": "Microsoft",
+      "provider": "microsoft",
+      "records": 72,
+      "licenseId": "CDLA-Permissive-2.0",
+      "attribution": "Data from Microsoft"
+    },
+    {
+      "dataset": "PinMeTo",
+      "provider": "pinmeto",
+      "records": 1,
+      "licenseId": "CDLA-Permissive-2.0",
+      "attribution": "Data from PinMeTo"
+    },
+    {
+      "dataset": "Overture",
+      "provider": "overture",
+      "records": 265,
+      "licenseId": "CDLA-Permissive-2.0",
+      "role": "derived confidence calculation, not independent physical source",
+      "attribution": "Overture Maps Foundation"
+    }
+  ],
+  "sharingCondition": "Provide this licence text with shared data, retain source-provider lineage and attribution; computational Results follow CDLA section3. No provider endorsements or third-party hosted API entitlement implied.",
+  "rawCandidateLicensesNotAdmitted": [
+    {
+      "dataset": "Foursquare",
+      "licenseId": "Apache-2.0",
+      "licenseUrl": "https://www.apache.org/licenses/LICENSE-2.0",
+      "noticeUrl": "https://opensource.foursquare.com/places-notice-txt/",
+      "sourceRecords": 97
+    },
+    {
+      "dataset": "AllThePlaces",
+      "licenseId": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "sourceRecords": 6
+    }
+  ],
+  "officialProviderMapping": "https://docs.overturemaps.org/attribution/",
+  "actualSourceAndRelease": "https://stac.overturemaps.org/2026-09-23.1/places/place/00014/00014.json",
+  "SaaS": {
+    "documentaryPermission": "use/modify under CDLA; limited mapped context only",
+    "implemented": false
+  },
+  "clientExport": {
+    "documentaryPermission": "share with licence text and source notice",
+    "implemented": false
+  },
+  "ownAPI_MCP": {
+    "documentaryPermission": "share licensed subset with licence text/source notice; no provider credentials",
+    "implemented": false
+  }
+}

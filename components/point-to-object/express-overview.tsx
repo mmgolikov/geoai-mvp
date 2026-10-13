@@ -161,6 +161,7 @@ export function PointObjectExpressOverview({ selection, locale }: { selection: L
       ? (exact ? "Что известно о выбранном объекте" : hasPolygon ? "Что известно о выбранном контуре" : "Что известно о выбранной точке")
       : "What we know about this selection"}</h2>
     <p className="mt-3 max-w-3xl text-sm leading-6 text-[#344054]" data-testid="express-summary">{summary}</p>
+    {selection.resolvedObject ? <div className="mt-5"><PointObjectContextDashboard context={normalizedResolvedContext(selection.resolvedObject, [selection.longitude, selection.latitude])} locale={locale} /></div> : null}
     <div className="mt-5 grid gap-3 md:grid-cols-2">
       <article className="min-w-0 rounded-2xl border border-line bg-[#f8fafc] p-4" data-testid="express-object">
         <h3 className="text-xs font-bold uppercase tracking-[0.06em] text-[#52657a]">{exact
@@ -234,7 +235,7 @@ export function PointObjectExpressOverview({ selection, locale }: { selection: L
           : "Check identity and dimensions against official or owner records. Focused AI analysis is a separate action."}</p>
       </article>
     </div>
-    {selection.resolvedObject ? <div className="mt-5"><PointObjectContextDashboard context={normalizedResolvedContext(selection.resolvedObject, [selection.longitude, selection.latitude])} locale={locale} /></div> : <section className="mt-5" aria-labelledby="express-missing-domains-title" data-testid="express-missing-domains">
+    {!selection.resolvedObject ? <section className="mt-5" aria-labelledby="express-missing-domains-title" data-testid="express-missing-domains">
       <h3 id="express-missing-domains-title" className="text-lg font-bold text-[#243447]">{ru ? "Инфраструктура и окружение" : "Infrastructure & surroundings"}</h3>
       <p className="mt-2 text-xs leading-5 text-[#52657a]">{ru ? "Данные окружения не сохранены. Это не означает отсутствие объектов рядом; проверки ниже не запускаются автоматически." : "No surroundings snapshot is held. This does not mean nearby features are absent; the checks below do not run automatically."}</p>
       <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">{EXPRESS_MISSING_DOMAIN_CHECKS.map(check => <article key={check.group} className="min-w-0 rounded-xl border border-[#dce6e3] bg-[#f8fafc] p-3" data-testid={`express-missing-${check.group}`}>
@@ -243,7 +244,7 @@ export function PointObjectExpressOverview({ selection, locale }: { selection: L
         <p className="mt-1 break-words text-xs leading-5 text-[#52657a]" data-testid={`express-missing-reason-${check.group}`}>{check.reason[locale]}</p>
         <p className="mt-2 text-xs leading-5 text-[#344054]">{check[locale]}</p>
       </article>)}</div>
-    </section>}
+    </section> : null}
     <p className="mt-4 text-xs leading-5 text-[#52657a]" data-testid="express-unavailable"><span className="font-semibold">{ru ? "Не установлено этой картой:" : "Not established by this map:"}</span> {ru
       ? "права и ограничения, допустимое использование, спрос, стоимость и экономика проекта."
       : "rights and constraints, permitted use, demand, costs and project economics."}</p>

@@ -1,10 +1,18 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { stripTypeScriptTypes } from "node:module";
+import { registerHooks, stripTypeScriptTypes } from "node:module";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 const CAVEAT = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
+
+// Load the real transitive contracts added to the V1-compatible context. This
+// changes module resolution only, not fixtures, assertions or parser outcomes.
+registerHooks({ resolve(specifier, context, nextResolve) {
+  if (specifier.startsWith("@/")) return nextResolve(pathToFileURL(path.join(process.cwd(), `${specifier.slice(2)}.ts`)).href, context);
+  if ((specifier.startsWith("./") || specifier.startsWith("../")) && !/\.[cm]?[jt]sx?$/.test(specifier)) return nextResolve(`${specifier}.ts`, context);
+  return nextResolve(specifier, context);
+} });
 
 async function loadSession(): Promise<Record<string, any>> {
   const file = path.join(process.cwd(), "components/point-to-object/live-session.ts");
