@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, type Route, type TestInfo } from "@playwright/test";
 import {
   chooseD2ThroughSearch, expectD2TransportQuiet, installD2Transport, loadD2FixtureBundle,
   openD2Analysis, publicD2Snapshot, type D2Bundle, type D2Case, type D2Signals
@@ -37,10 +37,75 @@ async function runOfflineAnalysis(page: Page, locale: "en" | "ru") {
   await expect(page.getByTestId("ai-success")).toBeVisible();
   await expect(page.getByText("D2 offline result 1", { exact: true })).toBeVisible();
 }
-async function visibleSourceSnapshot(page: Page) {
+function publicObject(value: unknown, label: string): Record<string, unknown> {
+  expect(value, label + " must exist as a public object").toBeTruthy();
+  expect(typeof value, label + " object type").toBe("object");
+  expect(Array.isArray(value), label + " must not be an array").toBe(false);
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Missing public " + label);
+  return value as Record<string, unknown>;
+}
+async function visibleSourceSnapshot(page: Page, item: D2Case, legacy = false) {
   const value = await publicD2Snapshot(page);
-  const pre = value.preSubmit as { sourceSnapshot?: { context?: unknown } };
-  return pre.sourceSnapshot?.context;
+  expect(value.protocol).toBe("GEOAI_PREVIEW_VERIFICATION_V1");
+  const current = publicObject(value.currentSelection, "current selection");
+  expect(current).toMatchObject({ mode: "analyse", marketKey: "dubai", sourceFeatureId: item.sourceFeatureId,
+    longitude: item.anchor[0], latitude: item.anchor[1] });
+  const pre = publicObject(value.preSubmit, "pre-submit");
+  expect(pre.operation).toBe("analyse");
+  expect(publicObject(pre.intent, "current intent")).toMatchObject({ expectedSourceFeatureId: item.sourceFeatureId,
+    longitude: item.anchor[0], latitude: item.anchor[1] });
+  const context = publicObject(publicObject(pre.sourceSnapshot, "source snapshot").context, "source context");
+  const expected = (legacy ? item.legacyEnvelope : item.envelope).subject;
+  expect(context).toMatchObject({ name: expected.name, sourceFeatureId: item.sourceFeatureId,
+    coordinateAssociation: "trusted_open_map_identity", evidenceReceipt: expected.evidenceReceipt });
+  expect(publicObject(context.evidenceReceipt, "evidence receipt").lookupSourceFeatureId).toBe(item.sourceFeatureId);
+  const normalized = publicObject(context.normalizedContext, "normalized context");
+  expect(normalized).toMatchObject({ version: "POINT_OBJECT_NORMALIZED_CONTEXT_V1", subjectId: item.sourceFeatureId,
+    scope: { kind: "point_radius", anchor: item.anchor.map(number => Number(number.toFixed(6))) } });
+  if (legacy) {
+    // V1 optional-field absence remains V1; export cannot fill D2 facts.
+    expect(normalized.details).toBeUndefined();
+    expect(normalized.independentContext).toBeUndefined();
+  } else {
+    const details = publicObject(normalized.details, "D2 context details");
+    expect(details).toMatchObject({ version: "POINT_OBJECT_CONTEXT_DETAILS_V2", subjectId: item.sourceFeatureId,
+      association: "selected_record", anchor: expected.normalizedContext!.scope.anchor });
+    const independent = publicObject(normalized.independentContext, "independent context");
+    expect(bundle.sourceHash).toBe("f55ad27098707b5a6efd1ee6d5bd7d8373cff9bd1eddd656207cf70cb15fe67d");
+    expect(independent).toMatchObject({ version: "POINT_OBJECT_INDEPENDENT_CONTEXT_V1", subjectId: item.sourceFeatureId,
+      snapshotHash: bundle.sourceHash, status: item.expectedIndependentStatus,
+      anchor: expected.normalizedContext!.scope.anchor, sourceMode: "admitted_bundled_snapshot_not_live" });
+    if (item.expectedIndependentStatus === "available") {
+      const admitted = expected.normalizedContext!.independentContext!;
+      expect(admitted.places.length).toBeGreaterThan(0);
+      expect(admitted.places.some(place => place.sources.some(source => !!source.record_id))).toBe(true);
+      // Full admitted records include GERS/provider record IDs and schema fields;
+      // a stripped whitelist cannot satisfy source continuity.
+      expect(independent.places).toEqual(admitted.places);
+      expect(independent.sampleSize).toBe(admitted.sampleSize);
+    } else {
+      expect(independent.sampleSize).toBeNull();
+      expect(independent.interiorSampleSize).toBeNull();
+      expect(independent.caseId).toBeNull();
+      expect(independent.places).toEqual([]);
+      expect(publicObject(independent.spatialCoverage, "unsupported spatial coverage").state).toBe("unsupported_scope");
+    }
+  }
+  expect(normalized).toEqual(expected.normalizedContext);
+  return context;
+}
+async function releaseHeldTransport(route: Route, json: unknown, info: TestInfo, kind: "ai" | "context") {
+  let transportOutcome: "fulfilled" | "aborted_or_closed" = "fulfilled";
+  try { await route.fulfill({ json }); }
+  catch (error) {
+    if (!/closed|cancel|abort|disposed|invalid interception id/i.test(String(error))) throw error;
+    transportOutcome = "aborted_or_closed";
+  }
+  await info.attach("d2-" + kind + "-late-transport-outcome", { body: JSON.stringify({ transportOutcome,
+    outcomeScope: "Playwright interception only; browser delivery not independently confirmed",
+    deliveredLateResponseOwnership: transportOutcome === "aborted_or_closed" ? "BLOCKED_ABORTED_TRANSPORT" : "NOT_PROVEN_BY_FULFILL_ALONE",
+    preservationCoverage: "Requires following last-valid/source/reopen assertions; separate from delivered late ownership" }),
+    contentType: "application/json" });
 }
 
 for (const locale of ["en", "ru"] as const) for (const width of [1440, 390]) {
@@ -68,7 +133,7 @@ for (const locale of ["en", "ru"] as const) for (const width of [1440, 390]) {
     await independent.getByTestId("independent-place-detail").locator("details summary").click();
     await expect(independent.getByTestId("independent-place-detail")).toContainText(binsina.sources[0].record_id!);
     expect(signals.aiPosts).toHaveLength(0); // All drilldown is free.
-    const before = await visibleSourceSnapshot(page);
+    const before = await visibleSourceSnapshot(page, item);
     await runOfflineAnalysis(page, locale);
     const posts = signals.aiPosts.length;
     const contextPosts = signals.contextPosts.length;
@@ -80,10 +145,17 @@ for (const locale of ["en", "ru"] as const) for (const width of [1440, 390]) {
     await saved.getByRole("button", { name: locale === "ru" ? "Открыть результат" : "Open result", exact: true }).click();
     await expect(page).toHaveURL(/\/prototype\/point-to-object\/analysis$/);
     await expect(page.getByTestId("ai-success")).toBeVisible();
-    expect(await visibleSourceSnapshot(page)).toEqual(before);
-    await page.getByRole("button", { name: locale === "ru" ? "en" : "ru", exact: true }).click();
+    expect(await visibleSourceSnapshot(page, item)).toEqual(before);
+    await expect(page.getByRole("button", { name: locale, exact: true })).toHaveAttribute("aria-pressed", "true");
+    const originalScreenshot = "d2-linked-context-" + locale + "-" + width + ".png";
+    await dashboard.screenshot({ path: info.outputPath(originalScreenshot) });
+    const switchedLocale = locale === "ru" ? "en" : "ru";
+    const switchedButton = page.getByRole("button", { name: switchedLocale, exact: true });
+    await switchedButton.click();
+    await expect(switchedButton).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByRole("button", { name: locale, exact: true })).toHaveAttribute("aria-pressed", "false");
     await expect(dashboard.getByTestId("independent-source-context")).toContainText("BinSina Pharmacy");
-    expect(await visibleSourceSnapshot(page)).toEqual(before);
+    expect(await visibleSourceSnapshot(page, item)).toEqual(before);
     expect(signals.aiPosts).toHaveLength(posts);
     expect(signals.contextPosts).toHaveLength(contextPosts);
     const bounds = await dashboard.evaluate(el => ({ scroll: el.scrollWidth, client: el.clientWidth,
@@ -91,9 +163,11 @@ for (const locale of ["en", "ru"] as const) for (const width of [1440, 390]) {
     expect(bounds.scroll).toBeLessThanOrEqual(bounds.client + 1);
     expect(bounds.page).toBeLessThanOrEqual(bounds.viewport + 1);
     for (const control of [height, listButton]) expect((await control.boundingBox())!.height).toBeGreaterThanOrEqual(44);
-    await dashboard.screenshot({ path: info.outputPath("d2-linked-context-" + locale + "-" + width + ".png") });
+    const switchedScreenshot = "d2-linked-context-switched-" + switchedLocale + "-" + width + ".png";
+    await dashboard.screenshot({ path: info.outputPath(switchedScreenshot) });
     await info.attach("d2-fixture-boundary", { body: JSON.stringify({ classification: bundle.classification, sourceHash: bundle.sourceHash,
       sourceFeatureId: item.sourceFeatureId, anchor: item.anchor, contextPosts, aiPosts: posts, bounds,
+      captures: [{ locale, path: originalScreenshot }, { locale: switchedLocale, path: switchedScreenshot }],
       realCaseUsefulness: "NOT_SCORED", noPrivateStorageIntake: true }), contentType: "application/json" });
     expectD2TransportQuiet(signals);
   });
@@ -103,16 +177,18 @@ test("D2 ordinary U1 intake uses its own exact anchor/source, not U2 POI substit
   const { item, signals } = await intake(page, info.project.use.baseURL!, "en", 1440, "u1");
   await expect(page.getByTestId("independent-source-context")).toHaveAttribute("data-source-status", "available");
   expect(signals.contextPosts[0].expectedSourceFeatureId).toBe(item.sourceFeatureId);
+  await visibleSourceSnapshot(page, item);
   expect(signals.aiPosts).toHaveLength(0);
   expectD2TransportQuiet(signals);
 });
 
 test("D2 ordinary coordinate drift >1m stays unsupported and unknown", async ({ page }, info) => {
-  const { signals } = await intake(page, info.project.use.baseURL!, "en", 1440, "outside_u2");
+  const { item, signals } = await intake(page, info.project.use.baseURL!, "en", 1440, "outside_u2");
   await expect(page.getByTestId("independent-source-context")).toHaveAttribute("data-source-status", "unsupported_scope");
   await expect(page.getByTestId("independent-source-unknown")).toBeVisible();
   await expect(page.getByTestId("independent-service-brief")).toHaveCount(0);
   await expect(page.getByTestId("independent-source-context")).not.toContainText("BinSina Pharmacy");
+  await visibleSourceSnapshot(page, item);
   expect(signals.aiPosts).toHaveLength(0);
   expectD2TransportQuiet(signals);
 });
@@ -121,14 +197,14 @@ test("D2 V1 absence through normal context intake/save/reopen never gains curren
   const { item, signals } = await intake(page, info.project.use.baseURL!, "en", 1440, "u2", true);
   await expect(page.getByTestId("context-legacy-measurements")).toContainText("Saved V1");
   await expect(page.getByTestId("independent-source-context")).toHaveCount(0);
-  const before = await visibleSourceSnapshot(page);
+  const before = await visibleSourceSnapshot(page, item, true);
   await runOfflineAnalysis(page, "en");
   await page.goto("/prototype/point-to-object/projects");
   const saved = page.getByTestId("saved-result-card").filter({ hasText: item.label });
   await expect(saved).toHaveCount(1);
   await saved.getByRole("button", { name: "Open result", exact: true }).click();
   await expect(page.getByTestId("context-legacy-measurements")).toBeVisible();
-  expect(await visibleSourceSnapshot(page)).toEqual(before);
+  expect(await visibleSourceSnapshot(page, item, true)).toEqual(before);
   expect(signals.contextPosts).toHaveLength(1); expect(signals.aiPosts).toHaveLength(1);
   expectD2TransportQuiet(signals);
 });
@@ -176,32 +252,31 @@ for (const failure of ["transient_404", "source_error"] as const) {
 test("D2 last valid analysis survives failed refresh/cancel and late completion without implicit paid reopen", async ({ page }, info) => {
   const { item, signals } = await intake(page, info.project.use.baseURL!, "en", 1440);
   await runOfflineAnalysis(page, "en");
-  const before = await visibleSourceSnapshot(page);
+  const before = await visibleSourceSnapshot(page, item);
   signals.aiMode = "error";
   await page.getByRole("button", { name: "Refresh analysis", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("D2 offline refresh failure");
   await expect(page.getByText("D2 offline result 1", { exact: true })).toBeVisible();
-  expect(await visibleSourceSnapshot(page)).toEqual(before);
+  expect(await visibleSourceSnapshot(page, item)).toEqual(before);
   signals.aiMode = "hold";
   await page.getByRole("button", { name: "Refresh analysis", exact: true }).click();
   await expect.poll(() => signals.pendingAi !== null).toBe(true);
   await page.getByRole("button", { name: "Cancel analysis", exact: true }).click();
   const late = signals.pendingAi!;
-  // Release the actual intercepted late request. Abort may already have closed
-  // the transport; DOM/source assertions below still enforce no late commit.
-  await late.route.fulfill({ json: late.response }).catch(error => {
-    if (!/closed|cancel|abort|disposed|intercept|handled/i.test(String(error))) throw error;
-  });
+  // An aborted transport qualifies cancellation preservation only. Fulfill
+  // acceptance alone does not prove a delivered late-response ownership test.
+  await releaseHeldTransport(late.route, late.response, info, "ai");
   signals.pendingAi = null;
   await expect(page.getByText("D2 offline result 1", { exact: true })).toBeVisible();
   await expect(page.getByText("D2 offline result 3", { exact: true })).toHaveCount(0);
-  expect(await visibleSourceSnapshot(page)).toEqual(before);
+  expect(await visibleSourceSnapshot(page, item)).toEqual(before);
   const posts = signals.aiPosts.length;
   await page.goto("/prototype/point-to-object/projects");
   const saved = page.getByTestId("saved-result-card").filter({ hasText: item.label });
   await expect(saved).toHaveCount(1);
   await saved.getByRole("button", { name: "Open result", exact: true }).click();
   await expect(page.getByText("D2 offline result 1", { exact: true })).toBeVisible();
+  expect(await visibleSourceSnapshot(page, item)).toEqual(before);
   expect(signals.aiPosts).toHaveLength(posts);
   expect(signals.contextPosts).toHaveLength(1);
   expectD2TransportQuiet(signals);
@@ -210,7 +285,7 @@ test("D2 last valid analysis survives failed refresh/cancel and late completion 
 test("D2 leaving an in-flight context request preserves the saved source and does not pay on reopen", async ({ page }, info) => {
   const { item, signals } = await intake(page, info.project.use.baseURL!, "en", 1440);
   await runOfflineAnalysis(page, "en");
-  const before = await visibleSourceSnapshot(page);
+  const before = await visibleSourceSnapshot(page, item);
   signals.contextMode = "hold";
   await chooseD2ThroughSearch(page, item, "en");
   await expect.poll(() => signals.pendingContext !== null).toBe(true);
@@ -226,11 +301,9 @@ test("D2 leaving an in-flight context request preserves the saved source and doe
   await expect(saved).toHaveCount(1);
   await saved.getByRole("button", { name: "Open result", exact: true }).click();
   await expect(page.getByText("D2 offline result 1", { exact: true })).toBeVisible();
-  await late.route.fulfill({ json: late.envelope }).catch(error => {
-    if (!/closed|cancel|abort|disposed|intercept|handled/i.test(String(error))) throw error;
-  });
+  await releaseHeldTransport(late.route, late.envelope, info, "context");
   signals.pendingContext = null;
-  expect(await visibleSourceSnapshot(page)).toEqual(before);
+  expect(await visibleSourceSnapshot(page, item)).toEqual(before);
   expect(signals.aiPosts).toHaveLength(1);
   expect(signals.contextPosts).toHaveLength(2); // Both were explicit object selections.
   expectD2TransportQuiet(signals);
