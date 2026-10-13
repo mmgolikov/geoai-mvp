@@ -147,8 +147,18 @@ export async function chooseD2ThroughSearch(page: Page, item: D2Case, locale: "e
   expect(item.locale).toBe(locale);
   const ru = locale === "ru";
   await page.goto("/prototype/point-to-object");
-  await page.getByRole("combobox", { name: ru ? "Поиск адреса или места" : "Search address or place", exact: true }).fill("D2 synthetic");
-  await page.getByRole("option").filter({ hasText: item.label }).click();
+  const search = page.getByRole("combobox", { name: ru ? "Поиск адреса или места" : "Search address or place", exact: true });
+  await expect(search).toHaveAttribute("aria-controls", "point-object-search-results");
+  await search.fill("D2 synthetic");
+  // Active-project native options can share this label after save/reopen.
+  // Select only the public autocomplete list controlled by this combobox.
+  const results = page.locator("#point-object-search-results");
+  await expect(results).toHaveAttribute("role", "listbox");
+  await expect(results).toBeVisible();
+  const suggestion = results.getByRole("option").filter({ hasText: item.label });
+  await expect(suggestion).toHaveCount(1);
+  await expect(suggestion).toBeVisible();
+  await suggestion.click();
   const toggle = page.locator("#workspace-task").locator('button[aria-controls="workspace-task-content"]');
   if ((page.viewportSize()?.width ?? 1440) < 1024 && await toggle.getAttribute("aria-expanded") === "false") await toggle.click();
   await expect(page.getByText(item.label, { exact: true }).first()).toBeVisible();
