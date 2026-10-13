@@ -12,7 +12,7 @@
       "key": "unavailable_u2",
       "sourceFeatureId": "way/393391114",
       "anchor": [55.2823691, 25.21764615],
-      "label": "D2 synthetic missing-independent-source U2",
+      "label": "D2 synthetic OSM transport U2",
       "expectedIndependentStatus": "source_unavailable",
       "independentSnapshot": "missing_before_cache"
     },
@@ -43,7 +43,7 @@
         55.2823991,
         25.21764615
       ],
-      "label": "D2 synthetic outside-anchor U2",
+      "label": "D2 synthetic OSM transport U2",
       "expectedIndependentStatus": "unsupported_scope"
     }
   ],

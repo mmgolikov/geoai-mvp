@@ -14,6 +14,13 @@ process.chdir(root);
 const require = createRequire(import.meta.url);
 const ts = require("typescript");
 const transport = JSON.parse(readFileSync(path.join(root, "tests/fixtures/d2-context/transport.json"), "utf8"));
+// Exact OSM records are cached by source identity. A missing independent
+// snapshot or altered selection anchor cannot rename that same OSM record.
+const fixtureNames = new Map();
+for (const item of transport.cases) {
+  if (fixtureNames.has(item.sourceFeatureId)) assert.equal(item.label, fixtureNames.get(item.sourceFeatureId), "One synthetic OSM name per exact source identity");
+  else fixtureNames.set(item.sourceFeatureId, item.label);
+}
 const state = globalThis;
 const fixturePrefix = "d2-fixture:";
 const adapters = {
@@ -135,6 +142,7 @@ try {
     check(state.__d2RouteLeaseInputs.length === 1 && state.__d2RouteLeaseInputs[0].osmFeatureId === item.sourceFeatureId, "Route admits exact lookup identity");
     const parsed = live.parseLiveResolvedObject(envelope.subject);
     check(parsed, "Actual route subject passes real strict browser parser including receipt+normalizedContext");
+    check(parsed.name === item.label, "Actual route OSM name matches ordinary search/save label for exact source identity");
     check(parsed.normalizedContext?.independentContext?.status === item.expectedIndependentStatus, "Source domain unchanged");
     const selection = {locationKey:"dubai",longitude:item.anchor[0],latitude:item.anchor[1],clickedAt:new Date(created).toISOString(),
       object:{name:item.label,featureClass:"building:office",sourceFeatureId:item.sourceFeatureId,geometry:envelope.subject.displayGeometry,geometryProvenance:"confirmed_complete_footprint",renderHeightM:30.48,renderMinHeightM:null},
