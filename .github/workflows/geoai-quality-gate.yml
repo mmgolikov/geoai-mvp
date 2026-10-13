@@ -262,6 +262,12 @@ jobs:
           set -euo pipefail
           npm run test:d2-context-vertical | tee artifacts/d2-context-vertical-check.txt
 
+      - name: D2 pinned partial area-source compatibility contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:d2-area-source | tee artifacts/d2-area-source-check.txt
+
       - name: D2 actual HTTP envelope and restoration contract
         shell: bash
         run: |

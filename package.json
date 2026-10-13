@@ -71,6 +71,7 @@
     "test:source-connector-foundation": "node scripts/source-connector-foundation-check.mjs",
     "test:point-to-object": "node --experimental-strip-types scripts/point-to-object-contract-check.ts && node --experimental-transform-types scripts/point-to-object-analysis-provenance-check.ts",
     "test:d2-context-vertical": "node scripts/d2-context-vertical-check.mjs",
+    "test:d2-area-source": "node scripts/d2-area-source-check.mjs",
     "test:d2-context-http-contract": "node scripts/d2-context-http-contract-check.mjs",
     "test:point-to-object-geocontext": "node --experimental-transform-types scripts/point-to-object-context-classification-check.ts && node --experimental-strip-types scripts/point-to-object-wikidata-check.ts && node --experimental-strip-types scripts/point-to-object-semantic-v6-check.ts && node --experimental-strip-types scripts/point-to-object-analysis-session-v6-check.ts && node --experimental-strip-types scripts/point-to-object-dashboard-contract-check.ts && node --experimental-transform-types scripts/point-to-object-analysis-depth-contract-check.ts",
     "test:point-to-object-autocomplete": "node --experimental-strip-types scripts/point-to-object-autocomplete-check.ts",

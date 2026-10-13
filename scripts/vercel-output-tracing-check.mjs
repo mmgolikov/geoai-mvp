@@ -135,6 +135,18 @@ else {
   if (license.subsetSha256 !== d2SourcePin.sha256 || license.licenseId !== "CDLA-Permissive-2.0" || typeof license.licenseText !== "string" || hash(Buffer.from(license.licenseText)) !== "4531a67d443284d93ffed0803df5b10634aff21c3d77e381f2d48af01d875868") failures.push("D2 source license/subset/full-text binding mismatch");
 }
 
+// U4 is currently a source-only adapter, not mounted in an API route. Do not
+// invent an NFT delivery requirement for an unimplemented route consumer.
+// Its public licence remains a pinned source asset; actual HTTP is separate.
+const u4LicenseFile = resolve(root, "public/data/d2-overture-u4/LICENSES.json");
+if (!existsSync(u4LicenseFile)) failures.push("D2 U4 public license source is missing");
+else {
+  const bytes = readFileSync(u4LicenseFile);
+  if (bytes.byteLength !== 5025 || hash(bytes) !== "3616d986fa3fac4780ab13742547010c72a90d8f5cd80a1f7c32292f0c98b6ea") failures.push("D2 U4 public license source size/hash mismatch");
+  const license = JSON.parse(bytes);
+  if (license.appliesToSubset?.sha256 !== "6ce26a323102cf8e01c3107250f648d54180ccd0d1befc7d0900a3472b8ff63d" || license.licenseId !== "CDLA-Permissive-2.0" || typeof license.licenseText !== "string" || hash(Buffer.from(license.licenseText)) !== "4531a67d443284d93ffed0803df5b10634aff21c3d77e381f2d48af01d875868") failures.push("D2 U4 source license/subset/full-text binding mismatch");
+}
+
 if (failures.length > 0) {
   console.error("Vercel output-file tracing contract failed:");
   failures.forEach((failure) => console.error(`- ${failure}`));
