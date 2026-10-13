@@ -372,6 +372,8 @@ for (const locale of ["en", "ru"] as const) for (const width of [1440, 390]) {
     await expect(mapPoint).toBeFocused();
     await expect(mapPoint).toHaveAttribute("aria-pressed", "true");
     await selectedSourceEvidence(independent, binsina, source.places.indexOf(binsina) + 1, locale, dates);
+    const focusedScreenshot = "d2-focus-selected-binsina-" + locale + "-" + width + ".png";
+    await independent.screenshot({ path: info.outputPath(focusedScreenshot) });
     expect(signals.aiPosts).toHaveLength(0); // All drilldown is free.
     expect(signals.contextPosts).toHaveLength(1);
     const before = await visibleSourceSnapshot(page, item);
@@ -410,6 +412,8 @@ for (const locale of ["en", "ru"] as const) for (const width of [1440, 390]) {
       sourceFeatureId: item.sourceFeatureId, anchor: item.anchor, fixtureLocale: item.locale, sourceLocale: item.sourceLocale,
       contextPosts, aiPosts: posts, bounds,
       captures: [{ kind: "whole_first_viewport", locale, path: firstViewportScreenshot },
+        { kind: "independent_focus_selected", locale, path: focusedScreenshot, overtureId: binsina.id,
+          recordIndex: source.places.indexOf(binsina) + 1, mapView: "selected", captureScope: "independent-source-context" },
         { kind: "reopened_widget", locale, path: originalScreenshot }, { kind: "reopened_widget", locale: switchedLocale, path: switchedScreenshot }],
       realCaseUsefulness: "NOT_SCORED", noPrivateStorageIntake: true }), contentType: "application/json" });
     expectD2TransportQuiet(signals);
