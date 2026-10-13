@@ -1,7 +1,7 @@
 # GeoAI Documentation Index
 
 Status: Active navigation authority
-Last verified: 2026-09-28
+Last verified: 2026-10-13
 Owner: GeoAI Documentation Governance
 Authority: Sole repository navigation and lifecycle precedence
 Successor: None; update affected navigation and verify publication without claiming atomic cross-system writes
@@ -12,6 +12,8 @@ Navigation: [Confluence Hub](https://geoaimvp.atlassian.net/wiki/spaces/PH/overv
 This index is the repository entry point for current documentation. If a versioned release note, dated snapshot or old change request conflicts with an active document below, the active document wins. Historical files remain immutable evidence of what was believed or released at that time; they are not current operating instructions.
 
 ## Start here
+
+**13 October — D2 is RUNNING.** The founder started [source-backed Analyse followed by bounded flexible Create](D2_CHANGE_REQUEST_2026_10_13.md) from exact Preview baseline `88b6fed0d673a3fc4bb8d425986bd05e37e2f1f1`. New D2 paid package: USD10 / six provider attempts; full CI1 + one diagnosed-fix repeat. [Current weekly execution](https://geoaimvp.atlassian.net/wiki/spaces/PH/pages/35487746) and the D2 section of [AGENTS.md](../AGENTS.md) supersede older short-sprint/proposed-budget/source-preparation holds below within this scope. Bounded source admission and useful UI acceptance remain distinct; Create implementation follows independent first-vertical acceptance. Main/Production, hosted DB, Auth/env, access/security and purchases remain excluded. Historical sections and evidence are retained, not current permission to resume their loops.
 
 **28 September — current small Preview sprints.** The founder superseded the old release cycle: prepare two visible product increments within this week's remaining resource; review each in 2–4 hours. No Production/main or full58 restart. Product baseline `3760318556cd6795a0e3866f2ac3f7e7c6809223`; this is a candidate, not accepted whole-product quality. [Current roadmap and sprint briefs](https://geoaimvp.atlassian.net/wiki/spaces/PH/pages/35618817) → [product contracts](https://geoaimvp.atlassian.net/wiki/spaces/PH/pages/35553281) → [architecture/impact](https://geoaimvp.atlassian.net/wiki/spaces/PH/pages/35586049) → [targeted testing and limits](https://geoaimvp.atlassian.net/wiki/spaces/PH/pages/35651585). Read the current section in [AGENTS.md](../AGENTS.md) first. Use `node scripts/select-tests.mjs <changed paths>` to prepare, not execute, a test plan. Historical dates and broad gates below are context, not current sprint holds. Exact external authority and safety restrictions remain in force.
 

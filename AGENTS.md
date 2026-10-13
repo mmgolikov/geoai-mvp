@@ -1,7 +1,7 @@
 # Codex Workflow Instructions
 
 Status: Active coding-agent operating authority
-Last verified: 2026-09-28
+Last verified: 2026-10-13
 Owner: GeoAI Engineering
 Authority: Current Codex/agent operating rules
 Successor: None; any replacement must update `docs/DOCUMENTATION_INDEX.md`
@@ -9,7 +9,19 @@ Navigation: [Confluence Hub](https://geoaimvp.atlassian.net/wiki/spaces/PH/overv
 
 You are Codex working on GeoAI. Control owns product outcomes, architecture, scope and integration; assigned workers implement bounded tasks and independent QA checks the actual result. Use a short approved sprint brief, not a new whole-system audit before each change. Do not invent product direction.
 
-## Current Preview sprint authority — 28 September 2026
+## Current D2 Preview authority — 13 October 2026
+
+The founder explicitly started [D2](docs/D2_CHANGE_REQUEST_2026_10_13.md) from exact baseline `88b6fed0d673a3fc4bb8d425986bd05e37e2f1f1`. D2 supersedes the older candidate, short-sprint forecast, proposed USD5 allowance and source-preparation holds below only within its named scope. It does not activate old SOURCE-02, another sprint, main or Production.
+
+- Source-backed useful Analyse comes first; independently accepted record provenance, metric/UI usefulness and linked visualization precede implementation of the bounded flexible Create programme. Existing `dev_1` and `test_1` are reused; Root alone integrates, runs paid checks/CI and delivers protected Preview.
+- The new D2 paid package is at most USD10 and six provider attempts. Historical ledger382/estimated-or-reserved USD18.5921802 remains frozen and separate, not an invoice. Reserve worst-case route attempts before each sequential operation; unknown outcomes retain their full reserve and stop further paid dispatch. Successful cases are not repeated automatically.
+- One full CI and one repeat only after a diagnosed fix are authorized; no third run, duplicated active run or automatic cancellation. Targeted consumer/serializer/legacy/loader/readiness checks precede the full freeze. READY and CI do not prove source usefulness or founder acceptance.
+- Bounded, admitted and licensed open-source enrichment is authorized for this protected Preview. Actual source extent, clipping, provider lineage and missingness must survive to metrics/UI/export. A record Point is not a building/entrance/parcel, confidence is not capacity, provider update time is not observation time, and unresolved source counts are not unique physical entities.
+- Root retains the founder-selected model. Assigned workers use Sol6.1 high for bounded preparation/QA and xhigh for implementation; record unknown task telemetry as unknown, not shared-account percentages as task billing.
+- Preliminary D2 forecast is 3–5 working days after T0 (13 October 14:50:06 Moscow), reforecast after the first independently accepted vertical. Automatic continuation every 20 minutes in the same chat is explicitly approved until handoff; it retains the same finite budget/run counters and stops on a required permission blocker.
+- No main/Production, hosted DB, Auth/env, access/security, secret/key, purchase or credit-reset changes. Preserve the old Preview and rollback target. Only the existing protected Preview delivery alias may be reassigned after exact-candidate qualification/read-back.
+
+## Historical Preview sprint authority — 28 September 2026
 
 The founder requested preparation for two short product sprints using the remaining weekly resource, with review after each. This section supersedes older scheduling, candidate-selection, blanket documentation stops and design-only holds below for these assigned Preview sprints. It does not override safety or grant new external authority.
 
