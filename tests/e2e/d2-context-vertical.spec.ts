@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { expect, test, type Page, type Route, type TestInfo } from "@playwright/test";
+import { expect, test, type Locator, type Page, type Route, type TestInfo } from "@playwright/test";
 import {
   chooseD2ThroughSearch, expectD2TransportQuiet, installD2Transport, loadD2FixtureBundle,
   openD2Analysis, openD2Projects, publicD2Snapshot, type D2Bundle, type D2Case, type D2Locale, type D2Signals
@@ -139,11 +139,204 @@ async function releaseHeldTransport(route: Route, json: unknown, info: TestInfo,
     contentType: "application/json" });
 }
 
+type D2Place = NonNullable<NonNullable<D2Case["envelope"]["subject"]["normalizedContext"]>["independentContext"]>["places"][number];
+async function nativeTarget44(control: Locator) {
+  await expect(control).toBeVisible();
+  expect(await control.evaluate(el => el.tagName)).toBe("BUTTON");
+  const box = await control.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.width).toBeGreaterThanOrEqual(44);
+  expect(box!.height).toBeGreaterThanOrEqual(44);
+  return box!;
+}
+function exactRecord(scope: Locator, testId: string, id: string) {
+  return scope.locator('[data-testid="' + testId + '"][data-overture-id="' + id + '"]');
+}
+async function selectedSourceEvidence(independent: Locator, place: D2Place, index: number, locale: D2Locale, dates: Record<string, string>) {
+  const plot = independent.getByTestId("independent-point-plot");
+  const brief = exactRecord(independent, "independent-service-brief", place.id);
+  const detail = exactRecord(independent, "independent-place-detail", place.id);
+  await expect(brief).toHaveCount(1);
+  await expect(brief).toHaveAttribute("data-record-index", String(index));
+  await expect(brief).toContainText(place.name);
+  await expect(brief).toContainText(place.address ?? (locale === "ru" ? "Адрес неизвестен" : "Address unknown"));
+  await expect(brief).toContainText(place.distanceM.toLocaleString(locale === "ru" ? "ru-RU" : "en-US", { maximumFractionDigits: 1 }));
+  await expect(brief.getByTestId("independent-service-next-action")).toHaveCount(1);
+  await expect(detail).toHaveCount(1);
+  await expect(detail).toContainText(locale === "ru" ? "Доказательства записи #" + index : "Evidence for record #" + index);
+  await expect(detail).toContainText(dates[String(place.providerUpdatedAt)]);
+  await expect(plot).toHaveAttribute("data-map-view", "selected");
+  const marker = exactRecord(plot, "independent-point-marker", place.id);
+  await expect(plot.getByTestId("independent-point-marker")).toHaveCount(1);
+  await expect(plot.getByTestId("independent-marker-cluster")).toHaveCount(0);
+  await expect(marker).toHaveAttribute("data-record-index", String(index));
+  await expect(marker).toHaveAttribute("aria-pressed", "true");
+  await nativeTarget44(marker);
+  await expect(plot.getByTestId("independent-origin")).toHaveCount(1);
+  await expect(plot.getByTestId("independent-origin")).toBeVisible();
+  await expect(independent.getByTestId("independent-map-legend")).toContainText(locale === "ru" ? "Исходная точка" : "Selected-object origin");
+  await expect(independent.getByTestId("independent-map-legend")).toContainText("#" + index);
+  const lineage = detail.getByTestId("independent-record-lineage");
+  if (!await lineage.evaluate(el => el.hasAttribute("open"))) await lineage.locator(":scope > summary").click();
+  await expect(lineage).toHaveAttribute("open", "");
+  await expect(lineage).toContainText("GERS " + place.id + " · " + place.evidenceRef);
+  await expect(lineage).toContainText("WGS84 [" + place.coordinates.join(", ") + "]");
+  if (place.taxonomy.hierarchy.length) await expect(lineage).toContainText(place.taxonomy.hierarchy.join(" → "));
+  await expect(lineage).toContainText(place.basic_category);
+  await expect(lineage.locator("p").filter({ hasText: locale === "ru" ? "Confidence источника" : "Source confidence" })).toContainText(String(place.confidence));
+  await expect(lineage.locator(":scope > p").first()).toContainText(locale === "ru" ? "неизвестны" : "unknown");
+  for (const source of place.sources) {
+    const provider = lineage.locator("p").filter({ hasText: source.provider }).filter({ hasText: source.record_id ?? source.resource });
+    await expect(provider).toHaveCount(1);
+    await expect(provider).toContainText(dates[String(source.update_time)]);
+    await expect(provider).toContainText(source.license);
+    if (source.property === "/properties/confidence") await expect(provider).toContainText(locale === "ru" ? "не физический источник" : "not physical source");
+  }
+}
+async function exerciseSourceMarkers(page: Page, independent: Locator, item: D2Case, info: TestInfo) {
+  const source = item.envelope.subject.normalizedContext!.independentContext!;
+  expect(source.places.length).toBeGreaterThan(0);
+  expect(source.places.length).toBeLessThanOrEqual(20);
+  // Format pinned public timestamps with this browser's Intl implementation.
+  // This pure calculation reads no application state and changes no DOM/storage.
+  const dates = await page.evaluate(({ locale, values }) => Object.fromEntries(values.map(value => [String(value),
+    value ? new Date(value).toLocaleDateString(locale === "ru" ? "ru-RU" : "en-GB", {
+      day: "numeric", month: "short", year: "numeric", timeZone: "UTC"
+    }) : locale === "ru" ? "неизвестна" : "unknown"
+  ])), { locale: item.locale, values: [...new Set(source.places.flatMap(place => [place.providerUpdatedAt, ...place.sources.map(record => record.update_time)]))] });
+  const indexes = new Map(source.places.map((place, index) => [place.id, index + 1]));
+  const plot = independent.getByTestId("independent-point-plot");
+  const list = independent.getByTestId("independent-place-list");
+  const rows = list.getByTestId("independent-place-select");
+  const all = independent.getByRole("button", { name: item.locale === "ru" ? "Все" : "All", exact: true });
+  const overview = independent.getByTestId("independent-map-overview");
+  await all.click();
+  await expect(plot).toHaveAttribute("data-map-view", "overview");
+  await expect.poll(() => plot.evaluate(el => {
+    const svg = el.querySelector("svg");
+    return !!svg && Math.abs(svg.viewBox.baseVal.width - el.getBoundingClientRect().width) < 1;
+  })).toBe(true); // Public SVG/box agreement after the bounded resize observer.
+  await expect(rows).toHaveCount(source.places.length);
+  const listState = () => rows.evaluateAll(elements => elements.map(el => ({ id: el.getAttribute("data-overture-id"), index: el.getAttribute("data-record-index") })));
+  const expectedRows = source.places.map(place => ({ id: place.id, index: String(indexes.get(place.id)) }));
+  expect(await listState()).toEqual(expectedRows);
+  const controls = plot.locator('button[data-testid="independent-marker-cluster"], button[data-testid="independent-point-marker"]');
+  const groups = await controls.evaluateAll(elements => elements.map(el => ({ kind: el.getAttribute("data-testid"),
+    members: (el.getAttribute("data-member-ids") ?? "").split(","),
+    indexes: (el.getAttribute("data-record-indexes") ?? "").split(","), size: el.getAttribute("data-cluster-size") })));
+  expect(groups.length).toBeGreaterThan(0);
+  expect(groups.some(group => group.members.length > 1)).toBe(true); // No vacuous cluster coverage.
+  expect(groups.flatMap(group => group.members).sort()).toEqual(source.places.map(place => place.id).sort());
+  const boxes = [];
+  for (let i = 0; i < groups.length; i++) {
+    const group = groups[i];
+    expect(group.size).toBe(String(group.members.length));
+    expect(group.indexes).toEqual(group.members.map(id => String(indexes.get(id))));
+    expect(group.members.map(id => indexes.get(id))).toEqual(group.members.map(id => indexes.get(id)).sort((a, b) => a! - b!));
+    boxes.push(await nativeTarget44(controls.nth(i)));
+  }
+  // Public hit rectangles must not overlap. This observes rendered controls,
+  // without copying the component's clustering implementation or moving points.
+  for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
+    const a = boxes[i], b = boxes[j];
+    expect(a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.height <= b.y || b.y + b.height <= a.y).toBe(true);
+  }
+  const pointerIds: string[] = [], keyboardIds: string[] = [];
+  for (const group of groups) {
+    await overview.click();
+    await expect(plot).toHaveAttribute("data-map-view", "overview");
+    if (group.members.length > 1) {
+      const cluster = plot.locator('button[data-testid="independent-marker-cluster"][data-member-ids="' + group.members.join(",") + '"]');
+      for (const action of ["pointer", "Enter", " "]) {
+        await expect(cluster).toHaveAttribute("aria-expanded", "false");
+        if (action === "pointer") await cluster.click();
+        else { await cluster.focus(); await page.keyboard.press(action); await expect(cluster).toBeFocused(); }
+        await expect(cluster).toHaveAttribute("aria-expanded", "true");
+        await expect(cluster).toHaveAttribute("aria-pressed", "true");
+        expect(await listState()).toEqual(group.members.map(id => ({ id, index: String(indexes.get(id)) })));
+        await independent.getByTestId("independent-cluster-clear").click();
+        expect(await listState()).toEqual(expectedRows);
+      }
+      await cluster.click();
+    }
+    for (const id of group.members) {
+      const place = source.places.find(value => value.id === id)!;
+      const row = exactRecord(list, "independent-place-select", id);
+      await expect(row).toHaveAttribute("data-record-index", String(indexes.get(id)));
+      await nativeTarget44(row);
+      await row.click(); pointerIds.push(id);
+      await expect(row).toHaveAttribute("aria-pressed", "true");
+      await selectedSourceEvidence(independent, place, indexes.get(id)!, item.locale, dates);
+      // Move to another actual listed source record first. Otherwise a broken
+      // keyboard handler could pass by leaving the already-selected ID intact.
+      const otherId = (group.members.length > 1 ? group.members : source.places.map(value => value.id)).find(value => value !== id);
+      expect(otherId).toBeDefined();
+      await exactRecord(list, "independent-place-select", otherId!).click();
+      await expect(independent.getByTestId("independent-service-brief")).toHaveAttribute("data-overture-id", otherId!);
+      await expect(row).toHaveAttribute("aria-pressed", "false");
+      await row.focus(); await page.keyboard.press(indexes.get(id)! % 2 ? "Enter" : " ");
+      await expect(row).toBeFocused(); keyboardIds.push(id);
+      await selectedSourceEvidence(independent, place, indexes.get(id)!, item.locale, dates);
+      await expect(exactRecord(plot, "independent-point-marker", id)).toHaveAttribute("data-selected-member-index", String(indexes.get(id)));
+    }
+    if (group.members.length > 1) {
+      await overview.click();
+      const cluster = plot.locator('button[data-testid="independent-marker-cluster"][data-member-ids="' + group.members.join(",") + '"]');
+      await expect(cluster).toHaveAttribute("data-selected-member-index", String(indexes.get(group.members.at(-1)!)));
+      await independent.getByTestId("independent-cluster-clear").click();
+    }
+  }
+  await all.click();
+  expect(await listState()).toEqual(expectedRows);
+  expect([...pointerIds].sort()).toEqual(source.places.map(place => place.id).sort());
+  expect([...keyboardIds].sort()).toEqual(source.places.map(place => place.id).sort());
+  const categoryLabels: Record<D2Locale, Record<D2Place["group"], string>> = {
+    en: { healthcare: "Healthcare records", education: "Education records", daily_services: "Daily services", transport: "Transport records", hospitality: "Hospitality", business: "Business services", civic_culture: "Civic & culture", other_service: "Other services" },
+    ru: { healthcare: "Медицинские записи", education: "Образовательные записи", daily_services: "Повседневные сервисы", transport: "Транспортные записи", hospitality: "Гостиницы", business: "Деловые услуги", civic_culture: "Общественные и культурные", other_service: "Другие услуги" }
+  };
+  const categoryClearCoverage = [];
+  for (const category of new Set(source.places.map(place => place.group))) {
+    const categoryButton = independent.getByRole("button", { name: categoryLabels[item.locale][category], exact: true });
+    await categoryButton.click();
+    await expect(categoryButton).toHaveAttribute("aria-pressed", "true");
+    const expectedCategory = expectedRows.filter(row => source.places.find(place => place.id === row.id)!.group === category);
+    await expect.poll(listState).toEqual(expectedCategory);
+    const categoryIds = await controls.evaluateAll(elements => elements.flatMap(el => (el.getAttribute("data-member-ids") ?? "").split(",")));
+    expect(categoryIds.sort()).toEqual(expectedCategory.map(row => row.id).sort());
+    const categoryClusters = plot.getByTestId("independent-marker-cluster");
+    let coverage = "BLOCKED_NO_RENDERED_CATEGORY_CLUSTER";
+    if (await categoryClusters.count()) {
+      const categoryCluster = categoryClusters.first();
+      await categoryCluster.click();
+      await expect(categoryCluster).toHaveAttribute("aria-expanded", "true");
+      await independent.getByTestId("independent-cluster-clear").click();
+      await expect.poll(listState).toEqual(expectedCategory);
+      await expect(categoryButton).toHaveAttribute("aria-pressed", "true");
+      coverage = "REVEAL_AND_CLEAR_CURRENT_CATEGORY_ASSERTED";
+    }
+    categoryClearCoverage.push({ category, coverage });
+  }
+  await all.click();
+  expect(await listState()).toEqual(expectedRows);
+  await info.attach("d2-source-marker-access", { body: JSON.stringify({ sourceHash: bundles[item.locale].sourceHash,
+    groups, hitRectangles: boxes, pointerIds, keyboardIds, indexesPreserved: expectedRows, categoryClearCoverage,
+    scope: "Shown admitted source records only; visual distinction and origin pixels still need Root review" }), contentType: "application/json" });
+  return dates;
+}
+
 for (const locale of ["en", "ru"] as const) for (const width of [1440, 390]) {
   test("D2 ordinary intake→actual envelope→linked evidence→save/reopen " + locale + " " + width, async ({ page }, info) => {
     const { item, signals } = await intake(page, info.project.use.baseURL!, locale, width);
     const bundle = bundles[locale];
     const dashboard = page.getByTestId("normalized-context-dashboard");
+    await expect(page.getByRole("button", { name: locale, exact: true })).toHaveAttribute("aria-pressed", "true");
+    const breakdown = dashboard.getByTestId("context-sample-breakdown");
+    await expect(breakdown).toHaveJSProperty("open", false);
+    await expect(breakdown.locator('article[data-testid^="context-"]')).toHaveCount(5);
+    await expect(dashboard.getByText("Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.", { exact: true })).toHaveCount(1);
+    await page.locator("[data-point-object-header]").scrollIntoViewIfNeeded();
+    const firstViewportScreenshot = "d2-first-viewport-" + locale + "-" + width + ".png";
+    await page.screenshot({ path: info.outputPath(firstViewportScreenshot), fullPage: false });
     const height = dashboard.getByTestId("context-physical-height");
     await height.focus(); await page.keyboard.press("Enter");
     await expect(height).toHaveAttribute("aria-pressed", "true");
@@ -155,16 +348,19 @@ for (const locale of ["en", "ru"] as const) for (const width of [1440, 390]) {
     const source = item.envelope.subject.normalizedContext!.independentContext!;
     const binsina = source.places.find(p => p.name === "BinSina Pharmacy");
     if (!binsina) throw new Error("Actual admitted BinSina source row required");
-    const listButton = independent.getByTestId("independent-place-select").filter({ hasText: binsina.name });
+    const dates = await exerciseSourceMarkers(page, independent, item, info);
+    const listButton = exactRecord(independent.getByTestId("independent-place-list"), "independent-place-select", binsina.id);
     await listButton.click();
     await expect(listButton).toHaveAttribute("aria-pressed", "true");
-    await expect(independent.getByTestId("independent-place-detail")).toContainText(binsina.name);
-    const mapPoint = independent.locator('[data-overture-id="' + binsina.id + '"]');
+    await selectedSourceEvidence(independent, binsina, source.places.indexOf(binsina) + 1, locale, dates);
+    const mapPoint = exactRecord(independent.getByTestId("independent-point-plot"), "independent-point-marker", binsina.id);
+    await mapPoint.click();
     await mapPoint.focus(); await page.keyboard.press(" ");
+    await expect(mapPoint).toBeFocused();
     await expect(mapPoint).toHaveAttribute("aria-pressed", "true");
-    await independent.getByTestId("independent-place-detail").locator("details summary").click();
-    await expect(independent.getByTestId("independent-place-detail")).toContainText(binsina.sources[0].record_id!);
+    await selectedSourceEvidence(independent, binsina, source.places.indexOf(binsina) + 1, locale, dates);
     expect(signals.aiPosts).toHaveLength(0); // All drilldown is free.
+    expect(signals.contextPosts).toHaveLength(1);
     const before = await visibleSourceSnapshot(page, item);
     await runOfflineAnalysis(page, locale);
     const posts = signals.aiPosts.length;
@@ -200,7 +396,8 @@ for (const locale of ["en", "ru"] as const) for (const width of [1440, 390]) {
     await info.attach("d2-fixture-boundary", { body: JSON.stringify({ classification: bundle.classification, sourceHash: bundle.sourceHash,
       sourceFeatureId: item.sourceFeatureId, anchor: item.anchor, fixtureLocale: item.locale, sourceLocale: item.sourceLocale,
       contextPosts, aiPosts: posts, bounds,
-      captures: [{ locale, path: originalScreenshot }, { locale: switchedLocale, path: switchedScreenshot }],
+      captures: [{ kind: "whole_first_viewport", locale, path: firstViewportScreenshot },
+        { kind: "reopened_widget", locale, path: originalScreenshot }, { kind: "reopened_widget", locale: switchedLocale, path: switchedScreenshot }],
       realCaseUsefulness: "NOT_SCORED", noPrivateStorageIntake: true }), contentType: "application/json" });
     expectD2TransportQuiet(signals);
   });
