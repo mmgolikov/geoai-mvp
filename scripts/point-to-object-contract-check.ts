@@ -72,12 +72,18 @@ function semanticHash(value: unknown): string {
   return sha256(canonicalJson(value));
 }
 
+// A transformed data: module has no relative filesystem base. Remember its
+// exact origin; do not reinterpret arbitrary data URLs or widen alias access.
+const transformedModuleOrigins = new Map<string, string>();
+
 async function importErasableTypeScript(filePath: string, transforms: Array<[RegExp, string]> = []): Promise<Record<string, unknown>> {
   registerCoreTypeScriptHooks();
   let source = readFileSync(filePath, "utf8");
   for (const [pattern, replacement] of transforms) source = source.replace(pattern, replacement);
   const javascript = stripTypeScriptTypes(source, { mode: "transform", sourceMap: false });
-  return await import(`data:text/javascript;base64,${Buffer.from(javascript).toString("base64")}`) as Record<string, unknown>;
+  const moduleUrl = `data:text/javascript;base64,${Buffer.from(javascript).toString("base64")}`;
+  transformedModuleOrigins.set(moduleUrl, pathToFileURL(filePath).href);
+  return await import(moduleUrl) as Record<string, unknown>;
 }
 
 function expectInvalidSchemaRequest(validateRequest: ReturnType<Ajv2020["compile"]>, candidate: unknown): void {
@@ -540,10 +546,49 @@ function assertSemanticValidation(validateRoot: ReturnType<Ajv2020["compile"]>):
 
 let coreHooksRegistered = false;
 
+// Only the new D2 transitive edges. Existing fixture transformations and the
+// legacy resolver below remain unchanged; unknown imports in this graph fail.
+const d2ContractUrl = (name: string) => pathToFileURL(path.join(ROOT, "src/lib/prototype", `${name}.ts`)).href;
+const d2ReaderPath = path.join(ROOT, "src/lib/prototype/point-to-object-overture-snapshot.ts");
+const d2ReaderUrl = pathToFileURL(d2ReaderPath).href;
+const d2HashUrl = pathToFileURL(path.join(ROOT, "src/lib/point-to-object/hash.ts")).href;
+const d2ContractImportGraph = new Map<string, Map<string, string>>([
+  [d2ContractUrl("point-to-object-live-evidence"), new Map([["./point-to-object-overture-snapshot", d2ReaderUrl]])],
+  [d2ContractUrl("point-to-object-ai-core"), new Map([["./point-to-object-independent-context", d2ContractUrl("point-to-object-independent-context")]])],
+  [d2ReaderUrl, new Map([
+    ["../point-to-object/hash", d2HashUrl],
+    ["./point-to-object-independent-context", d2ContractUrl("point-to-object-independent-context")]
+  ])],
+  [d2ContractUrl("point-to-object-normalized-context"), new Map([
+    ["./point-to-object-context-details-v2", d2ContractUrl("point-to-object-context-details-v2")],
+    ["./point-to-object-independent-context", d2ContractUrl("point-to-object-independent-context")]
+  ])],
+  [d2ContractUrl("point-to-object-context-details-v2"), new Map([["./point-to-object-map-replacement", d2ContractUrl("point-to-object-map-replacement")]])],
+  [d2ContractUrl("point-to-object-independent-context"), new Map([["./point-to-object-overture-projection-bindings", d2ContractUrl("point-to-object-overture-projection-bindings")]])],
+  [d2ContractUrl("point-to-object-map-replacement"), new Map()],
+  [d2ContractUrl("point-to-object-overture-projection-bindings"), new Map()],
+  [d2HashUrl, new Map()]
+]);
+function approvedD2ContractImport(specifier: string, parentURL: string | undefined): string | null {
+  const origin = parentURL ? transformedModuleOrigins.get(parentURL) ?? parentURL : undefined;
+  const edges = origin ? d2ContractImportGraph.get(origin) : undefined;
+  if (!edges || !(specifier.startsWith(".") || specifier.startsWith("@/"))) return null;
+  const target = edges.get(specifier);
+  assert.ok(target, `Unapproved D2 contract import: ${specifier}`);
+  return target;
+}
+
 function registerCoreTypeScriptHooks(): void {
   if (coreHooksRegistered) return;
+  for (const [parent, edges] of d2ContractImportGraph) {
+    for (const [specifier, target] of edges) assert.equal(approvedD2ContractImport(specifier, parent), target);
+    assert.throws(() => approvedD2ContractImport("./unknown-runtime", parent), /Unapproved D2 contract import/);
+    assert.throws(() => approvedD2ContractImport("@/unknown-runtime", parent), /Unapproved D2 contract import/);
+  }
   registerHooks({
     resolve(specifier, context, nextResolve) {
+      const target = approvedD2ContractImport(specifier, context.parentURL);
+      if (target) return nextResolve(target, context);
       if (specifier.startsWith("@/")) {
         return nextResolve(pathToFileURL(path.join(ROOT, `${specifier.slice(2)}.ts`)).href, context);
       }
@@ -556,6 +601,16 @@ function registerCoreTypeScriptHooks(): void {
         }
       }
       return nextResolve(specifier, context);
+    },
+    load(url, context, nextLoad) {
+      if (url !== d2ReaderUrl) return nextLoad(url, context);
+      // Remove only this exact reader's bundler annotation for Node tests.
+      // Execute its real hash-verified file reader; never stub data or domains.
+      const source = readFileSync(d2ReaderPath, "utf8");
+      const annotation = /^import "server-only";\r?\n/gm;
+      assert.equal([...source.matchAll(annotation)].length, 1, "Exact D2 reader annotation drifted.");
+      return { format: "module", shortCircuit: true,
+        source: stripTypeScriptTypes(source.replace(annotation, ""), { mode: "transform", sourceMap: false }) };
     }
   });
   coreHooksRegistered = true;
