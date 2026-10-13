@@ -33,10 +33,10 @@ export function useVerificationCapture(enabled: boolean): Capture {
   return shared ?? { records, begin, captureRefused };
 }
 
-export function VerificationExport({ enabled, locale, preSubmit = null, records = [], currentSelection, captureRefused = false }: {
+export function VerificationExport({ enabled, locale, preSubmit = null, records = [], currentSelection, captureRefused = false, compactMobile = false }: {
   enabled: boolean; locale: "en" | "ru";
   preSubmit?: { operation: VerificationOperation; intent: unknown; sourceSnapshot: unknown } | null;
-  records?: readonly VerificationRecord[]; currentSelection: unknown; captureRefused?: boolean;
+  records?: readonly VerificationRecord[]; currentSelection: unknown; captureRefused?: boolean; compactMobile?: boolean;
 }) {
   const [json, setJson] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -60,8 +60,11 @@ export function VerificationExport({ enabled, locale, preSubmit = null, records 
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch { setError(true); }
   }
-  return <details className="my-2 rounded-xl border border-line bg-white p-3 text-xs" data-testid="verification-export">
-    <summary className="min-h-11 cursor-pointer font-semibold text-[#087f8c] focus-visible:outline focus-visible:outline-2">{ru ? "Проверочные данные · Preview" : "Verification data · Preview"}</summary>
+  return <details className={compactMobile ? "group my-1 rounded-xl border border-line bg-white px-3 py-0 text-xs open:py-3 sm:my-2 sm:p-3" : "my-2 rounded-xl border border-line bg-white p-3 text-xs"} data-testid="verification-export" data-mobile-layout={compactMobile ? "compact" : undefined}>
+    <summary className={`${compactMobile ? "flex min-h-[44px] items-center gap-2 sm:list-item sm:min-h-11" : "min-h-11"} cursor-pointer font-semibold text-[#087f8c] focus-visible:outline focus-visible:outline-2`}>
+      {compactMobile ? <span aria-hidden="true" className="shrink-0 group-open:rotate-90 sm:hidden">▸</span> : null}
+      {ru ? "Проверочные данные · Preview" : "Verification data · Preview"}
+    </summary>
     <p className="my-2 text-muted">{ru ? "Локальный файл, без нового запроса. История старых сохранений не восстанавливается." : "Local file, no new request. Legacy request provenance is not reconstructed."}</p>
     <button type="button" disabled={busy} onClick={() => void prepare()} data-testid="verification-prepare" className="min-h-11 rounded-lg border border-line px-3 font-semibold focus-visible:outline focus-visible:outline-2">{busy ? (ru ? "Подготовка…" : "Preparing…") : (ru ? "Подготовить JSON" : "Prepare JSON")}</button>
     <p role="status" aria-live="polite" className="mt-2">{error ? (ru ? "Экспорт отклонён: данные неполные, небезопасные или превышают лимит. Основной результат не изменён." : "Export refused: incomplete, unsafe or oversized data. The main result is unchanged.") : json ? (ru ? "Снимок подготовлен. Текущий выбор и исходный запрос записаны отдельно." : "Snapshot ready. Current selection and original submission are recorded separately.") : ""}</p>

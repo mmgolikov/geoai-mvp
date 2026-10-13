@@ -2,7 +2,7 @@
 import { VerificationExport, useVerificationCapture } from "./verification-export";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 import { useAuth } from "@/components/auth/auth-provider";
 import { usePointObjectLocale } from "@/components/point-to-object/locale-provider";
@@ -217,6 +217,8 @@ export function PointToObjectAnalysis({ verificationEnabled = false }: { verific
   const verification = useVerificationCapture(verificationEnabled);
   const { locale, setLocale, t } = usePointObjectLocale();
   const { user, isSessionResolved } = useAuth();
+  const analysisControlsId = useId();
+  const analysisControlsRef = useRef<HTMLFormElement>(null);
   const [selection, setSelection] = useState<LiveMapSelection | null>(null);
   const [analysis, setAnalysis] = useState<PointObjectAiResponse | null>(null);
   const [question, setQuestion] = useState("");
@@ -527,6 +529,15 @@ export function PointToObjectAnalysis({ verificationEnabled = false }: { verific
     return { depth, goal, perspective, horizon, ...overrides };
   }
 
+  // Navigation only: opening the existing form never submits, refreshes
+  // evidence, changes the draft or starts an AI request.
+  function focusAnalysisControls() {
+    const controls = analysisControlsRef.current;
+    if (!controls) return;
+    controls.scrollIntoView({ block: "start", behavior: "auto" });
+    controls.focus({ preventScroll: true });
+  }
+
   function submitFollowUp(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selection || loading || activeRequestRef.current) return;
@@ -669,12 +680,18 @@ export function PointToObjectAnalysis({ verificationEnabled = false }: { verific
       <p className="sr-only" aria-live="polite">{announcement}</p>
       <PointObjectHeader backToMap backToFind={backToFind} />
 
-      <div className="mx-auto max-w-[1920px] px-4 sm:px-6"><VerificationExport enabled={verificationEnabled} locale={locale} preSubmit={selection ? { operation: "analyse", intent: buildSubmissionIntent(selection, requestIdentity(selection, question.trim() || null, { depth, goal, perspective, horizon }, locale)), sourceSnapshot: { context: selection.resolvedObject ?? null } } : null} records={verification.records} captureRefused={verification.captureRefused} currentSelection={selection ? { mode: "analyse", marketKey: selection.locationKey, locale, longitude: selection.longitude, latitude: selection.latitude, sourceFeatureId: pointObjectSelectedLookupId(selection) } : null} /></div>
+      <div className="mx-auto max-w-[1920px] px-4 sm:px-6"><VerificationExport enabled={verificationEnabled} locale={locale} compactMobile preSubmit={selection ? { operation: "analyse", intent: buildSubmissionIntent(selection, requestIdentity(selection, question.trim() || null, { depth, goal, perspective, horizon }, locale)), sourceSnapshot: { context: selection.resolvedObject ?? null } } : null} records={verification.records} captureRefused={verification.captureRefused} currentSelection={selection ? { mode: "analyse", marketKey: selection.locationKey, locale, longitude: selection.longitude, latitude: selection.latitude, sourceFeatureId: pointObjectSelectedLookupId(selection) } : null} /></div>
       <div className="mx-auto grid w-full max-w-[1920px] gap-5 p-4 sm:p-6 xl:grid-cols-[minmax(0,1fr)_340px]">
         <section className="min-w-0">
-          <div className="rounded-[20px] border border-line bg-white p-5 shadow-soft sm:p-7" data-testid="analysis-selected-header">
+          <div className="rounded-[20px] border border-line bg-white p-4 shadow-soft sm:p-7" data-testid="analysis-selected-header">
             <p className="text-xs font-bold uppercase tracking-[0.11em] text-[#087f8c]">{t("panel.eyebrow")}</p>
-            <h1 className="mt-2 break-words text-2xl font-bold tracking-[-0.035em] sm:text-3xl">{title}</h1>
+            <h1 className="mt-1 break-words text-2xl font-bold tracking-[-0.035em] sm:mt-2 sm:text-3xl">{title}</h1>
+            {selection ? <button type="button" onClick={focusAnalysisControls} aria-controls={analysisControlsId}
+              className="mt-3 flex min-h-[48px] w-full flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-xl bg-[#087f8c] px-3 py-2 text-start text-sm font-bold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#243447] sm:hidden"
+              data-testid="analysis-mobile-controls-trigger" data-draft-depth={depth}>
+              <span>{locale === "ru" ? "Параметры анализа" : "Analysis controls"}</span>
+              <span className="text-xs font-semibold">{locale === "ru" ? "Черновик" : "Draft"} · {depthLabel(depth)} <span aria-hidden="true">↓</span></span>
+            </button> : null}
             {resolvedName ? <p className="mt-2 text-base font-semibold text-[#344054]">{resolvedName}</p> : null}
             {contextRelation ? <p className="mt-2 text-xs font-semibold text-[#087f8c]">{contextRelation}</p> : null}
             {legacyIdentityUnconfirmed ? <p className="mt-3 rounded-xl border border-[#e7c47e] bg-[#fffaf0] p-3 text-xs leading-5 text-[#6b4b16]">{locale === "ru" ? "В сохранённом отчёте ближайший объект был отмечен как точный. Совпадение с выбранным объектом не подтверждено; исходный отчёт сохранён без изменений." : "This saved report labelled a nearby object as exact. Its identity is not confirmed against the selected feature; the original report is preserved unchanged."}</p> : null}
@@ -695,7 +712,7 @@ export function PointToObjectAnalysis({ verificationEnabled = false }: { verific
             ) : null}
           </div>
 
-          <div className="mt-5">
+          <div className="mt-3 sm:mt-5">
             {!content && selection ? <PointObjectExpressOverview selection={selection} locale={locale} /> : null}
             {!loading && !analysis && selection ? <section className="mt-5 rounded-[20px] border border-line bg-white p-6 shadow-soft sm:p-7" data-testid="analysis-setup">
               <h2 className="text-lg font-bold text-[#243447]">{locale === "ru" ? "Настройте анализ объекта" : "Set up the object analysis"}</h2>
@@ -844,8 +861,9 @@ export function PointToObjectAnalysis({ verificationEnabled = false }: { verific
         </section>
 
         <aside className="min-w-0"><div className="space-y-5 xl:sticky xl:top-6">
-          <form onSubmit={submitFollowUp} className="rounded-[20px] border border-line bg-white p-5 shadow-soft">
-            <label className="text-base font-bold" htmlFor="analysis-follow-up">{t("analysis.focused")}</label>
+          <form id={analysisControlsId} ref={analysisControlsRef} tabIndex={-1} aria-labelledby={`${analysisControlsId}-label`} onSubmit={submitFollowUp}
+            className="scroll-mt-20 rounded-[20px] border border-line bg-white p-5 shadow-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087f8c]" data-testid="analysis-controls-form">
+            <label id={`${analysisControlsId}-label`} className="text-base font-bold" htmlFor="analysis-follow-up">{t("analysis.focused")}</label>
             <p className="mt-2 text-xs leading-5 text-muted">{t("analysis.focusedHelp")}</p>
             <div className="mt-4 grid grid-cols-2 gap-2" aria-label={t("analysis.focusedOptions")}>
               {focusedAnalyses.map((item) => <button key={item.goal} type="button" onClick={() => selectFocusedAnalysis(item.goal, item.question)} disabled={loading} aria-pressed={goal === item.goal} className={`min-h-11 rounded-xl border px-3 text-left text-xs font-bold transition disabled:cursor-not-allowed disabled:opacity-50 ${goal === item.goal ? "border-[#087f8c] bg-[#e5fafa] text-[#344054]" : "border-line bg-[#f8fafc] text-[#344054] hover:border-[#087f8c] hover:bg-white"}`}>{item.label}</button>)}
@@ -855,7 +873,7 @@ export function PointToObjectAnalysis({ verificationEnabled = false }: { verific
             <fieldset className="mt-4">
               <legend className="text-xs font-bold text-[#344054]">{t("analysis.depth")}</legend>
               <div className="mt-2 grid grid-cols-3 gap-1 rounded-xl bg-[#f2f5f8] p-1">
-                {depthOptions.map((option) => <button key={option.value} type="button" onClick={() => setDepth(option.value)} aria-pressed={depth === option.value} className={`min-h-10 rounded-lg px-2 text-xs font-bold transition ${depth === option.value ? "bg-white text-[#087f8c] shadow-sm" : "text-[#667085] hover:text-[#344054]"}`}>{option.label}</button>)}
+                {depthOptions.map((option) => <button key={option.value} type="button" onClick={() => setDepth(option.value)} aria-pressed={depth === option.value} className={`min-h-[44px] rounded-lg px-2 text-xs font-bold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087f8c] sm:min-h-10 ${depth === option.value ? "bg-white text-[#087f8c] shadow-sm" : "text-[#667085] hover:text-[#344054]"}`}>{option.label}</button>)}
               </div>
               <p className="mt-2 text-[11px] leading-4 text-muted">{depthOptions.find((option) => option.value === depth)?.description}</p>
             </fieldset>
