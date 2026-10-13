@@ -344,6 +344,10 @@ export function parseLiveResolvedObject(value: unknown): LiveResolvedObjectConte
     ...(hasRenderHeight ? { renderHeightM } : {}),
     ...(hasRenderMinHeight ? { renderMinHeightM } : {})
   };
+  // New enrichment keeps exact lookup binding even if optional measurements
+  // were removed. Genuine unenriched V1 and non-selected context remain valid.
+  if ((normalizedContext?.details || normalizedContext?.independentContext) &&
+      coordinateAssociation === "trusted_open_map_identity" && evidenceReceipt?.lookupSourceFeatureId !== sourceFeatureId) return null;
   if (normalizedContext?.details && !contextDetailsMatchResolvedSubject(normalizedContext.details, resolved)) return null;
   return resolved;
 }

@@ -223,6 +223,11 @@ for (const edit of [
 }
 const nullLookup = clone(publicSubject); nullLookup.evidenceReceipt.lookupSourceFeatureId = null;
 check(parseLiveResolvedObject(nullLookup) === null, "Trusted selected V2 measurements require exact selected lookup ID");
+const combinedNullLookup = clone(publicSubject); delete combinedNullLookup.normalizedContext.details;
+combinedNullLookup.evidenceReceipt.lookupSourceFeatureId = null;
+check(parseLiveResolvedObject(combinedNullLookup) === null, "Deleting measurements cannot remove exact lookup binding while independent enrichment is retained");
+const combinedSelection = clone(savedSelection); combinedSelection.resolvedObject = combinedNullLookup;
+check(parsePointObjectSelection(combinedSelection) === null, "Actual saved selection rejects combined details deletion plus trusted null lookup");
 for (const edit of [
   c => c.places[0].name = "Different admitted-looking name",
   c => c.places[0].address = "Another street",
@@ -270,6 +275,8 @@ for (const association of ["reverse_nearest_indexed_object_not_point_in_polygon"
   contextSubject.normalizedContext = normalizePointObjectContext(contextPack);
   contextSubject.evidenceReceipt.lookupSourceFeatureId = null;
   check(parseLiveResolvedObject(contextSubject), "Legitimate reverse/contains V2 retains null lookup and unknown selected measurements");
+  delete contextSubject.normalizedContext.details;
+  check(parseLiveResolvedObject(contextSubject), "Legitimate reverse/contains independent-only context retains null lookup after optional details removal");
 }
 const tempPack = clone(pack); tempPack.selectedObject.tags = { "tag.building": "tent", "tag.leisure": "outdoor_seating", "tag.building:levels": "3" };
 check(contextDetailsFromEvidence(tempPack).metrics.find(m => m.id === "levels").value === null, "Tent/seating tags cannot certify permanent floors");
