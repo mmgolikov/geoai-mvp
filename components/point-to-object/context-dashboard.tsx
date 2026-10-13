@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { CONTEXT_GROUP_LABELS, type ContextGroup, type PointObjectNormalizedContext } from "@/src/lib/prototype/point-to-object-normalized-context";
 import { CONTEXT_DETAILS_CAVEAT, type ContextPhysicalMetric } from "@/src/lib/prototype/point-to-object-context-details-v2";
 import { IndependentSourceContext } from "./independent-source-context";
@@ -11,6 +11,9 @@ const control = "min-h-11 min-w-0 rounded-xl border p-3 text-start focus-visible
 export function PointObjectContextDashboard({ context, locale, programme = false }: Props) {
   const ru = locale === "ru";
   const detailId = useId();
+  const mapId = useId();
+  const mapRef = useRef<HTMLDetailsElement>(null);
+  const [mapOpen, setMapOpen] = useState(true);
   const [group, setGroup] = useState<ContextGroup | "all">("all");
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
   const [selectedMetricId, setSelectedMetricId] = useState<string | null>(null);
@@ -43,15 +46,14 @@ export function PointObjectContextDashboard({ context, locale, programme = false
     {details?.semanticWarnings.length ? <p className="mt-2 text-xs leading-5 text-[#6b4b16]" data-testid="context-semantic-limit">{ru ? "Теги outdoor_seating / временных конструкций не доказывают парк, общественную зелёную площадь или постоянную используемую площадь этажей. Исторический снимок не переписан." : "Outdoor-seating / temporary-structure tags do not establish a park, public green area or permanent usable floor area. The historical snapshot has not been rewritten."}</p> : null}
     {details ? <div className="mt-4 grid grid-cols-2 gap-3 xl:grid-cols-4" data-testid="context-physical-metrics">{details.metrics.map(m => {
       const source = details.sources.find(s => s.id === m.sourceId);
-      return <button type="button" key={m.id} aria-pressed={activeMetric?.id === m.id} aria-controls={detailId} onClick={() => { setSelectedMetricId(m.id); setSelectedPlaceId(null); }} className={`${control} min-h-12 ${activeMetric?.id === m.id ? "border-[#087f8c] bg-[#f4fbfb]" : "border-[#dce6e3] bg-[#f8fafc]"}`} data-testid={`context-physical-${m.id}`}>
+      return <button type="button" key={m.id} aria-pressed={activeMetric?.id === m.id} aria-expanded={mapOpen} aria-controls={`${mapId} ${detailId}`} onClick={() => { setSelectedMetricId(m.id); setSelectedPlaceId(null); setMapOpen(true); mapRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }); }} className={`${control} min-h-12 ${activeMetric?.id === m.id ? "border-[#087f8c] bg-[#f4fbfb]" : "border-[#dce6e3] bg-[#f8fafc]"}`} data-testid={`context-physical-${m.id}`}>
         <span className="block text-xs font-bold text-[#52657a]">{metricLabels[m.id]}</span>
         <span className="mt-2 block text-xl font-bold tabular-nums text-[#087f8c]">{m.value === null ? "—" : `${fmt(m.value)} ${m.unit === "levels" ? (ru ? "эт." : "levels") : m.unit}`}</span>
         <span className="mt-1 block text-[11px] leading-4 text-[#52657a]">{m.value === null ? (ru ? "Не установлено · не ноль" : "Unknown · not zero") : m.method === "explicit_osm_tag" ? (ru ? "Тег источника · не обмер" : "Source tag · not surveyed") : m.scope === "user_aoi" ? (ru ? "Расчёт по границе пользователя" : "User-boundary calculation") : (ru ? "Расчёт по геометрии OSM" : "OSM geometry calculation")}</span>
         <span className="mt-2 block text-[10px] leading-4 text-[#667085]">{source?.name} · {date(source?.observedAt ?? source?.acquiredAt ?? null)}</span>
       </button>;
     })}</div> : <p className="mt-4 rounded-xl bg-[#f8fafc] p-3 text-xs leading-5 text-[#52657a]" data-testid="context-legacy-measurements">{ru ? "Сохранённый V1: детальные измерения и геометрия не сохранены. Новые факты, даты и источники не добавлены." : "Saved V1: detailed measurements and geometry were not retained. No new facts, dates or sources have been added."}</p>}
-    {context.independentContext ? <IndependentSourceContext key={`${context.subjectId}:${context.independentContext.snapshotHash}`} context={context.independentContext} locale={locale} /> : null}
-    <details className="mt-4"><summary className="min-h-11 cursor-pointer text-sm font-bold leading-[44px] text-[#52657a]">{ru ? "Карта и инфраструктура OSM" : "OSM map & infrastructure"}</summary>
+    <details id={mapId} ref={mapRef} open={mapOpen} onToggle={event => setMapOpen(event.currentTarget.open)} className="mt-4" data-testid="context-linked-map"><summary className="min-h-11 cursor-pointer text-sm font-bold leading-[44px] text-[#52657a]">{ru ? "Карта и инфраструктура OSM" : "OSM map & infrastructure"}</summary>
     <div className="mt-3 grid gap-4 lg:grid-cols-2">
       {anchor && (places.some(p => p.coordinates) || geometry) ? <figure className="min-w-0" data-testid="context-spatial-plot">
         <figcaption className="text-sm font-bold text-[#344054]">{ru ? "Контур и записи источника на схеме" : "Boundary & source records on the diagram"}</figcaption>
@@ -93,6 +95,7 @@ export function PointObjectContextDashboard({ context, locale, programme = false
     {counts.length ? <details className="mt-4"><summary className="min-h-11 cursor-pointer text-xs font-bold leading-[44px] text-[#52657a]">{ru ? "Состав возвращённой выборки · не землепользование" : "Returned sample mix · not land-use coverage"}</summary><div className="space-y-2" data-testid="context-use-chart">{counts.map(m => <p key={m.id} className="text-xs text-[#52657a]">{labels[m.group]}: {fmt(m.value!)} · {fmt(context.metrics.find(item => item.id === `${m.group}.share`)?.value ?? 0)}%</p>)}<p className="text-[11px] leading-5 text-[#667085]">{ru ? "Доли записей, не площади, населения или спроса. Ноль в выборке не доказывает отсутствия объекта." : "Shares of records, not area, population or demand. Zero records do not establish absence."}</p></div></details> : null}
     {programme ? <p className="mt-4 text-xs leading-5 text-[#52657a]">{ru ? "Инвентаризация внутри зоны не заменяет обследование окружения. Вместимость, нагрузку и доступ нужно подтвердить у оператора." : "Interior inventory does not replace a surrounding catchment assessment. Confirm capacity, future load and access with the operator."}</p> : null}
     </details>
+    {context.independentContext ? <IndependentSourceContext key={`${context.subjectId}:${context.independentContext.snapshotHash}`} context={context.independentContext} locale={locale} /> : null}
     <p className="mt-4 text-[11px] leading-5 text-[#667085]">{context.source.attribution} · {ru ? "получено" : "acquired"} {date(context.source.acquiredAt)} · {ru ? "дата базы" : "database date"} {date(context.source.observedAt)} · {ru ? "неполная открытая карта" : "incomplete open map"}.</p>
     <p className="mt-2 text-[11px] leading-5 text-[#667085]">{CONTEXT_DETAILS_CAVEAT}</p>
   </section>;

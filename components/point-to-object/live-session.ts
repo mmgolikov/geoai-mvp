@@ -1,5 +1,6 @@
 import { parsePointObjectClimate } from "@/src/lib/prototype/point-to-object-climate-contract";
 import { normalizedContextMatchesProfile, parseNormalizedPointObjectContext } from "@/src/lib/prototype/point-to-object-normalized-context";
+import { contextDetailsMatchResolvedSubject } from "@/src/lib/prototype/point-to-object-context-details-v2";
 import { parsePointObjectAnswerProvenance } from "@/src/lib/prototype/point-to-object-answer-provenance";
 import { parsePointObjectFabricDiagnostic } from "@/src/lib/prototype/point-to-object-fabric-diagnostic";
 import type { GeoJsonGeometry } from "@/src/lib/point-to-object/contracts";
@@ -321,7 +322,7 @@ export function parseLiveResolvedObject(value: unknown): LiveResolvedObjectConte
       (hasRenderMinHeight && value.renderMinHeightM !== null && renderMinHeightM === null) ||
       ((renderHeightM !== null || renderMinHeightM !== null) && displayGeometry === null) ||
       (renderMinHeightM !== null && (renderHeightM === null || renderMinHeightM >= renderHeightM))) return null;
-  return {
+  const resolved: LiveResolvedObjectContext = {
     name,
     ...(evidenceReceipt ? { evidenceReceipt } : {}),
     address,
@@ -343,6 +344,8 @@ export function parseLiveResolvedObject(value: unknown): LiveResolvedObjectConte
     ...(hasRenderHeight ? { renderHeightM } : {}),
     ...(hasRenderMinHeight ? { renderMinHeightM } : {})
   };
+  if (normalizedContext?.details && !contextDetailsMatchResolvedSubject(normalizedContext.details, resolved)) return null;
+  return resolved;
 }
 
 export function parsePointObjectSearchResponse(value: unknown): PointObjectSearchResponse | null {
@@ -477,6 +480,8 @@ export function parsePointObjectSelection(value: unknown): LiveMapSelection | nu
       ? null
       : parseLiveResolvedObject(value.resolvedObject);
     if (value.resolvedObject !== null && value.resolvedObject !== undefined && !restoredResolvedObject) return null;
+    const heldAnchor = restoredResolvedObject?.normalizedContext?.details?.anchor;
+    if (heldAnchor && (Math.abs(heldAnchor[0] - point[0]) > 0.000001 || Math.abs(heldAnchor[1] - point[1]) > 0.000001)) return null;
     const pitch = value.viewport.pitch === undefined ? 0 : finiteNumber(value.viewport.pitch, 0, 85);
     const bearing = value.viewport.bearing === undefined ? 0 : finiteNumber(value.viewport.bearing, -360, 360);
     const viewMode = value.viewport.viewMode === "2d" || value.viewport.viewMode === "3d"

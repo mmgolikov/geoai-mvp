@@ -7,7 +7,8 @@ import { buildIndependentContext, independentCaseBinding, OVERTURE_SNAPSHOT_HASH
 let admitted: unknown;
 
 /** Fixed admitted bytes only. No wildcard, remote fetch, env, provider secrets
- * or whole-UAE coverage. The static path is traced into the server deployment. */
+ * or whole-UAE coverage. The static path is intended for Next output-file
+ * tracing; Control must verify packaged bytes and the exact hosted API. */
 export function readIndependentPointObjectContext(subjectId: string, anchor: [number, number], polygon?: [number, number][][]) {
   if (!independentCaseBinding(subjectId, anchor, polygon)) return buildIndependentContext(null, subjectId, anchor, new Date().toISOString(), polygon);
   try {

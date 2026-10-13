@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { stripTypeScriptTypes } from "node:module";
+import { registerHooks, stripTypeScriptTypes } from "node:module";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -20,10 +20,17 @@ function semanticHash(value: unknown): string {
 }
 
 async function loadAiCore(): Promise<Record<string, any>> {
+  // Resolve actual transitive admission modules. No parser/provenance stub.
+  registerHooks({ resolve(specifier, context, next) {
+    if (!context.parentURL?.includes("/node_modules/") && (specifier.startsWith("./") || specifier.startsWith("../")) && !/\.[cm]?[jt]s$/.test(specifier)) return next(`${specifier}.ts`, context);
+    return next(specifier, context);
+  } });
   const file = path.join(process.cwd(), "src/lib/prototype/point-to-object-ai-core.ts");
   let source = readFileSync(file, "utf8");
   source = source.replace(/from "\.\/point-to-object-climate-contract"/,
     `from ${JSON.stringify(pathToFileURL(path.join(process.cwd(), "src/lib/prototype/point-to-object-climate-contract.ts")).href)}`);
+  source = source.replace(/from "\.\/point-to-object-independent-context"/,
+    `from ${JSON.stringify(pathToFileURL(path.join(process.cwd(), "src/lib/prototype/point-to-object-independent-context.ts")).href)}`);
   source = source.replace(
     /import \{ LIVE_POINT_CAVEAT \} from "@\/src\/lib\/point-to-object\/contracts";\n/,
     `const LIVE_POINT_CAVEAT = ${JSON.stringify(CAVEAT)};\n`

@@ -2,6 +2,7 @@ import type { MultiPolygon, Polygon } from "geojson";
 import type { LivePointObjectEvidencePack } from "./point-to-object-live-evidence";
 import type { PointObjectAreaContextResult } from "./point-to-object-area-context-contract";
 import { validatePointObjectReplacementAoi } from "./point-to-object-map-replacement";
+import type { LiveResolvedObjectContext } from "@/components/point-to-object/live-types";
 
 /** An additive, source-scoped extension. V1 snapshots remain V1: absence of
  * this field never authorizes reconstructing geometry, dates or measurements. */
@@ -127,6 +128,41 @@ export function contextDetailsFromArea(area: PointObjectAreaContextResult): Poin
       ...(area.features.some(f => ["tent", "tents", "static_caravan", "carport", "roof"].includes(f.observedTags?.building ?? "")) ? ["temporary_structure_not_permanent_floor_area" as const] : [])
     ], completeInventory: false, caveat: CONTEXT_DETAILS_CAVEAT
   };
+}
+
+/** Saved V2 cannot donate another association/geometry/tag to a selected
+ * subject. Public receipt comparison establishes consistency, not hosted
+ * persistence or authenticity of user-supplied saved content. V1 absence is
+ * handled by the caller and never upgrades itself to V2. */
+export function contextDetailsMatchResolvedSubject(details: PointObjectContextDetailsV2, subject: LiveResolvedObjectContext): boolean {
+  const exact = subject.coordinateAssociation === "trusted_open_map_identity";
+  const association = exact ? "selected_record" : subject.coordinateAssociation === "open_map_geometry_contains_point"
+    ? "contains_point_not_selected" : "nearest_record_not_selected";
+  const receipt = subject.evidenceReceipt;
+  const objectSource = details.sources.find(source => source.id === "osm_object");
+  if (details.subjectId !== subject.sourceFeatureId || details.association !== association ||
+      !receipt || !objectSource || objectSource.responseHash !== receipt.sourceResponseHash ||
+      objectSource.acquiredAt !== receipt.acquiredAt ||
+      receipt.lookupSourceFeatureId !== null && receipt.lookupSourceFeatureId !== subject.sourceFeatureId) return false;
+  const tags = subject.tags;
+  const building = tags["tag.building"] ?? tags.building;
+  const temporary = ["tent", "tents", "static_caravan", "carport", "roof"].includes(building ?? "") ||
+    (tags["tag.leisure"] ?? tags.leisure) === "outdoor_seating";
+  const expected = [
+    exact ? subject.metrics?.footprintAreaSqM ?? null : null,
+    exact ? subject.metrics?.footprintPerimeterM ?? null : null,
+    exact ? contextExplicitTag(tags["tag.height"] ?? tags.height, "m") : null,
+    exact && building && !temporary ? contextExplicitTag(tags["tag.building:levels"] ?? tags["building:levels"], "levels") : null
+  ];
+  if (details.metrics.some((metric, index) => metric.value !== expected[index])) return false;
+  const expectedGeometry = exact && subject.geometryProvenance === "confirmed_complete_footprint"
+    ? boundedGeometry(subject.displayGeometry ?? null) : null;
+  if (JSON.stringify(details.geometry) !== JSON.stringify(expectedGeometry)) return false;
+  const warnings = [
+    ...((tags["tag.leisure"] ?? tags.leisure) === "outdoor_seating" ? ["outdoor_seating_not_green_space"] : []),
+    ...(temporary ? ["temporary_structure_not_permanent_floor_area"] : [])
+  ];
+  return JSON.stringify(details.semanticWarnings) === JSON.stringify(warnings);
 }
 
 const record = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);

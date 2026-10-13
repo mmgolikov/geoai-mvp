@@ -1,4 +1,4 @@
-import { semanticHash } from "../point-to-object/hash";
+import { independentFactsMatchAdmission } from "./point-to-object-overture-projection-bindings";
 
 export const OVERTURE_SNAPSHOT_HASH = "f55ad27098707b5a6efd1ee6d5bd7d8373cff9bd1eddd656207cf70cb15fe67d" as const;
 export const OVERTURE_SNAPSHOT_RELEASE = "2026-09-23.1" as const;
@@ -10,6 +10,16 @@ export const INDEPENDENT_CASES = [
   { caseId: "U3", sourceFeatureId: "create-aoi-1791308131017", anchor: [55.2829004147909, 25.21870336602228] as [number, number] }
 ] as const;
 export const INDEPENDENT_U3_POLYGON: [number, number][][] = [[[55.282050183926145,25.219612876671434],[55.28399124484818,25.21891603284108],[55.28377557141195,25.217912570712187],[55.28192694196176,25.218302806968055],[55.282050183926145,25.219612876671434]]];
+/** SHA-256 of the exact admitted array-only canonical JSON. Browser consumers
+ * compare the full coordinates, then reuse this pinned server-compatible hash;
+ * they do not hash arbitrary geometry or pull node:crypto into the client. */
+export const INDEPENDENT_U3_GEOMETRY_HASH = "7abda75be2679c04628bb399b4c199788c682074a7093b1767bba691daf843ba" as const;
+function admittedU3Geometry(polygon: [number, number][][]): boolean {
+  return JSON.stringify(polygon) === JSON.stringify(INDEPENDENT_U3_POLYGON);
+}
+function admittedGeometryHash(polygon?: [number, number][][]): string | null {
+  return polygon && admittedU3Geometry(polygon) ? INDEPENDENT_U3_GEOMETRY_HASH : null;
+}
 export type IndependentPlaceGroup = "healthcare" | "education" | "daily_services" | "transport" | "hospitality" | "business" | "civic_culture" | "other_service";
 export type IndependentPlaceSource = {
   dataset: string; provider: string; record_id: string | null; resource: string;
@@ -89,7 +99,7 @@ function inside(point: [number, number], polygon: [number, number][][]) {
 
 /** Admission is by exact known identity/anchor, never nearest-case substitution. */
 export function independentCaseBinding(subjectId: string, anchor: [number, number], polygon?: [number, number][][]) {
-  if (polygon) return semanticHash(polygon) === semanticHash(INDEPENDENT_U3_POLYGON) && independentDistanceM(anchor, INDEPENDENT_CASES[2].anchor) <= 1 ? INDEPENDENT_CASES[2] : null;
+  if (polygon) return admittedU3Geometry(polygon) && independentDistanceM(anchor, INDEPENDENT_CASES[2].anchor) <= 1 ? INDEPENDENT_CASES[2] : null;
   return INDEPENDENT_CASES.slice(0, 2).find(c => c.sourceFeatureId === subjectId && independentDistanceM(anchor, c.anchor) <= 1) ?? null;
 }
 
@@ -97,7 +107,7 @@ export function buildIndependentContext(data: unknown, subjectId: string, anchor
   const bound = independentCaseBinding(subjectId, anchor, polygon);
   const base: IndependentPointObjectContext = {
     version: INDEPENDENT_CONTEXT_VERSION, status: bound ? "source_unavailable" : "unsupported_scope", dataset: "Overture Places", release: OVERTURE_SNAPSHOT_RELEASE, snapshotHash: OVERTURE_SNAPSHOT_HASH, subjectId, anchor,
-    caseId: bound?.caseId ?? null, scope: polygon ? "aoi_interior_and_separate_surroundings" : "point_radius", radiusM: 400, geometryHash: polygon ? semanticHash(polygon) : null,
+    caseId: bound?.caseId ?? null, scope: polygon ? "aoi_interior_and_separate_surroundings" : "point_radius", radiusM: 400, geometryHash: admittedGeometryHash(polygon),
     sampleSize: null, interiorSampleSize: null, returnedLimit: 20, places: [], completeInventory: false, observationDate: null, fetchedAt: null,
     acquisitionStartedAt: "2026-10-13T11:54:17Z", cacheServedAt, sourceMode: "admitted_bundled_snapshot_not_live", officialStatus: "open_context_not_official", licenceId: "CDLA-Permissive-2.0", licencePath: OVERTURE_LICENSE_PATH,
     attribution: "Overture Maps Foundation; data from Meta, Microsoft and PinMeTo", deduplication: "source_ids_only_no_cross_source_merge",
@@ -130,7 +140,7 @@ export function parseIndependentContext(value: unknown, subjectId: string, ancho
   if (!record(value) || !anchor || JSON.stringify(value).length > 36_000 || value.version !== INDEPENDENT_CONTEXT_VERSION || value.subjectId !== subjectId || !coordinate(value.anchor) || value.anchor[0] !== anchor[0] || value.anchor[1] !== anchor[1] || value.dataset !== "Overture Places" || value.release !== OVERTURE_SNAPSHOT_RELEASE || value.snapshotHash !== OVERTURE_SNAPSHOT_HASH || value.radiusM !== 400 || value.returnedLimit !== 20 || value.completeInventory !== false || value.observationDate !== null || value.fetchedAt !== null || value.acquisitionStartedAt !== "2026-10-13T11:54:17Z" || !date(value.cacheServedAt) || value.cacheServedAt === null || Date.parse(String(value.cacheServedAt)) < Date.parse(String(value.acquisitionStartedAt)) || value.sourceMode !== "admitted_bundled_snapshot_not_live" || value.officialStatus !== "open_context_not_official" || value.licenceId !== "CDLA-Permissive-2.0" || value.licencePath !== OVERTURE_LICENSE_PATH || value.attribution !== "Overture Maps Foundation; data from Meta, Microsoft and PinMeTo" || value.deduplication !== "source_ids_only_no_cross_source_merge" || !Array.isArray(value.places) || value.places.length > 20) return null;
   if (!keys(value, ["version", "status", "dataset", "release", "snapshotHash", "subjectId", "anchor", "caseId", "scope", "radiusM", "geometryHash", "sampleSize", "interiorSampleSize", "returnedLimit", "places", "completeInventory", "observationDate", "fetchedAt", "acquisitionStartedAt", "cacheServedAt", "sourceMode", "officialStatus", "licenceId", "licencePath", "attribution", "deduplication", "spatialCoverage"])) return null;
   const binding = independentCaseBinding(subjectId, anchor, polygon);
-  if (value.caseId !== (binding?.caseId ?? null) || value.scope !== (polygon ? "aoi_interior_and_separate_surroundings" : "point_radius") || value.geometryHash !== (polygon ? semanticHash(polygon) : null)) return null;
+  if (value.caseId !== (binding?.caseId ?? null) || value.scope !== (polygon ? "aoi_interior_and_separate_surroundings" : "point_radius") || value.geometryHash !== admittedGeometryHash(polygon)) return null;
   const coverage = value.spatialCoverage;
   if (!record(coverage) || !keys(coverage, ["acquisitionExtent", "state", "easternClipApproxM", "method"]) || JSON.stringify(coverage.acquisitionExtent) !== "[55.276,25.2139,55.2866,25.2241]" || coverage.method !== "independent_admission_extent_check_not_inventory" || coverage.state !== (!binding ? "unsupported_scope" : binding.caseId === "U3" ? "partial_circle_clipped_by_acquisition_extent" : "full_circle_within_acquisition_extent") || coverage.easternClipApproxM !== (!binding ? null : binding.caseId === "U3" ? 27.83 : 0)) return null;
   if (!binding ? value.status !== "unsupported_scope" : !["available", "source_unavailable"].includes(String(value.status))) return null;
@@ -145,5 +155,6 @@ export function parseIndependentContext(value: unknown, subjectId: string, ancho
     const physicalTimes = sources.filter(s => s.provider !== "overture" && s.update_time).map(s => s.update_time!).sort();
     if (!sources.some(s => s.provider !== "overture") || raw.providerUpdatedAt !== (physicalTimes.at(-1) ?? null) || (raw.address !== null && !text(raw.address, 300)) || (raw.sourceReportedOperatingStatus !== null && !text(raw.sourceReportedOperatingStatus, 100)) || typeof raw.distanceM !== "number" || !Number.isFinite(raw.distanceM) || raw.distanceM < 0 || raw.distanceM > 400 || Math.abs(raw.distanceM - independentDistanceM(anchor, raw.coordinates)) > 0.011 || raw.distanceMethod !== "haversine_to_mapped_place_point" || raw.relation !== (polygon ? inside(raw.coordinates, polygon) ? "inside_aoi" : "outside_aoi" : "point_radius") || raw.evidenceRef !== `EVD-OVERTURE-${String(raw.id).replaceAll("-", "").toUpperCase()}`) return null;
   }
+  if (!independentFactsMatchAdmission(value as IndependentPointObjectContext)) return null;
   return structuredClone(value) as IndependentPointObjectContext;
 }
