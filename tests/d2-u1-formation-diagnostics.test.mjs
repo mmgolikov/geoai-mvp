@@ -42,13 +42,26 @@ hooks = registerHooks({
 const core = await import("../src/lib/prototype/point-to-object-ai-core.ts");
 const live = await import("../components/point-to-object/live-session.ts");
 const observed = await import("../src/lib/prototype/point-to-object-verification-export.ts");
+const independent = await import("../src/lib/prototype/point-to-object-independent-context.ts");
 const ts = createRequire(new URL("../package.json", import.meta.url))("typescript");
+// Root constructs this offline fixture with the actual pure admitted builder.
+// The saved public snapshot is sanitized; it is never an original server pack.
+const reconstruction = fixture.formationReconstruction;
+const admittedBytes = readFileSync(new URL(reconstruction.sourcePath, root));
+assert.equal(hash(admittedBytes), reconstruction.sourceSha256);
+const formationAnchor = [fixture.request.longitude, fixture.request.latitude];
+assert.deepEqual(formationAnchor, reconstruction.exactAnchor);
+const formationContext = independent.buildIndependentContext(JSON.parse(admittedBytes),
+  fixture.request.expectedSourceFeatureId, formationAnchor, reconstruction.cacheServedAt);
+const formationPack = clone(fixture.pack);
+formationPack.evidence.find(e => e.id === "EVD-OVERTURE-SNAPSHOT").value = JSON.stringify(formationContext);
+const binsina = formationContext.places.find(p => p.id === fixture.binsina.id);
 const req = locale => Object.fromEntries(["role", "scenario", "depth", "goal", "perspective", "horizon", "question"]
   .map(key => [key, fixture.request[key]]).concat([["locale", locale]]));
 const profile = { model: "gpt-5.6-sol", reasoningEffort: "medium", verbosity: "high", maxOutputTokens: 6000 };
-const support = () => core.evidenceSupport(clone(fixture.pack));
+const support = () => core.evidenceSupport(clone(formationPack));
 const answer = (statement, refs, scope = "screening_implication", locale = "en") => {
-  const payload = JSON.parse(core.buildPointObjectResponsesRequest(clone(fixture.pack), req(locale), profile).input[1].content[0].text);
+  const payload = JSON.parse(core.buildPointObjectResponsesRequest(clone(formationPack), req(locale), profile).input[1].content[0].text);
   return { status: "partial", scope, perspective: fixture.request.perspective, horizon: fixture.request.horizon,
     statement, evidenceRefs: refs, confidence: "low",
     missingEvidenceCodes: [...new Set([...payload.validationPolicy.requiredMissingEvidenceCodes, "physical_baseline", "route_access"])],
@@ -70,7 +83,7 @@ test("U1-F01 actual concise EN/RU focused statements pass; cut-off statement is 
     ru: "BinSina Pharmacy — запись источника карты; проверьте работу и доступ до проверки гипотезы дополнительных аптечных площадей."
   };
   for (const locale of ["en", "ru"]) {
-    const a = answer(statements[locale], [fixture.binsina.evidenceRef], "screening_implication", locale);
+    const a = answer(statements[locale], [binsina.evidenceRef], "screening_implication", locale);
     const result = core.validateFocusedAnswer(a, req(locale), support(), "source_evidence_only");
     assert.equal(result.ok, true, result.detail);
     assert.equal(result.answer.statement, statements[locale]); // no punctuation append/truncation/rewrite
@@ -85,7 +98,7 @@ test("U1-F01 actual concise EN/RU focused statements pass; cut-off statement is 
 });
 
 test("U1-F02 typed selected OSM scalar and independent point distance stay separately bound", () => {
-  const b = fixture.binsina, s = support();
+  const b = binsina, s = support();
   for (const [locale, scalar, distance] of [
     ["en", "Mapped footprint area: 3613 square metres", b.name + " — " + b.distanceM + " m straight-line to the mapped point"],
     ["ru", "Площадь контура по карте: 3613 квадратных метров", b.name + " — " + b.distanceM + " м по прямой до точки записи"]
@@ -113,17 +126,30 @@ test("U1-F02 typed selected OSM scalar and independent point distance stay separ
   assert.equal(core.independentStatementMismatch(limit, ["EVD-OVERTURE-SNAPSHOT"], "selected_object", s), true);
 });
 
-test("U1-F03 real admitted snapshot projection retains scope; malformed or mismatched sources have no usable refs", () => {
-  const p = core.buildModelEvidenceProjection(clone(fixture.pack));
+test("U1-F03 reconstructed offline admitted projection retains scope; mismatched sources have no usable refs", () => {
+  assert.equal(hash(JSON.stringify(fixture.sourceSnapshot)), reconstruction.savedPublicSourceSnapshotSha256);
+  assert.equal(formationContext.status, "available");
+  assert.deepEqual(formationContext.anchor, formationAnchor);
+  assert.equal(formationContext.cacheServedAt, reconstruction.cacheServedAt);
+  assert.deepEqual(independent.parseIndependentContext(formationContext, fixture.request.expectedSourceFeatureId, formationAnchor), formationContext);
+  const publicContext = fixture.sourceSnapshot.context.normalizedContext.independentContext;
+  assert.equal(independent.parseIndependentContext(publicContext, fixture.request.expectedSourceFeatureId, formationAnchor), null,
+    "Sanitized public export must not be substituted for the exact-anchor receipt");
+  assert.deepEqual(formationContext.places.map(({ distanceM, ...facts }) => facts),
+    publicContext.places.map(({ distanceM, ...facts }) => facts));
+  for (const place of formationContext.places) assert.equal(place.distanceM,
+    Math.round(independent.independentDistanceM(formationAnchor, place.coordinates) * 100) / 100);
+  const p = core.buildModelEvidenceProjection(clone(formationPack));
   assert.equal(p.selectedObject.sourceFeatureId, "way/254666300");
   assert.equal(p.independentContext.sampleSize, 165); assert.equal(p.independentContext.places.length, 20);
   assert.equal(p.independentContext.snapshotHash, fixture.sourceSnapshot.context.normalizedContext.independentContext.snapshotHash);
   assert.equal(p.independentContext.completeInventory, false); assert.equal(p.independentContext.sourceMode, "admitted_bundled_snapshot_not_live");
   assert.equal(p.independentContext.observationDate, null);
   const bin = p.independentContext.places.find(place => place.sourceRecordId === fixture.binsina.id);
-  assert.equal(bin.name, fixture.binsina.name); assert.equal(bin.distanceM, fixture.binsina.distanceM);
+  assert.equal(bin.name, binsina.name); assert.equal(bin.distanceM, binsina.distanceM);
   assert.equal(bin.taxonomy.primary, "pharmacy"); assert.equal(bin.currentOperation, "unknown"); assert.equal(bin.capacity, "unknown");
   for (const change of [
+    pack => { pack.evidence.find(e => e.id === "EVD-OVERTURE-SNAPSHOT").value = JSON.stringify(publicContext); },
     pack => { pack.coordinates.longitude += 0.01; },
     pack => { pack.selectedObject.sourceFeatureId = "way/393391114"; },
     pack => { const r = pack.evidence.find(e => e.id === "EVD-OVERTURE-SNAPSHOT"); pack.evidence.push(clone(r)); },
@@ -133,7 +159,7 @@ test("U1-F03 real admitted snapshot projection retains scope; malformed or misma
     pack => { const r = pack.evidence.find(e => e.id === "EVD-OVERTURE-SNAPSHOT"); const c = JSON.parse(r.value); c.sampleSize++; r.value = JSON.stringify(c); },
     pack => { const r = pack.evidence.find(e => e.id === "EVD-OVERTURE-SNAPSHOT"); const c = JSON.parse(r.value); c.spatialCoverage.state = "partial_circle_within_acquisition_extent"; r.value = JSON.stringify(c); }
   ]) {
-    const pack = clone(fixture.pack); change(pack); const output = core.buildModelEvidenceProjection(pack);
+    const pack = clone(formationPack); change(pack); const output = core.buildModelEvidenceProjection(pack);
     assert.equal(output.independentContext, undefined);
     assert(!output.evidenceIndex.some(e => e.id.startsWith("EVD-OVERTURE-")));
   }
@@ -308,12 +334,18 @@ test("U1-S01 actual validators unchanged; no new API/effect/retry calls or last-
   }
   walk(client); assert.deepEqual(calls, fixture.staticBaseline.clientCalls);
   const captureTree = tree("components/point-to-object/verification-export.tsx");
-  const forbidden = [];
+  assert.deepEqual(declarationHashes(captureTree, Object.keys(fixture.staticBaseline.captureFunctions)), fixture.staticBaseline.captureFunctions);
+  const captureCalls = Object.fromEntries(Object.keys(fixture.staticBaseline.captureCalls).map(k => [k, []]));
   function inspect(n) {
-    if (ts.isCallExpression(n) && /^(fetch|requestAnalysis|setInterval|setTimeout|window\.setInterval|window\.setTimeout)$/.test(n.expression.getText(captureTree))) forbidden.push(n.getText(captureTree));
+    if (ts.isCallExpression(n)) {
+      const expression = n.expression.getText(captureTree);
+      if (Object.hasOwn(captureCalls, expression)) captureCalls[expression].push(hash(n.getText(captureTree)));
+    }
     ts.forEachChild(n, inspect);
   }
-  inspect(captureTree); assert.deepEqual(forbidden, []);
+  inspect(captureTree); assert.deepEqual(captureCalls, fixture.staticBaseline.captureCalls);
+  // The exact preexisting download/revoke cleanup is pinned to the parent;
+  // additional API/retry/timer/effect calls still change the expected hashes.
   assert.equal(prohibitedNetworkCalls, 0);
   // Static equality and pure snapshots do not qualify browser focus, save/reopen,
   // actual runtime GET/POST transport or an actual paid model response.

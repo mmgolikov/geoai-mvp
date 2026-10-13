@@ -1,6 +1,26 @@
 {
   "schemaVersion": 1,
   "classification": "SAVED_PUBLIC_SOURCE_INPUT_WITH_EXPLICIT_SYNTHETIC_PROSE_AND_ERROR_TELEMETRY_NOT_PAID_G2",
+  "formationReconstruction": {
+    "classification": "RECONSTRUCTED_OFFLINE_FORMATION_FIXTURE_NOT_ORIGINAL_SERVER_EVIDENCE_PACK_NOT_DISPATCH_AUTHORITY",
+    "construction": "Root test uses actual pure buildIndependentContext on existing hash-pinned admitted source bytes; no acquisition or evidence producer",
+    "sourcePath": "src/data/prototype/d2-overture-places.json",
+    "sourceSha256": "f55ad27098707b5a6efd1ee6d5bd7d8373cff9bd1eddd656207cf70cb15fe67d",
+    "savedPublicSourceSnapshotSha256": "d2dca5954b45d18cfa009647c49b8f9a582b2666223d23991756f5a4e12e7a0d",
+    "savedPublicAnchor": [
+      55.280155,
+      25.220412
+    ],
+    "exactAnchor": [
+      55.280154550000006,
+      25.22041245
+    ],
+    "cacheServedAt": "2026-10-13T18:22:49.065Z",
+    "publicSnapshotAndRequestPreserved": true,
+    "distancePolicy": "Recalculate from exact original anchor with actual builder; saved public BinSina distance 376.42 stays unchanged",
+    "providerTelemetry": "synthetic_only_not_paid_G2",
+    "dispatchAuthority": false
+  },
   "publicInput": {
     "file": "D2_U1_BFD_PAID_PRE_SUBMIT_20261013.json",
     "sha256": "872f3157321f3a42143a4970c7a1dcc6b59c9a33ce2c693dc7d973e9c0c0b872",
@@ -2408,6 +2428,23 @@
   },
   "staticBaseline": {
     "commit": "3710268d754d603f5f04ca710efedf0c9f38155d",
+    "captureComparedFinalCommit": "73091232ffa99ba97435b80b9d3f1b85f514dd6b",
+    "captureFunctions": {
+      "download": "d8b36c75097fe6ef64e7e0ef82b5454344639cc78873ea9ee320b1681d4193af"
+    },
+    "captureCalls": {
+      "fetch": [],
+      "requestAnalysis": [],
+      "setInterval": [],
+      "setTimeout": [],
+      "window.setInterval": [],
+      "window.setTimeout": [
+        "96cef29f3127725340d93a2525d246012edaa273445d26296ab99ef8cf300c57"
+      ],
+      "globalThis.setInterval": [],
+      "globalThis.setTimeout": [],
+      "useEffect": []
+    },
     "guardHashes": {
       "buildModelEvidenceProjection": "bd6e890489de496c67eafb61e78ca98c994bcec3d5112179131d84a5ce46eb39",
       "novelNumberInStatement": "33c550fdd4facfcdb611e7fc03067aca1b9c64f64ca366afc855b3c19f6f9dcc",
