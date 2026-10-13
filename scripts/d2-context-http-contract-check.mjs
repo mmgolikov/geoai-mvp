@@ -10,10 +10,16 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 // parsers. This does not start a server, replay source/AI, or prove Auth.
 // No rewriting/copying of route return shape or normalization code.
 const root = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
+const args = process.argv.slice(2);
+assert.ok(args.every(arg => arg === "--fixtures" || arg === "--locale=en" || arg === "--locale=ru"), "Only en/ru fixture locales and --fixtures are allowed");
+const localeArgs = args.filter(arg => arg.startsWith("--locale="));
+assert.ok(localeArgs.length <= 1, "Only one fixture locale per isolated child is allowed");
+const locale = localeArgs.length ? localeArgs[0].slice("--locale=".length) : "en";
 process.chdir(root);
 const require = createRequire(import.meta.url);
 const ts = require("typescript");
 const transport = JSON.parse(readFileSync(path.join(root, "tests/fixtures/d2-context/transport.json"), "utf8"));
+assert.deepEqual(transport.fixtureLocales, ["en", "ru"], "Finite fixture locale manifest must stay explicit");
 // Exact OSM records are cached by source identity. A missing independent
 // snapshot or altered selection anchor cannot rename that same OSM record.
 const fixtureNames = new Map();
@@ -80,6 +86,11 @@ try {
   const snapshot = readFileSync(path.join(root, transport.realIndependentSnapshot.path));
   assert.equal(createHash("sha256").update(snapshot).digest("hex"), transport.realIndependentSnapshot.sha256);
   const { buildLivePointObjectEvidencePack } = await import("../src/lib/prototype/point-to-object-live-evidence.ts");
+  const { nominatimLocale } = await import("../src/lib/prototype/point-to-object-markets.ts");
+  // Mirror the real context POST→lease→producer language mapping. A fresh
+  // locale-specific pack is built; no EN receipt is renamed after issuance.
+  const sourceLocale = nominatimLocale(locale);
+  check(sourceLocale === (locale === "ru" ? "ru,en" : "en"), "Actual source locale mapper matches explicit UI locale");
   const actualRoute = await import("../app/api/prototype/point-to-object/context/route.ts");
   const live = await import("../components/point-to-object/live-session.ts");
   const oldV1 = JSON.parse(readFileSync(path.join(root, "tests/fixtures/d2-context/legacy-v1.json"), "utf8"));
@@ -92,7 +103,7 @@ try {
   const { normalizePointObjectFindCandidates, buildPointObjectFindOverpassQuery } = await import("../src/lib/prototype/point-to-object-find-contract.ts");
   for (const item of anchors.cases) {
     check(createHash("sha256").update(JSON.stringify(canonical(item.geometry))).digest("hex")===item.geometryCanonicalSha256,"Historical selected geometry hash is exact");
-    const request={marketKey:"dubai",locale:"en",bounds:[55.27,25.21,55.29,25.23],group:"commercial_office",mappedMinimumLevels:null,mappedMaximumLevels:null,limit:12};
+    const request={marketKey:"dubai",locale,bounds:[55.27,25.21,55.29,25.23],group:"commercial_office",mappedMinimumLevels:null,mappedMaximumLevels:null,limit:12};
     check(buildPointObjectFindOverpassQuery(request).includes("out body geom"),"Actual Find query requests geometry/bounds, not a nearest POI source");
     const projected=normalizePointObjectFindCandidates({elements:[{type:"way",id:Number(item.sourceFeatureId.split("/")[1]),bounds:item.bounds,
       tags:item.observedTags,geometry:item.geometry.coordinates[0].map(([lon,lat])=>({lon,lat}))}]},request);
@@ -113,22 +124,22 @@ try {
         // Actual server reader fails its literal cwd-based file read. Module
         // URLs/OSM transport stay fixed; no fabricated source status or data.
         pack = await buildLivePointObjectEvidencePack({ longitude:item.anchor[0],latitude:item.anchor[1],
-          osmFeatureId:item.sourceFeatureId,locale:"en",expectedCountryCode:"ae",deadlineAtMs:Date.now()+12000 });
+          osmFeatureId:item.sourceFeatureId,locale:sourceLocale,expectedCountryCode:"ae",deadlineAtMs:Date.now()+12000 });
       } finally { process.chdir(root); rmSync(empty, { recursive:true, force:false }); }
       const rawIndependent = pack.evidence.find(e => e.id === "EVD-OVERTURE-SNAPSHOT");
       check(rawIndependent && JSON.parse(rawIndependent.value).status === "source_unavailable", "Actual producer receipt carries unreadable snapshot status before route projection");
     } else {
       pack = await buildLivePointObjectEvidencePack({ longitude:item.anchor[0],latitude:item.anchor[1],
-        osmFeatureId:item.sourceFeatureId,locale:"en",expectedCountryCode:"ae",deadlineAtMs:Date.now()+12000 });
+        osmFeatureId:item.sourceFeatureId,locale:sourceLocale,expectedCountryCode:"ae",deadlineAtMs:Date.now()+12000 });
     }
     const created = Date.now();
     const receipt = { version:"PUBLIC_EVIDENCE_LEASE_V1",evidencePackHash:pack.evidencePackHash,
       sourceResponseHash:pack.source.sourceResponseHash,acquiredAt:pack.source.acquiredAt,
       createdAt:new Date(created).toISOString(),expiresAt:new Date(created+900000).toISOString(),
-      cacheWindow:Math.floor(created/900000),sourceLocale:"en",lookupSourceFeatureId:item.sourceFeatureId };
+      cacheWindow:Math.floor(created/900000),sourceLocale,lookupSourceFeatureId:item.sourceFeatureId };
     state.__d2RouteLease = { pack, receipt };
     state.__d2RouteLeaseInputs = [];
-    const intent = {caseKey:"dubai",longitude:item.anchor[0],latitude:item.anchor[1],locale:"en",expectedSourceFeatureId:item.sourceFeatureId};
+    const intent = {caseKey:"dubai",longitude:item.anchor[0],latitude:item.anchor[1],locale,expectedSourceFeatureId:item.sourceFeatureId};
     const response = await actualRoute.POST(new Request("https://d2.example.test/api/prototype/point-to-object/context", {
       method:"POST",headers:{origin:"https://d2.example.test","content-type":"application/json"},body:JSON.stringify(intent)
     }));
@@ -140,6 +151,8 @@ try {
     check(JSON.stringify(envelope.evidenceReceipt) === JSON.stringify(envelope.subject.evidenceReceipt), "Envelope and subject carry same public receipt");
     check(envelope.evidenceReceipt.evidencePackHash === pack.evidencePackHash, "Actual pack→receipt→route hash");
     check(state.__d2RouteLeaseInputs.length === 1 && state.__d2RouteLeaseInputs[0].osmFeatureId === item.sourceFeatureId, "Route admits exact lookup identity");
+    check(state.__d2RouteLeaseInputs[0].locale === sourceLocale && envelope.evidenceReceipt.sourceLocale === sourceLocale,
+      "Actual POST maps current intent locale to matching freshly produced pack/receipt source locale");
     const parsed = live.parseLiveResolvedObject(envelope.subject);
     check(parsed, "Actual route subject passes real strict browser parser including receipt+normalizedContext");
     check(parsed.name === item.label, "Actual route OSM name matches ordinary search/save label for exact source identity");
@@ -153,7 +166,7 @@ try {
     delete legacy.subject.normalizedContext.independentContext;
     check(live.parseLiveResolvedObject(legacy.subject), "V1 optional-field absence remains readable");
     check(!live.parseLiveResolvedObject(legacy.subject).normalizedContext.details, "Legacy receives no new detailed facts");
-    cases.push({...item,envelope,legacyEnvelope:legacy});
+    cases.push({...item,locale,sourceLocale,envelope,legacyEnvelope:legacy});
     if (item.expectedIndependentStatus === "available") {
       const edits = [
         ["snapshot hash",s=>s.normalizedContext.independentContext.snapshotHash="0".repeat(64)],
@@ -197,6 +210,8 @@ try {
         }));
         check(nonexactResponse.status===200,"Actual non-exact route fixture returns HTTP200");
         const nonexactEnvelope=await nonexactResponse.json();
+        check(nonexactEnvelope.evidenceReceipt.sourceLocale === sourceLocale && state.__d2RouteLeaseInputs.at(-1).locale === sourceLocale,
+          "Legitimate non-exact receipt retains actual locale mapping");
         const nonexactParsed=live.parseLiveResolvedObject(nonexactEnvelope.subject);
         check(nonexactParsed && nonexactParsed.normalizedContext.details.metrics.every(m=>m.value===null) && nonexactParsed.normalizedContext.details.geometry===null,
           "Legitimate nearest/contains-null positive preserves unknown selected measurements: "+association);
@@ -212,11 +227,21 @@ try {
       method:"POST",headers:{origin:"https://foreign.example.test","content-type":"application/json"},body:JSON.stringify(intent)
     }));
     check(wrongOrigin.status === 403, "Actual same-origin boundary retained");
+    for (const invalidLocale of ["de", "ru,en"]) {
+      const leaseCalls = state.__d2RouteLeaseInputs.length;
+      const syntheticRequests = injectedRequests;
+      const invalid = await actualRoute.POST(new Request("https://d2.example.test/api/prototype/point-to-object/context", {
+        method:"POST",headers:{origin:"https://d2.example.test","content-type":"application/json"},
+        body:JSON.stringify({...intent,locale:invalidLocale})
+      }));
+      check(invalid.status === 400 && state.__d2RouteLeaseInputs.length === leaseCalls && injectedRequests === syntheticRequests,
+        "Actual UI context POST rejects unsupported/source-language locale without lease/source call: " + invalidLocale);
+    }
   }
   check(cases.length === transport.limits.caseCount, "Bounded case count matches transport manifest");
   check(injectedRequests <= transport.limits.maximumInjectedOSMTransportRequests, "Synthetic OSM request cap retained; no remote source traffic");
   assert.equal(createHash("sha256").update(readFileSync(path.join(root, transport.realIndependentSnapshot.path))).digest("hex"), transport.realIndependentSnapshot.sha256);
-  const result = { classification:transport.classification,baseCommit:transport.baseCommit,checks,
+  const result = { classification:transport.classification,baseCommit:transport.baseCommit,locale,sourceLocale,checks,
     assertionStatus:"EXECUTED_ONLY_BY_ROOT_WHEN_INVOKED",networkCalls:0,paidCalls:0,injectedOSMTransportRequests:injectedRequests,
     sourceHash:transport.realIndependentSnapshot.sha256,cases };
   if (process.argv.includes("--fixtures")) process.stdout.write(JSON.stringify(result)+"\n");

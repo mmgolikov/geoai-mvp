@@ -2,28 +2,46 @@ import { createHash } from "node:crypto";
 import { expect, test, type Page, type Route, type TestInfo } from "@playwright/test";
 import {
   chooseD2ThroughSearch, expectD2TransportQuiet, installD2Transport, loadD2FixtureBundle,
-  openD2Analysis, openD2Projects, publicD2Snapshot, type D2Bundle, type D2Case, type D2Signals
+  openD2Analysis, openD2Projects, publicD2Snapshot, type D2Bundle, type D2Case, type D2Locale, type D2Signals
 } from "./helpers/d2-context-fixture";
 import { installLoopbackBrowserHarness, requireLoopbackTestOrigin } from "./helpers/local-webkit-csp";
 
 // Source-only authoring. Root alone executes this finite offline suite.
 // No private storage seed/extraction, React/Map state injection, live provider,
 // paid response, real U1-U4 usefulness or generated Create acceptance.
-let bundle: D2Bundle;
-test.beforeAll(() => { bundle = loadD2FixtureBundle(); });
+let bundles: Record<D2Locale, D2Bundle>;
+test.beforeAll(() => {
+  const deadline = Date.now() + 30_000;
+  bundles = { en: loadD2FixtureBundle("en", deadline - Date.now()), ru: loadD2FixtureBundle("ru", deadline - Date.now()) };
+  expect(bundles.ru.sourceHash).toBe(bundles.en.sourceHash);
+  for (const en of bundles.en.cases) {
+    const ru = bundles.ru.cases.find(item => item.key === en.key);
+    expect(ru).toBeDefined();
+    expect(ru!.sourceFeatureId).toBe(en.sourceFeatureId);
+    expect(ru!.anchor).toEqual(en.anchor);
+    expect(ru!.expectedIndependentStatus).toBe(en.expectedIndependentStatus);
+    const enSource = en.envelope.subject.normalizedContext!.independentContext!;
+    const ruSource = ru!.envelope.subject.normalizedContext!.independentContext!;
+    expect(ruSource.status).toBe(enSource.status);
+    expect(ruSource.snapshotHash).toBe(enSource.snapshotHash);
+    expect(ruSource.places).toEqual(enSource.places);
+    expect(ruSource.sampleSize).toBe(enSource.sampleSize);
+    expect(ruSource.interiorSampleSize).toBe(enSource.interiorSampleSize);
+  }
+});
 test.beforeEach(async ({ page, browserName }, info) => {
   requireLoopbackTestOrigin(info.project.use.baseURL);
   await installLoopbackBrowserHarness(page, browserName, info.project.use.baseURL);
 });
-function fixture(key: D2Case["key"]) {
-  const item = bundle.cases.find(value => value.key === key);
+function fixture(key: D2Case["key"], locale: D2Locale = "en") {
+  const item = bundles[locale].cases.find(value => value.key === key);
   if (!item) throw new Error("Missing bounded D2 fixture");
   return item;
 }
 async function intake(page: Page, baseURL: string, locale: "en" | "ru", width: number, key: D2Case["key"] = "u2", legacy = false) {
   await page.setViewportSize({ width, height: 900 });
   await page.context().addCookies([{ name: "geoai_locale", value: locale, url: baseURL }]);
-  const item = fixture(key);
+  const item = fixture(key, locale);
   const signals = await installD2Transport(page, baseURL, item, legacy);
   await chooseD2ThroughSearch(page, item, locale);
   await expect.poll(() => signals.contextPosts.length).toBe(1);
@@ -45,6 +63,7 @@ function publicObject(value: unknown, label: string): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 async function visibleSourceSnapshot(page: Page, item: D2Case, legacy = false) {
+  const bundle = bundles[item.locale];
   const value = await publicD2Snapshot(page);
   expect(value.protocol).toBe("GEOAI_PREVIEW_VERIFICATION_V1");
   const current = publicObject(value.currentSelection, "current selection");
@@ -52,6 +71,8 @@ async function visibleSourceSnapshot(page: Page, item: D2Case, legacy = false) {
     longitude: item.anchor[0], latitude: item.anchor[1] });
   const pre = publicObject(value.preSubmit, "pre-submit");
   expect(pre.operation).toBe("analyse");
+  expect(["en", "ru"]).toContain(current.locale);
+  expect(publicObject(pre.intent, "current intent").locale).toBe(current.locale);
   expect(publicObject(pre.intent, "current intent")).toMatchObject({ expectedSourceFeatureId: item.sourceFeatureId,
     longitude: item.anchor[0], latitude: item.anchor[1] });
   const context = publicObject(publicObject(pre.sourceSnapshot, "source snapshot").context, "source context");
@@ -59,6 +80,9 @@ async function visibleSourceSnapshot(page: Page, item: D2Case, legacy = false) {
   expect(context).toMatchObject({ name: expected.name, sourceFeatureId: item.sourceFeatureId,
     coordinateAssociation: "trusted_open_map_identity", evidenceReceipt: expected.evidenceReceipt });
   expect(publicObject(context.evidenceReceipt, "evidence receipt").lookupSourceFeatureId).toBe(item.sourceFeatureId);
+  // Locale-only display swaps keep the original source lease; they do not
+  // reinterpret an existing EN receipt as RU or trigger hidden refresh.
+  expect(publicObject(context.evidenceReceipt, "evidence receipt").sourceLocale).toBe(item.sourceLocale);
   const normalized = publicObject(context.normalizedContext, "normalized context");
   expect(normalized).toMatchObject({ version: "POINT_OBJECT_NORMALIZED_CONTEXT_V1", subjectId: item.sourceFeatureId,
     scope: { kind: "point_radius", anchor: item.anchor.map(number => Number(number.toFixed(6))) } });
@@ -118,6 +142,7 @@ async function releaseHeldTransport(route: Route, json: unknown, info: TestInfo,
 for (const locale of ["en", "ru"] as const) for (const width of [1440, 390]) {
   test("D2 ordinary intake→actual envelope→linked evidence→save/reopen " + locale + " " + width, async ({ page }, info) => {
     const { item, signals } = await intake(page, info.project.use.baseURL!, locale, width);
+    const bundle = bundles[locale];
     const dashboard = page.getByTestId("normalized-context-dashboard");
     const height = dashboard.getByTestId("context-physical-height");
     await height.focus(); await page.keyboard.press("Enter");
@@ -173,7 +198,8 @@ for (const locale of ["en", "ru"] as const) for (const width of [1440, 390]) {
     const switchedScreenshot = "d2-linked-context-switched-" + switchedLocale + "-" + width + ".png";
     await dashboard.screenshot({ path: info.outputPath(switchedScreenshot) });
     await info.attach("d2-fixture-boundary", { body: JSON.stringify({ classification: bundle.classification, sourceHash: bundle.sourceHash,
-      sourceFeatureId: item.sourceFeatureId, anchor: item.anchor, contextPosts, aiPosts: posts, bounds,
+      sourceFeatureId: item.sourceFeatureId, anchor: item.anchor, fixtureLocale: item.locale, sourceLocale: item.sourceLocale,
+      contextPosts, aiPosts: posts, bounds,
       captures: [{ locale, path: originalScreenshot }, { locale: switchedLocale, path: switchedScreenshot }],
       realCaseUsefulness: "NOT_SCORED", noPrivateStorageIntake: true }), contentType: "application/json" });
     expectD2TransportQuiet(signals);
@@ -344,7 +370,8 @@ test("D2 licence is served by actual local HTTP with full admitted text, no mock
   expect(bytes.length).toBe(5013);
   expect(createHash("sha256").update(bytes).digest("hex")).toBe("19a262096d9bf69bd27a1aca479f317719e17f98ae71e3f736923c7e96ce7640");
   const licence = JSON.parse(bytes.toString("utf8"));
-  expect(licence.subsetSha256).toBe(bundle.sourceHash);
+  expect(licence.subsetSha256).toBe(bundles.en.sourceHash);
+  expect(licence.subsetSha256).toBe(bundles.ru.sourceHash);
   expect(createHash("sha256").update(licence.licenseText).digest("hex")).toBe("4531a67d443284d93ffed0803df5b10634aff21c3d77e381f2d48af01d875868");
   expect(licence.licenseText).toContain("2. Conditions for Sharing Data");
 });

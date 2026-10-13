@@ -25,6 +25,7 @@
   ],
   "mustPass": [
     "Actual context route HTTP envelope/receipt/normalized subject passes actual live-session and selection parsers",
+    "Fresh actual producer/POST envelope for each en/ru UI locale; actual nominatimLocale maps to en/ru,en at producer and lease issuance; context/AI/current intent locale checked without rewriting EN receipts",
     "Ordinary search→map selected identity/coordinate→context request forwards exact source and anchor",
     "Save/reopen uses the existing EN/RU header Projects link with actual /projects href, mobile aria-label intact; current Project Hub IDs and Open result labels retained",
     "Same exact OSM source identity has one stable synthetic name across available, missing-independent-source and altered-anchor scenarios; actual route name matches ordinary search/save label",
@@ -57,11 +58,15 @@
     "missingIndependentSource": "First actual producer pack runs in a newly created empty temporary cwd before source reader cache fill. Fixed module URLs and actual OSM producer remain; cwd restored and only own temporary directory removed. Actual data never rewritten, missing source status never manually injected. All later normal cases read original f55 bytes; final bytes rechecked.",
     "osmLabelCache": "Exact OSM reader has a process-local five-minute cache keyed by sourceFeatureId. All U2 scenarios use the same synthetic OSM name. Scenario key/status/anchor still distinguish missing source and unsupported selection; neither independent availability nor selection drift renames the OSM record. Fixture identity/name invariant and actual envelope name assertion reject divergence without altering Product/cache.",
     "projectsNavigation": "Single openD2Projects helper clicks point-object-project-control link named Projects/Проекты, asserts actual /projects href and visible point-object-projects-page. All four stale direct navigations replaced. Static source checked against Root6f307: hub-count-analyse/value, saved-result-card and Open result/Открыть результат exist; reopening navigates to /prototype/point-to-object/analysis. Counts/save/source/cancellation oracles and deadlines unchanged. Static correspondence is not browser acceptance.",
+    "localeSpecificEnvelopes": "The script supports --locale=en/ru, defaults en and rejects unsupported/duplicate locale flags. Each locale runs in its own fresh child, with actual nominatimLocale mapping and actual producer/POST; missing-source case remains first before reader cache fill, then all four cases. SourceLocale is set at fresh synthetic lease issuance from actual mapping, never renamed on an EN pack. Browser selects its locale bundle; Context/AI bodies and receipts must match. Display-only locale swap retains original lease and full source snapshot without implicit refresh. Both source domains retain identical admitted f55 facts/status/nulls. Original mocked Auth/lease/source-admission boundary remains unqualified as runtime Auth/lease.",
     "futureSnapshotPolicy": "No automatic fixture hash update on source changes; new reviewed bytes/domain require explicit manifest revision",
     "limits": {
       "cases": 4,
       "maximumInjectedOSMTransportRequests": 32,
       "perChildTimeoutMs": 30000,
+      "maximumIsolatedLocaleChildrenPerBeforeAll": 2,
+      "combinedLocaleLoadDeadlineMs": 30000,
+      "maximumAggregateSyntheticOSMRequestsPerBeforeAll": 64,
       "perChildStdoutBytes": 1500000,
       "sourceNetworkCalls": 0,
       "paidCalls": 0,
@@ -113,7 +118,7 @@
     },
     {
       "owner": "Root",
-      "item": "Actual route fixture loader intentionally avoids spawning application servers; browser context envelopes come from it, with all unexpected external and API traffic denied. Actual licence test uses local HTTP and must not be fulfilled by a mock."
+      "item": "Actual route fixture loader intentionally avoids spawning application servers; browser context envelopes come from one cold child per EN/RU locale (--fixtures --locale=en and --fixtures --locale=ru), at most2 children inside the existing shared30s deadline. Root can run the HTTP contract separately for each locale using --locale=en/ru; unsupported CLI locale and actual POST locale de/ru,en must reject, with no source/lease call for invalid HTTP bodies. Four cases per locale,14 browser cases and all timeout/retry/worker settings unchanged; unexpected external/API traffic denied. Actual licence test uses local HTTP and must not be fulfilled by a mock."
     },
     {
       "owner": "Root",

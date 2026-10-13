@@ -3,16 +3,19 @@ import path from "node:path";
 import { expect, type Page, type Route } from "@playwright/test";
 import type { LiveResolvedObjectContext } from "../../../components/point-to-object/live-types";
 import type { PublicEvidenceReceipt } from "../../../src/lib/prototype/point-to-object-evidence-receipt";
+import { nominatimLocale } from "../../../src/lib/prototype/point-to-object-markets";
 import { sprint10AnalysisResponse } from "./sprint10-analysis-fixture";
 import { externalHttpUrlPattern, requireLoopbackTestOrigin } from "./local-webkit-csp";
 
 export type D2Envelope = { mode: "resolved"; schemaVersion: 2; evidenceReceipt: PublicEvidenceReceipt; subject: LiveResolvedObjectContext };
+export type D2Locale = "en" | "ru";
 export type D2Case = {
+  locale: D2Locale; sourceLocale: string;
   key: "u1" | "u2" | "outside_u2" | "unavailable_u2"; sourceFeatureId: string; anchor: [number, number];
   label: string; expectedIndependentStatus: "available" | "unsupported_scope" | "source_unavailable";
   envelope: D2Envelope; legacyEnvelope: D2Envelope;
 };
-export type D2Bundle = { classification: string; baseCommit: string; checks: number; sourceHash: string; cases: D2Case[] };
+export type D2Bundle = { classification: string; baseCommit: string; locale: D2Locale; sourceLocale: string; checks: number; sourceHash: string; cases: D2Case[] };
 export type D2HeldAi = { route: Route; response: unknown };
 export type D2Signals = {
   contextPosts: Array<Record<string, unknown>>; aiPosts: Array<Record<string, unknown>>;
@@ -26,14 +29,22 @@ export type D2Signals = {
  * Actual route projection is produced by an isolated child, without global
  * loader/fetch patches leaking into Playwright. No worker recipe or network.
  */
-export function loadD2FixtureBundle(): D2Bundle {
+export function loadD2FixtureBundle(locale: D2Locale = "en", remainingMs = 30_000): D2Bundle {
+  if ((locale !== "en" && locale !== "ru") || !Number.isSafeInteger(remainingMs) || remainingMs <= 0 || remainingMs > 30_000) throw new Error("Invalid bounded D2 locale/budget");
   const root = process.cwd();
-  const raw = execFileSync(process.execPath, [path.join(root, "scripts/d2-context-http-contract-check.mjs"), "--fixtures"], {
-    cwd: root, encoding: "utf8", timeout: 30_000, maxBuffer: 1_500_000
+  // Each call starts a separate child with cold module caches, so both locales
+  // exercise missing-source-before-cache and then all four original cases.
+  const raw = execFileSync(process.execPath, [path.join(root, "scripts/d2-context-http-contract-check.mjs"), "--fixtures", "--locale=" + locale], {
+    cwd: root, encoding: "utf8", timeout: remainingMs, maxBuffer: 1_500_000
   });
   const bundle = JSON.parse(raw) as D2Bundle;
   if (bundle.baseCommit !== "622f48f191bb8e968d2e7efcfabdb571774ff3cb" || bundle.cases.length !== 4 ||
       bundle.classification !== "OFFLINE_SYNTHETIC_OSM_AND_AI_TRANSPORT_NOT_REAL_CASE_ACCEPTANCE") throw new Error("D2 fixture boundary mismatch");
+  const sourceLocale = nominatimLocale(locale);
+  if (bundle.locale !== locale || bundle.sourceLocale !== sourceLocale || bundle.cases.some(item =>
+    item.locale !== locale || item.sourceLocale !== sourceLocale ||
+    [item.envelope, item.legacyEnvelope].some(envelope => envelope.evidenceReceipt.sourceLocale !== sourceLocale ||
+      envelope.subject.evidenceReceipt?.sourceLocale !== sourceLocale))) throw new Error("D2 actual locale-specific envelope mismatch");
   return bundle;
 }
 
@@ -42,6 +53,7 @@ export async function installD2Transport(page: Page, baseURL: string, item: D2Ca
   const signals: D2Signals = { contextPosts: [], aiPosts: [], challenges: 0, external: [], unexpectedApis: [], pageErrors: [],
     aiMode: "ok", pendingAi: null, contextMode: "ok", pendingContext: null };
   const envelope = legacy ? item.legacyEnvelope : item.envelope;
+  expect(envelope.evidenceReceipt.sourceLocale).toBe(nominatimLocale(item.locale));
   page.on("pageerror", error => signals.pageErrors.push(error.message));
   await page.route(externalHttpUrlPattern(baseURL), route => {
     signals.external.push(route.request().url());
@@ -57,16 +69,22 @@ export async function installD2Transport(page: Page, baseURL: string, item: D2Ca
     return route.abort("blockedbyclient");
   });
   await page.route("**/api/auth/session", route => route.fulfill({ json: { isAuthenticated: false, sessionStatus: "session_missing", user: null } }));
-  await page.route("**/api/prototype/point-to-object/suggest", route => route.fulfill({ json: {
-    protocol: "POINT_TO_OBJECT_001_AUTOCOMPLETE_V1", mode: "results", provider: "Photon",
-    results: [{ id: item.sourceFeatureId, label: item.label, secondaryLabel: "Synthetic OSM transport only", longitude: item.anchor[0],
-      latitude: item.anchor[1], category: "building", featureType: "office", boundingBox: null }],
-    source: { attribution: "© OpenStreetMap contributors", licenceId: "ODbL-1.0", licenceUrl: "https://www.openstreetmap.org/copyright",
-      serviceUrl: "https://photon.komoot.io/", officialStatus: "open_context_not_official" }
-  } }));
+  await page.route("**/api/prototype/point-to-object/suggest", route => {
+    const body = route.request().postDataJSON() as Record<string, unknown>;
+    expect(body.locale).toBe(item.locale);
+    expect(body.marketKey).toBe("dubai");
+    return route.fulfill({ json: {
+      protocol: "POINT_TO_OBJECT_001_AUTOCOMPLETE_V1", mode: "results", provider: "Photon",
+      results: [{ id: item.sourceFeatureId, label: item.label, secondaryLabel: "Synthetic OSM transport only", longitude: item.anchor[0],
+        latitude: item.anchor[1], category: "building", featureType: "office", boundingBox: null }],
+      source: { attribution: "© OpenStreetMap contributors", licenceId: "ODbL-1.0", licenceUrl: "https://www.openstreetmap.org/copyright",
+        serviceUrl: "https://photon.komoot.io/", officialStatus: "open_context_not_official" }
+    } });
+  });
   await page.route("**/api/prototype/point-to-object/context", async route => {
     const body = route.request().postDataJSON() as Record<string, unknown>;
     signals.contextPosts.push(body);
+    expect(body.locale).toBe(item.locale);
     expect(body.caseKey).toBe("dubai");
     expect(body.expectedSourceFeatureId).toBe(item.sourceFeatureId);
     expect(body.longitude).toBe(item.anchor[0]);
@@ -95,6 +113,9 @@ export async function installD2Transport(page: Page, baseURL: string, item: D2Ca
     }
     const body = route.request().postDataJSON() as Parameters<typeof sprint10AnalysisResponse>[0] & { evidenceReceipt: PublicEvidenceReceipt };
     signals.aiPosts.push(body as unknown as Record<string, unknown>);
+    expect(body.locale).toBe(item.locale);
+    expect(body.evidenceReceipt.sourceLocale).toBe(nominatimLocale(body.locale));
+    expect(body.evidenceReceipt).toEqual(envelope.evidenceReceipt);
     expect(body.evidenceReceipt.evidencePackHash).toBe(envelope.evidenceReceipt.evidencePackHash);
     const { role, scenario, depth, goal, perspective, horizon, question, locale } = body;
     const base = sprint10AnalysisResponse({ role, scenario, depth, goal, perspective, horizon, question, locale }, signals.aiPosts.length, envelope.evidenceReceipt.evidencePackHash, "POINT_OBJECT_AI_PROMPT_V14_2026_09_26");
@@ -123,6 +144,7 @@ export async function installD2Transport(page: Page, baseURL: string, item: D2Ca
 }
 
 export async function chooseD2ThroughSearch(page: Page, item: D2Case, locale: "en" | "ru") {
+  expect(item.locale).toBe(locale);
   const ru = locale === "ru";
   await page.goto("/prototype/point-to-object");
   await page.getByRole("combobox", { name: ru ? "Поиск адреса или места" : "Search address or place", exact: true }).fill("D2 synthetic");

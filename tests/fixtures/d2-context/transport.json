@@ -1,6 +1,7 @@
 {
   "schemaVersion": 1,
   "classification": "OFFLINE_SYNTHETIC_OSM_AND_AI_TRANSPORT_NOT_REAL_CASE_ACCEPTANCE",
+  "fixtureLocales": ["en", "ru"],
   "baseCommit": "622f48f191bb8e968d2e7efcfabdb571774ff3cb",
   "realIndependentSnapshot": {
     "path": "src/data/prototype/d2-overture-places.json",
