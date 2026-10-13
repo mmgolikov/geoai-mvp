@@ -5,14 +5,40 @@ import { registerHooks, stripTypeScriptTypes } from "node:module";
 const comparisonCoreUrl = new URL("../src/lib/prototype/point-to-object-comparison-core.ts", import.meta.url);
 const contractsUrl = new URL("../src/lib/point-to-object/contracts.ts", import.meta.url);
 const provenanceUrl = new URL("../src/lib/prototype/point-to-object-answer-provenance.ts", import.meta.url);
+// Resolve only the exact transitive contract graph. Source transformations,
+// request-byte limits and rejection assertions below remain unchanged.
+const normalizedUrl = new URL("./point-to-object-normalized-context.ts", comparisonCoreUrl);
+const detailsUrl = new URL("./point-to-object-context-details-v2.ts", comparisonCoreUrl);
+const independentUrl = new URL("./point-to-object-independent-context.ts", comparisonCoreUrl);
+const replacementUrl = new URL("./point-to-object-map-replacement.ts", comparisonCoreUrl);
+const projectionBindingsUrl = new URL("./point-to-object-overture-projection-bindings.ts", comparisonCoreUrl);
+const contractImportGraph = new Map<string, Map<string, string>>([
+  [comparisonCoreUrl.href, new Map([
+    ["./point-to-object-normalized-context", normalizedUrl.href],
+    ["../point-to-object/contracts", contractsUrl.href]
+  ])],
+  [normalizedUrl.href, new Map([
+    ["./point-to-object-context-details-v2", detailsUrl.href],
+    ["./point-to-object-independent-context", independentUrl.href]
+  ])],
+  [detailsUrl.href, new Map([["./point-to-object-map-replacement", replacementUrl.href]])],
+  [independentUrl.href, new Map([["./point-to-object-overture-projection-bindings", projectionBindingsUrl.href]])]
+]);
+function approvedContractImport(specifier: string, parentURL: string | undefined): string | null {
+  const edges = parentURL ? contractImportGraph.get(parentURL) : undefined;
+  if (!edges || !specifier.startsWith(".")) return null;
+  const target = edges.get(specifier);
+  assert.ok(target, `Unapproved transitive contract import: ${specifier}`);
+  return target;
+}
+for (const [parent, edges] of contractImportGraph) {
+  for (const [specifier, target] of edges) assert.equal(approvedContractImport(specifier, parent), target);
+  assert.throws(() => approvedContractImport("./unknown-runtime", parent), /Unapproved transitive/);
+}
 registerHooks({
   resolve(specifier, context, nextResolve) {
-    if (context.parentURL === comparisonCoreUrl.href && specifier === "./point-to-object-normalized-context") {
-      return nextResolve(new URL("./point-to-object-normalized-context.ts", comparisonCoreUrl).href, context);
-    }
-    if (context.parentURL === comparisonCoreUrl.href && specifier === "../point-to-object/contracts") {
-      return nextResolve(contractsUrl.href, context);
-    }
+    const target = approvedContractImport(specifier, context.parentURL);
+    if (target) return nextResolve(target, context);
     return nextResolve(specifier, context);
   }
 });

@@ -256,6 +256,12 @@ jobs:
           set -euo pipefail
           npm run test:point-to-object-geocontext | tee artifacts/point-to-object-geocontext-check.txt
 
+      - name: D2 admitted source to analysis contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:d2-context-vertical | tee artifacts/d2-context-vertical-check.txt
+
       - name: Point-to-object V5 interaction contract
         shell: bash
         run: |

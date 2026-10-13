@@ -45,6 +45,31 @@ test("Context includes transitive consumers", () => {
   assert.equal(plan.fullCiRequired, false);
 });
 
+test("D2 admitted sources retain strict contracts and downstream coverage", () => {
+  for (const path of [
+    "src/lib/prototype/point-to-object-context-details-v2.ts",
+    "src/lib/prototype/point-to-object-independent-context.ts",
+    "src/lib/prototype/point-to-object-overture-snapshot.ts",
+    "src/lib/prototype/point-to-object-overture-projection-bindings.ts",
+    "src/data/prototype/d2-overture-places.json",
+    "public/data/d2-overture/LICENSES.json",
+    "components/point-to-object/independent-source-context.tsx",
+    "scripts/d2-context-vertical-check.mjs"
+  ]) {
+    const plan = selectPlan([path]);
+    assert.equal(plan.fullCiRequired, false, path);
+    for (const id of ["D2_CONTEXT", "CONTEXT", "ANALYSE", "COMPARE", "CREATE", "STORAGE", "LIMITS"]) assert.ok(plan.components.includes(id), `${path}: ${id}`);
+    assert.equal(plan.npmScripts.filter(name => name === "test:d2-context-vertical").length, 1, path);
+    assert.equal(plan.liveReviewRequired, true, path);
+    assert.ok(plan.e2eFiles.includes("tests/e2e/point-object-project-restoration-readiness.spec.ts"), path);
+  }
+  const workflow = readFileSync(new URL(".github/workflows/geoai-quality-gate.yml", repo), "utf8");
+  assert.equal(pkg.scripts["test:d2-context-vertical"], "node scripts/d2-context-vertical-check.mjs");
+  assert.equal(workflow.split("npm run test:d2-context-vertical").length - 1, 1);
+  assert.ok(workflow.includes("artifacts/d2-context-vertical-check.txt"));
+  assert.equal(selectPlan(["src/lib/prototype/point-to-object-unadmitted-source.ts"]).fullCiRequired, true);
+});
+
 test("Review02 helpers keep new contracts and downstream journeys in CI", () => {
   for (const path of [
     "src/lib/prototype/point-to-object-normalized-context.ts",

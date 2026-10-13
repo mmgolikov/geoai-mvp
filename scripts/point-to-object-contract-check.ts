@@ -1251,6 +1251,7 @@ function assertStaticBoundaries(): void {
     "components/point-to-object/evidence-selection.ts",
     "components/point-to-object/express-overview.tsx",
     "components/point-to-object/find-comparison-dashboard.tsx",
+    "components/point-to-object/independent-source-context.tsx",
     "components/point-to-object/live-object-map.tsx",
     "components/point-to-object/live-session.ts",
     "components/point-to-object/live-types.ts",
@@ -1283,6 +1284,8 @@ function assertStaticBoundaries(): void {
     { code: "ERR_ASSERTION" }, "A missing approved export surface must still fail closed.");
   assert.throws(() => assertExactCandidateSurface(candidateSurfacePaths.filter((file) => file !== "components/point-to-object/create-placement-audit.tsx")),
     { code: "ERR_ASSERTION" }, "A missing approved placement audit surface must still fail closed.");
+  assert.throws(() => assertExactCandidateSurface(candidateSurfacePaths.filter((file) => file !== "components/point-to-object/independent-source-context.tsx")),
+    { code: "ERR_ASSERTION" }, "A missing approved D2 independent-source surface must still fail closed.");
   const createPreflightWorker = readFileSync(path.join(ROOT, "components/point-to-object/create-preflight.worker.ts"), "utf8");
   assert.match(createPreflightWorker, /preflightPointObjectCreate/);
   assert.match(createPreflightWorker, /pointObjectCreateAoiHash/);
