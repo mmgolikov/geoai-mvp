@@ -158,7 +158,10 @@ export function contextDetailsMatchResolvedSubject(details: PointObjectContextDe
   if (details.metrics.some((metric, index) => metric.value !== expected[index])) return false;
   const expectedGeometry = exact && subject.geometryProvenance === "confirmed_complete_footprint"
     ? boundedGeometry(subject.displayGeometry ?? null) : null;
-  if (JSON.stringify(details.geometry) !== JSON.stringify(expectedGeometry)) return false;
+  // Public export sorts object keys. GeoJSON key order is not geometry identity;
+  // type and the entire ordered coordinate arrays must still match exactly.
+  if (details.geometry?.type !== expectedGeometry?.type ||
+      JSON.stringify(details.geometry?.coordinates ?? null) !== JSON.stringify(expectedGeometry?.coordinates ?? null)) return false;
   const warnings = [
     ...((tags["tag.leisure"] ?? tags.leisure) === "outdoor_seating" ? ["outdoor_seating_not_green_space"] : []),
     ...(temporary ? ["temporary_structure_not_permanent_floor_area"] : [])

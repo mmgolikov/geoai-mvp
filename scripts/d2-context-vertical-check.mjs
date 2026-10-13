@@ -35,6 +35,7 @@ const React = await import("react");
 const { renderToStaticMarkup } = await import("react-dom/server");
 const { PointObjectContextDashboard } = await import("../components/point-to-object/context-dashboard.tsx");
 const { IndependentSourceContext } = await import("../components/point-to-object/independent-source-context.tsx");
+const verification = await import("../src/lib/prototype/point-to-object-verification-export.ts");
 let checks = 0;
 const check = (v, message) => { assert.ok(v, message); checks++; };
 const clone = v => structuredClone(v);
@@ -165,6 +166,42 @@ const createdAt = new Date().toISOString();
 publicSubject.evidenceReceipt = { version: "PUBLIC_EVIDENCE_LEASE_V1", evidencePackHash: pack.evidencePackHash, sourceResponseHash: pack.source.sourceResponseHash, acquiredAt: pack.source.acquiredAt, createdAt, expiresAt: new Date(Date.parse(createdAt) + 15 * 60_000).toISOString(), cacheWindow: Math.floor(Date.parse(createdAt) / (15 * 60_000)), sourceLocale: "en", lookupSourceFeatureId: pack.selectedObject.sourceFeatureId };
 const reopened = parseLiveResolvedObject(JSON.parse(JSON.stringify(publicSubject)));
 check(reopened && reopened.normalizedContext.independentContext.places.some(p => p.id === binsina.id), "Existing shared strict save/reopen parser preserves new source record");
+const contextIntent = { caseKey: "dubai", longitude: anchor[0], latitude: anchor[1], locale: "en", expectedSourceFeatureId: publicSubject.sourceFeatureId };
+const observed = verification.snapshotVerificationSubmission("context", contextIntent, { context: reopened });
+check(semanticHash(observed.sourceSnapshot.context) === semanticHash(reopened), "Public pre-submit oracle preserves all admitted D2 details/facts/hash/version/scope after actual reopen");
+const exported = JSON.parse(await verification.createVerificationBundle(true, {
+  preSubmit: null, currentSelection: { mode: "analyse", marketKey: "dubai", sourceFeatureId: reopened.sourceFeatureId },
+  records: [{ operation: "context", originalSubmissionIntent: contextIntent, sourceSnapshot: { context: reopened },
+    response: { mode: "resolved", schemaVersion: 2, subject: reopened, evidenceReceipt: reopened.evidenceReceipt }, submittedAt: now, completedAt: now }]
+}));
+check(semanticHash(exported.records[0].response.subject) === semanticHash(reopened) && semanticHash(exported.records[0].sourceSnapshot.context) === semanticHash(reopened), "Actual public verification bundle retains exact reopened new context in response and held snapshot, not a field-stripped equality");
+const frozenExport = JSON.stringify(observed);
+const mutableExportInput = clone(reopened); verification.snapshotVerificationSubmission("context", contextIntent, { context: mutableExportInput });
+mutableExportInput.normalizedContext.independentContext.places[0].name = "Later state";
+check(JSON.stringify(observed) === frozenExport, "Observation copies held source facts, never a later mutable state");
+for (const edit of [
+  s => s.normalizedContext.details.secret = "synthetic forbidden field",
+  s => s.normalizedContext.independentContext.token = "synthetic forbidden field",
+  s => s.normalizedContext.independentContext.places[0].sources[0].authorization = "synthetic forbidden field",
+  s => s.normalizedContext.details.metrics[0].private = true,
+  s => s.normalizedContext.independentContext.spatialCoverage.unknown = true
+]) {
+  const bad = clone(reopened); edit(bad);
+  assert.throws(() => verification.snapshotVerificationSubmission("context", contextIntent, { context: bad }), /EXPORT_UNKNOWN_FIELD_REFUSED/); checks++;
+}
+for (const edit of [
+  s => s.normalizedContext.independentContext.places[0].name = "Bearer syntheticcredential000",
+  s => s.normalizedContext.independentContext.places[0].sources[0].record_id = "https://example.test/?token=synthetic",
+  s => s.normalizedContext.details.sources[0].attribution = "https://user:synthetic@example.test/"
+]) {
+  const bad = clone(reopened); edit(bad);
+  assert.throws(() => verification.snapshotVerificationSubmission("context", contextIntent, { context: bad }), /EXPORT_VALUE_REFUSED/); checks++;
+}
+const accessor = clone(reopened);
+Object.defineProperty(accessor.normalizedContext.details, "metrics", { enumerable: true, get() { throw new Error("Accessor must not run"); } });
+assert.throws(() => verification.snapshotVerificationSubmission("context", contextIntent, { context: accessor }), /EXPORT_ACCESSOR_REFUSED/); checks++;
+const oversized = clone(reopened); oversized.normalizedContext.independentContext.places[0].name = "界".repeat(800000);
+assert.throws(() => verification.snapshotVerificationResponse("context", { mode: "resolved", schemaVersion: 2, subject: oversized, evidenceReceipt: oversized.evidenceReceipt }), /EXPORT_SIZE_REFUSED/); checks++;
 const savedSelection = {
   locationKey: "dubai", longitude: anchor[0], latitude: anchor[1], clickedAt: now,
   object: { name: publicSubject.name, featureClass: publicSubject.featureClass, sourceFeatureId: publicSubject.sourceFeatureId, geometry: clone(pack.displayGeometry), geometryProvenance: "confirmed_complete_footprint" },
@@ -221,6 +258,8 @@ check(parseLiveResolvedObject(legacy) && normalizedResolvedContext(parseLiveReso
 legacy.evidenceReceipt.lookupSourceFeatureId = null;
 const legacySelection = clone(savedSelection); legacySelection.resolvedObject = legacy;
 check(parsePointObjectSelection(legacySelection), "Genuine unenriched V1 with null lookup remains unchanged and readable");
+const legacyObserved = verification.snapshotVerificationSubmission("context", contextIntent, { context: legacy });
+check(legacyObserved.sourceSnapshot.context.normalizedContext.details === undefined && legacyObserved.sourceSnapshot.context.normalizedContext.independentContext === undefined, "V1 public export stays V1 without invented D2 facts");
 const nearestPack = clone(pack); nearestPack.resolution.coordinateAssociation = "reverse_nearest_indexed_object_not_point_in_polygon";
 const nearest = contextDetailsFromEvidence(nearestPack);
 check(nearest.metrics.every(m => m.value === null) && nearest.geometry === null, "Nearest source cannot donate selected properties");

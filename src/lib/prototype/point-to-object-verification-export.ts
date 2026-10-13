@@ -33,8 +33,25 @@ const group = fields("group count sharePct nearestDistanceM");
 const geoContext = fields("radiusM coverage sampleSize capReached mappedBuildingCount mappedLevelsKnownCount medianMappedLevels nearestTransitM nearestMajorRoadM", {
   groups: array(group), districtCharacter: fields("code confidence ruleVersion", { driverGroups: array(P) })
 });
+// Explicit public D2 fields only. Unknown keys, credential-value filtering,
+// accessor refusal, depth and 2/4 MiB limits remain unchanged. Absence on V1
+// stays absence; the observer never reconstructs or refreshes source evidence.
+const contextDetails = fields("version subjectId association geometryRole independentEnrichment completeInventory caveat", {
+  anchor: numbers, geometry, semanticWarnings: array(P),
+  sources: array(fields("id name acquiredAt observedAt responseHash scope licenceId attribution officialLiveStatus coverage")),
+  metrics: array(fields("id value unit status scope method sourceId evidenceRef coverage"))
+});
+const independentPlaceSource = fields("dataset provider record_id resource property version update_time license confidence between");
+const independentPlace = fields("id name basic_category group confidence address sourceReportedOperatingStatus currentOperation capacity observationDate providerUpdatedAt distanceM distanceMethod relation evidenceRef", {
+  coordinates: numbers, taxonomy: fields("primary", { hierarchy: array(P) }), sources: array(independentPlaceSource)
+});
+const independentContext = fields("version status dataset release snapshotHash subjectId caseId scope radiusM geometryHash sampleSize interiorSampleSize returnedLimit completeInventory observationDate fetchedAt acquisitionStartedAt cacheServedAt sourceMode officialStatus licenceId licencePath attribution deduplication", {
+  anchor: numbers, places: array(independentPlace),
+  spatialCoverage: fields("state easternClipApproxM method", { acquisitionExtent: numbers })
+});
 const normalized = fields("version subjectId coverage sampleSize capReached completeInventory", {
   scope: fields("kind radiusM", { anchor: numbers }), source,
+  details: contextDetails, independentContext,
   metrics: array(fields("id group value unit status method evidenceRef")),
   places: array(fields("id name group distanceM evidenceRef", { coordinates: numbers })),
   programmeChecks: array(fields("group mappedCount capacity adequacy nextCheck"))
