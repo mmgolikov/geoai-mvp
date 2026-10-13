@@ -1275,6 +1275,8 @@ for (const locale of ["en", "ru"] as const) for (const width of [390, 1440]) {
       expect(requests).toEqual(before);
     };
     await page.goto("/prototype/point-to-object?mode=create");
+    await expect(page.locator("main[data-project-restoration]")).toHaveAttribute("data-project-restoration", "ready");
+    await expect(page.getByTestId("create-workspace")).toHaveJSProperty("inert", false);
     await openTask();
     await page.getByLabel(locale === "ru" ? "Загрузить GeoJSON" : "Upload GeoJSON").setInputFiles({
       name: "review02-auto-only.geojson", mimeType: "application/geo+json",
@@ -1282,6 +1284,8 @@ for (const locale of ["en", "ru"] as const) for (const width of [390, 1440]) {
         [55.26955,25.20455],[55.27065,25.20455],[55.27065,25.20565],[55.26955,25.20565],[55.26955,25.20455]
       ]] }))
     });
+    await expect(page.getByTestId("create-workspace").getByText(locale === "ru" ? /^Зона готова ·/ : /^Area ready ·/)).toBeVisible();
+    await expect(page.locator("summary").filter({ hasText: locale === "ru" ? "Параметры концепции" : "Concept parameters" })).toBeVisible();
     await openParameters();
     await expect(auto()).toHaveCount(6);
     await page.getByTestId("create-programme-civic_green").click();
