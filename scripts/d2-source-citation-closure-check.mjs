@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
-import { registerHooks, stripTypeScriptTypes } from "node:module";
+import { createRequire, registerHooks, stripTypeScriptTypes } from "node:module";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 
@@ -34,6 +34,13 @@ export async function runD2SourceCitationClosureCheck({ fixtureLocale } = {}) {
       return next(specifier, context);
     },
     load(url, context, next) {
+      if (url.startsWith("file:") && new URL(url).pathname.endsWith(".tsx")) {
+        assert.equal(fileURLToPath(url), fileURLToPath(new URL("components/point-to-object/verification-export.tsx", root)),
+          "Only the approved Preview Verification component may be rendered for this gate check");
+        const ts = createRequire(import.meta.url)("typescript");
+        return { format: "module", shortCircuit: true, source: ts.transpileModule(readFileSync(fileURLToPath(url), "utf8"),
+          { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText };
+      }
       if (url.startsWith("file:") && new URL(url).pathname.endsWith(".ts")) {
         assert(!/\/operations\/|\/point-to-object-(?:ai|live-evidence|overture-snapshot|u4-snapshot)\.ts$/.test(new URL(url).pathname),
           "No financial, provider, source-reader or evidence-producer module");
@@ -303,6 +310,111 @@ export async function runD2SourceCitationClosureCheck({ fixtureLocale } = {}) {
       assert.throws(() => observer.snapshotVerificationResponse("context", privateField), /EXPORT_/);
       assert.equal(sha(readFileSync(new URL("recorded-public-result.json", dir))), manifest.sha256);
       assert.deepEqual(fixture.pack, JSON.parse(readFileSync(new URL("synthetic-citation-pack.json", dir), "utf8")).pack);
+      assert.equal(networkCalls, 0);
+    });
+    await group("C13-context-diagnostic-observed-status-and-public-scope", async () => {
+      const diagnostic = await import(new URL("src/lib/prototype/point-to-object-context-diagnostic.ts", root).href);
+      const publicIntent = { caseKey: "dubai", longitude: anchor[0], latitude: anchor[1],
+        locale: "en", expectedSourceFeatureId: expected.subjectId };
+      const timing = { startedAt: "2026-10-18T17:00:00.000Z", completedAt: "2026-10-18T17:00:30.000Z", elapsedMs: 30_000 };
+      const fieldNames = ["protocol", "operation", "intent", "intentSha256", "hashStatus", "startedAt", "completedAt",
+        "elapsedMs", "timingScope", "httpStatus", "outcome", "errorCode", "serverCode", "proofScope", "upstreamCause"].sort();
+      for (const [outcome, httpStatus, errorCode] of [
+        ["http_response", 504, "CONTEXT_HTTP_RESPONSE_ERROR"],
+        ["client_deadline", null, "CONTEXT_CLIENT_DEADLINE"],
+        ["client_deadline", 200, "CONTEXT_CLIENT_DEADLINE"],
+        ["transport_unknown", null, "CONTEXT_TRANSPORT_UNKNOWN"],
+        ["transport_unknown", 503, "CONTEXT_TRANSPORT_UNKNOWN"],
+        ["parse_unknown", 502, "CONTEXT_RESPONSE_PARSE_UNKNOWN"]
+      ]) {
+        const value = await diagnostic.createContextRequestDiagnostic(publicIntent, { ...timing, outcome, httpStatus });
+        assert(value); assert.deepEqual(Object.keys(value).sort(), fieldNames);
+        assert.equal(value.protocol, "GEOAI_PREVIEW_CONTEXT_REQUEST_DIAGNOSTIC_V1");
+        assert.equal(value.httpStatus, httpStatus, "Actually received status survives any later local failure");
+        assert.equal(value.outcome, outcome); assert.equal(value.errorCode, errorCode);
+        assert.equal(value.proofScope, "client_observation_not_source_evidence");
+        assert.equal(value.upstreamCause, "unverified"); assert.equal(value.serverCode, null);
+        assert.equal(value.timingScope, "client_operation_including_debounce_not_upstream_latency");
+        const json = diagnostic.contextRequestDiagnosticJson(value, publicIntent);
+        assert.equal(typeof json, "string"); assert(Buffer.byteLength(json, "utf8") <= 2048);
+        if (value.hashStatus === "sha256") {
+          const ordered = Object.fromEntries(Object.entries(publicIntent).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0));
+          assert.equal(value.intentSha256, sha(JSON.stringify(ordered)));
+        } else { assert.equal(value.hashStatus, "unavailable"); assert.equal(value.intentSha256, null); }
+      }
+      assert.equal(networkCalls, 0);
+    });
+    await group("C14-context-diagnostic-negative-binding-and-async-freeze", async () => {
+      const diagnostic = await import(new URL("src/lib/prototype/point-to-object-context-diagnostic.ts", root).href);
+      const original = { caseKey: "dubai", longitude: anchor[0], latitude: anchor[1],
+        locale: "en", expectedSourceFeatureId: expected.subjectId };
+      const timing = { startedAt: "2026-10-18T17:00:00.000Z", completedAt: "2026-10-18T17:00:01.000Z",
+        elapsedMs: 1_000, outcome: "http_response", httpStatus: 504 };
+      const callerIntent = clone(original), callerDetails = { ...timing, serverCode: "OVERPASS_TIMEOUT" };
+      const pending = diagnostic.createContextRequestDiagnostic(callerIntent, callerDetails);
+      callerIntent.longitude += 0.01; callerDetails.httpStatus = 200; callerDetails.completedAt = "2026-10-18T18:00:00.000Z";
+      const value = await pending;
+      assert(value); assert.deepEqual(value.intent, original); assert.equal(value.httpStatus, 504);
+      assert.equal(value.completedAt, timing.completedAt); assert.equal(value.serverCode, "OVERPASS_TIMEOUT");
+      for (const changed of [{ ...original, expectedSourceFeatureId: "way/393391114" },
+        { ...original, longitude: original.longitude + 0.01 }, { ...original, locale: "ru" }]) {
+        assert.equal(diagnostic.contextRequestDiagnosticJson(value, changed), null);
+        assert.equal(diagnostic.contextRequestDiagnosticMatchesIntent(value, changed), false);
+      }
+      for (const changed of [{ ...value, headers: {} }, { ...value, body: "synthetic-private-marker" },
+        { ...value, serverCode: "synthetic-private-marker" }, { ...value, upstreamCause: "confirmed_overpass_timeout" },
+        { ...value, httpStatus: 600 }, { ...value, elapsedMs: -1 }, { ...value, errorCode: "RAW_ERROR" },
+        { ...value, completedAt: "2026-10-18T16:00:00.000Z" }, { ...value, intentSha256: "x".repeat(3_000) }])
+        assert.equal(diagnostic.contextRequestDiagnosticJson(changed, original), null);
+      const symbol = clone(value); symbol[Symbol("private")] = "synthetic-private-marker";
+      assert.equal(diagnostic.contextRequestDiagnosticJson(symbol, original), null);
+      assert.equal(await diagnostic.createContextRequestDiagnostic({ ...original, cookie: "synthetic-private-marker" }, timing), null);
+      assert.equal(await diagnostic.createContextRequestDiagnostic(original, { ...timing, stack: "synthetic-private-marker" }), null);
+      let getters = 0;
+      const accessor = clone(value);
+      Object.defineProperty(accessor, "httpStatus", { enumerable: true, get() { getters++; return 504; } });
+      assert.equal(diagnostic.contextRequestDiagnosticJson(accessor, original), null); assert.equal(getters, 0);
+      const unknown = await diagnostic.createContextRequestDiagnostic(original, { ...timing, serverCode: "synthetic-private-marker" });
+      assert(unknown); assert.equal(unknown.serverCode, null);
+      assert(!JSON.stringify(unknown).includes("synthetic-private-marker"));
+      const cryptoDescriptor = Object.getOwnPropertyDescriptor(globalThis, "crypto");
+      try {
+        Object.defineProperty(globalThis, "crypto", { configurable: true, value: { subtle: {
+          digest: async () => { throw new Error("Synthetic unavailable browser hashing"); }
+        } } });
+        const unhashed = await diagnostic.createContextRequestDiagnostic(original, timing);
+        assert(unhashed); assert.equal(unhashed.intentSha256, null); assert.equal(unhashed.hashStatus, "unavailable");
+        assert(diagnostic.contextRequestDiagnosticJson(unhashed, original));
+        assert.equal(diagnostic.contextRequestDiagnosticJson(unhashed, { ...original, longitude: original.longitude + 0.01 }), null,
+          "Unavailable WebCrypto never bypasses structural current-intent binding");
+      } finally {
+        if (cryptoDescriptor) Object.defineProperty(globalThis, "crypto", cryptoDescriptor); else delete globalThis.crypto;
+      }
+      assert.equal(networkCalls, 0);
+    });
+    await group("C15-context-diagnostic-preview-disclosure-gate", async () => {
+      const diagnostic = await import(new URL("src/lib/prototype/point-to-object-context-diagnostic.ts", root).href);
+      const React = await import("react"), { renderToStaticMarkup } = await import("react-dom/server");
+      const { VerificationExport } = await import(new URL("components/point-to-object/verification-export.tsx", root).href);
+      const publicIntent = { caseKey: "dubai", longitude: anchor[0], latitude: anchor[1],
+        locale: "en", expectedSourceFeatureId: expected.subjectId };
+      const value = await diagnostic.createContextRequestDiagnostic(publicIntent, {
+        startedAt: "2026-10-18T17:00:00.000Z", completedAt: "2026-10-18T17:00:01.000Z", elapsedMs: 1_000,
+        outcome: "http_response", httpStatus: 504, serverCode: "OVERPASS_TIMEOUT" });
+      assert(value);
+      for (const locale of ["en", "ru"]) {
+        const props = { enabled: true, locale, contextDiagnostic: value, records: [], failedResponses: [],
+          currentSelection: null, preSubmit: { operation: "context", intent: publicIntent, sourceSnapshot: { context: null } } };
+        const visible = renderToStaticMarkup(React.createElement(VerificationExport, props));
+        assert(visible.includes('data-testid="context-request-diagnostic"'));
+        assert(/<textarea[^>]*readOnly=""/i.test(visible));
+        assert(visible.includes("client_observation_not_source_evidence"));
+        assert.equal(renderToStaticMarkup(React.createElement(VerificationExport, { ...props, enabled: false })), "",
+          "Disabled existing Preview gate emits no disclosure or diagnostic");
+        const foreign = renderToStaticMarkup(React.createElement(VerificationExport, { ...props,
+          preSubmit: { ...props.preSubmit, intent: { ...publicIntent, expectedSourceFeatureId: "way/393391114" } } }));
+        assert(!foreign.includes('data-testid="context-request-diagnostic"'), "Old-object observation is not exposed for a different current intent");
+      }
       assert.equal(networkCalls, 0);
     });
     return { classification: "NO_NETWORK_ACTUAL_PARSER_SERIALIZER_QA_NOT_NEW_LIVE_AI", groups,
