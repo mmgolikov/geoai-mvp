@@ -54,7 +54,7 @@ export function PointObjectContextDashboard({ context, locale, programme = false
     .filter((p, index, items) => items.findIndex(item => item.group === p.group) === index);
   const details = context.details;
   const anchor = context.scope.anchor;
-  const evidencePlace = context.places.find(p => p.evidenceRef === evidence?.selectedReference);
+  const evidencePlace = evidence?.selectionOrigin === "citation" ? context.places.find(p => p.evidenceRef === evidence.selectedReference) : undefined;
   const activeGroup = evidencePlace ? "all" : group;
   const places = context.places.filter(p => activeGroup === "all" || p.group === activeGroup).sort((a, b) => (a.distanceM ?? Infinity) - (b.distanceM ?? Infinity) || a.name.localeCompare(b.name));
   const selected = evidencePlace ?? places.find(p => p.id === selectedPlaceId) ?? places[0] ?? null;
@@ -74,7 +74,8 @@ export function PointObjectContextDashboard({ context, locale, programme = false
     setSelectedPlaceId(id); setSelectedMetricId(null);
     const place = context.places.find(p => p.id === id);
     if (place) evidence?.selectReference(place.evidenceRef, false);
-    if (reveal) { setGroup("all"); setMapOpen(true); mapRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }); }
+    if (reveal || evidencePlace) setGroup("all");
+    if (reveal) { setMapOpen(true); mapRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }); }
   };
   const activeMetric = evidencePlace ? undefined : details?.metrics.find(m => m.id === selectedMetricId && (!evidence?.selectedReference || evidence.selectedReference === m.evidenceRef));
   const selectGroup = (next: ContextGroup | "all") => { setGroup(next); setSelectedMetricId(null); evidence?.selectReference(null, false); };

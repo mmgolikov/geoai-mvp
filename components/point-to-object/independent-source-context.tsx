@@ -47,12 +47,13 @@ export function IndependentSourceContext({ context, locale, showCaveat = true }:
   const evidence = useD2SourceEvidence();
   const labels: Record<IndependentPlaceGroup, string> = ru ? { healthcare: "Медицинские записи", education: "Образовательные записи", daily_services: "Повседневные сервисы", transport: "Транспортные записи", hospitality: "Гостиницы", business: "Деловые услуги", civic_culture: "Общественные и культурные", other_service: "Другие услуги" } : { healthcare: "Healthcare records", education: "Education records", daily_services: "Daily services", transport: "Transport records", hospitality: "Hospitality", business: "Business services", civic_culture: "Civic & culture", other_service: "Other services" };
   const shortLabels: Record<IndependentPlaceGroup, string> = ru ? { healthcare: "Медицина", education: "Образование", daily_services: "Сервисы", transport: "Транспорт", hospitality: "Гостиницы", business: "Деловые", civic_culture: "Культура", other_service: "Другие" } : { healthcare: "Healthcare", education: "Education", daily_services: "Services", transport: "Transport", hospitality: "Hotels", business: "Business", civic_culture: "Culture", other_service: "Other" };
-  const evidencePlace = context.places.find(p => p.evidenceRef === evidence?.selectedReference);
+  const evidencePlace = evidence?.selectionOrigin === "citation" ? context.places.find(p => p.evidenceRef === evidence.selectedReference) : undefined;
   const activeGroup = evidencePlace ? "all" : group;
   const places = context.places.filter(p => activeGroup === "all" || p.group === activeGroup);
   const selected = evidencePlace ?? places.find(p => p.id === selectedId) ?? places[0] ?? null;
   const recordIndex = (id: string) => context.places.findIndex(p => p.id === id) + 1;
-  const listedPlaces = revealedIds && !evidencePlace ? places.filter(p => revealedIds.includes(p.id)) : places;
+  const activeRevealedIds = evidencePlace ? null : revealedIds;
+  const listedPlaces = activeRevealedIds ? places.filter(p => activeRevealedIds.includes(p.id)) : places;
   const groups = [...new Set(context.places.map(p => p.group))];
   const date = (value: string | null) => value ? new Date(value).toLocaleDateString(ru ? "ru-RU" : "en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }) : (ru ? "неизвестна" : "unknown");
   const fmt = (value: number) => value.toLocaleString(ru ? "ru-RU" : "en-US", { maximumFractionDigits: 1 });
@@ -73,7 +74,14 @@ export function IndependentSourceContext({ context, locale, showCaveat = true }:
   const coincident = focused && markers.length === 1 && Math.hypot(markers[0].x - originX, markers[0].y - originY) < 30;
   const control = "min-h-11 min-w-0 rounded-lg border border-line px-3 py-2 text-start text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087f8c]";
   const selectGroup = (next: IndependentPlaceGroup | "all") => { setGroup(next); setRevealedIds(null); setMapView("overview"); evidence?.selectReference(null, false); };
-  const selectPlace = (id: string) => { setSelectedId(id); setRevealedIds(null); setMapView("selected"); const place = context.places.find(p => p.id === id); if (place) evidence?.selectReference(place.evidenceRef, false); };
+  const selectPlace = (id: string) => {
+    setSelectedId(id); setMapView("selected");
+    // An explicit citation temporarily exposes all rows. Adopt that visible
+    // list on its next local choice; ordinary cluster choices keep their list.
+    if (evidencePlace) { setGroup("all"); setRevealedIds(null); }
+    const place = context.places.find(p => p.id === id);
+    if (place) evidence?.selectReference(place.evidenceRef, false);
+  };
 
   // One observer on this bounded diagram; no source/API refresh. Initial SSR
   // width is deterministic, then clustering uses actual CSS-pixel distances.
@@ -144,7 +152,7 @@ export function IndependentSourceContext({ context, locale, showCaveat = true }:
           <p id={legendId} className="mt-2 text-[11px] leading-5 text-[#52657a]" data-testid="independent-map-legend"><span className="font-bold text-[#243447]">◇</span> {ru ? "Исходная точка" : "Selected-object origin"} · {selected ? `#${recordIndex(selected.id)} ${ru ? "выбрана" : "selected"}` : (ru ? "нет выбранной записи" : "no record selected")}. {focused ? (ru ? "Увеличена выбранная запись; остальные доступны через список. Радиус источника — 400 м." : "Focus view; other records remain accessible through the list. Source scope remains 400 m.") : (ru ? "Экранные группы показывают число записей; выберите любую в списке. Учреждения не объединены." : "Screen clusters show record counts; choose any member in the list. Establishments are not merged.")}{coincident ? (ru ? " Запись и исходная точка совпадают на схеме при этом масштабе; координаты не сдвинуты." : " Record and origin coincide at this display scale; coordinates have not been shifted.") : ""}</p>
         </figure>
         <div className="min-w-0">
-          <div className="mb-2 flex flex-wrap items-center gap-2"><p className="text-xs font-bold text-[#344054]" aria-live="polite" data-testid="independent-cluster-status">{revealedIds ? (ru ? `${listedPlaces.length} записей выбранной группы` : `${listedPlaces.length} records in selected cluster`) : (ru ? `${places.length} показанных записей` : `${places.length} shown records`)}</p>{revealedIds ? <button type="button" className={control} onClick={() => setRevealedIds(null)} data-testid="independent-cluster-clear">{ru ? "Весь список" : "Show all"}</button> : null}</div>
+          <div className="mb-2 flex flex-wrap items-center gap-2"><p className="text-xs font-bold text-[#344054]" aria-live="polite" data-testid="independent-cluster-status">{activeRevealedIds ? (ru ? `${listedPlaces.length} записей выбранной группы` : `${listedPlaces.length} records in selected cluster`) : (ru ? `${places.length} показанных записей` : `${places.length} shown records`)}</p>{activeRevealedIds ? <button type="button" className={control} onClick={() => setRevealedIds(null)} data-testid="independent-cluster-clear">{ru ? "Весь список" : "Show all"}</button> : null}</div>
           <ol id={listId} className="max-h-[240px] space-y-2 overflow-y-auto" data-testid="independent-place-list">{listedPlaces.map(p => <li key={p.id}><button type="button" onClick={() => selectPlace(p.id)} aria-pressed={selected?.id === p.id} aria-controls={`${briefId} ${detailId} ${mapId}`} className={`${control} min-h-12 w-full ${selected?.id === p.id ? "border-[#087f8c] bg-white" : ""}`} data-testid="independent-place-select" data-overture-id={p.id} data-record-index={recordIndex(p.id)}><span className="block break-words font-bold" dir="auto">{recordIndex(p.id)}. {p.name}</span><span className="mt-1 block leading-5 text-[#52657a]">{fmt(p.distanceM)} {ru ? "м по прямой до точки" : "m straight-line to point"} · {p.taxonomy.primary.replaceAll("_", " ")}</span></button></li>)}</ol>
         </div>
       </div>

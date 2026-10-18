@@ -6,12 +6,14 @@ import type { PointObjectNormalizedContext } from "@/src/lib/prototype/point-to-
 import type { PointObjectCitationContext } from "@/src/lib/prototype/point-to-object-citation-context";
 
 type EvidenceSubject = Pick<PointObjectAiSubject, "name" | "address" | "featureClass" | "sourceFeatureId" | "sourceLabel" | "climate">;
+type EvidenceSelection = { reference: string | null; origin: "citation" | "local" | null };
 
 type EvidenceContext = {
   context: PointObjectNormalizedContext | null;
   subject: EvidenceSubject | null;
   locale: "en" | "ru";
   selectedReference: string | null;
+  selectionOrigin: EvidenceSelection["origin"];
   panelId: string;
   selectReference: (reference: string | null, reveal?: boolean) => void;
 };
@@ -116,10 +118,11 @@ export function D2SourceEvidenceProvider({ context, subject, locale, references 
   const panelId = useId();
   const panelRef = useRef<HTMLElement>(null);
   const invokerRef = useRef<HTMLElement | null>(null);
-  const [selectedReference, setSelectedReference] = useState<string | null>(null);
+  const [selection, setSelection] = useState<EvidenceSelection>({ reference: null, origin: null });
+  const { reference: selectedReference, origin: selectionOrigin } = selection;
   const [open, setOpen] = useState(false);
   const selectReference = useCallback((reference: string | null, reveal = true) => {
-    setSelectedReference(reference);
+    setSelection({ reference, origin: reference === null ? null : reveal ? "citation" : "local" });
     if (reference === null) {
       setOpen(false);
       return;
@@ -139,7 +142,7 @@ export function D2SourceEvidenceProvider({ context, subject, locale, references 
   const dx = anchor && coordinate ? (coordinate[0] - anchor[0]) * 111_320 * Math.cos(anchor[1] * Math.PI / 180) : 0;
   const dy = anchor && coordinate ? (coordinate[1] - anchor[1]) * 110_540 : 0;
   const extent = Math.max(400, Math.abs(dx) * 1.15, Math.abs(dy) * 1.15);
-  return <SourceEvidenceContext.Provider value={{ context, subject, locale, selectedReference, panelId, selectReference }}>
+  return <SourceEvidenceContext.Provider value={{ context, subject, locale, selectedReference, selectionOrigin, panelId, selectReference }}>
     {missingNearby.length ? <div className="mb-5 min-w-0 rounded-xl border border-[#eadbc1] bg-[#fffaf1] p-3 text-xs leading-5 text-[#6b4b16]" data-testid="d2-missing-citation-notice"><p>{ru ? "Не все цитаты отчёта доступны в сохранённом наборе. Исходный ответ сохранён; отсутствующие записи требуют проверки." : "Some report citations are unavailable in the retained evidence. The original answer is preserved; missing records require verification."}</p><D2SourceLinks references={missingNearby} /></div> : null}
     <aside id={panelId} ref={panelRef} tabIndex={-1} hidden={!open || !selectedReference} onKeyDown={event => { if (event.key === "Escape") close(); }} className="mb-5 min-w-0 rounded-[20px] border border-[#9dbfb8] bg-white p-5 outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] sm:p-7" aria-label={ru ? "Доказательство источника" : "Source evidence"} data-testid="d2-source-evidence" data-evidence-ref={selectedReference ?? undefined} data-evidence-available={Boolean(selected)}>
       <div className="flex min-w-0 items-start justify-between gap-3"><h2 className="min-w-0 break-words text-base font-bold text-[#243447]">{selected?.title ?? (ru ? "Цитата недоступна в сохранённом источнике" : "Citation unavailable in retained source")}</h2><button type="button" className="min-h-11 shrink-0 rounded-lg border border-line px-3 text-xs font-semibold text-[#52657a] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#087f8c]" onClick={close} data-testid="d2-evidence-close">{ru ? "Закрыть" : "Close"}</button></div>
