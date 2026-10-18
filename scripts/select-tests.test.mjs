@@ -104,6 +104,7 @@ test("D2 citation and immutable replay checks are selected and wired into both b
     "scripts/d2-source-citation-closure-check.mjs",
     "tests/d2-u1-formation-diagnostics.test.mjs",
     "tests/e2e/d2-source-citation-closure.spec.ts",
+    "tests/e2e/helpers/d2-citation-fixture.ts",
     "tests/e2e/d2-u1-failure-observation.spec.ts",
     "tests/fixtures/d2-source-citation-closure/recorded-public-result.json",
     "tests/fixtures/d2-u1-retry/formation-diagnostics.json"
