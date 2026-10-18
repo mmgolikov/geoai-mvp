@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "classification": "ORIGINAL_PUBLIC_HANDLER_RESULT_REPLAY_NOT_NEW_LIVE_MODEL_EVIDENCE",
+  "fixture": "recorded-public-result.json",
+  "sha256": "ab2784c4f62e854dd8e3320194a80e4382fbe740bf40871803e8e4ea2073bcea",
+  "bytes": 108015,
+  "originalFile": "deliverables/2026-10-13-d2-execution/D2_U1_6FB_RETRY_ACTUAL_PUBLIC_RESULT_20261013.json",
+  "originalPreSubmitSha256": "56c20273c66b0543d20bb2fa6df8bca04d54d2815b0538e20520b345ba116907",
+  "originalIntentSha256": "a40e800b9db354c73ca50f53bd06533244963167cfd738b92a3693b92f085ad6",
+  "originalEvidencePackHash": "aef6a76ef40592181e1bf89599cbcba084963dc53d428d298698de0159a9e928",
+  "sourceFeatureId": "way/254666300",
+  "originalLocale": "en",
+  "originalGeneratedAt": "2026-10-13T20:18:43.804Z",
+  "originalMode": "openai",
+  "originalSchemaVersion": 6,
+  "originalReportedAttempts": 1,
+  "historicalG2": {
+    "score": 7,
+    "outOf": 10,
+    "accepted": false,
+    "receiptSha256": "67a880a16fa9f8704f8018c14e076c98a4721ce9f26e093b0e21c797dd336637"
+  },
+  "legacyCatalogue": {
+    "absent": true,
+    "outside400mUniversityRef": "EVD-CONTEXT-1",
+    "outsideDistanceM": 548,
+    "retrospectiveBackfillAllowed": false
+  },
+  "replayPolicy": {
+    "newProviderCalls": 0,
+    "externalNetwork": "blocked",
+    "fixtureProducer": "never at import or discovery",
+    "oldResponseBytes": "unchanged",
+    "telemetry": "historical application-reported trace, not fresh invocation or invoice",
+    "expiredLease": "historical only, not dispatch authority",
+    "newCitationContext": "Never append new catalogue to this old source snapshot. Validate new catalogue in a separately classified current schema fixture from data owner.",
+    "uiProvenance": "Clearly describe saved/replayed13Oct output in QA artifacts; deterministic cards are not a new paid model answer."
+  },
+  "executionStatus": "PREPARED_NOT_RUN"
+}

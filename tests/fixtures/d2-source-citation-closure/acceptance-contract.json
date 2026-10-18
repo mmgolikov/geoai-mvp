@@ -1,0 +1,156 @@
+{
+  "schemaVersion": 1,
+  "id": "D2_UNPAID_SOURCE_CITATION_CLOSURE_ACCEPTANCE_20261018",
+  "classification": "FROZEN_TEST_EXPECTATIONS_NOT_PRODUCT_SCHEMA_NOT_EXECUTED",
+  "baselineCommit": "058ff0ac16fbda71a08876413c7035bbde588911",
+  "ownership": {
+    "qaSpec": "tests/e2e/d2-source-citation-closure.spec.ts",
+    "isolatedFixtures": "tests/fixtures/d2-source-citation-closure/",
+    "data": "Existing dev_1: schema, projection, parser, public export and persistence",
+    "ui": "Assigned UI worker: dashboard and analysis client",
+    "integrationAndExecution": "Root only",
+    "sharedFixtures": "Read/reuse only unless Root explicitly hands off a change"
+  },
+  "authority": {
+    "newPaidProviderCalls": 0,
+    "newLiveAiProof": false,
+    "CreateGate": "CLOSED",
+    "historicG2Score": 7,
+    "historicG2Max": 10,
+    "historicG2Threshold": 8,
+    "historicReceiptSha256": "67a880a16fa9f8704f8018c14e076c98a4721ce9f26e093b0e21c797dd336637",
+    "oldReceiptsImmutable": true
+  },
+  "bindingContract": {
+    "field": "citationContext",
+    "optional": true,
+    "encoding": "PENDING_DATA_OWNER_HANDOFF_DO_NOT_INVENT_FIELDS",
+    "scope": "Separate citation catalogue within the already existing nearby evidence extent, at most800m; existing KPI scope stays400m",
+    "knownGap": {
+      "ref": "EVD-CONTEXT-1",
+      "name": "University of Europe for Applied Sciences (Campus Dubai)",
+      "distanceM": 548,
+      "originalFeatureClass": "amenity:university",
+      "inside400mKpi": false,
+      "legacyPublicSnapshotHasRow": false
+    },
+    "sourceIdentity": "Actual source record ID, subject, normalized anchor, source snapshot/hash, source class, original evidence ref, unit/method and known/null dates remain bound",
+    "legacyPolicy": "Absent catalogue remains explicitly unavailable. Never acquire/backfill an old save or rewrite its frozen source/answer/receipt."
+  },
+  "rows": [
+    {
+      "id": "C01",
+      "layer": "pure serializer/parser + source UI",
+      "expected": "A valid newly produced catalogue retains the actual548m University citation/ref/name/featureClass/record identity and explains outside400m. It is not inserted into400m places, counts, shares, nearest metrics or KPI denominator.",
+      "negative": "No radius expansion, no education0→1 or sample123→124 due to citation-only row."
+    },
+    {
+      "id": "C02",
+      "layer": "pure projection/export",
+      "expected": "Actual OSM source classes and distance method/unit/provenance dates survive normalizer→public envelope→parse→save→reopen→export.",
+      "negative": "hospital/clinic and pharmacy/university are not inferred from display names. Provider update/acquisition is not promoted to observation."
+    },
+    {
+      "id": "C03",
+      "layer": "pure admission",
+      "expected": "Catalogue binds exact intended subject, allowed normalized anchor convention and corresponding source hash.",
+      "negative": "Foreign subject, changed anchor, wrong hash/source identity, stale/unrelated catalogue yield no usable current citation; fail closed with explicit unavailable/refusal, preserve last valid state."
+    },
+    {
+      "id": "C04",
+      "layer": "pure admission",
+      "expected": "Each ref has one matching record identity and supported values.",
+      "negative": "Duplicate refs, ref→foreign record, contradictions against retained bound names/classes/methods/distances/source dates, dangling refs and forged source IDs fail. Do not silently take first/last duplicate. Public hash metadata alone is not cryptographic verification of an upstream record."
+    },
+    {
+      "id": "C05",
+      "layer": "legacy browser + parser/export",
+      "expected": "Original legacy V1/V2 absence is accepted as legacy absence, clearly unavailable for unretained outside-radius citation. Existing400m metrics and old report remain readable.",
+      "negative": "No retrospective catalogue synthesis, source refresh, lease renewal, replaced original response or claim that548m was previously preserved."
+    },
+    {
+      "id": "C06",
+      "layer": "new save/reopen/export",
+      "expected": "Valid new optional catalogue survives full roundtrip with original record ID, featureClass/ref, source binding, units/method and null/known dates. Old payloads roundtrip without it.",
+      "negative": "No field loss in public projection/allowlist/persistence, no accidental schema requirement that breaks old saves, no reuse under another selection/locale/source."
+    },
+    {
+      "id": "C07",
+      "layer": "historical recorded response replay",
+      "expected": "Retain exact successful13Oct public result bytes/hash, original typed response and intent/source lease. Replay is blocked from all externalAI/network; historical missing catalogue stays missing.",
+      "negative": "Do not rewrite historic model text/refs/hash/telemetry/time/lease to look fresh, attach a synthetic newly sourced catalogue as original historical evidence, or call recorded replay new live model validation."
+    },
+    {
+      "id": "C08",
+      "layer": "scenario cards",
+      "expected": "At least one source-specific fact→conditional redevelopment consequence→concrete next check with resolvable ref. Distinguish current record from operation/capacity, source point from entrance/parcel and source overlap from physical novelty.",
+      "negative": "No generic identity/planning gate alone as new value; no invented demand, rights, rents, capacities, walking routes or floor/GFA volumes."
+    },
+    {
+      "id": "C09",
+      "layer": "visual browser",
+      "expected": "EN/RU×1440/390 actual chart/category→map/point/geometry→selected source/ref→scenario next-check path.548m citation is visually outside400m KPI and separately inspectable. OSM and Overture remain separate.",
+      "negative": "No clipped long class/ref/name, hidden critical control, source selection changing original report, or chart shares labelled land area/volume."
+    },
+    {
+      "id": "C10",
+      "layer": "continuity browser",
+      "expected": "Draft edit, locale switch, chart click, export preparation, save/reopen retain original response/source and readable state. AI/source refresh happens only in explicitly isolated mocked setup; all later interaction counters remain fixed.",
+      "negative": "No real provider call, hidden POST on mount/language/reopen, forged successful record, last-valid overwrite, cross-subject/late-response merge."
+    },
+    {
+      "id": "C11",
+      "layer": "visual environment/intensity",
+      "expected": "Use only actual measured/derived/tagged source values, explicit domain/method/coverage. Meaningful supported distributions or explicit unavailable state; record counts are not territory/volume.",
+      "negative": "Never multiply footprint by tagged levels into verifiedGFA or claim verified whole-building form/parcel capacity; missing distribution is not decorative empty graph."
+    },
+    {
+      "id": "C12",
+      "layer": "discovery/CI",
+      "expected": "New spec is explicitly included in registry, actual npm/CI consumer paths and HTTPS WebKit testMatch. Root discovery enumerates intended tests without skips, missing cases, only/todo or conditional fallback.",
+      "negative": "An explicit filename cannot override a config whitelist. A selected-test plan, fixture, static syntax check or oldPASS is not new execution evidence."
+    }
+  ],
+  "intendedBrowserJourneys": [
+    {
+      "id": "B01-B04",
+      "matrix": "en1440,en390,ru1440,ru390",
+      "purpose": "New valid citation closure, retained400m KPIs, class/source disclosure, meaningful scenario card, chart/map/source next-check and clipping checks"
+    },
+    {
+      "id": "B05-B08",
+      "matrix": "en1440,en390,ru1440,ru390",
+      "purpose": "Legacy absent catalogue plus recorded successful actual result replay and public save/reopen/export without externalAI"
+    },
+    {
+      "id": "B09",
+      "matrix": "bounded negative journey",
+      "purpose": "Foreign selection/catalogue or delayed mismatch cannot attach or replace last valid"
+    }
+  ],
+  "requiredRootReadiness": {
+    "schemaHandoff": "Exact new citationContext type/parser/serializer semantics and bounded positive/negative fixtures from dev_1",
+    "uiHandoff": "Stable actual selectors/components, source-row/ref disclosure and chart/selection contract from assigned UI owner",
+    "fixtureLoader": "Existing loadD2FixtureBundle invokes producer only in Root runtime hooks; do not call during discovery. New spec import must not execute fixture/service/producer. Isolated recorded fixture is plain staticJSON.",
+    "parserLayer": "Actual guard/parser bodies only, no copied validator algorithm; source-only worker never imports/executes Product services",
+    "registry": "Root integrates scripts/impact-map.json patterns and e2e consumer entry; unknown path currently expands broad review but does not automatically discover the new spec.",
+    "npmAndCi": "Root integrates actual explicit product npm script and workflow consumer. Root verifies --list against intended count, then terminal actual reports; no own execution.",
+    "httpsWebkit": "Root adds the new filename to playwright.product-https.config.ts testMatch or exact approved dedicated config and CI call. Browser retries0, workers1, fail-on-flaky.",
+    "runtime": "Reuse installed Node24/TypeScript/Playwright. Root verifies actual server ports; old58420 was a session ID and is not a port authority.",
+    "oldRegressions": "Retain existing source/runtime/save/legacy/identity/normalization and downstream Compare/Create consumer checks selected by actual changed paths. No full old suite rerun by this worker.",
+    "qualification": "Separate data closure, deterministic UI/scenario usefulness and replay from original7/10 historical paid score; never lower8/nozero threshold or claim new model evidence."
+  },
+  "readiness": "CONTRACT_FROZEN_IMPLEMENTATION_HANDOFF_PENDING_NOT_RUN",
+  "execution": {
+    "workerTests": 0,
+    "browser": 0,
+    "api": 0,
+    "provider": 0,
+    "build": 0,
+    "lint": 0,
+    "types": 0,
+    "CI": 0,
+    "financial": 0
+  },
+  "requestedNextStep": "Root forwards exact data/UI handoff and owns discovery integration; test_1 then authors the assigned spec and bounded pure tests against actual contracts without running them."
+}
