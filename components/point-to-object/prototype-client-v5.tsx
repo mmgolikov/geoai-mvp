@@ -1,5 +1,6 @@
 "use client";
 import { VerificationCaptureBoundary, VerificationExport, useVerificationCapture } from "./verification-export";
+import { createContextRequestDiagnostic, contextRequestDiagnosticServerCode, type PointObjectContextRequestDiagnostic, type ContextRequestDiagnosticOutcome } from "@/src/lib/prototype/point-to-object-context-diagnostic";
 
 import { findRestoreNavigationTarget, matchesRestoredFindViewport, sameFindBounds } from "@/src/lib/prototype/point-to-object-find-viewport";
 import { mergePointObjectContextGeometry } from "@/src/lib/prototype/point-to-object-selection-context";
@@ -334,6 +335,9 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse", verification
   const [contextStatus, setContextStatus] = useState<"idle" | "loading" | "error">("idle");
   const [contextRetryVersion, setContextRetryVersion] = useState(0);
   const [contextFailure, setContextFailure] = useState<PointObjectSourceFailure>("unavailable");
+  const [contextDiagnostic, setContextDiagnostic] = useState<{ intentKey: string; selectionKey: string; retryVersion: number; value: PointObjectContextRequestDiagnostic } | null>(null);
+  const contextDiagnosticEnabledRef = useRef(verificationEnabled);
+  contextDiagnosticEnabledRef.current = verificationEnabled;
   const [contextRetrySeconds, setContextRetrySeconds] = useState(0);
   const contextCooldownRef = useRef(0);
   const contextCacheRef = useRef(new Map<string, { expiresAt: number; value: NonNullable<ReturnType<typeof parseLiveResolvedObject>> }>());
@@ -912,6 +916,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse", verification
   const unresolvedContextKey = selection?.resolvedObject ? null : contextRequestKey(selection, locale);
   const contextSelectionKey = selection ? `${contextRequestKey(selection, "en")}:${selection.clickedAt}` : null;
   useEffect(() => {
+    setContextDiagnostic(null);
     if (selection?.resolvedObject && contextSelectionKey) {
       contextAdmissionRef.current = { selectionKey: contextSelectionKey, retryVersion: contextRetryVersion, identity: projectIdentity };
     }
@@ -959,11 +964,27 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse", verification
     const requestId = contextRequestId.current + 1;
     contextRequestId.current = requestId;
     const controller = new AbortController();
+    let disposed = false, diagnosticFinished = false, parsing = false;
+    let observedHttpStatus: number | null = null;
+    let observedServerCode: ReturnType<typeof contextRequestDiagnosticServerCode> = null;
+    const diagnosticStartedAt = new Date().toISOString(), diagnosticStartedTick = performance.now();
+    const observeFailure = (outcome: ContextRequestDiagnosticOutcome) => {
+      if (!contextDiagnosticEnabledRef.current || diagnosticFinished || disposed || requestId !== contextRequestId.current) return;
+      diagnosticFinished = true;
+      void createContextRequestDiagnostic(JSON.parse(unresolvedContextKey), { startedAt: diagnosticStartedAt,
+        completedAt: new Date().toISOString(), elapsedMs: Math.max(0, Math.round(performance.now() - diagnosticStartedTick)),
+        outcome, httpStatus: observedHttpStatus, serverCode: observedServerCode }).then(value => {
+        if (value && !disposed && contextDiagnosticEnabledRef.current && requestId === contextRequestId.current) {
+          setContextDiagnostic({ intentKey: unresolvedContextKey, selectionKey: contextSelectionKey, retryVersion: contextRetryVersion, value });
+        }
+      }).catch(() => { /* Diagnostic failure must not alter Context or retry it. */ });
+    };
     const timeoutSignal = AbortSignal.timeout(30_000);
     const onDeadline = () => {
       if (controller.signal.aborted || requestId !== contextRequestId.current) return;
       setContextFailure("timeout");
       setContextStatus("error");
+      observeFailure("client_deadline");
       controller.abort(timeoutSignal.reason);
     };
     // The UI owns its deadline state. Do not depend on a combined fetch signal
@@ -979,9 +1000,13 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse", verification
         body: unresolvedContextKey,
         signal: controller.signal
       }).then(async (response) => {
+        observedHttpStatus = response.status >= 100 && response.status <= 599 ? response.status : null;
+        parsing = true;
         const payload = await response.json() as PointObjectLiveContextResponse;
         if (controller.signal.aborted || requestId !== contextRequestId.current) return;
+        observedServerCode = contextRequestDiagnosticServerCode(payload && typeof payload === "object" && "code" in payload ? payload.code : null);
         if (!response.ok || payload.mode !== "resolved") {
+          observeFailure(!response.ok || payload.mode === "unavailable" ? "http_response" : "parse_unknown");
           setContextFailure(pointObjectSourceFailure(response.status, payload));
           if (response.status === 429) {
             const seconds = sourceRetryAfterSeconds(response.headers.get("retry-after"));
@@ -993,10 +1018,12 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse", verification
         }
         const resolvedObject = parseLiveResolvedObject(payload.subject);
         if (!resolvedObject) {
+          observeFailure("parse_unknown");
           setContextFailure("unavailable");
           setContextStatus("error");
           return;
         }
+        parsing = false;
         captureResponse(payload);
         if (contextCacheRef.current.size >= 24) contextCacheRef.current.delete(contextCacheRef.current.keys().next().value!);
         contextCacheRef.current.set(unresolvedContextKey, { value: resolvedObject, expiresAt: Date.now() + 5 * 60_000 });
@@ -1006,12 +1033,14 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse", verification
         // as AbortError too, so it must leave recoverable error state instead.
         if (controller.signal.aborted || requestId !== contextRequestId.current) return;
         if (requestId === contextRequestId.current) {
+          observeFailure(timeoutSignal.aborted ? "client_deadline" : parsing ? "parse_unknown" : "transport_unknown");
           setContextFailure(timeoutSignal.aborted || (error instanceof Error && error.name === "TimeoutError") ? "timeout" : "unavailable");
           setContextStatus("error");
         }
       }).finally(() => timeoutSignal.removeEventListener("abort", onDeadline));
     }, 250);
     return () => {
+      disposed = true;
       window.clearTimeout(timer);
       timeoutSignal.removeEventListener("abort", onDeadline);
       controller.abort();
@@ -2022,7 +2051,9 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse", verification
               {(["analyse", "find", "create"] as ProductMode[]).map((item) => <button key={item} type="button" role="tab" aria-selected={mode === item} disabled={item === "create" && !projectRestorationReady} onClick={() => changeMode(item)} className={`min-h-11 rounded-lg px-2 text-xs font-bold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] disabled:cursor-wait disabled:opacity-50 ${mode === item ? "bg-white text-[#087f8c] shadow-sm" : "text-[#667085] hover:text-[#344054]"}`}>{t(`mode.${item}` as "mode.analyse" | "mode.find" | "mode.create")}</button>)}
             </div>
             <div id="workspace-task-content" className={mobileStyles.content} onFocusCapture={(event) => { if (mobile && /^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName)) setSheet("full"); }}>
-            {mode !== "create" ? <VerificationExport enabled={verificationEnabled} locale={locale} records={verification.records} captureRefused={verification.captureRefused} currentSelection={{ mode, marketKey: locationKey, locale, longitude: selection?.longitude ?? null, latitude: selection?.latitude ?? null, sourceFeatureId: selection ? exactOsmFeatureId(selection.object.sourceFeatureId) : null, candidateIds: findShortlist.map(candidate => candidate.sourceFeatureId) }} preSubmit={mode === "find" && visibleBounds ? { operation: "find", intent: buildFindIntent(findExplicitSearchBounds ?? visibleBounds), sourceSnapshot: { cohort: findResult } } : selection ? { operation: "context", intent: JSON.parse(contextRequestKey(selection, locale)!), sourceSnapshot: { context: selection.resolvedObject ?? null } } : null} /> : null}
+            {mode !== "create" ? <VerificationExport enabled={verificationEnabled} locale={locale} records={verification.records} captureRefused={verification.captureRefused}
+              contextDiagnostic={mode === "analyse" && contextStatus === "error" && contextDiagnostic?.intentKey === unresolvedContextKey && contextDiagnostic.selectionKey === contextSelectionKey && contextDiagnostic.retryVersion === contextRetryVersion ? contextDiagnostic.value : null}
+              currentSelection={{ mode, marketKey: locationKey, locale, longitude: selection?.longitude ?? null, latitude: selection?.latitude ?? null, sourceFeatureId: selection ? exactOsmFeatureId(selection.object.sourceFeatureId) : null, candidateIds: findShortlist.map(candidate => candidate.sourceFeatureId) }} preSubmit={mode === "find" && visibleBounds ? { operation: "find", intent: buildFindIntent(findExplicitSearchBounds ?? visibleBounds), sourceSnapshot: { cohort: findResult } } : selection ? { operation: "context", intent: JSON.parse(contextRequestKey(selection, locale)!), sourceSnapshot: { context: selection.resolvedObject ?? null } } : null} /> : null}
             <div className="min-w-0">
                 {mode === "find" ? null : <p className="text-xs font-bold uppercase tracking-[0.11em] text-[#087f8c]">{mode === "create" ? t("mode.create") : t("panel.eyebrow")}</p>}
                 <h1 className={`${mode === "find" ? "text-[22px] sm:text-2xl" : "mt-2 text-2xl sm:text-[28px]"} font-bold tracking-[-0.035em]`}>{mode === "create" ? t("create.title") : mode === "find" ? t("find.title") : t("panel.title")}</h1>

@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from "react";
+import { contextRequestDiagnosticJson, type PointObjectContextRequestDiagnostic } from "@/src/lib/prototype/point-to-object-context-diagnostic";
 import { createVerificationBundle, snapshotVerificationSubmission, snapshotVerificationResponse, snapshotVerificationFailureResponse, VERIFICATION_BUNDLE_MAX_BYTES, type VerificationOperation, type VerificationRecord, type VerificationFailureRecord } from "@/src/lib/prototype/point-to-object-verification-export";
 
 type Capture = { records: VerificationRecord[]; failedResponses: VerificationFailureRecord[]; captureRefused: boolean; begin: (operation: VerificationOperation, intent: unknown, sourceSnapshot: unknown) => (response: unknown, httpStatus?: number) => void };
@@ -46,16 +47,18 @@ export function useVerificationCapture(enabled: boolean): Capture {
   return shared ?? { records, failedResponses, begin, captureRefused };
 }
 
-export function VerificationExport({ enabled, locale, preSubmit = null, records = [], failedResponses = [], currentSelection, captureRefused = false, compactMobile = false }: {
+export function VerificationExport({ enabled, locale, preSubmit = null, records = [], failedResponses = [], currentSelection, captureRefused = false, compactMobile = false, contextDiagnostic = null }: {
   enabled: boolean; locale: "en" | "ru";
   preSubmit?: { operation: VerificationOperation; intent: unknown; sourceSnapshot: unknown } | null;
   records?: readonly VerificationRecord[]; failedResponses?: readonly VerificationFailureRecord[]; currentSelection: unknown; captureRefused?: boolean; compactMobile?: boolean;
+  contextDiagnostic?: PointObjectContextRequestDiagnostic | null;
 }) {
   const [json, setJson] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
   if (!enabled) return null;
   const ru = locale === "ru";
+  const diagnosticJson = preSubmit?.operation === "context" ? contextRequestDiagnosticJson(contextDiagnostic, preSubmit.intent) : null;
   async function prepare() {
     setBusy(true); setError(false); setJson(null);
     try {
@@ -79,6 +82,7 @@ export function VerificationExport({ enabled, locale, preSubmit = null, records 
       {ru ? "Проверочные данные · Preview" : "Verification data · Preview"}
     </summary>
     <p className="my-2 text-muted">{ru ? "Локальный файл, без нового запроса. История старых сохранений не восстанавливается." : "Local file, no new request. Legacy request provenance is not reconstructed."}</p>
+    {diagnosticJson ? <label className="mt-3 block">{ru ? "Диагностика Context · не данные источника (только чтение)" : "Context diagnostic · not source evidence (read only)"}<textarea readOnly value={diagnosticJson} className="mt-1 h-48 w-full max-w-full rounded-lg border border-line p-2 font-mono text-xs" data-testid="context-request-diagnostic" /></label> : null}
     <button type="button" disabled={busy} onClick={() => void prepare()} data-testid="verification-prepare" className="min-h-11 rounded-lg border border-line px-3 font-semibold focus-visible:outline focus-visible:outline-2">{busy ? (ru ? "Подготовка…" : "Preparing…") : (ru ? "Подготовить JSON" : "Prepare JSON")}</button>
     <p role="status" aria-live="polite" className="mt-2">{error ? (ru ? "Экспорт отклонён: данные неполные, небезопасные или превышают лимит. Основной результат не изменён." : "Export refused: incomplete, unsafe or oversized data. The main result is unchanged.") : json ? (ru ? "Снимок подготовлен. Текущий выбор и исходный запрос записаны отдельно." : "Snapshot ready. Current selection and original submission are recorded separately.") : ""}</p>
     {json ? <><button type="button" onClick={download} data-testid="verification-download" className="mt-2 min-h-11 rounded-lg bg-[#087f8c] px-3 font-semibold text-white focus-visible:outline focus-visible:outline-2">{ru ? "Скачать JSON" : "Download JSON"}</button><label className="mt-3 block">{ru ? "JSON снимка (только чтение)" : "Snapshot JSON (read only)"}<textarea readOnly value={json} className="mt-1 h-48 w-full max-w-full rounded-lg border border-line p-2 font-mono text-xs" data-testid="verification-json" /></label></> : null}
