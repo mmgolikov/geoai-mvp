@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { registerHooks, createRequire } from "node:module";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -29,6 +30,8 @@ registerHooks({
 });
 const catalogue = await import("../src/lib/prototype/point-to-object-citation-context.ts");
 const normalized = await import("../src/lib/prototype/point-to-object-normalized-context.ts");
+const comparison = await import("../src/lib/prototype/point-to-object-comparison-core.ts");
+const independent = await import("../src/lib/prototype/point-to-object-independent-context.ts");
 const live = await import("../components/point-to-object/live-session.ts");
 const observer = await import("../src/lib/prototype/point-to-object-verification-export.ts");
 const projects = await import("../src/lib/prototype/point-object-projects-contract.ts");
@@ -154,5 +157,75 @@ check(projects.parsePointObjectProjectOperationInput(legacy) !== null, "Legacy s
 const invalidSave = clone(operation); invalidSave.payload.selection.resolvedObject.normalizedContext.citationContext.subjectId = "way/99999";
 check(projects.parsePointObjectProjectOperationInput(invalidSave) === null, "Saved project contract rejects a supplied mismatched catalogue");
 check(externalCalls === 0, "Zero external source/provider calls");
+
+// Source-only containment regression. Keep the original74 checks above intact.
+// Synthetic OSM candidate packs reuse only already bundled/hash-pinned Overture
+// facts to exercise populated details/independent fields, not real case quality.
+const admittedBytes = readFileSync(path.join(root, "src/data/prototype/d2-overture-places.json"));
+check(createHash("sha256").update(admittedBytes).digest("hex") === independent.OVERTURE_SNAPSHOT_HASH,
+  "Compare fixture reuses exact admitted local source bytes, not a new source acquisition");
+const admitted = JSON.parse(admittedBytes.toString("utf8"));
+const comparisonPacks = independent.INDEPENDENT_CASES.slice(0, 2).map((item, index) => {
+  const candidate = clone(pack);
+  candidate.coordinates = { longitude: item.anchor[0], latitude: item.anchor[1], crs: "EPSG:4326" };
+  candidate.selectedObject = { sourceFeatureId: item.sourceFeatureId, name: "Synthetic Compare candidate " + (index + 1),
+    featureClass: "building:office", tags: { "tag.building": "office", "tag.building:levels": "5" },
+    metrics: clone(fixture.sprint10Selection.resolvedObject.metrics) };
+  candidate.resolution = { coordinateAssociation: "trusted_open_map_identity" };
+  candidate.evidencePackHash = String(index + 1).padStart(64, "a");
+  candidate.source = { ...candidate.source, acquiredAt: "2026-10-13T12:00:00Z", observedAt: null,
+    sourceResponseHash: "b".repeat(64), fabricAcquiredAt: "2026-10-13T12:00:00Z" };
+  // A small synthetic mapped polygon on one candidate also exercises retained
+  // footprint metadata; it is not an assertion about the named real OSM site.
+  const [lon, lat] = item.anchor;
+  candidate.displayGeometry = index === 0 ? { type: "Polygon", coordinates: [[[lon - .0001, lat - .0001],
+    [lon + .0001, lat - .0001], [lon + .0001, lat + .0001], [lon - .0001, lat + .0001], [lon - .0001, lat - .0001]]] } : null;
+  candidate.nearbyContext = candidate.nearbyContext.map(place => ({ ...place,
+    coordinates: [lon, lat + place.distanceM / 6_371_008.8 * 180 / Math.PI] }));
+  const separate = independent.buildIndependentContext(admitted, item.sourceFeatureId, [...item.anchor], "2026-10-13T12:00:00Z");
+  candidate.evidence.push({ id: "EVD-OVERTURE-SNAPSHOT", sourceId: "OVERTURE-PLACES",
+    label: "Existing admitted snapshot; synthetic Compare contract only", value: JSON.stringify(separate) });
+  return candidate;
+});
+const originalPackJson = JSON.stringify(comparisonPacks);
+const originalPacks = clone(comparisonPacks);
+const publicContexts = comparisonPacks.map(candidate => normalized.normalizePointObjectContext(candidate));
+check(publicContexts.every(value => value.citationContext?.items.length === 12), "Both public candidates retain their valid citation catalogue");
+check(publicContexts.every(value => value.details && value.independentContext?.status === "available"),
+  "Containment fixture exercises populated details and separately admitted independent context");
+for (const value of publicContexts) check(normalized.parseNormalizedPointObjectContext(value) !== null,
+  "Compare fixture public context remains valid without dropping catalogue or old fields");
+const publicContextJson = JSON.stringify(publicContexts);
+// Independent pre-existing projection oracle: preserve the complete public
+// context and remove exactly the single newly introduced public-only field.
+const legacyContexts = clone(publicContexts);
+for (const value of legacyContexts) delete value.citationContext;
+const expectedCandidates = comparisonPacks.map((candidate, index) => ({ id: candidate.selectedObject.sourceFeatureId,
+  label: candidate.selectedObject.name, featureClass: candidate.selectedObject.featureClass,
+  evidencePackHash: candidate.evidencePackHash,
+  footprintAreaSqM: candidate.displayGeometry ? candidate.selectedObject.metrics?.footprintAreaSqM ?? null : null,
+  context: legacyContexts[index] }));
+const expectedRefs = expectedCandidates.flatMap(candidate => [candidate.id + ":identity",
+  ...candidate.context.metrics.filter(metric => metric.value !== null).map(metric => candidate.id + ":" + metric.id)]);
+for (const locale of ["en", "ru"]) {
+  const request = { locale, role: "developer", scenario: "b2b_redevelopment_selected_aoi", depth: "standard",
+    goal: "redevelopment", perspective: "developer", horizon: "current", question: null };
+  const input = comparison.buildPointObjectComparisonInput(comparisonPacks, request);
+  check(input.candidates.length === 2 && input.candidates.every(candidate => !Object.hasOwn(candidate.context, "citationContext")),
+    "Neither Compare candidate may send the new catalogue to the provider: " + locale);
+  const expected = { version: "POINT_OBJECT_COMPARISON_INPUT_V1", locale, role: request.role, scenario: request.scenario,
+    candidates: expectedCandidates, allowedEvidenceRefs: expectedRefs };
+  assert.equal(JSON.stringify(input), JSON.stringify(expected), "Full Compare JSON equals pre-existing projection, omitting only catalogue: " + locale); checks++;
+  assert.deepEqual(input.candidates, expectedCandidates, "Both candidate identities/metadata and all old context fields retained: " + locale); checks++;
+  assert.deepEqual(input.allowedEvidenceRefs, expectedRefs, "Existing allowedEvidenceRefs unchanged: " + locale); checks++;
+  check(!input.allowedEvidenceRefs.some(ref => ref.includes("EVD-CONTEXT-") || ref.includes("EVD-OVERTURE-")),
+    "No newly admitted citation refs enter the Compare reference policy: " + locale);
+}
+assert.equal(JSON.stringify(comparisonPacks), originalPackJson, "Source packs are not mutated by provider projection"); checks++;
+assert.deepEqual(comparisonPacks, originalPacks, "Complete source packs retain their data and evidence"); checks++;
+assert.equal(JSON.stringify(publicContexts), publicContextJson, "Previously normalized public catalogues remain intact"); checks++;
+check(comparisonPacks.every(candidate => normalized.normalizePointObjectContext(candidate).citationContext?.items.length === 12),
+  "Fresh public normalization still retains catalogues after Compare projection");
+check(externalCalls === 0, "Compare containment makes no source or provider call");
 console.log(JSON.stringify({ protocol: "D2_CITATION_CONTEXT_PURE_CONTRACT_V1", classification: "SYNTHETIC_NOT_PAID_G2_OR_BROWSER_ACCEPTANCE",
   checks, externalCalls, paidCalls: 0, browserRuns: 0, status: "PASS", caveat: observer.VERIFICATION_CAVEAT }));

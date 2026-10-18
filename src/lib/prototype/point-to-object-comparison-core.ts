@@ -33,9 +33,15 @@ export function buildPointObjectComparisonInput(packs: LivePointObjectEvidencePa
   if (packs.length < 2 || packs.length > 3 || new Set(packs.map(p => p.selectedObject.sourceFeatureId)).size !== packs.length || packs.some(p => p.resolution.coordinateAssociation !== "trusted_open_map_identity" || p.geoContext.coverage !== "available" || p.geoContext.sampleSize < 1 || p.geoContext.capReached)) throw new Error("COMPARISON_EVIDENCE_INSUFFICIENT");
   const times = packs.map(p => Date.parse(p.source.fabricAcquiredAt ?? ""));
   if (times.some(t => !Number.isFinite(t)) || Math.max(...times) - Math.min(...times) > 15 * 60_000) throw new Error("COMPARISON_SNAPSHOTS_NOT_ALIGNED");
-  const candidates = packs.map(p => ({ id: p.selectedObject.sourceFeatureId, label: p.selectedObject.name, featureClass: p.selectedObject.featureClass,
-    evidencePackHash: p.evidencePackHash, footprintAreaSqM: p.displayGeometry ? p.selectedObject.metrics?.footprintAreaSqM ?? null : null,
-    context: normalizePointObjectContext(p) }));
+  const candidates = packs.map(p => {
+    const context = normalizePointObjectContext(p);
+    // This fresh provider projection must retain its pre-catalogue scope.
+    // Public normalization/save/export keep citations; Compare is not expanded.
+    delete context.citationContext;
+    return { id: p.selectedObject.sourceFeatureId, label: p.selectedObject.name, featureClass: p.selectedObject.featureClass,
+      evidencePackHash: p.evidencePackHash, footprintAreaSqM: p.displayGeometry ? p.selectedObject.metrics?.footprintAreaSqM ?? null : null,
+      context };
+  });
   return { version: "POINT_OBJECT_COMPARISON_INPUT_V1", locale: request.locale, role: request.role ?? "unspecified", scenario: request.scenario ?? "unspecified", candidates,
     allowedEvidenceRefs: candidates.flatMap(c => [`${c.id}:identity`, ...c.context.metrics.filter(m => m.value !== null).map(m => `${c.id}:${m.id}`)]) };
 }
