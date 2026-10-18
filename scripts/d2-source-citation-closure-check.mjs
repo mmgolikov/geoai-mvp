@@ -7,7 +7,8 @@ import { registerHooks, stripTypeScriptTypes } from "node:module";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 
-export async function runD2SourceCitationClosureCheck() {
+export async function runD2SourceCitationClosureCheck({ fixtureLocale } = {}) {
+  assert(fixtureLocale === undefined || fixtureLocale === "en" || fixtureLocale === "ru", "Bounded fixture locale");
   const root = new URL("../", import.meta.url);
   const dir = new URL("../tests/fixtures/d2-source-citation-closure/", import.meta.url);
   const sha = value => createHash("sha256").update(value).digest("hex");
@@ -17,6 +18,8 @@ export async function runD2SourceCitationClosureCheck() {
   const manifest = JSON.parse(readFileSync(new URL("replay-manifest.json", dir), "utf8"));
   const historical = JSON.parse(bytes);
   const fixture = JSON.parse(readFileSync(new URL("synthetic-citation-pack.json", dir), "utf8"));
+  assert.equal(sha(bytes), manifest.sha256);
+  assert.equal(bytes.length, manifest.bytes);
   const old = historical.records[0], legacy = old.sourceSnapshot.context;
   const expected = fixture.expected, anchor = expected.anchor, groups = [];
   let networkCalls = 0;
@@ -67,6 +70,57 @@ export async function runD2SourceCitationClosureCheck() {
     const response = { mode: "resolved", schemaVersion: 2, evidenceReceipt: clone(resolved.evidenceReceipt), subject: resolved };
     const times = { submittedAt: "2026-10-18T14:00:02.000Z", completedAt: "2026-10-18T14:00:03.000Z" };
     const currentSelection = { ...clone(historical.currentSelection), longitude: anchor[0], latitude: anchor[1] };
+
+    if (fixtureLocale !== undefined) {
+      // Test-only MIXED fixture: retained selected-object geometry/tags/details
+      // and admitted Overture plus entirely synthetic nearby citations/profile
+      // provenance. Never append these rows to the original historical source.
+      const subject = clone(resolved);
+      const details = clone(legacy.normalizedContext.details);
+      assert(details && details.association === "selected_record", "Golden selected measurements required");
+      for (const entry of details.sources) if (entry.id === "osm_surroundings") {
+        entry.acquiredAt = context.source.acquiredAt;
+        entry.observedAt = context.source.observedAt;
+        entry.responseHash = context.source.responseHash;
+      }
+      subject.normalizedContext.details = details;
+      const created = Date.now() - 1_000;
+      subject.evidenceReceipt.createdAt = new Date(created).toISOString();
+      subject.evidenceReceipt.expiresAt = new Date(created + 900_000).toISOString();
+      subject.evidenceReceipt.cacheWindow = Math.floor(created / 900_000);
+      subject.evidenceReceipt.acquiredAt = legacy.evidenceReceipt.acquiredAt;
+      subject.evidenceReceipt.sourceLocale = fixtureLocale === "ru" ? "ru,en" : "en";
+      assert.deepEqual(live.parseLiveResolvedObject(subject), subject);
+      assert.equal(subject.normalizedContext.sampleSize, 123);
+      assert.equal(subject.normalizedContext.scope.radiusM, 400);
+      assert.equal(subject.normalizedContext.citationContext.items.length, 12);
+      const university = subject.normalizedContext.citationContext.items.find(p => p.evidenceRef === "EVD-CONTEXT-1");
+      assert.equal(university.distanceM, 548); assert.equal(university.featureClass, "amenity:university");
+      assert(!subject.normalizedContext.places.some(p => p.evidenceRef === university.evidenceRef));
+      const screening = await import(new URL("src/lib/prototype/d2-scenario-screening.ts", root).href);
+      const pharmacy = subject.normalizedContext.independentContext?.places.find(p => p.taxonomy.primary === "pharmacy");
+      assert(pharmacy && typeof pharmacy.name === "string" && pharmacy.name.length > 0,
+        "Named pharmacy must belong to this exact admitted U1 context");
+      const scenarioCardIds = screening.buildD2ScenarioScreening(subject.normalizedContext, subject.name,
+        "custom", "b2b_redevelopment_selected_aoi", fixtureLocale).map(card => card.id);
+      assert.deepEqual(scenarioCardIds, ["mapped-envelope", "entrances-and-servicing", "programme-service-check"]);
+      const envelope = { mode: "resolved", schemaVersion: 2, evidenceReceipt: clone(subject.evidenceReceipt), subject };
+      const legacyEnvelope = clone(envelope); delete legacyEnvelope.subject.normalizedContext.citationContext;
+      assert(live.parseLiveResolvedObject(legacyEnvelope.subject));
+      assert.equal(networkCalls, 0);
+      return { protocol: "D2_ISOLATED_CITATION_FIXTURE_V1",
+        classification: "MIXED_GOLDEN_SELECTED_OBJECT_ADMITTED_OVERTURE_SYNTHETIC_NEARBY_NOT_HISTORICAL_BACKFILL",
+        locale: fixtureLocale, sourceLocale: subject.evidenceReceipt.sourceLocale, networkCalls,
+        goldenRecordedPublicResultSha256: manifest.sha256, scenarioCardIds,
+        proof: { catalogueItems: 12, outsideKpiRef: university.evidenceRef, outsideDistanceM: 548,
+          originalClassInSyntheticInput: "amenity:university", kpiRadiusM: 400, sampleSize: 123,
+          detailsAssociation: details.association, externalAiCalls: 0,
+          independentSubjectId: subject.normalizedContext.independentContext.subjectId,
+          independentPharmacy: { id: pharmacy.id, name: pharmacy.name, evidenceRef: pharmacy.evidenceRef } },
+        item: { locale: fixtureLocale, sourceLocale: subject.evidenceReceipt.sourceLocale,
+          key: "u1", sourceFeatureId: expected.subjectId, anchor: clone(anchor), label: subject.name,
+          expectedIndependentStatus: "available", envelope, legacyEnvelope } };
+    }
 
     await group("C01-immutable-recorded-input", () => {
       assert.equal(sha(bytes), manifest.sha256);
@@ -261,5 +315,10 @@ export async function runD2SourceCitationClosureCheck() {
   }
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  process.stdout.write(JSON.stringify(await runD2SourceCitationClosureCheck(), null, 2) + "\n");
+  const args = process.argv.slice(2);
+  assert(args.every(arg => arg === "--fixtures" || /^--locale=(en|ru)$/.test(arg)), "Unknown QA argument");
+  assert(new Set(args).size === args.length, "Duplicate QA arguments");
+  const locale = args.find(arg => arg.startsWith("--locale="))?.slice(9);
+  assert(args.length === 0 || args.includes("--fixtures") && locale && args.length === 2, "Use --fixtures with one locale");
+  process.stdout.write(JSON.stringify(await runD2SourceCitationClosureCheck({ fixtureLocale: locale }), null, 2) + "\n");
 }

@@ -3,7 +3,8 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test";
 import { chooseD2ThroughSearch, openD2Analysis, openD2Projects, installD2Transport, expectD2TransportQuiet,
-  loadD2FixtureBundle, publicD2Snapshot, type D2Bundle, type D2Case, type D2Locale, type D2Signals } from "./helpers/d2-context-fixture";
+  publicD2Snapshot, type D2Case, type D2Locale, type D2Signals } from "./helpers/d2-context-fixture";
+import { loadD2CitationFixture, chooseD2CitationFindTarget } from "./helpers/d2-citation-fixture";
 import { installLoopbackBrowserHarness, requireLoopbackTestOrigin } from "./helpers/local-webkit-csp";
 import { sprint10AnalysisResponse } from "./helpers/sprint10-analysis-fixture";
 
@@ -22,7 +23,6 @@ const sha = (value: string | Buffer) => createHash("sha256").update(value).diges
 const clone = structuredClone;
 const count = (s: D2Signals) => ({ context: s.contextPosts.length, ai: s.aiPosts.length, challenge: s.challenges });
 const refLink = (scope: Locator, ref: string) => scope.locator('[data-testid="d2-source-link"][data-evidence-ref="' + ref + '"]');
-let bundles: Record<D2Locale, D2Bundle>;
 let historical: { records: HeldRecord[]; currentSelection: unknown };
 let held: HeldRecord;
 
@@ -36,26 +36,22 @@ test.beforeAll(() => {
   expect(historical.records).toHaveLength(1); held = historical.records[0];
   expect(held.response.mode).toBe("openai"); expect(held.response.schemaVersion).toBe(6);
   expect(held.sourceSnapshot.context.normalizedContext?.citationContext).toBeUndefined();
-  // Existing isolated route producer is invoked only in Root runtime hooks.
-  const deadline = Date.now() + 30_000;
-  bundles = { en: loadD2FixtureBundle("en", deadline - Date.now()), ru: loadD2FixtureBundle("ru", deadline - Date.now()) };
-  for (const locale of ["en", "ru"] as const) {
-    const item = bundles[locale].cases.find(c => c.key === "u1");
-    const catalogue = item?.envelope.subject.normalizedContext?.citationContext;
-    if (!item || !catalogue) throw new Error("New actual source-projected catalogue fixture required; no skip/legacy fallback");
-    const university = catalogue.items.find(p => p.evidenceRef === "EVD-CONTEXT-1");
-    expect(university?.distanceM).toBe(548); expect(university?.featureClass).toBe("amenity:university");
-    expect(item.envelope.subject.normalizedContext?.sampleSize).toBe(123);
-    expect(item.envelope.subject.normalizedContext?.places.some(p => p.evidenceRef === "EVD-CONTEXT-1")).toBe(false);
-  }
 });
 test.beforeEach(async ({ page, browserName }, info) => {
   requireLoopbackTestOrigin(info.project.use.baseURL);
   await installLoopbackBrowserHarness(page, browserName, info.project.use.baseURL);
 });
 function itemFor(locale: D2Locale) {
-  const item = bundles[locale].cases.find(c => c.key === "u1");
-  if (!item) throw new Error("Missing U1 fixture");
+  // Runtime callback only: each new synthetic case receives a coherent current
+  // synthetic lease, even if preceding browser journeys took several minutes.
+  // The immutable historical replay cases never use this new source catalogue.
+  const item = loadD2CitationFixture(locale).item;
+  const catalogue = item.envelope.subject.normalizedContext?.citationContext;
+  if (!catalogue) throw new Error("Isolated source-projected citation fixture required");
+  const university = catalogue.items.find(p => p.evidenceRef === "EVD-CONTEXT-1");
+  expect(university?.distanceM).toBe(548); expect(university?.featureClass).toBe("amenity:university");
+  expect(item.envelope.subject.normalizedContext?.sampleSize).toBe(123);
+  expect(item.envelope.subject.normalizedContext?.places.some(p => p.evidenceRef === "EVD-CONTEXT-1")).toBe(false);
   return item;
 }
 function modelRecord(snapshot: Record<string, unknown>) {
@@ -115,7 +111,9 @@ async function evidenceOpen(page: Page, button: Locator, reference: string, avai
 }
 async function reopen(page: Page, label: string, locale: D2Locale) {
   await openD2Projects(page, locale);
-  const card = page.getByTestId("saved-result-card").filter({ hasText: label });
+  const card = page.getByTestId("saved-result-card").filter({ hasText: label }).filter({
+    has: page.getByRole("button", { name: locale === "ru" ? "Открыть результат" : "Open result", exact: true })
+  });
   await expect(card).toHaveCount(1);
   await card.getByRole("button", { name: locale === "ru" ? "Открыть результат" : "Open result", exact: true }).click();
   await expect(page.getByTestId("ai-success")).toBeVisible();
@@ -149,6 +147,7 @@ for (const locale of ["en", "ru"] as const) for (const width of [1440, 390]) {
     });
     await chooseD2ThroughSearch(page, item, locale);
     await expect.poll(() => signals.contextPosts.length).toBe(1);
+    const findSetup = await chooseD2CitationFindTarget(page, item, locale);
     await openD2Analysis(page, locale);
     const form = await prepareForm(page, locale, width, locale === "ru"
       ? "Синтетическая проверка связности цитат, вариантов и следующих действий."
@@ -189,8 +188,8 @@ for (const locale of ["en", "ru"] as const) for (const width of [1440, 390]) {
     const transitBar = dashboard.locator('[data-testid="context-mix-bar"][data-context-group="transport"]');
     await transitBar.click(); await expect(panel).toBeHidden();
     await expect(transitBar).toHaveAttribute("aria-pressed", "true");
-    const transit = item.envelope.subject.normalizedContext!.places.find(p => p.name === "Durrah Tower");
-    if (!transit) throw new Error("Bound named94m transit record required");
+    const transit = item.envelope.subject.normalizedContext!.places.find(p => p.evidenceRef === "EVD-CONTEXT-4");
+    if (!transit || transit.distanceM !== 94 || transit.group !== "transport") throw new Error("Bound synthetic94m transit record required");
     const transportCount = item.envelope.subject.normalizedContext!.places.filter(p => p.group === "transport").length;
     const list = dashboard.getByTestId("context-place-list");
     const localTransit = list.getByTestId("context-place-select").filter({ hasText: transit.name });
@@ -230,13 +229,13 @@ for (const locale of ["en", "ru"] as const) for (const width of [1440, 390]) {
     await expect(panel).toBeHidden(); await expect(detailLink).toBeFocused();
     await expect(dashboard.getByTestId("context-use-chart")).toContainText("123");
     const independent = dashboard.getByTestId("independent-source-context");
-    await independent.getByRole("button", { name: locale === "ru" ? "Медицина" : "Healthcare", exact: true }).click();
-    const binsina = item.envelope.subject.normalizedContext!.independentContext!.places.find(p => p.name === "BinSina Pharmacy");
-    if (!binsina) throw new Error("Admitted exact BinSina record required");
-    await independent.locator('[data-testid="independent-place-select"][data-overture-id="' + binsina.id + '"]').click();
+    await independent.getByRole("button", { name: locale === "ru" ? "Медицинские записи" : "Healthcare records", exact: true }).click();
+    const pharmacy = item.envelope.subject.normalizedContext!.independentContext!.places.find(p => p.taxonomy.primary === "pharmacy");
+    if (!pharmacy) throw new Error("Named pharmacy admitted in this exact mixed U1 fixture required");
+    await independent.locator('[data-testid="independent-place-select"][data-overture-id="' + pharmacy.id + '"]').click();
     await independent.getByTestId("independent-map-focus").click();
     await expect(independent.getByTestId("independent-point-plot")).toHaveAttribute("data-map-view", "selected");
-    await expect(independent.getByTestId("independent-place-detail")).toHaveAttribute("data-overture-id", binsina.id);
+    await expect(independent.getByTestId("independent-place-detail")).toHaveAttribute("data-overture-id", pharmacy.id);
     await independent.getByTestId("independent-map-overview").click();
     await expect(independent.getByTestId("independent-point-plot")).toHaveAttribute("data-map-view", "overview");
     const counts = count(signals);
@@ -253,11 +252,12 @@ for (const locale of ["en", "ru"] as const) for (const width of [1440, 390]) {
     await expect(page.getByRole("button", { name: other, exact: true })).toHaveAttribute("aria-pressed", "true");
     expect(source(await publicD2Snapshot(page))).toEqual(before);
     expect(count(signals)).toEqual(counts);
+    expect(findSetup.calls()).toBe(1);
     expectD2TransportQuiet(signals);
     await noClipping(page, [screening]);
-    await attach(info, page, { classification: "NEW_SYNTHETIC_CATALOGUE_AND_AI_TRANSPORT_NOT_PAID_G2", locale, width,
+    await attach(info, page, { classification: "MIXED_GOLDEN_SELECTED_OBJECT_SYNTHETIC_CATALOGUE_AND_AI_TRANSPORT_NOT_PAID_G2", locale, width,
       university: { id: university.id, ref: university.evidenceRef, distanceM: 548, featureClass: university.featureClass },
-      kpiRadiusM: 400, sampleSize: 123, citationRadiusM: 800, counts, sourceRetained: true,
+      kpiRadiusM: 400, sampleSize: 123, citationRadiusM: 800, counts, syntheticFindPosts: findSetup.calls(), sourceRetained: true,
       panelResetAndKeyboardFocus: true, newLiveAiEvidence: false });
   });
 
@@ -284,6 +284,7 @@ for (const locale of ["en", "ru"] as const) for (const width of [1440, 390]) {
       await route.fulfill({ json: held.response }); // Exact historical public result, no fields changed.
     });
     await chooseD2ThroughSearch(page, item, "en");
+    const findSetup = await chooseD2CitationFindTarget(page, item, "en");
     await openD2Analysis(page, "en");
     const form = await prepareForm(page, "en", width, originalIntent.question);
     await form.locator('button[type="submit"]').click();
@@ -313,10 +314,11 @@ for (const locale of ["en", "ru"] as const) for (const width of [1440, 390]) {
     // An empty observer history after reopen is not a missing saved analysis.
     expect(reopened.records).toEqual([]);
     expect(count(signals)).toEqual(counts);
+    expect(findSetup.calls()).toBe(1);
     expectD2TransportQuiet(signals);
     await attach(info, page, { classification: "IMMUTABLE_ACTUAL13OCT_PUBLIC_RESPONSE_REPLAY_NOT_NEW_LIVE_AI", locale, width,
       replaySha, originalIntentSha: held.payloadSha256, originalGeneratedAt: held.response.generatedAt,
-      catalogueAbsent: true, universityUnresolved: true, saveReopenSourceRetained: true, counts,
+      catalogueAbsent: true, universityUnresolved: true, saveReopenSourceRetained: true, counts, syntheticFindPosts: findSetup.calls(),
       historicalBrowserClock: "2026-10-13T20:18:43.909Z", historicalG2ScoreUnchanged: 7, newPaidCalls: 0 });
   });
 }
