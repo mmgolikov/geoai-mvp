@@ -1,0 +1,410 @@
+{
+  "classification": "SYNTHETIC_548M_CATALOGUE_NOT_RECOVERED_HISTORICAL_SOURCE_NOT_PAID_AI",
+  "fixtureVersion": 1,
+  "expected": {
+    "subjectId": "way/254666300",
+    "anchor": [
+      55.280155,
+      25.220412
+    ],
+    "packHash": "1111111111111111111111111111111111111111111111111111111111111111",
+    "nearbyResponseHash": "2222222222222222222222222222222222222222222222222222222222222222",
+    "fabricResponseHash": "3333333333333333333333333333333333333333333333333333333333333333",
+    "outside400Refs": [
+      "EVD-CONTEXT-1",
+      "EVD-CONTEXT-6"
+    ],
+    "catalogueItems": 12,
+    "inside400Places": 10,
+    "sampleSize": 123,
+    "education400Count": 0
+  },
+  "pack": {
+    "coordinates": {
+      "longitude": 55.280155,
+      "latitude": 25.220412
+    },
+    "selectedObject": {
+      "sourceFeatureId": "way/254666300"
+    },
+    "evidencePackHash": "1111111111111111111111111111111111111111111111111111111111111111",
+    "source": {
+      "contextStatus": "available",
+      "contextRadiusM": 800,
+      "contextResponseHash": "2222222222222222222222222222222222222222222222222222222222222222",
+      "contextAcquiredAt": "2026-10-18T14:00:00.000Z",
+      "contextObservedAt": null,
+      "fabricAcquiredAt": "2026-10-18T14:00:01.000Z",
+      "fabricObservedAt": null,
+      "fabricResponseHash": "3333333333333333333333333333333333333333333333333333333333333333"
+    },
+    "nearbyContext": [
+      {
+        "sourceFeatureId": "node/9000000001",
+        "evidenceId": "EVD-CONTEXT-1",
+        "name": "University of Europe for Applied Sciences (Campus Dubai)",
+        "categories": [
+          "education",
+          "university"
+        ],
+        "featureClass": "amenity:university",
+        "contextGroup": "education",
+        "coordinates": [
+          55.280155,
+          25.225340276
+        ],
+        "distanceM": 548,
+        "method": "overpass_around_query_element_center_haversine"
+      },
+      {
+        "sourceFeatureId": "node/9000000002",
+        "evidenceId": "EVD-CONTEXT-2",
+        "name": "Synthetic citation 2",
+        "categories": [
+          "healthcare",
+          "hospital"
+        ],
+        "featureClass": "amenity:hospital",
+        "contextGroup": "healthcare",
+        "coordinates": [
+          55.280155,
+          25.223172914
+        ],
+        "distanceM": 307,
+        "method": "overpass_around_query_element_center_haversine"
+      },
+      {
+        "sourceFeatureId": "node/9000000003",
+        "evidenceId": "EVD-CONTEXT-3",
+        "name": "Synthetic citation 3",
+        "categories": [
+          "retail_daily_needs",
+          "supermarket"
+        ],
+        "featureClass": "shop:supermarket",
+        "contextGroup": "retail_daily_needs",
+        "coordinates": [
+          55.280155,
+          25.222129702
+        ],
+        "distanceM": 191,
+        "method": "overpass_around_query_element_center_haversine"
+      },
+      {
+        "sourceFeatureId": "node/9000000004",
+        "evidenceId": "EVD-CONTEXT-4",
+        "name": "Synthetic citation 4",
+        "categories": [
+          "transport",
+          "platform"
+        ],
+        "featureClass": "public_transport:platform",
+        "contextGroup": "transport",
+        "coordinates": [
+          55.280155,
+          25.221257361
+        ],
+        "distanceM": 94,
+        "method": "overpass_around_query_element_center_haversine"
+      },
+      {
+        "sourceFeatureId": "node/9000000005",
+        "evidenceId": "EVD-CONTEXT-5",
+        "name": "Synthetic citation 5",
+        "categories": [
+          "access",
+          "parking"
+        ],
+        "featureClass": "amenity:parking",
+        "contextGroup": "access",
+        "coordinates": [
+          55.280155,
+          25.2213383
+        ],
+        "distanceM": 103,
+        "method": "overpass_around_query_element_center_haversine"
+      },
+      {
+        "sourceFeatureId": "node/9000000006",
+        "evidenceId": "EVD-CONTEXT-6",
+        "name": "Synthetic citation 6",
+        "categories": [
+          "education",
+          "college"
+        ],
+        "featureClass": "amenity:college",
+        "contextGroup": "education",
+        "coordinates": [
+          55.280155,
+          25.227471665
+        ],
+        "distanceM": 785,
+        "method": "overpass_around_query_element_center_haversine"
+      },
+      {
+        "sourceFeatureId": "node/9000000007",
+        "evidenceId": "EVD-CONTEXT-7",
+        "name": "Synthetic citation 7",
+        "categories": [
+          "civic_culture",
+          "museum"
+        ],
+        "featureClass": "tourism:museum",
+        "contextGroup": "civic_culture",
+        "coordinates": [
+          55.280155,
+          25.222390505
+        ],
+        "distanceM": 220,
+        "method": "overpass_around_query_element_center_haversine"
+      },
+      {
+        "sourceFeatureId": "node/9000000008",
+        "evidenceId": "EVD-CONTEXT-8",
+        "name": "Synthetic citation 8",
+        "categories": [
+          "healthcare",
+          "chemist"
+        ],
+        "featureClass": "shop:chemist",
+        "contextGroup": "healthcare",
+        "coordinates": [
+          55.280155,
+          25.223910356
+        ],
+        "distanceM": 389,
+        "method": "overpass_around_query_element_center_haversine"
+      },
+      {
+        "sourceFeatureId": "node/9000000009",
+        "evidenceId": "EVD-CONTEXT-9",
+        "name": "Synthetic citation 9",
+        "categories": [
+          "retail_daily_needs",
+          "convenience"
+        ],
+        "featureClass": "shop:convenience",
+        "contextGroup": "retail_daily_needs",
+        "coordinates": [
+          55.280155,
+          25.223136941
+        ],
+        "distanceM": 303,
+        "method": "overpass_around_query_element_center_haversine"
+      },
+      {
+        "sourceFeatureId": "node/9000000010",
+        "evidenceId": "EVD-CONTEXT-10",
+        "name": "Synthetic citation 10",
+        "categories": [
+          "transport",
+          "station"
+        ],
+        "featureClass": "railway:station",
+        "contextGroup": "transport",
+        "coordinates": [
+          55.280155,
+          25.223253852
+        ],
+        "distanceM": 316,
+        "method": "overpass_around_query_element_center_haversine"
+      },
+      {
+        "sourceFeatureId": "node/9000000011",
+        "evidenceId": "EVD-CONTEXT-11",
+        "name": "Synthetic citation 11",
+        "categories": [
+          "access",
+          "primary"
+        ],
+        "featureClass": "highway:primary",
+        "contextGroup": "access",
+        "coordinates": [
+          55.280155,
+          25.221545144
+        ],
+        "distanceM": 126,
+        "method": "overpass_around_query_element_center_haversine"
+      },
+      {
+        "sourceFeatureId": "node/9000000012",
+        "evidenceId": "EVD-CONTEXT-12",
+        "name": "Synthetic citation 12",
+        "categories": [
+          "hospitality",
+          "hotel"
+        ],
+        "featureClass": "tourism:hotel",
+        "contextGroup": "hospitality",
+        "coordinates": [
+          55.280155,
+          25.223029022
+        ],
+        "distanceM": 291,
+        "method": "overpass_around_query_element_center_haversine"
+      }
+    ],
+    "evidence": [
+      {
+        "id": "EVD-CONTEXT-1",
+        "sourceId": "node/9000000001",
+        "label": "University of Europe for Applied Sciences (Campus Dubai)",
+        "value": "{\"sourceFeatureId\":\"node/9000000001\",\"name\":\"University of Europe for Applied Sciences (Campus Dubai)\",\"categories\":[\"education\",\"university\"],\"featureClass\":\"amenity:university\",\"distanceM\":548,\"method\":\"overpass_around_query_element_center_haversine\"}"
+      },
+      {
+        "id": "EVD-CONTEXT-2",
+        "sourceId": "node/9000000002",
+        "label": "Synthetic citation 2",
+        "value": "{\"sourceFeatureId\":\"node/9000000002\",\"name\":\"Synthetic citation 2\",\"categories\":[\"healthcare\",\"hospital\"],\"featureClass\":\"amenity:hospital\",\"distanceM\":307,\"method\":\"overpass_around_query_element_center_haversine\"}"
+      },
+      {
+        "id": "EVD-CONTEXT-3",
+        "sourceId": "node/9000000003",
+        "label": "Synthetic citation 3",
+        "value": "{\"sourceFeatureId\":\"node/9000000003\",\"name\":\"Synthetic citation 3\",\"categories\":[\"retail_daily_needs\",\"supermarket\"],\"featureClass\":\"shop:supermarket\",\"distanceM\":191,\"method\":\"overpass_around_query_element_center_haversine\"}"
+      },
+      {
+        "id": "EVD-CONTEXT-4",
+        "sourceId": "node/9000000004",
+        "label": "Synthetic citation 4",
+        "value": "{\"sourceFeatureId\":\"node/9000000004\",\"name\":\"Synthetic citation 4\",\"categories\":[\"transport\",\"platform\"],\"featureClass\":\"public_transport:platform\",\"distanceM\":94,\"method\":\"overpass_around_query_element_center_haversine\"}"
+      },
+      {
+        "id": "EVD-CONTEXT-5",
+        "sourceId": "node/9000000005",
+        "label": "Synthetic citation 5",
+        "value": "{\"sourceFeatureId\":\"node/9000000005\",\"name\":\"Synthetic citation 5\",\"categories\":[\"access\",\"parking\"],\"featureClass\":\"amenity:parking\",\"distanceM\":103,\"method\":\"overpass_around_query_element_center_haversine\"}"
+      },
+      {
+        "id": "EVD-CONTEXT-6",
+        "sourceId": "node/9000000006",
+        "label": "Synthetic citation 6",
+        "value": "{\"sourceFeatureId\":\"node/9000000006\",\"name\":\"Synthetic citation 6\",\"categories\":[\"education\",\"college\"],\"featureClass\":\"amenity:college\",\"distanceM\":785,\"method\":\"overpass_around_query_element_center_haversine\"}"
+      },
+      {
+        "id": "EVD-CONTEXT-7",
+        "sourceId": "node/9000000007",
+        "label": "Synthetic citation 7",
+        "value": "{\"sourceFeatureId\":\"node/9000000007\",\"name\":\"Synthetic citation 7\",\"categories\":[\"civic_culture\",\"museum\"],\"featureClass\":\"tourism:museum\",\"distanceM\":220,\"method\":\"overpass_around_query_element_center_haversine\"}"
+      },
+      {
+        "id": "EVD-CONTEXT-8",
+        "sourceId": "node/9000000008",
+        "label": "Synthetic citation 8",
+        "value": "{\"sourceFeatureId\":\"node/9000000008\",\"name\":\"Synthetic citation 8\",\"categories\":[\"healthcare\",\"chemist\"],\"featureClass\":\"shop:chemist\",\"distanceM\":389,\"method\":\"overpass_around_query_element_center_haversine\"}"
+      },
+      {
+        "id": "EVD-CONTEXT-9",
+        "sourceId": "node/9000000009",
+        "label": "Synthetic citation 9",
+        "value": "{\"sourceFeatureId\":\"node/9000000009\",\"name\":\"Synthetic citation 9\",\"categories\":[\"retail_daily_needs\",\"convenience\"],\"featureClass\":\"shop:convenience\",\"distanceM\":303,\"method\":\"overpass_around_query_element_center_haversine\"}"
+      },
+      {
+        "id": "EVD-CONTEXT-10",
+        "sourceId": "node/9000000010",
+        "label": "Synthetic citation 10",
+        "value": "{\"sourceFeatureId\":\"node/9000000010\",\"name\":\"Synthetic citation 10\",\"categories\":[\"transport\",\"station\"],\"featureClass\":\"railway:station\",\"distanceM\":316,\"method\":\"overpass_around_query_element_center_haversine\"}"
+      },
+      {
+        "id": "EVD-CONTEXT-11",
+        "sourceId": "node/9000000011",
+        "label": "Synthetic citation 11",
+        "value": "{\"sourceFeatureId\":\"node/9000000011\",\"name\":\"Synthetic citation 11\",\"categories\":[\"access\",\"primary\"],\"featureClass\":\"highway:primary\",\"distanceM\":126,\"method\":\"overpass_around_query_element_center_haversine\"}"
+      },
+      {
+        "id": "EVD-CONTEXT-12",
+        "sourceId": "node/9000000012",
+        "label": "Synthetic citation 12",
+        "value": "{\"sourceFeatureId\":\"node/9000000012\",\"name\":\"Synthetic citation 12\",\"categories\":[\"hospitality\",\"hotel\"],\"featureClass\":\"tourism:hotel\",\"distanceM\":291,\"method\":\"overpass_around_query_element_center_haversine\"}"
+      }
+    ],
+    "geoContext": {
+      "capReached": false,
+      "coverage": "available",
+      "districtCharacter": {
+        "code": "mixed_use_urban",
+        "confidence": "medium",
+        "driverGroups": [
+          "retail_daily_needs",
+          "residential",
+          "commercial"
+        ],
+        "ruleVersion": "POINT_OBJECT_DISTRICT_RULE_V1"
+      },
+      "groups": [
+        {
+          "count": 14,
+          "group": "access",
+          "nearestDistanceM": 126,
+          "sharePct": 11.4
+        },
+        {
+          "count": 10,
+          "group": "transport",
+          "nearestDistanceM": 94,
+          "sharePct": 8.1
+        },
+        {
+          "count": 16,
+          "group": "retail_daily_needs",
+          "nearestDistanceM": 13,
+          "sharePct": 13
+        },
+        {
+          "count": 12,
+          "group": "residential",
+          "nearestDistanceM": 62,
+          "sharePct": 9.8
+        },
+        {
+          "count": 5,
+          "group": "commercial",
+          "nearestDistanceM": 166,
+          "sharePct": 4.1
+        },
+        {
+          "count": 4,
+          "group": "hospitality",
+          "nearestDistanceM": 0,
+          "sharePct": 3.3
+        },
+        {
+          "count": 3,
+          "group": "healthcare",
+          "nearestDistanceM": 307,
+          "sharePct": 2.4
+        },
+        {
+          "count": 2,
+          "group": "open_space",
+          "nearestDistanceM": 291,
+          "sharePct": 1.6
+        },
+        {
+          "count": 1,
+          "group": "civic_culture",
+          "nearestDistanceM": 220,
+          "sharePct": 0.8
+        },
+        {
+          "count": 56,
+          "group": "other_built",
+          "nearestDistanceM": 68,
+          "sharePct": 45.5
+        }
+      ],
+      "mappedBuildingCount": 74,
+      "mappedLevelsKnownCount": 37,
+      "medianMappedLevels": 11,
+      "nearestMajorRoadM": 126,
+      "nearestTransitM": 94,
+      "radiusM": 400,
+      "sampleSize": 123
+    }
+  },
+  "limits": [
+    "IDs and coordinates are synthetic, including548m University example; do not attach to original13Oct public source.",
+    "Existing123-count profile is a golden KPI denominator; nearby catalogue is not its inventory.",
+    "Original feature classes and refs are asserted against explicit independent fixture values, not labels inferred by Product."
+  ]
+}
