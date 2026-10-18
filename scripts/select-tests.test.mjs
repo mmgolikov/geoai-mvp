@@ -95,6 +95,38 @@ test("D2 admitted sources retain strict contracts and downstream coverage", () =
   assert.equal(selectPlan(["src/lib/prototype/point-to-object-unadmitted-source.ts"]).fullCiRequired, true);
 });
 
+test("D2 citation and immutable replay checks are selected and wired into both browser gates", () => {
+  const paths = [
+    "src/lib/prototype/point-to-object-citation-context.ts",
+    "src/lib/prototype/d2-scenario-screening.ts",
+    "components/point-to-object/d2-source-evidence.tsx",
+    "scripts/d2-citation-context-check.mjs",
+    "scripts/d2-source-citation-closure-check.mjs",
+    "tests/d2-u1-formation-diagnostics.test.mjs",
+    "tests/e2e/d2-source-citation-closure.spec.ts",
+    "tests/e2e/d2-u1-failure-observation.spec.ts",
+    "tests/fixtures/d2-source-citation-closure/recorded-public-result.json",
+    "tests/fixtures/d2-u1-retry/formation-diagnostics.json"
+  ];
+  for (const path of paths) {
+    const plan = selectPlan([path]);
+    assert.equal(plan.fullCiRequired, false, path);
+    for (const id of ["D2_CONTEXT", "CONTEXT", "ANALYSE", "COMPARE", "CREATE", "STORAGE", "LIMITS"]) assert.ok(plan.components.includes(id), path + ": " + id);
+    for (const name of ["test:d2-citation-context", "test:d2-source-citation-closure", "test:d2-u1-formation-diagnostics"]) assert.equal(plan.npmScripts.filter(item => item === name).length, 1, path + ": " + name);
+    for (const spec of ["d2-source-citation-closure", "d2-u1-failure-observation"]) assert.ok(plan.e2eFiles.includes("tests/e2e/" + spec + ".spec.ts"), path + ": " + spec);
+  }
+  const workflow = readFileSync(new URL(".github/workflows/geoai-quality-gate.yml", repo), "utf8");
+  for (const name of ["test:d2-citation-context", "test:d2-source-citation-closure", "test:d2-u1-formation-diagnostics"]) assert.equal(workflow.split("npm run " + name).length - 1, 1, name);
+  const https = readFileSync(new URL("playwright.product-https.config.ts", repo), "utf8");
+  const harness = readFileSync(new URL("scripts/product-https-harness-check.mjs", repo), "utf8");
+  for (const spec of ["d2-source-citation-closure", "d2-u1-failure-observation"]) {
+    const filename = spec + ".spec.ts";
+    assert.ok(pkg.scripts["test:e2e:point-to-object-v5:demo"].includes("tests/e2e/" + filename), filename);
+    assert.ok(https.includes(JSON.stringify(filename)), filename);
+    assert.ok(harness.includes(JSON.stringify(filename)), filename);
+  }
+});
+
 test("Review02 helpers keep new contracts and downstream journeys in CI", () => {
   for (const path of [
     "src/lib/prototype/point-to-object-normalized-context.ts",

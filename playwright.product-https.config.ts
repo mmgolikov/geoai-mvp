@@ -32,7 +32,9 @@ const productSpecs = [
   "review29-map-persistence.spec.ts",
   "review02-workspace-return.spec.ts",
   "review02-final-ui.spec.ts",
-  "d2-context-vertical.spec.ts"
+  "d2-context-vertical.spec.ts",
+  "d2-source-citation-closure.spec.ts",
+  "d2-u1-failure-observation.spec.ts"
 ];
 
 // Fixed loopback TLS only. The context-wide TLS-error exception is bounded by

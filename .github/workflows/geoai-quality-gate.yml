@@ -274,6 +274,14 @@ jobs:
           set -euo pipefail
           npm run test:d2-context-http-contract | tee artifacts/d2-context-http-contract-check.txt
 
+      - name: D2 source citation, retained replay and failure observation contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:d2-citation-context | tee artifacts/d2-citation-context-check.txt
+          npm run test:d2-source-citation-closure | tee artifacts/d2-source-citation-closure-check.txt
+          npm run test:d2-u1-formation-diagnostics | tee artifacts/d2-u1-formation-diagnostics.txt
+
       - name: Point-to-object V5 interaction contract
         shell: bash
         run: |
