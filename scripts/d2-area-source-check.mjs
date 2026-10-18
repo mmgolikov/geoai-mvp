@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmdirSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { registerHooks, createRequire } from "node:module";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { tmpdir } from "node:os";
 import path from "node:path";
 const root = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const require = createRequire(import.meta.url), ts = require("typescript");
@@ -42,7 +43,14 @@ globalThis.fetch = async () => { networkCalls++; throw new Error("Unexpected sou
 try {
   // Qualify the actual reader's unavailable branch before its process cache is filled.
   const cwd = process.cwd(); let missing;
-  try { process.chdir("/private/tmp"); missing = readU4IndependentContext(input); } finally { process.chdir(cwd); }
+  const emptyCwd = mkdtempSync(path.join(tmpdir(), "geoai-d2-area-source-"));
+  try {
+    process.chdir(emptyCwd);
+    missing = readU4IndependentContext(input);
+  } finally {
+    try { process.chdir(cwd); }
+    finally { rmdirSync(emptyCwd); } // Only this test's own empty directory; never recursive.
+  }
   check(missing.status === "source_unavailable" && missing.sampleSize === null && missing.places.length === 0, "Missing literal file fails closed, no old265 or fabricated zero fallback");
   const context = readU4IndependentContext(input);
   check(context.status === "available" && context.sampleSize === 24 && context.interiorSampleSize === 0 && context.places.length === 24, "Actual source reader returns separate 24 surroundings and zero admitted interior points");
