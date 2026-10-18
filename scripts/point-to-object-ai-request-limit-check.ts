@@ -8,6 +8,7 @@ const provenanceUrl = new URL("../src/lib/prototype/point-to-object-answer-prove
 // Resolve only the exact transitive contract graph. Source transformations,
 // request-byte limits and rejection assertions below remain unchanged.
 const normalizedUrl = new URL("./point-to-object-normalized-context.ts", comparisonCoreUrl);
+const citationUrl = new URL("./point-to-object-citation-context.ts", comparisonCoreUrl);
 const detailsUrl = new URL("./point-to-object-context-details-v2.ts", comparisonCoreUrl);
 const independentUrl = new URL("./point-to-object-independent-context.ts", comparisonCoreUrl);
 const replacementUrl = new URL("./point-to-object-map-replacement.ts", comparisonCoreUrl);
@@ -19,14 +20,17 @@ const contractImportGraph = new Map<string, Map<string, string>>([
   ])],
   [normalizedUrl.href, new Map([
     ["./point-to-object-context-details-v2", detailsUrl.href],
-    ["./point-to-object-independent-context", independentUrl.href]
+    ["./point-to-object-independent-context", independentUrl.href],
+    ["./point-to-object-citation-context", citationUrl.href]
   ])],
+  // Type-only source/model imports are erased; this is a closed pure leaf.
+  [citationUrl.href, new Map()],
   [detailsUrl.href, new Map([["./point-to-object-map-replacement", replacementUrl.href]])],
   [independentUrl.href, new Map([["./point-to-object-overture-projection-bindings", projectionBindingsUrl.href]])]
 ]);
 function approvedContractImport(specifier: string, parentURL: string | undefined): string | null {
   const edges = parentURL ? contractImportGraph.get(parentURL) : undefined;
-  if (!edges || !specifier.startsWith(".")) return null;
+  if (!edges || (parentURL !== citationUrl.href && !(specifier.startsWith(".") || specifier.startsWith("@/")))) return null;
   const target = edges.get(specifier);
   assert.ok(target, `Unapproved transitive contract import: ${specifier}`);
   return target;
@@ -34,6 +38,15 @@ function approvedContractImport(specifier: string, parentURL: string | undefined
 for (const [parent, edges] of contractImportGraph) {
   for (const [specifier, target] of edges) assert.equal(approvedContractImport(specifier, parent), target);
   assert.throws(() => approvedContractImport("./unknown-runtime", parent), /Unapproved transitive/);
+  assert.throws(() => approvedContractImport("@/unknown-runtime", parent), /Unapproved transitive/);
+  if (parent !== normalizedUrl.href) {
+    assert.throws(() => approvedContractImport("./point-to-object-citation-context", parent), /Unapproved transitive/);
+  }
+}
+for (const specifier of ["./point-to-object-live-evidence", "./point-to-object-ai", "./point-to-object-evidence-lease",
+  "../point-to-object/hash", "@/src/lib/prototype/point-to-object-live-evidence", "node:crypto", "server-only", "openai"]) {
+  assert.throws(() => approvedContractImport(specifier, citationUrl.href), /Unapproved transitive/,
+    `The pure citation leaf must not admit a new runtime dependency: ${specifier}`);
 }
 registerHooks({
   resolve(specifier, context, nextResolve) {

@@ -549,6 +549,7 @@ let coreHooksRegistered = false;
 // Only the new D2 transitive edges. Existing fixture transformations and the
 // legacy resolver below remain unchanged; unknown imports in this graph fail.
 const d2ContractUrl = (name: string) => pathToFileURL(path.join(ROOT, "src/lib/prototype", `${name}.ts`)).href;
+const d2CitationUrl = d2ContractUrl("point-to-object-citation-context");
 const d2ReaderPath = path.join(ROOT, "src/lib/prototype/point-to-object-overture-snapshot.ts");
 const d2ReaderUrl = pathToFileURL(d2ReaderPath).href;
 const d2HashUrl = pathToFileURL(path.join(ROOT, "src/lib/point-to-object/hash.ts")).href;
@@ -561,8 +562,11 @@ const d2ContractImportGraph = new Map<string, Map<string, string>>([
   ])],
   [d2ContractUrl("point-to-object-normalized-context"), new Map([
     ["./point-to-object-context-details-v2", d2ContractUrl("point-to-object-context-details-v2")],
-    ["./point-to-object-independent-context", d2ContractUrl("point-to-object-independent-context")]
+    ["./point-to-object-independent-context", d2ContractUrl("point-to-object-independent-context")],
+    ["./point-to-object-citation-context", d2CitationUrl]
   ])],
+  // The citation module has type-only imports and no runtime dependencies.
+  [d2CitationUrl, new Map()],
   [d2ContractUrl("point-to-object-context-details-v2"), new Map([["./point-to-object-map-replacement", d2ContractUrl("point-to-object-map-replacement")]])],
   [d2ContractUrl("point-to-object-independent-context"), new Map([["./point-to-object-overture-projection-bindings", d2ContractUrl("point-to-object-overture-projection-bindings")]])],
   [d2ContractUrl("point-to-object-map-replacement"), new Map()],
@@ -572,7 +576,7 @@ const d2ContractImportGraph = new Map<string, Map<string, string>>([
 function approvedD2ContractImport(specifier: string, parentURL: string | undefined): string | null {
   const origin = parentURL ? transformedModuleOrigins.get(parentURL) ?? parentURL : undefined;
   const edges = origin ? d2ContractImportGraph.get(origin) : undefined;
-  if (!edges || !(specifier.startsWith(".") || specifier.startsWith("@/"))) return null;
+  if (!edges || (origin !== d2CitationUrl && !(specifier.startsWith(".") || specifier.startsWith("@/")))) return null;
   const target = edges.get(specifier);
   assert.ok(target, `Unapproved D2 contract import: ${specifier}`);
   return target;
@@ -584,6 +588,14 @@ function registerCoreTypeScriptHooks(): void {
     for (const [specifier, target] of edges) assert.equal(approvedD2ContractImport(specifier, parent), target);
     assert.throws(() => approvedD2ContractImport("./unknown-runtime", parent), /Unapproved D2 contract import/);
     assert.throws(() => approvedD2ContractImport("@/unknown-runtime", parent), /Unapproved D2 contract import/);
+    if (parent !== d2ContractUrl("point-to-object-normalized-context")) {
+      assert.throws(() => approvedD2ContractImport("./point-to-object-citation-context", parent), /Unapproved D2 contract import/);
+    }
+  }
+  for (const specifier of ["./point-to-object-live-evidence", "./point-to-object-ai", "./point-to-object-evidence-lease",
+    "../point-to-object/hash", "@/src/lib/prototype/point-to-object-live-evidence", "node:crypto", "server-only", "openai"]) {
+    assert.throws(() => approvedD2ContractImport(specifier, d2CitationUrl), /Unapproved D2 contract import/,
+      `The pure citation leaf must not admit a new runtime dependency: ${specifier}`);
   }
   registerHooks({
     resolve(specifier, context, nextResolve) {
