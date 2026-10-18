@@ -118,6 +118,10 @@ export function D2SourceEvidenceProvider({ context, subject, locale, references 
   const [open, setOpen] = useState(false);
   const selectReference = useCallback((reference: string | null, reveal = true) => {
     setSelectedReference(reference);
+    if (reference === null) {
+      setOpen(false);
+      return;
+    }
     if (reveal) {
       invokerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       setOpen(true);
