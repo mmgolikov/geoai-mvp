@@ -11,23 +11,23 @@ import { installLoopbackBrowserHarness, requireLoopbackTestOrigin } from "./help
 // AUTHOR ONLY: Root is the sole runner. This is a synthetic public POST-error
 // handler regression, NOT paid G2, real U1 usefulness, Auth or provider evidence.
 // Reuse test_1's existing route-projected fixtures without editing/copying them.
-// Source hashes pin Product730 integrated at Root705; later Root commits only
-// correct test_1's fixture/oracle. Discovery never runs the fixture producer.
+// Source hashes pin reviewed data8122 and UI7421+c8+07+4ac+53 at Root95ff.
+// Retained fixture source/base are unchanged. Discovery never runs the producer.
 const AUTHORITY = {
-  productCommit: "73091232ffa99ba97435b80b9d3f1b85f514dd6b",
-  rootProductCommit: "705f87745321fd259d485c1b30ff05770e225b98",
-  rootReadOnlyHead: "6fb013f7fd76f6e4dfb7055691535dcb9161e463",
+  productCommit: "95ff02c6bb633d8066cb1e572c04fcd2196cd336",
+  rootProductCommit: "95ff02c6bb633d8066cb1e572c04fcd2196cd336",
+  rootReadOnlyHead: "95ff02c6bb633d8066cb1e572c04fcd2196cd336",
   fixtureBaseCommit: "622f48f191bb8e968d2e7efcfabdb571774ff3cb",
   sourceHash: "f55ad27098707b5a6efd1ee6d5bd7d8373cff9bd1eddd656207cf70cb15fe67d"
 } as const;
 const CODE_HASHES = {
-  "components/point-to-object/analysis-client.tsx": "5e41da4002aa83a8a7f8bd59864413f985cdcf867ebf63f5a43048267c836666",
-  "components/point-to-object/live-session.ts": "fcda3bb8c0118dc690c46ccbca2ffab09e376d9e1771ddfc952fb2b4e6a110fb",
+  "components/point-to-object/analysis-client.tsx": "de37f695d08970dc57fc98d3f66284a03a59cdb27ae4913e7f37bef665ccf992",
+  "components/point-to-object/live-session.ts": "b8fa8aa01dbbec9729a05e4ed54bfd0590cf18cae45f65effc33ead9f20c320e",
   "components/point-to-object/verification-export.tsx": "561f20ed0b451818c4e73c535ea401ee537b6fbeebe67ac11b585e74f390354e",
   "src/lib/prototype/point-to-object-ai-core.ts": "ff47efb70998d7064a094fa86a57f716a2640d8733114c6b19fa88a524892987",
   "src/lib/prototype/point-to-object-ai.ts": "60687ead197564e9a38a7c1f45815a5198db42a4affccc056e5a24e211a6e1a8",
   "app/api/prototype/point-to-object/ai/route.ts": "42f4fecec5c02519029c3872dfa22409265992bb1f89e1b1374c1b57c457878e",
-  "src/lib/prototype/point-to-object-verification-export.ts": "3e35f9d799c8bc3cbea9ca67413417e8624aa5bda8e2e5d293639114e4c123c4",
+  "src/lib/prototype/point-to-object-verification-export.ts": "53d242f766995d6165f9946f6ee4da6d1a91f16b67dfd6f613c345c875844e42",
   "tests/e2e/helpers/d2-context-fixture.ts": "c0934653ecb839a6c24d02f3e5ad73caacdd0a8f4214b6db735eacf0b0941edf",
   "tests/e2e/helpers/local-webkit-csp.ts": "78896ad9a702d29f7c3a3416e9d69c7720ffd8a82c46c760cc7d5871d6eb16ba",
   "tests/e2e/helpers/sprint10-analysis-fixture.ts": "9630407cdabc6bcde9387880467340782e245f42bb05444d676c244050272c5c",

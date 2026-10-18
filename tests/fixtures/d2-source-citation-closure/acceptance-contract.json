@@ -30,7 +30,9 @@
       "ref": "EVD-CONTEXT-1",
       "name": "University of Europe for Applied Sciences (Campus Dubai)",
       "distanceM": 548,
-      "originalFeatureClass": "amenity:university",
+      "reportedClassification": "university in historical paid prose; original source row not retained",
+      "historicalSourceRecordStatus": "NOT_RECOVERED_RAW_RECORD_CLASS_COORDINATES",
+      "expectedSyntheticFeatureClass": "amenity:university",
       "inside400mKpi": false,
       "legacyPublicSnapshotHasRow": false
     },
@@ -41,7 +43,7 @@
     {
       "id": "C01",
       "layer": "pure serializer/parser + source UI",
-      "expected": "A valid newly produced catalogue retains the actual548m University citation/ref/name/featureClass/record identity and explains outside400m. It is not inserted into400m places, counts, shares, nearest metrics or KPI denominator.",
+      "expected": "A separately labelled synthetic548m example proves catalogue/ref/name/featureClass/record-identity preservation and outside400m disclosure. New real catalogues may retain only their own original source rows. The missing historical University row is never recovered or backfilled by this fixture. Citation-only rows are not inserted into400m places, counts, shares, nearest metrics or KPI denominator.",
       "negative": "No radius expansion, no education0→1 or sample123→124 due to citation-only row."
     },
     {
