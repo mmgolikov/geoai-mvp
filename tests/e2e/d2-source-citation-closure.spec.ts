@@ -77,7 +77,13 @@ function syntheticReply(body: Parameters<typeof sprint10AnalysisResponse>[0], it
   const envelope = item.envelope, subject = envelope.subject;
   const medical = subject.normalizedContext?.places.find(p => p.evidenceRef === "EVD-CONTEXT-2");
   if (!medical) throw new Error("Bound medical record required for cross-widget selection");
-  const base = sprint10AnalysisResponse(body, 1, envelope.evidenceReceipt.evidencePackHash, "POINT_OBJECT_AI_PROMPT_V14_2026_09_26");
+  const { role, scenario, depth, goal, perspective, horizon, question, locale } = body;
+  const request = { role, scenario, depth, goal, perspective, horizon, question, locale };
+  const base = sprint10AnalysisResponse(request, 1, envelope.evidenceReceipt.evidencePackHash, "POINT_OBJECT_AI_PROMPT_V14_2026_09_26");
+  expect(Object.keys(base.request).sort()).toEqual([
+    "role", "scenario", "depth", "goal", "perspective", "horizon", "question", "locale", "focused"
+  ].sort());
+  expect(base.request).toEqual({ ...request, focused: Boolean(question) });
   return { ...base,
     subject: { name: subject.name, address: subject.address, featureClass: subject.featureClass,
       sourceFeatureId: subject.sourceFeatureId, resolutionMethod: "overpass_exact_identity",
@@ -168,6 +174,8 @@ for (const locale of ["en", "ru"] as const) for (const width of [1440, 390]) {
       await expect(card).toContainText(locale === "ru" ? "Следующая проверка" : "Next check");
       expect(await card.getByTestId("d2-source-link").count()).toBeGreaterThan(0);
     }
+    await noClipping(page, [screening]);
+    await screening.screenshot({ path: info.outputPath("citation-screening-" + locale + "-" + width + ".png") });
     const cardText = await screening.allTextContents();
     await form.locator("#analysis-follow-up").fill("Unsubmitted draft about unrelated bank collateral.");
     expect(await screening.allTextContents()).toEqual(cardText);
@@ -183,6 +191,7 @@ for (const locale of ["en", "ru"] as const) for (const width of [1440, 390]) {
     await expect(panel.getByTestId("d2-evidence-origin")).toBeVisible();
     await expect(panel.getByTestId("d2-evidence-point")).toHaveAttribute("data-source-feature-id", university.id);
     await noClipping(page, [panel, universityButton, screening]);
+    await panel.screenshot({ path: info.outputPath("citation-panel-" + locale + "-" + width + ".png") });
 
     // An open panel must not reappear after a local group/map selection.
     const transitBar = dashboard.locator('[data-testid="context-mix-bar"][data-context-group="transport"]');
@@ -302,6 +311,7 @@ for (const locale of ["en", "ru"] as const) for (const width of [1440, 390]) {
     await expect(panel.getByTestId("d2-citation-unavailable")).toBeVisible();
     await expect(panel.getByTestId("d2-evidence-plot")).toHaveCount(0);
     await noClipping(page, [panel, button]);
+    await panel.screenshot({ path: info.outputPath("citation-unavailable-" + locale + "-" + width + ".png") });
     await page.keyboard.press("Escape"); await expect(button).toBeFocused();
     const screening = page.getByTestId("d2-scenario-screening");
     await expect(screening).toHaveAttribute("data-analysis-goal", "custom");
