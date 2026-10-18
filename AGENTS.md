@@ -11,6 +11,8 @@ You are Codex working on GeoAI. Control owns product outcomes, architecture, sco
 
 ## Current D2 Preview authority — 13 October 2026
 
+**18October founder amendment:** D2 is resumed only for unpaid citation/source binding, concrete derived scenario checks and linked dashboard corrections, then checked protected Preview. No new paid provider/counter calls, financial journal revisions, new Create expansion or main/Production/Auth/env/security changes. Preserve historical paid7/10 and firstUNKNOWN/full held reserve; deterministic UI/replay is not new model acceptance. The existing one CI plus one diagnosed-fix repeat is not reset. [Current D2 amendment](docs/D2_CHANGE_REQUEST_2026_10_13.md#founder-amendment--18-october-unpaid-closure) and durableD2_STATE govern this slice; older scopes below remain history.
+
 The founder explicitly started [D2](docs/D2_CHANGE_REQUEST_2026_10_13.md) from exact baseline `88b6fed0d673a3fc4bb8d425986bd05e37e2f1f1`. D2 supersedes the older candidate, short-sprint forecast, proposed USD5 allowance and source-preparation holds below only within its named scope. It does not activate old SOURCE-02, another sprint, main or Production.
 
 - Source-backed useful Analyse comes first; independently accepted record provenance, metric/UI usefulness and linked visualization precede implementation of the bounded flexible Create programme. Existing `dev_1` and `test_1` are reused; Root alone integrates, runs paid checks/CI and delivers protected Preview.

@@ -8,6 +8,18 @@ Operating record: [existing weekly plan](https://geoaimvp.atlassian.net/wiki/spa
 
 ## Outcome and order
 
+### Founder amendment — 18 October: unpaid closure
+
+The founder resumed only citation/source binding, concrete scenario consequences and linked visual blocks, followed by checked protected Preview delivery. **No new paid provider or counter requests.** The former successful U1 model answer remains the immutable historical result scored7/10; replaying it or adding deterministic screening cards is not a new model acceptance. Missing historical548m citation coordinates/classification are not reconstructed from prose.
+
+An additive optional `citationContext` retains up to12 original nearby references within the existing800m source acquisition, with source classes, IDs, distances/methods, separate timestamps/hash and subject/anchor/receipt correspondence. It is separate from400m KPI denominator/metrics/places and from Overture snapshot counts. Legacy absence remains unavailable/readable; invalid supplied correspondence fails closed. No source-query, model, prompt, validator or rights expansion.
+
+The UI links a citation, named record and evidence diagram; OSM sample count shares and point-distance bars state their denominator and straight-line method. Local derived cards connect retained facts to conditional scenario consequences and next checks. They do not establish demand, rights, routes, operation, capacity or permitted volume. Preserve category/cluster state, keyboard focus, original answer/source, last valid results and ordinary save/reopen at EN/RU1440/390.
+
+Control remains sole runtime/CI/Preview operator, reusing dev_1 and test_1 plus one isolated UI subagent. The existing CI budget is unchanged: one full run and one diagnosed-fix repeat, currently0/2 before exact-head qualification. Existing heldUSD6, firstUNKNOWN/USD3/two unresolved slots and historical ledger382 remain unchanged, not measured invoices. No financial reconciliation/new namespace or Create expansion is inferred.
+
+The earlier30–45minute estimate was missed: a narrow code change was incorrectly forecast as end-to-end delivery without usefulness, regression, full CI and hosted checks, and the forecast was not promptly revised. The18October working estimate is5–7hours for this scoped closure, up to2additional hours if the already approved CI repeat is needed; not a guarantee or a change to the original plan/history. Reforecast from actual gates, not READY or author completion. Record technical, hosted, corrected UI usefulness, historical paid quality and founder acceptance separately.
+
 The user understands the selected real object/AOI through connected geometry, contextual metrics, visual evidence and scenario consequences, then changes a conceptual development programme using the same admitted data snapshot.
 
 1. Admit actual licensed non-OSM enrichment with record/property provenance, spatial extent, dated acquisition and quality checks. Do not substitute catalog access, test fixtures, new counts or source labels for a working source-to-dashboard result.
