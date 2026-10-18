@@ -5,9 +5,11 @@ import type { PointObjectAiSubject } from "./live-types";
 import type { PointObjectNormalizedContext } from "@/src/lib/prototype/point-to-object-normalized-context";
 import type { PointObjectCitationContext } from "@/src/lib/prototype/point-to-object-citation-context";
 
+type EvidenceSubject = Pick<PointObjectAiSubject, "name" | "address" | "featureClass" | "sourceFeatureId" | "sourceLabel" | "climate">;
+
 type EvidenceContext = {
   context: PointObjectNormalizedContext | null;
-  subject: PointObjectAiSubject | null;
+  subject: EvidenceSubject | null;
   locale: "en" | "ru";
   selectedReference: string | null;
   panelId: string;
@@ -20,7 +22,7 @@ type Evidence = {
   distanceM?: number | null; sourceFeatureId?: string; extended?: boolean;
 };
 
-function resolveEvidence(context: PointObjectNormalizedContext | null, subject: PointObjectAiSubject | null, reference: string, ru: boolean): Evidence | null {
+function resolveEvidence(context: PointObjectNormalizedContext | null, subject: EvidenceSubject | null, reference: string, ru: boolean): Evidence | null {
   if (!context) return null;
   const fmt = (value: number) => value.toLocaleString(ru ? "ru-RU" : "en-US", { maximumFractionDigits: 2 });
   const date = (value: string | null) => value ? new Date(value).toLocaleDateString(ru ? "ru-RU" : "en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }) : (ru ? "неизвестна" : "unknown");
@@ -110,7 +112,7 @@ export function D2SourceAvailability({ references }: { references: string[] }) {
   return missing.length ? <span className="ml-2 font-normal text-[#6b4b16]" data-testid="d2-source-unavailable-count">{evidence.locale === "ru" ? `${missing.length} недоступно` : `${missing.length} unavailable`}</span> : null;
 }
 
-export function D2SourceEvidenceProvider({ context, subject, locale, references = [], children }: { context: PointObjectNormalizedContext | null; subject: PointObjectAiSubject | null; locale: "en" | "ru"; references?: string[]; children: ReactNode }) {
+export function D2SourceEvidenceProvider({ context, subject, locale, references = [], children }: { context: PointObjectNormalizedContext | null; subject: EvidenceSubject | null; locale: "en" | "ru"; references?: string[]; children: ReactNode }) {
   const panelId = useId();
   const panelRef = useRef<HTMLElement>(null);
   const invokerRef = useRef<HTMLElement | null>(null);
