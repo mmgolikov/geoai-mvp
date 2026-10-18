@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { IndependentPlaceGroup, IndependentPointObjectContext } from "@/src/lib/prototype/point-to-object-independent-context";
 import type { U4IndependentContext } from "@/src/lib/prototype/point-to-object-u4-independent-context";
+import { D2SourceLinks, useD2SourceEvidence } from "./d2-source-evidence";
 
 type ScreenMarker = { id: string; index: number; x: number; y: number };
 type ScreenCluster = { anchor: ScreenMarker; members: ScreenMarker[] };
@@ -43,18 +44,21 @@ export function IndependentSourceContext({ context, locale, showCaveat = true }:
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [revealedIds, setRevealedIds] = useState<string[] | null>(null);
   const [mapView, setMapView] = useState<"overview" | "selected">("overview");
+  const evidence = useD2SourceEvidence();
   const labels: Record<IndependentPlaceGroup, string> = ru ? { healthcare: "Медицинские записи", education: "Образовательные записи", daily_services: "Повседневные сервисы", transport: "Транспортные записи", hospitality: "Гостиницы", business: "Деловые услуги", civic_culture: "Общественные и культурные", other_service: "Другие услуги" } : { healthcare: "Healthcare records", education: "Education records", daily_services: "Daily services", transport: "Transport records", hospitality: "Hospitality", business: "Business services", civic_culture: "Civic & culture", other_service: "Other services" };
   const shortLabels: Record<IndependentPlaceGroup, string> = ru ? { healthcare: "Медицина", education: "Образование", daily_services: "Сервисы", transport: "Транспорт", hospitality: "Гостиницы", business: "Деловые", civic_culture: "Культура", other_service: "Другие" } : { healthcare: "Healthcare", education: "Education", daily_services: "Services", transport: "Transport", hospitality: "Hotels", business: "Business", civic_culture: "Culture", other_service: "Other" };
-  const places = context.places.filter(p => group === "all" || p.group === group);
-  const selected = places.find(p => p.id === selectedId) ?? places[0] ?? null;
+  const evidencePlace = context.places.find(p => p.evidenceRef === evidence?.selectedReference);
+  const activeGroup = evidencePlace ? "all" : group;
+  const places = context.places.filter(p => activeGroup === "all" || p.group === activeGroup);
+  const selected = evidencePlace ?? places.find(p => p.id === selectedId) ?? places[0] ?? null;
   const recordIndex = (id: string) => context.places.findIndex(p => p.id === id) + 1;
-  const listedPlaces = revealedIds ? places.filter(p => revealedIds.includes(p.id)) : places;
+  const listedPlaces = revealedIds && !evidencePlace ? places.filter(p => revealedIds.includes(p.id)) : places;
   const groups = [...new Set(context.places.map(p => p.group))];
   const date = (value: string | null) => value ? new Date(value).toLocaleDateString(ru ? "ru-RU" : "en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }) : (ru ? "неизвестна" : "unknown");
   const fmt = (value: number) => value.toLocaleString(ru ? "ru-RU" : "en-US", { maximumFractionDigits: 1 });
   const dx = (longitude: number) => (longitude - context.anchor[0]) * 111_320 * Math.cos(context.anchor[1] * Math.PI / 180);
   const dy = (latitude: number) => (latitude - context.anchor[1]) * 110_540;
-  const focused = mapView === "selected" && selected !== null;
+  const focused = (mapView === "selected" || Boolean(evidencePlace)) && selected !== null;
   const selectedDx = selected ? dx(selected.coordinates[0]) : 0;
   const selectedDy = selected ? dy(selected.coordinates[1]) : 0;
   const extent = focused ? Math.max(5, Math.abs(selectedDx), Math.abs(selectedDy)) : 400;
@@ -68,8 +72,8 @@ export function IndependentSourceContext({ context, locale, showCaveat = true }:
   const clusters = clusterIndependentSourceMarkers(markers, { x: originX, y: originY });
   const coincident = focused && markers.length === 1 && Math.hypot(markers[0].x - originX, markers[0].y - originY) < 30;
   const control = "min-h-11 min-w-0 rounded-lg border border-line px-3 py-2 text-start text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087f8c]";
-  const selectGroup = (next: IndependentPlaceGroup | "all") => { setGroup(next); setRevealedIds(null); setMapView("overview"); };
-  const selectPlace = (id: string) => { setSelectedId(id); setMapView("selected"); };
+  const selectGroup = (next: IndependentPlaceGroup | "all") => { setGroup(next); setRevealedIds(null); setMapView("overview"); evidence?.selectReference(null, false); };
+  const selectPlace = (id: string) => { setSelectedId(id); setRevealedIds(null); setMapView("selected"); const place = context.places.find(p => p.id === id); if (place) evidence?.selectReference(place.evidenceRef, false); };
 
   // One observer on this bounded diagram; no source/API refresh. Initial SSR
   // width is deterministic, then clustering uses actual CSS-pixel distances.
@@ -99,13 +103,13 @@ export function IndependentSourceContext({ context, locale, showCaveat = true }:
       {"osmInteriorBaseline" in context ? <p className="mt-2 text-xs leading-5 text-[#6b4b16]" data-testid="u4-osm-interior-error">{ru ? "Сохранённое чтение объектов OSM внутри U4 завершилось ошибкой памяти: количество неизвестно, не ноль. Это историческая квитанция, не новое чтение. Записи отеля, кафе и паба могут быть связанными: не три независимых охвата услуг. Текущая работа и доступ не подтверждены." : "The frozen U4 OSM interior read failed with an out-of-memory error: count unknown, not zero. This is a historical receipt, not a new read. Hotel, cafe and pub records may be associated: not three independent amenity catchments. Current operation and access are unverified."}</p> : null}
       {context.spatialCoverage.state === "partial_circle_clipped_by_acquisition_extent" ? <p className="mt-2 text-xs leading-5 text-[#6b4b16]" data-testid="independent-partial-spatial-coverage">{ru ? "Частичное пространственное покрытие U3: восточный край радиуса 400 м обрезан границей получения примерно на 27,83 м. Количество относится только к полученной части, не полному кругу." : "Partial U3 spatial coverage: the eastern edge of the 400 m radius is clipped by the acquisition extent by about 27.83 m. Counts describe only the acquired portion, not the full circle."}</p> : null}
       <div className="mt-3 flex flex-wrap gap-2" aria-label={ru ? "Категории независимого источника" : "Independent-source categories"}>
-        <button type="button" className={control} aria-pressed={group === "all"} onClick={() => selectGroup("all")}>{ru ? "Все" : "All"}</button>
-        {groups.map(g => <button type="button" key={g} className={control} aria-label={labels[g]} aria-pressed={group === g} onClick={() => selectGroup(g)}>{shortLabels[g]}</button>)}
+        <button type="button" className={control} aria-pressed={activeGroup === "all"} onClick={() => selectGroup("all")}>{ru ? "Все" : "All"}</button>
+        {groups.map(g => <button type="button" key={g} className={control} aria-label={labels[g]} aria-pressed={activeGroup === g} onClick={() => selectGroup(g)}>{shortLabels[g]}</button>)}
       </div>
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <figure className="min-w-0"><figcaption className="text-xs font-bold text-[#344054]">{ru ? "Точки учреждений · не границы зданий" : "Establishment points · not building boundaries"}</figcaption>
           <div className="mt-2 flex flex-wrap gap-2">
-            <button type="button" className={control} aria-pressed={!focused} aria-controls={mapId} onClick={() => setMapView("overview")} data-testid="independent-map-overview">{ru ? "Обзор 400 м" : "400 m overview"}</button>
+            <button type="button" className={control} aria-pressed={!focused} aria-controls={mapId} onClick={() => { setMapView("overview"); evidence?.selectReference(null, false); }} data-testid="independent-map-overview">{ru ? "Обзор 400 м" : "400 m overview"}</button>
             <button type="button" className={control} aria-pressed={focused} aria-controls={mapId} disabled={!selected} onClick={() => setMapView("selected")} data-testid="independent-map-focus">{ru ? "Выбранная запись" : "Focus selected"}</button>
           </div>
           <div ref={plotRef} id={mapId} className="relative mt-2 aspect-square w-full max-w-[300px] rounded-xl bg-white" data-testid="independent-point-plot" data-map-view={focused ? "selected" : "overview"} aria-describedby={legendId}>
@@ -126,7 +130,7 @@ export function IndependentSourceContext({ context, locale, showCaveat = true }:
                 aria-pressed={multiple ? cluster.members.every(p => revealedIds?.includes(p.id)) : containsSelected}
                 aria-expanded={multiple ? cluster.members.every(p => revealedIds?.includes(p.id)) : undefined}
                 aria-controls={multiple ? listId : `${briefId} ${detailId}`}
-                onClick={() => { if (multiple) { setRevealedIds(cluster.members.map(p => p.id)); setMapView("overview"); } else selectPlace(cluster.anchor.id); }}
+                onClick={() => { if (multiple) { setRevealedIds(cluster.members.map(p => p.id)); setMapView("overview"); evidence?.selectReference(null, false); } else selectPlace(cluster.anchor.id); }}
                 onKeyDown={e => { if (e.key === "Escape") setRevealedIds(null); }}
                 data-testid={multiple ? "independent-marker-cluster" : "independent-point-marker"}
                 data-cluster-size={cluster.members.length} data-member-ids={cluster.members.map(p => p.id).join(",")} data-record-indexes={cluster.members.map(p => p.index).join(",")}
@@ -149,6 +153,7 @@ export function IndependentSourceContext({ context, locale, showCaveat = true }:
         <p className="mt-1">{ru ? "Обновление поставщика" : "Provider update"}: {date(selected.providerUpdatedAt)}. {ru ? "Полевая дата неизвестна; дата релиза и confidence не являются физическим наблюдением." : "Field date unknown; release and confidence dates are not physical observations."}</p>
         <details className="mt-1" data-testid="independent-record-lineage"><summary className="min-h-11 cursor-pointer py-3 font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#087f8c]">{ru ? "Метод, происхождение и качество" : "Method, lineage & quality"}</summary><p>{ru ? "Расстояние: haversine от исходного центра до картированной точки, не маршрут. Адрес и близость не доказывают работу, доступ или вместимость; они неизвестны." : "Distance: haversine from original centre to mapped point, not a route. Address and proximity do not establish operation, access or capacity; these remain unknown."}</p><p className="break-all">GERS {selected.id} · {selected.evidenceRef}</p><p className="break-words">WGS84 [{selected.coordinates.join(", ")}]</p><p>{ru ? "Категория источника" : "Source category"}: {selected.taxonomy.hierarchy.join(" → ")} · {selected.basic_category}</p><p>{ru ? "Confidence источника (эвристика, не вероятность текущей работы)" : "Source confidence (heuristic, not probability of current operation)"}: {selected.confidence}</p>{selected.sources.map((s, i) => <p key={i} className="break-words">{s.provider} · {s.record_id ?? s.resource} · {s.property === "/properties/confidence" ? (ru ? "расчёт confidence, не физический источник" : "confidence calculation, not physical source") : (ru ? "запись поставщика" : "provider record")} · {date(s.update_time)} · {s.license}</p>)}</details>
       </> : <p>{ru ? "В показанной части снимка нет записей этой категории; это не отсутствие услуг." : "No records of this category in the displayed subset; this is not absence of services."}</p>}</div>
+      <D2SourceLinks references={selected ? [selected.evidenceRef] : []} />
     </>}
     <p className="mt-3 text-[10px] leading-5 text-[#667085]">{context.attribution}. {ru ? "Имена сохранены на языке источника. Получение началось" : "Names retain their source language. Acquisition started"} {date(context.acquisitionStartedAt)}; {context.fetchedAt ? `${ru ? "завершилось" : "completed"} ${date(context.fetchedAt)}. ` : (ru ? "точное время завершения неизвестно. " : "exact completion time unknown. ")}{ru ? "Не полная инвентаризация." : "Not a complete inventory."} <a className="inline-flex min-h-11 items-center font-semibold text-[#087f8c] underline" href={context.licencePath} target="_blank" rel="noreferrer">CDLA-Permissive-2.0</a></p>
     <details><summary className="min-h-11 cursor-pointer text-[11px] leading-[44px] text-[#52657a]">{ru ? "Граница полученных данных" : "Acquisition extent"}</summary><p className="break-words text-[11px] leading-5 text-[#52657a]">WGS84 bbox [{context.spatialCoverage.acquisitionExtent.join(", ")}] · {context.spatialCoverage.state}. {ru ? "Полный пространственный круг не означает полную инвентаризацию." : "A complete spatial circle is not a complete inventory."}</p></details>

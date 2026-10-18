@@ -12,6 +12,8 @@ import { PointObjectDecisionCards } from "@/components/point-to-object/decision-
 import { PointObjectClimateContext } from "@/components/point-to-object/climate-context";
 import { PointObjectExpressOverview } from "@/components/point-to-object/express-overview";
 import { PointObjectContextDashboard } from "@/components/point-to-object/context-dashboard";
+import { D2ScenarioScreening } from "./d2-scenario-screening";
+import { D2SourceAvailability, D2SourceEvidenceProvider, D2SourceLinks, useD2SourceEvidence } from "./d2-source-evidence";
 import { normalizedResolvedContext } from "@/src/lib/prototype/point-to-object-normalized-context";
 import {
   parsePointObjectAiResponse,
@@ -142,12 +144,15 @@ function friendlyEvidenceLabel(reference: string, t: ReturnType<typeof usePointO
   if (reference === "EVD-DISTRICT-PROFILE") return locale === "ru" ? "Расчётный профиль окружения" : "Derived context profile";
   if (reference === "EVD-WIKIDATA-ENTITY") return locale === "ru" ? "Wikidata · связанный комплекс" : "Wikidata · linked complex";
   if (/^EVD-WIKIDATA-P\d+$/.test(reference)) return locale === "ru" ? `Wikidata · факт связанного комплекса ${reference.replace("EVD-WIKIDATA-", "")}` : `Wikidata · linked-complex fact ${reference.replace("EVD-WIKIDATA-", "")}`;
+  if (labels[reference]) return labels[reference];
   return locale === "ru" ? `Запись источника · ${reference}` : `Source receipt · ${reference}`;
 }
 
 function EvidenceRefs({ references }: { references: string[] }) {
   const { locale, t } = usePointObjectLocale();
-  return <details className="mt-2 text-[11px] leading-4 text-muted"><summary className="cursor-pointer select-none font-semibold">{t("analysis.evidence")} {references.length}</summary><p className="mt-1 break-words">{[...new Set(references.map((reference) => friendlyEvidenceLabel(reference, t, locale)))].join(" · ")}</p></details>;
+  const evidence = useD2SourceEvidence();
+  const unique = [...new Set(references)];
+  return <details className="mt-2 text-[11px] leading-4 text-muted"><summary className="min-h-11 cursor-pointer select-none py-3 font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#087f8c]">{t("analysis.evidence")} {unique.length}<D2SourceAvailability references={unique} /></summary>{evidence ? <D2SourceLinks references={unique} fallbackLabel={reference => friendlyEvidenceLabel(reference, t, locale)} /> : <p className="mt-1 break-words">{unique.map(reference => friendlyEvidenceLabel(reference, t, locale)).join(" · ")}</p>}</details>;
 }
 
 function ClaimList({ items }: { items: GroundedClaim[] }) {
@@ -736,8 +741,10 @@ export function PointToObjectAnalysis({ verificationEnabled = false }: { verific
             ) : null}
 
             {content ? (
+              <D2SourceEvidenceProvider key={`${analysis?.mode === "openai" ? analysis.evidencePackHash : "source"}`} context={frozenSourceContext} subject={subject} locale={locale} references={[...content.decisionBrief.reasons.flatMap(item => item.evidenceRefs), ...content.sourceFacts.flatMap(item => item.evidenceRefs), ...content.locationContext.flatMap(item => item.evidenceRefs)]}>
               <div className="space-y-5" data-testid="ai-success">
                 {frozenSourceContext ? <PointObjectContextDashboard context={frozenSourceContext} locale={locale} /> : null}
+                {frozenSourceContext && analysis?.mode === "openai" ? <D2ScenarioScreening context={frozenSourceContext} subjectName={title} goal={analysis.request.goal} scenario={analysis.request.scenario} locale={locale} /> : null}
                 {analysis?.mode === "openai" && analysis.request.locale !== locale ? <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-white p-3 text-xs text-muted"><span>{locale === "ru" ? "Текст отчёта сохранён на исходном языке. Обновление — отдельный AI-запрос." : "Report text is kept in its saved language. Updating is a separate AI request."}</span><button type="button" disabled={loading} className="min-h-11 rounded-lg border border-line px-3 font-bold text-[#087f8c] disabled:opacity-50" onClick={() => selection && void requestAnalysis(selection, requestIdentity(selection, analysis.request.question, analysis.request, locale))}>{locale === "ru" ? "Обновить на русском" : "Update in English"}</button></div> : null}
                 <section className="rounded-[20px] border border-[#c8d9ec] bg-white p-5 shadow-soft sm:p-7">
                   <div className="flex flex-wrap items-center gap-2">
@@ -861,6 +868,7 @@ export function PointToObjectAnalysis({ verificationEnabled = false }: { verific
                 </section>
 
               </div>
+              </D2SourceEvidenceProvider>
             ) : null}
           </div>
         </section>
