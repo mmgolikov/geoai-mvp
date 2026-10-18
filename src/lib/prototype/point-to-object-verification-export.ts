@@ -53,9 +53,14 @@ const independentContext = fields("version status dataset release snapshotHash s
   anchor: numbers, places: array(independentPlace),
   spatialCoverage: fields("state easternClipApproxM method", { acquisitionExtent: numbers })
 });
+const citationContext = fields("version subjectId evidencePackHash completeInventory", {
+  scope: fields("kind radiusM", { anchor: numbers }),
+  source: fields("name service sourceId responseHash acquiredAt observedAt licenceId attribution officialStatus"),
+  items: array(fields("id evidenceRef name featureClass contextGroup distanceM method", { categories: array(P), coordinates: numbers }))
+});
 const normalized = fields("version subjectId coverage sampleSize capReached completeInventory", {
   scope: fields("kind radiusM", { anchor: numbers }), source,
-  details: contextDetails, independentContext,
+  details: contextDetails, independentContext, citationContext,
   metrics: array(fields("id group value unit status method evidenceRef")),
   places: array(fields("id name group distanceM evidenceRef", { coordinates: numbers })),
   programmeChecks: array(fields("group mappedCount capacity adequacy nextCheck"))

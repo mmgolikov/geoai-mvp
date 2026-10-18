@@ -286,6 +286,7 @@ export function parseLiveResolvedObject(value: unknown): LiveResolvedObjectConte
   const geoContext = parseGeoContext(value.geoContext);
   const normalizedContext = value.normalizedContext === undefined ? undefined : parseNormalizedPointObjectContext(value.normalizedContext);
   if (value.normalizedContext !== undefined && (!normalizedContext || !geoContext || normalizedContext.subjectId !== sourceFeatureId || normalizedContext.scope.kind !== "point_radius" || normalizedContext.sampleSize !== (geoContext.coverage === "available" ? geoContext.sampleSize : null) || !normalizedContextMatchesProfile(normalizedContext, geoContext))) return null;
+  if (normalizedContext?.citationContext && evidenceReceipt && normalizedContext.citationContext.evidencePackHash !== evidenceReceipt.evidencePackHash) return null;
   const hasFabricDiagnostic = Object.prototype.hasOwnProperty.call(value, "fabricDiagnostic");
   const fabricDiagnostic = hasFabricDiagnostic ? parsePointObjectFabricDiagnostic(value.fabricDiagnostic, geoContext?.coverage) : null;
   // Reject malformed supplied metadata; never turn it into an empty context.
@@ -485,7 +486,7 @@ export function parsePointObjectSelection(value: unknown): LiveMapSelection | nu
       : parseLiveResolvedObject(value.resolvedObject);
     if (value.resolvedObject !== null && value.resolvedObject !== undefined && !restoredResolvedObject) return null;
     const heldNormalized = restoredResolvedObject?.normalizedContext;
-    const enriched = Boolean(heldNormalized?.details || heldNormalized?.independentContext);
+    const enriched = Boolean(heldNormalized?.details || heldNormalized?.independentContext || heldNormalized?.citationContext);
     const heldAnchor = enriched ? heldNormalized?.scope.anchor : null;
     if (heldAnchor && (Math.abs(heldAnchor[0] - point[0]) > 0.000001 || Math.abs(heldAnchor[1] - point[1]) > 0.000001)) return null;
     if (enriched && restoredResolvedObject?.coordinateAssociation === "trusted_open_map_identity" &&

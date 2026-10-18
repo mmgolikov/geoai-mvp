@@ -3,6 +3,7 @@ import type { LiveResolvedObjectContext, PointObjectGeoContext } from "../../../
 import type { PointObjectAreaContextResult } from "./point-to-object-area-context-contract";
 import { contextDetailsFromArea, contextDetailsFromEvidence, parseContextDetailsV2, type PointObjectContextDetailsV2 } from "./point-to-object-context-details-v2";
 import { parseIndependentContext, type IndependentPointObjectContext } from "./point-to-object-independent-context";
+import { citationContextFromEvidence, parsePointObjectCitationContext, CITATION_CONTEXT_MAX_BYTES, type PointObjectCitationContext } from "./point-to-object-citation-context";
 
 export const NORMALIZED_CONTEXT_VERSION = "POINT_OBJECT_NORMALIZED_CONTEXT_V1" as const;
 export const CONTEXT_GROUPS = ["residential", "commercial", "hospitality", "retail_daily_needs", "education", "healthcare", "civic_culture", "transport", "access", "open_space", "industrial", "construction", "other_built"] as const;
@@ -19,6 +20,8 @@ export type PointObjectNormalizedContext = {
   details?: PointObjectContextDetailsV2;
   /** Separate counts, dates and provider lineage. Never folded into OSM mix. */
   independentContext?: IndependentPointObjectContext;
+  /** Original <=800m nearby citations, never the 400m KPI denominator. */
+  citationContext?: PointObjectCitationContext;
   subjectId: string;
   scope: { kind: "point_radius" | "aoi_interior"; radiusM: number | null; anchor: [number, number] | null };
   source: { name: "OpenStreetMap"; acquiredAt: string | null; observedAt: string | null; responseHash: string | null; attribution: "© OpenStreetMap contributors" };
@@ -80,7 +83,8 @@ export function normalizePointObjectContext(pack: LivePointObjectEvidencePack): 
   // Preserve their old inventory without upgrading them into V2 facts.
   const details = pack.resolution && pack.selectedObject.tags && typeof pack.source.sourceResponseHash === "string" ? contextDetailsFromEvidence(pack) : undefined;
   if (details && independentContext?.status === "available") details.independentEnrichment = "separate_source_snapshot";
-  return { version: NORMALIZED_CONTEXT_VERSION, ...(details ? { details } : {}), ...(independentContext ? { independentContext } : {}), subjectId: pack.selectedObject.sourceFeatureId,
+  const citationContext = citationContextFromEvidence(pack);
+  return { version: NORMALIZED_CONTEXT_VERSION, ...(details ? { details } : {}), ...(independentContext ? { independentContext } : {}), ...(citationContext ? { citationContext } : {}), subjectId: pack.selectedObject.sourceFeatureId,
     scope: { kind: "point_radius", radiusM: pack.geoContext.radiusM, anchor: [pack.coordinates.longitude, pack.coordinates.latitude] },
     source: { name: "OpenStreetMap", acquiredAt: pack.source.fabricAcquiredAt ?? null, observedAt: pack.source.fabricObservedAt, responseHash: pack.source.fabricResponseHash, attribution: "© OpenStreetMap contributors" },
     coverage: pack.geoContext.coverage === "unavailable" ? "unavailable" : pack.geoContext.capReached ? "partial" : "available",
@@ -116,10 +120,16 @@ export function normalizePointObjectAreaContext(area: PointObjectAreaContextResu
 export function parseNormalizedPointObjectContext(value: unknown): PointObjectNormalizedContext | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const c = value as PointObjectNormalizedContext;
+  // Validate this new nested field before JSON size/copy operations, so an
+  // accessor cannot run merely because the caller asks to parse a snapshot.
+  const citation = Object.getOwnPropertyDescriptor(value, "citationContext");
+  if ("citationContext" in value && (!citation || !("value" in citation))) return null;
+  if (citation?.value !== undefined && (!c.scope || c.scope.kind !== "point_radius" ||
+      !parsePointObjectCitationContext(citation.value, c.subjectId, c.scope.anchor))) return null;
   const finite = (n: unknown, max: number) => typeof n === "number" && Number.isFinite(n) && n >= 0 && n <= max;
   const point = (p: unknown) => Array.isArray(p) && p.length === 2 && typeof p[0] === "number" && Number.isFinite(p[0]) && Math.abs(p[0]) <= 180 && typeof p[1] === "number" && Number.isFinite(p[1]) && Math.abs(p[1]) <= 90;
   const timestamp = (v: unknown) => v === null || typeof v === "string" && Number.isFinite(Date.parse(v));
-  if (JSON.stringify(value).length > 60_000 || c.version !== NORMALIZED_CONTEXT_VERSION || typeof c.subjectId !== "string" || c.subjectId.length > 100 ||
+  if (JSON.stringify(value).length > 60_000 + (c.citationContext === undefined ? 0 : CITATION_CONTEXT_MAX_BYTES) || c.version !== NORMALIZED_CONTEXT_VERSION || typeof c.subjectId !== "string" || c.subjectId.length > 100 ||
     !c.scope || !["point_radius", "aoi_interior"].includes(c.scope.kind) || !(c.scope.anchor === null || point(c.scope.anchor)) || (c.scope.kind === "point_radius" ? c.scope.radiusM !== 400 : c.scope.radiusM !== null) ||
     !c.source || c.source.name !== "OpenStreetMap" || c.source.attribution !== "© OpenStreetMap contributors" || !timestamp(c.source.acquiredAt) || !timestamp(c.source.observedAt) || !(c.source.responseHash === null || /^[a-f0-9]{64}$/.test(c.source.responseHash)) ||
     !["available", "partial", "unavailable"].includes(c.coverage) || !(c.sampleSize === null || Number.isInteger(c.sampleSize) && finite(c.sampleSize, 10_000)) || typeof c.capReached !== "boolean" || c.completeInventory !== false ||
