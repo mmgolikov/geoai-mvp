@@ -95,6 +95,22 @@ test("D2 admitted sources retain strict contracts and downstream coverage", () =
   assert.equal(selectPlan(["src/lib/prototype/point-to-object-unadmitted-source.ts"]).fullCiRequired, true);
 });
 
+test("D2 public Context diagnostics retain failure and old downstream consumers", () => {
+  for (const path of [
+    "src/lib/prototype/point-to-object-context-diagnostic.ts",
+    "components/point-to-object/prototype-client-v5.tsx",
+    "components/point-to-object/verification-export.tsx"
+  ]) {
+    const plan = selectPlan([path]);
+    assert.equal(plan.fullCiRequired, false, path);
+    for (const id of ["D2_CONTEXT", "CONTEXT", "ANALYSE", "COMPARE", "CREATE", "STORAGE", "LIMITS"])
+      assert.ok(plan.components.includes(id), `${path}: ${id}`);
+    for (const spec of ["d2-context-vertical", "d2-source-citation-closure", "d2-u1-failure-observation"])
+      assert.ok(plan.e2eFiles.includes(`tests/e2e/${spec}.spec.ts`), `${path}: ${spec}`);
+  }
+  assert.equal(selectPlan(["src/lib/prototype/point-to-object-unadmitted-diagnostic.ts"]).fullCiRequired, true);
+});
+
 test("D2 citation and immutable replay checks are selected and wired into both browser gates", () => {
   const paths = [
     "src/lib/prototype/point-to-object-citation-context.ts",
