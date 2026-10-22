@@ -9,7 +9,13 @@ Navigation: [Confluence Hub](https://geoaimvp.atlassian.net/wiki/spaces/PH/overv
 
 You are Codex working on GeoAI. Control owns product outcomes, architecture, scope and integration; assigned workers implement bounded tasks and independent QA checks the actual result. Use a short approved sprint brief, not a new whole-system audit before each change. Do not invent product direction.
 
-## Current D2 Preview authority — 13 October 2026
+## Current Development Kit E1 authority — 22 October 2026
+
+Founder directly requested execution of START_CONTROL.md on 22 October. The new isolated Development Kit campaign is RUNNING from preserved D2 baseline d8c8495cc962dbe3de4b08f47ff17453ed80664c. See docs/DEVKIT_E1_CHANGE_REQUEST_2026_10_22.md. This new scope authorizes bounded implementation, local checks, integration and a separate protected Preview; it supersedes D2's two-worker/no-Create-expansion restrictions only for this campaign. D2 remains historically paused/unaccepted with both old CI runs consumed. Do not resume or reset it.
+
+Control is sole integrator/CI/deployment operator. Up to ten assigned local workers, no nested fan-out, each owns its assigned files and checkout. Main/Production, old Preview aliases, hosted migrations, Auth/env/security and paid purchases require their specific existing authority, never inference. No new paid product-API budget is allocated by this launch packet. Deadline is first reviewable handoff by 22:00 MSK, feature freeze21:15; partial results must be labelled. Source identity, unknowns, version coherence and local-versus-hosted persistence boundaries remain mandatory.
+
+## Historical D2 Preview authority — 13 October 2026
 
 **18October founder amendment:** D2 is resumed only for unpaid citation/source binding, concrete derived scenario checks and linked dashboard corrections, then checked protected Preview. No new paid provider/counter calls, financial journal revisions, new Create expansion or main/Production/Auth/env/security changes. Preserve historical paid7/10 and firstUNKNOWN/full held reserve; deterministic UI/replay is not new model acceptance. The existing one CI plus one diagnosed-fix repeat is not reset. [Current D2 amendment](docs/D2_CHANGE_REQUEST_2026_10_13.md#founder-amendment--18-october-unpaid-closure) and durableD2_STATE govern this slice; older scopes below remain history.
 
