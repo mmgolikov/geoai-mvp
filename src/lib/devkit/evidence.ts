@@ -470,3 +470,65 @@ export function restoreEvidenceCaseFromProject(project: Pick<DevkitProject, "aoi
     return parseEvidenceCase({ version: DEVKIT_EVIDENCE_VERSION, id: meta.id, aoiId: meta.aoiId, objects, sources: [...sources.values()], evidence, claims, constraints, lineage, claimBindings, constraintBindings: meta.constraintBindings, retainedSource: meta.retainedSource, limitations: meta.limitations, caveat: meta.caveat });
   } catch { return null; }
 }
+
+export type ClaimDisplayAssessment = {
+  claimId: string; originalStatus: Claim["status"]; value: Claim["value"];
+  state: ClaimEvaluation["state"]; usable: boolean; reasons: string[]; conflictingClaimIds: string[];
+  subject: { id: string; kind: EvidenceSubject["kind"] | "project" | "unknown"; label: string | null };
+  scope: EvidenceScope | null; aoiRevision: number | null;
+};
+
+/** Display-only assessment. Original claims and the retained snapshot are never
+ * rewritten. Structural project acceptance is not evidence semantic acceptance.
+ * Unknown/legacy/non-restorable bindings cannot become usable source facts. */
+export function assessProjectClaimsForDisplay(project: DevkitProject, options: { asOf: string }): { asOf: string; claims: ClaimDisplayAssessment[] } {
+  if (!timestamp(options.asOf)) throw new Error("Display assessment requires an explicit valid asOf.");
+  const cases = new Map<string, EvidenceCase | null>();
+  for (const claim of project.claims) {
+    const s = claim.scope;
+    if (s?.moduleVersion === DEVKIT_EVIDENCE_VERSION && text(s.caseId) && !cases.has(s.caseId)) cases.set(s.caseId, restoreEvidenceCaseFromProject(project, s.caseId));
+  }
+  const restored = [...cases.values()].filter((c): c is EvidenceCase => c !== null);
+  const sourceRows = new Map<string, EvidenceSource>();
+  let sourceConflict = false;
+  const canonical = (v: unknown): string => Array.isArray(v) ? `[${v.map(canonical).join(",")}]` : record(v) ? `{${Object.keys(v).sort().map(k => `${JSON.stringify(k)}:${canonical(v[k])}`).join(",")}}` : JSON.stringify(v);
+  for (const c of restored) for (const source of c.sources) {
+    const prior = sourceRows.get(source.id);
+    if (prior && canonical(prior) !== canonical(source)) sourceConflict = true;
+    sourceRows.set(source.id, source);
+  }
+  let evaluation: ReturnType<typeof evaluateEvidenceCase> | null = null;
+  if (restored.length && !sourceConflict) {
+    // Each original case was restored/validated independently first. The
+    // temporary union lets the EXISTING evaluator see cross-case conflicts;
+    // it does not repair missing cases or replace any original source payload.
+    const union: EvidenceCase = {
+      version: DEVKIT_EVIDENCE_VERSION, id: "display-current-preserved-basis", aoiId: project.aoi?.id ?? null,
+      objects: structuredClone(project.objects), sources: [...sourceRows.values()],
+      evidence: restored.flatMap(c => c.evidence), claims: restored.flatMap(c => c.claims), constraints: restored.flatMap(c => c.constraints),
+      lineage: restored.flatMap(c => c.lineage), claimBindings: restored.flatMap(c => c.claimBindings), constraintBindings: restored.flatMap(c => c.constraintBindings),
+      retainedSource: null, limitations: ["Display-only union of independently restored source cases."], caveat: DEVKIT_EVIDENCE_CAVEAT
+    };
+    try { evaluation = evaluateEvidenceCase(union, { asOf: options.asOf, intendedUse: "local_demo" }); } catch { evaluation = null; }
+  }
+  const evaluated = new Map(evaluation?.claims.map(c => [c.claimId, c]) ?? []);
+  const claims = project.claims.map(claim => {
+    const object = project.objects.find(o => o.id === claim.subjectId);
+    const subject: ClaimDisplayAssessment["subject"] = project.aoi?.id === claim.subjectId
+      ? { id: claim.subjectId, kind: "aoi", label: null }
+      : object ? { id: object.id, kind: object.kind, label: object.label }
+        : { id: claim.subjectId, kind: project.id === claim.subjectId ? "project" : "unknown", label: null };
+    const s = claim.scope;
+    const sourceCase = s?.moduleVersion === DEVKIT_EVIDENCE_VERSION && text(s.caseId) ? cases.get(s.caseId) : null;
+    const binding = sourceCase?.claimBindings.find(b => b.claimId === claim.id);
+    const result = sourceCase && evaluation?.valid ? evaluated.get(claim.id) : null;
+    const state: ClaimEvaluation["state"] = result?.state ?? (claim.value === null || claim.status === "unknown" ? "unknown" : ["assumption", "generated", "conflicting"].includes(claim.status) ? claim.status : "unsupported");
+    const reasons = result ? [...result.reasons] : [sourceConflict ? "source_metadata_conflicting" : sourceCase ? "case_evaluation_unavailable" : "preserved_basis_unavailable"];
+    const retainedBinding = sourceCase?.retainedSource?.binding;
+    const revision = record(retainedBinding) && Number.isInteger(retainedBinding.aoiRevision) ? retainedBinding.aoiRevision as number : null;
+    return { claimId: claim.id, originalStatus: claim.status, value: claim.value, state,
+      usable: Boolean(result?.usable && binding && subject.kind !== "unknown"), reasons, conflictingClaimIds: result?.conflictingClaimIds ?? [],
+      subject, scope: binding ? structuredClone(binding.scope) : null, aoiRevision: revision };
+  });
+  return { asOf: options.asOf, claims };
+}

@@ -8,10 +8,14 @@ import path from "node:path";
 const root = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const require = createRequire(import.meta.url), ts = require("typescript");
 const capacityCheckout = process.argv.find(a => a.startsWith("--capacity-checkout="))?.slice(20);
+const displayOnly = process.argv.includes("--display-only");
+const displayCheckout = process.argv.find(a => a.startsWith("--display-checkout="))?.slice(19);
+const readonlyCheckout = capacityCheckout ?? displayCheckout;
 registerHooks({
   resolve(specifier, context, next) {
+    if (displayOnly && specifier === "./find-project-panel" && context.parentURL?.endsWith("/components/devkit/evidence-stage.tsx")) return { url: "data:text/javascript,export%20function%20DevkitFindProjectPanel()%7Breturn%20null%7D", shortCircuit: true };
     if (specifier === "server-only") return { url: "data:text/javascript,export%20{}", shortCircuit: true };
-    const aliasRoot = capacityCheckout && context.parentURL?.startsWith(pathToFileURL(path.resolve(capacityCheckout) + path.sep).href) ? path.resolve(capacityCheckout) : root;
+    const aliasRoot = readonlyCheckout && context.parentURL?.startsWith(pathToFileURL(path.resolve(readonlyCheckout) + path.sep).href) ? path.resolve(readonlyCheckout) : root;
     const local = specifier.startsWith("@/") ? pathToFileURL(path.join(aliasRoot, specifier.slice(2))).href : specifier;
     if (!context.parentURL?.includes("/node_modules/") && (local.startsWith("file:") || local.startsWith("./") || local.startsWith("../")) && !/\.[cm]?[jt]sx?$/.test(local)) {
       try { return next(`${local}.ts`, context); } catch { return next(`${local}.tsx`, context); }
@@ -139,7 +143,125 @@ async function checkRegionalStoreCapacity(checkout) {
     noNetwork: true, noTruncation: true, noInferredSiteProperty: true,
     notQualified: ["rendered browser/button handler", "browser quota", "hosted persistence", "full populated finance/kit payload", "official applicability/legal/source authenticity", "whole-root acceptance"] };
 }
+async function checkEvidenceDisplay() {
+  const target = displayCheckout ? path.resolve(displayCheckout) : root;
+  const targetStoreFile = path.join(target, "src/lib/devkit/project-store.ts");
+  const targetStore = await import(pathToFileURL(targetStoreFile).href);
+  const targetFixtures = await import(pathToFileURL(path.join(target, "src/lib/devkit/fixtures.ts")).href);
+  const sourceHash = hash(readFileSync(targetStoreFile));
+  const React = await import("react"), { renderToStaticMarkup } = await import("react-dom/server");
+  const { DevkitEvidenceStage } = await import("../components/devkit/evidence-stage.tsx");
+  let displayChecks = 0;
+  const results = [];
+  const must = (value, id) => { assert.ok(value, id); displayChecks++; results.push(id); };
+  const at = "2026-10-22T16:40:00.000Z";
+  function makeCase(id = "display-case") {
+    const base = targetFixtures.createDevkitDemoProject(`display-${id}`), c = clone(positiveCase());
+    c.id = id; c.aoiId = base.aoi.id;
+    for (const item of [...c.evidence, ...c.claims]) item.subjectId = base.aoi.id;
+    for (const item of [...c.lineage, ...c.claimBindings]) { item.subject.id = base.aoi.id; item.scope.subject.id = base.aoi.id; }
+    return { base, c };
+  }
+  const projectFor = (base, c) => ({ ...base, ...e.foundationRecordsForEvidenceCase(c) });
+  function assess(project) {
+    const before = JSON.stringify(project), result = e.assessProjectClaimsForDisplay(project, { asOf: at });
+    assert.equal(JSON.stringify(project), before, "Assessment must leave original project, claims and source metadata unchanged");
+    return result;
+  }
+  const render = (project, locale = "en") => renderToStaticMarkup(React.createElement(DevkitEvidenceStage, { project, locale, onChange() { throw new Error("SSR must not edit project"); } }));
+  const { base, c } = makeCase();
+  const positive = projectFor(base, c), positiveView = assess(positive);
+  must(targetStore.parseDevkitProject(positive), "upstream accepts preserved positive project");
+  must(positiveView.claims[0].usable && positiveView.claims[0].value === 0 && positiveView.claims[0].state === "source_backed", "explicit supported zero stays usable zero");
+  must(positiveView.claims[0].subject.kind === "aoi" && positiveView.claims[0].subject.id === base.aoi.id && positiveView.claims[0].scope.radiusM === 400, "exact subject and400m scope are read from preserved binding");
+  const conflictCase = clone(c); conflictCase.claims.push({ ...clone(c.claims[0]), id: "claim-2", value: 3 }); conflictCase.claimBindings.push({ ...clone(c.claimBindings[0]), claimId: "claim-2" });
+  const conflict = projectFor(base, conflictCase), conflicting = assess(conflict);
+  must(targetStore.parseDevkitProject(conflict) && conflict.claims.every(claim => claim.status === "source_backed"), "upstream structural parser does not resolve semantic source conflicts or rewrite original statuses");
+  must(conflicting.claims.every(claim => !claim.usable && claim.state === "conflicting"), "same subject/field/unit/scope conflict is excluded from usable display");
+  const conflictHtml = render(conflict);
+  must((conflictHtml.match(/data-claim-state="conflicting"/g) ?? []).length === 2 && !conflictHtml.includes('data-claim-usable="true"'), "rendered conflicting cards do not become green known facts");
+  const mismatchCase = clone(c); mismatchCase.lineage[0].scope.radiusM = 800;
+  const mismatch = projectFor(base, mismatchCase), mismatchView = assess(mismatch);
+  must(targetStore.parseDevkitProject(mismatch), "upstream structural parser accepts a non-null claim with an inapplicable evidence scope");
+  must(!mismatchView.claims[0].usable && mismatchView.claims[0].state === "unsupported" && mismatchView.claims[0].reasons.includes("evidence_scope_mismatch"), "existing evaluator rejects400m claim borrowing800m evidence");
+  const rightsCase = clone(c); rightsCase.sources[0].licence.localUse = "unknown";
+  const rights = assess(projectFor(base, rightsCase));
+  must(!rights.claims[0].usable && rights.claims[0].state === "unsupported", "unknown local-use rights cannot make a usable source fact");
+  const expiredCase = clone(c); expiredCase.lineage[0].validTo = "2026-10-21T00:00:00Z";
+  const expiredProject = projectFor(base, expiredCase), expired = assess(expiredProject);
+  must(!expired.claims[0].usable && expired.claims[0].state === "stale" && expired.claims[0].value === 0, "expired declared validity changes display verdict but never the source value");
+  must(render(expiredProject).includes('data-claim-state="stale"'), "expired basis is labelled in the actual card markup");
+  const differentCase = clone(c);
+  differentCase.evidence.push({ ...clone(c.evidence[0]), id: "ev-800" });
+  differentCase.lineage.push({ ...clone(c.lineage[0]), evidenceId: "ev-800", scope: { ...clone(c.lineage[0].scope), radiusM: 800 } });
+  differentCase.claims.push({ ...clone(c.claims[0]), id: "claim-800", value: 3, evidenceIds: ["ev-800"] });
+  differentCase.claimBindings.push({ ...clone(c.claimBindings[0]), claimId: "claim-800", scope: { ...clone(c.claimBindings[0].scope), radiusM: 800 } });
+  const differentProject = projectFor(base, differentCase), different = assess(differentProject), differentHtml = render(differentProject);
+  must(different.claims.every(claim => claim.usable) && different.claims.map(claim => claim.scope.radiusM).join(",") === "400,800", "different400/800 scopes retain separate usable source counts without conflict/denominator merge");
+  must(differentHtml.includes("Radius 400 m") && differentHtml.includes("Radius 800 m") && differentHtml.includes(base.aoi.id), "actual card markup shows both exact radii and subject identity");
+  const otherSubjectCase = clone(c), poi = { id: "source-poi", kind: "poi", label: "Synthetic source POI", sourceFeatureId: "synthetic-poi", geometry: { type: "Point", coordinates: [55.27,25.2] }, crs: "EPSG:4326", trust: "synthetic", evidenceIds: ["ev-poi"] };
+  otherSubjectCase.objects.push(poi); otherSubjectCase.evidence.push({ ...clone(c.evidence[0]), id: "ev-poi", subjectId: poi.id });
+  const poiSubject = { id: poi.id, kind: "poi" }, poiScope = { subject: poiSubject, kind: "subject", radiusM: null, geometryHash: null, completeInventory: false };
+  otherSubjectCase.lineage.push({ ...clone(c.lineage[0]), evidenceId: "ev-poi", subject: poiSubject, scope: poiScope });
+  otherSubjectCase.claims.push({ ...clone(c.claims[0]), id: "claim-poi", subjectId: poi.id, value: 7, evidenceIds: ["ev-poi"] });
+  otherSubjectCase.claimBindings.push({ ...clone(c.claimBindings[0]), claimId: "claim-poi", subject: poiSubject, scope: poiScope });
+  const subjectProject = projectFor(base, otherSubjectCase), subjects = assess(subjectProject), subjectsHtml = render(subjectProject);
+  must(subjects.claims.every(claim => claim.usable) && subjects.claims[0].subject.kind === "aoi" && subjects.claims[1].subject.kind === "poi", "same field on separate AOI/POI subjects is not merged or substituted");
+  must(subjectsHtml.includes("Synthetic source POI") && subjectsHtml.includes("source-poi") && subjectsHtml.includes("Study area"), "card subject kind/name/id distinguishes POI from study area");
+  const missing = clone(positive); delete missing.evidence[0].provenance; delete missing.claims[0].scope;
+  const missingView = assess(missing), missingHtml = render(missing);
+  must(!missingView.claims[0].usable && missingView.claims[0].scope === null && missingView.claims[0].state === "unsupported", "legacy missing preservation cannot be reconstructed from field label or status");
+  must(missingHtml.includes("Scope: Unknown") && missingHtml.includes('data-claim-state="unsupported"') && missingHtml.includes("Recorded status") && missing.claims[0].status === "source_backed", "legacy card visibly separates unknown basis/scope from original source-backed declaration");
+  const oldMetadata = clone(positive); oldMetadata.claims[0].scope.moduleVersion = "DEVKIT_EVIDENCE_V0";
+  must(!assess(oldMetadata).claims[0].usable && assess(oldMetadata).claims[0].scope === null, "old unsupported metadata version remains unverified");
+  const absent = clone(positive); absent.claims[0].value = null; absent.claims[0].status = "unknown";
+  const absentView = assess(absent);
+  must(!absentView.claims[0].usable && absentView.claims[0].value === null && absentView.claims[0].state === "unknown", "null stays unknown and never becomes zero");
+  must(render(absent).includes('data-claim-state="unknown"') && render(positive).includes('data-claim-usable="true"'), "actual null and explicit zero cards retain distinct display verdicts");
+  const twoCasesBase = targetFixtures.createDevkitDemoProject("display-two-cases"), first = clone(c), second = clone(c);
+  first.id = "first-preserved-case"; second.id = "second-preserved-case"; second.claims[0].id = "second-claim"; second.claimBindings[0].claimId = "second-claim"; second.claims[0].value = 9; second.evidence[0].id = "second-ev"; second.lineage[0].evidenceId = "second-ev"; second.claims[0].evidenceIds = ["second-ev"];
+  const firstRecords = e.foundationRecordsForEvidenceCase(first), secondRecords = e.foundationRecordsForEvidenceCase(second);
+  const crossCaseProject = { ...twoCasesBase, evidence: [...firstRecords.evidence, ...secondRecords.evidence], claims: [...firstRecords.claims, ...secondRecords.claims], constraints: [], objects: [] };
+  must(assess(crossCaseProject).claims.every(claim => !claim.usable && claim.state === "conflicting"), "existing evaluator also detects overlapping contradictory claims across independently preserved cases");
+  const assumption = clone(missing); assumption.claims[0].status = "assumption";
+  must(assess(assumption).claims[0].state === "assumption" && !assess(assumption).claims[0].usable, "an explicit assumption remains an assumption and is never a usable source fact");
+  const generated = clone(missing); generated.claims[0].status = "generated";
+  must(assess(generated).claims[0].state === "generated" && !assess(generated).claims[0].usable, "generated content remains separate from source-backed facts");
+  const invalidAsOf = (() => { try { e.assessProjectClaimsForDisplay(positive, { asOf: "invalid" }); return false; } catch { return true; } })();
+  must(invalidAsOf, "display assessment requires an explicit valid assessment time");
+  const ruHtml = render(differentProject, "ru");
+  must(ruHtml.includes("Радиус 400 м") && ruHtml.includes("Радиус 800 м") && ruHtml.includes("Объект") && render(missing, "ru").includes("Область: Неизвестно"), "RU cards expose precise scope/subject and missing-scope unknown");
+  must(networkCalls === 0, "targeted assessment/SSR performs zero source/provider network calls");
+  must(hash(readFileSync(targetStoreFile)) === sourceHash, "read-only upstream parser source did not change during the check");
+  // Only the two changed source files are roots. Missing Root-owned dependencies
+  // are read through a virtual overlay; they are not copied or edited.
+  const config = ts.readConfigFile(path.join(root, "tsconfig.json"), ts.sys.readFile);
+  const parsedConfig = ts.parseJsonConfigFileContent(config.config, ts.sys, root);
+  const compilerOptions = { ...parsedConfig.options, incremental: false, noEmit: true, skipLibCheck: true };
+  const host = ts.createCompilerHost(compilerOptions), nativeRead = host.readFile.bind(host), nativeExists = host.fileExists.bind(host), nativeDir = host.directoryExists?.bind(host);
+  const borrowed = new Set();
+  const mapped = file => file.startsWith(root + path.sep) ? path.join(target, file.slice(root.length + 1)) : file;
+  host.fileExists = file => nativeExists(file) || target !== root && nativeExists(mapped(file));
+  host.directoryExists = dir => !!nativeDir?.(dir) || target !== root && !!nativeDir?.(mapped(dir));
+  host.readFile = file => { const own = nativeRead(file); if (own !== undefined) return own; const other = mapped(file); if (other !== file) { const text = nativeRead(other); if (text !== undefined) { borrowed.add(other); return text; } } return undefined; };
+  host.getSourceFile = (file, languageVersion) => { const text = host.readFile(file); return text === undefined ? undefined : ts.createSourceFile(file, text, languageVersion, true); };
+  const program = ts.createProgram([path.join(root, "components/devkit/evidence-stage.tsx"), path.join(root, "src/lib/devkit/evidence.ts")], compilerOptions, host);
+  const diagnostics = ts.getPreEmitDiagnostics(program).filter(d => d.category === ts.DiagnosticCategory.Error);
+  const diagnosticText = ts.formatDiagnosticsWithColorAndContext(diagnostics, { getCanonicalFileName: file => file, getCurrentDirectory: () => root, getNewLine: () => "\n" });
+  must(diagnostics.length === 0, `targeted TypeScript check using read-only Root dependency overlay: ${diagnosticText}`);
+  return { status: "PASS", checks: displayChecks, checkedAt: new Date().toISOString(), assessmentAsOf: at, node: process.version, typescript: ts.version,
+    upstreamCheckout: target, upstreamStoreSha256: sourceHash, sourceFiles: ["components/devkit/evidence-stage.tsx", "src/lib/devkit/evidence.ts"].map(file => ({ file, sha256: hash(readFileSync(path.join(root, file))) })),
+    evidence: results, networkCalls, targetedTypecheck: "PASS", readOnlyTypeDependencies: [...borrowed],
+    scope: "Existing evaluator -> display-only assessment -> EN/RU isolated SSR card markup; original project/claims unchanged",
+    limits: ["Find child replaced with null only in isolated SSR test; actual Root helper props checked via read-only type overlay", "no browser/build/CI/API", "no new source/date/rights policy", "no full replay of prior67/52 suites", "no whole-product/runtime acceptance"] };
+}
 try {
+  if (displayOnly) {
+    const displayReport = await checkEvidenceDisplay();
+    const reportPath = process.argv.find(a => a.startsWith("--display-output="))?.slice(17);
+    if (reportPath) writeFileSync(reportPath, `${JSON.stringify(displayReport, null, 2)}\n`);
+    console.log(JSON.stringify(displayReport));
+  } else {
   if (capacityCheckout) {
     const capacity = await checkRegionalStoreCapacity(capacityCheckout);
     const capacityOutput = process.argv.find(a => a.startsWith("--capacity-output="))?.slice(18);
@@ -316,4 +438,5 @@ try {
     writeFileSync(path.join(outDir, "test-results.json"), `${JSON.stringify(result, null, 2)}\n`);
   }
   console.log(JSON.stringify(result));
+  }
 } finally { globalThis.fetch = originalFetch; }

@@ -1,10 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { DevkitProject, Claim } from "@/src/lib/devkit/contracts";
+import type { DevkitProject } from "@/src/lib/devkit/contracts";
 import { reviseDevkitInputs } from "@/src/lib/devkit/project-store";
 import { getDevkitRegionalPack } from "@/src/lib/devkit/region-data";
 import { regionalRecordsForProject } from "@/src/lib/devkit/region-rules";
+import { assessProjectClaimsForDisplay, type ClaimDisplayAssessment } from "@/src/lib/devkit/evidence";
 import { DevkitFindProjectPanel } from "./find-project-panel";
 
 type Props = { project: DevkitProject; locale: "en" | "ru"; onChange: (project: DevkitProject) => void };
@@ -16,10 +17,11 @@ const labels: Record<string, [string, string]> = {
   max_height_m: ["Height limit", "Ограничение высоты"],
   max_far: ["Floor-area ratio limit", "Предельная интенсивность застройки"]
 };
-const claimLabels: Record<Claim["status"], [string, string]> = {
+const claimLabels: Record<ClaimDisplayAssessment["state"], [string, string]> = {
   source_backed: ["Source-backed", "По источнику"], assumption: ["Assumption", "Допущение"],
   derived: ["Calculated", "Расчёт"], generated: ["Generated", "Сгенерировано"],
-  unknown: ["Unknown", "Неизвестно"], conflicting: ["Conflicting", "Противоречие"]
+  unknown: ["Unknown", "Неизвестно"], conflicting: ["Conflicting", "Противоречие"],
+  stale: ["Outdated basis", "Основа устарела"], unsupported: ["Basis unverified", "Основа не проверена"]
 };
 
 function AreaDiagram({ project, ru }: { project: DevkitProject; ru: boolean }) {
@@ -47,9 +49,18 @@ export function DevkitEvidenceStage({ project, locale, onChange }: Props) {
   const ru = locale === "ru", t = (en: string, russian: string) => ru ? russian : en;
   const [error, setError] = useState<string | null>(null);
   const pack = useMemo(() => getDevkitRegionalPack(project.brief.marketKey), [project.brief.marketKey]);
-  const known = project.claims.filter(item => item.value !== null && ["source_backed", "derived"].includes(item.status));
-  const uncertain = project.claims.filter(item => item.value === null || ["unknown", "conflicting"].includes(item.status));
-  const conditional = project.claims.filter(item => item.value !== null && ["assumption", "generated"].includes(item.status));
+  const assessment = useMemo(() => assessProjectClaimsForDisplay(project, { asOf: new Date().toISOString() }), [project]);
+  const displayById = new Map(assessment.claims.map(item => [item.claimId, item]));
+  const known = assessment.claims.filter(item => item.usable);
+  const conditional = assessment.claims.filter(item => item.value !== null && ["assumption", "generated"].includes(item.originalStatus));
+  const uncertain = assessment.claims.filter(item => !item.usable && !conditional.includes(item));
+  const subjectKinds: Record<ClaimDisplayAssessment["subject"]["kind"], [string, string]> = {
+    aoi: ["Study area", "Зона исследования"], land_parcel: ["Parcel", "Участок"], building: ["Building", "Здание"],
+    poi: ["POI", "POI"], project: ["Project", "Проект"], unknown: ["Unknown subject", "Объект неизвестен"]
+  };
+  const scopeLabel = (item: ClaimDisplayAssessment) => !item.scope ? t("Unknown", "Неизвестно") : item.scope.kind === "radius"
+    ? `${t("Radius", "Радиус")} ${item.scope.radiusM} ${t("m", "м")}`
+    : item.scope.kind === "aoi_interior" ? t("AOI interior", "Внутри зоны исследования") : t("This subject", "Этот объект");
   const gaps = project.constraints.filter(item => ["unknown", "conflicting"].includes(item.status));
   const total = Math.max(1, project.claims.length);
   const format = (value: number) => new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(value);
@@ -76,20 +87,26 @@ export function DevkitEvidenceStage({ project, locale, onChange }: Props) {
         </dl>
         <div>
           <h3>{t("What supports the decision", "На чём основано решение")}</h3>
-          <div className="my-3 flex h-4 overflow-hidden rounded-full bg-slate-100" role="img" aria-label={`${known.length} ${t("source or calculated", "по источникам или расчётам")}; ${conditional.length} ${t("assumptions", "допущений")}; ${uncertain.length} ${t("unknown or conflicting", "неизвестных или спорных")}`}>
+          <div className="my-3 flex h-4 overflow-hidden rounded-full bg-slate-100" role="img" aria-label={`${known.length} ${t("source or calculated", "по источникам или расчётам")}; ${conditional.length} ${t("assumptions", "допущений")}; ${uncertain.length} ${t("unknown, conflicting or unverified", "неизвестных, спорных или непроверенных")}`}>
             <span className="bg-teal-700" style={{ width: `${known.length / total * 100}%` }} /><span className="bg-violet-400" style={{ width: `${conditional.length / total * 100}%` }} /><span className="bg-amber-400" style={{ width: `${uncertain.length / total * 100}%` }} />
           </div>
-          <ul className="space-y-2 text-sm"><li>{t("Source-backed / calculated", "По источнику / расчёту")}: {known.length}</li><li>{t("Explicit assumptions", "Явные допущения")}: {conditional.length}</li><li>{t("Unknown / conflicting", "Неизвестно / противоречие")}: {uncertain.length}</li></ul>
+          <ul className="space-y-2 text-sm"><li>{t("Usable source / calculated basis", "Пригодная основа источника / расчёта")}: {known.length}</li><li>{t("Explicit assumptions", "Явные допущения")}: {conditional.length}</li><li>{t("Unknown / conflicting / unverified", "Неизвестно / противоречие / не проверено")}: {uncertain.length}</li></ul>
           <p className="dk-small mt-3">{t("Counts describe this snapshot, not site completeness or a quality score.", "Количество записей относится к этому снимку, а не к полноте обследования или оценке качества участка.")}</p>
         </div>
       </section>
     </div>
     <section className="dk-stack"><h3>{t("Facts and assumptions", "Факты и допущения")}</h3>
-      {project.claims.length ? <div className="grid min-w-0 gap-3 sm:grid-cols-2">{project.claims.map(claim => <article key={claim.id} className="dk-list-item">
-        <div className="dk-list-item-head"><strong>{labels[claim.field]?.[ru ? 1 : 0] ?? claim.field.replaceAll("_", " ")}</strong><span className="dk-pill" data-tone={claim.value === null || claim.status === "conflicting" ? "warning" : undefined}>{claimLabels[claim.status][ru ? 1 : 0]}</span></div>
-        <p className="text-xl font-semibold text-teal-900">{claim.value === null ? t("Unknown", "Неизвестно") : typeof claim.value === "number" ? format(claim.value) : String(claim.value)} {claim.value !== null ? claim.unit : null}</p>
-        <p className="dk-small">{claim.explanation}</p><p className="dk-small">{t("Evidence links", "Связанные источники")}: {claim.evidenceIds.length}</p>
-      </article>)}</div> : <p className="dk-empty">{t("No source-backed site facts are available in this snapshot.", "В этом снимке пока нет подтверждённых источниками фактов о площадке.")}</p>}
+      {project.claims.length ? <div className="grid min-w-0 gap-3 sm:grid-cols-2">{project.claims.map(claim => {
+        const display = displayById.get(claim.id)!;
+        return <article key={claim.id} className="dk-list-item" data-claim-id={claim.id} data-claim-state={display.state} data-claim-usable={display.usable}>
+          <div className="dk-list-item-head"><strong>{labels[claim.field]?.[ru ? 1 : 0] ?? claim.field.replaceAll("_", " ")}</strong><span className="dk-pill" data-tone={!display.usable ? "warning" : undefined}>{claimLabels[display.state][ru ? 1 : 0]}</span></div>
+          <p className="dk-small break-words">{t("Subject", "Объект")}: {subjectKinds[display.subject.kind][ru ? 1 : 0]}{display.subject.label ? ` · ${display.subject.label}` : ""} · {display.subject.id}</p>
+          <p className="dk-small break-words" data-testid="claim-scope">{t("Scope", "Область")}: {scopeLabel(display)}{display.aoiRevision !== null ? ` · ${t("AOI revision", "Версия зоны")} ${display.aoiRevision}` : ""}{display.scope?.geometryHash ? <span title={display.scope.geometryHash}> · {t("Geometry reference", "Версия геометрии")}: {display.scope.geometryHash.slice(0, 12)}</span> : null}</p>
+          {!display.usable && claim.value !== null && !["assumption", "generated"].includes(claim.status) && <p className="dk-small">{t("Reported value; basis requires review", "Указанное значение; основу требуется проверить")}</p>}
+          <p className="text-xl font-semibold text-teal-900">{claim.value === null ? t("Unknown", "Неизвестно") : typeof claim.value === "number" ? format(claim.value) : String(claim.value)} {claim.value !== null ? claim.unit : null}</p>
+          <p className="dk-small">{claim.explanation}</p><p className="dk-small">{t("Recorded status", "Исходный статус")}: {claimLabels[claim.status][ru ? 1 : 0]} · {t("Evidence links", "Связанные источники")}: {claim.evidenceIds.length}</p>
+        </article>;
+      })}</div> : <p className="dk-empty">{t("No source-backed site facts are available in this snapshot.", "В этом снимке пока нет подтверждённых источниками фактов о площадке.")}</p>}
     </section>
     <section className="dk-stack"><h3>{t("Decision gaps and next actions", "Пробелы и следующие действия")}</h3>
       {!project.constraints.length ? <p className="dk-empty">{t("Restrictions have not been established. An empty list is not permission to build.", "Ограничения не установлены. Пустой список не является разрешением на строительство.")}</p> : <ul className="dk-list">{project.constraints.map(item => <li key={item.id} className="dk-list-item"><div className="dk-list-item-head"><strong>{item.label}</strong><span className="dk-pill" data-tone={gaps.includes(item) ? "warning" : undefined}>{item.severity === "critical" ? t("Critical", "Критично") : t("Review", "Проверить")}</span></div><p>{item.impact}</p><p className="text-sm font-medium text-teal-900">{item.nextAction}</p></li>)}</ul>}
