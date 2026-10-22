@@ -9,6 +9,7 @@ import type { DevkitProject } from "../../src/lib/devkit/contracts";
 // Controller/viewport checks only. These do not accept a complete P1, scene math,
 // finance, kit or owner-switch race. Control owns the single integrated browser pass.
 const CAVEAT = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
+const RU_CAVEAT = "Сценарная гипотеза. Требуется официальная проверка; не является правовым, кадастровым, градостроительным или оценочным заключением.";
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "[::1]"]);
 
 async function offlineGuard(target: BrowserContext, origin: string, external: Set<string>, prohibited: Set<string>) {
@@ -82,12 +83,17 @@ for (const locale of ["en", "ru"] as const) {
         const workflow = page.getByTestId("devkit-workflow");
         await expect(workflow).toBeVisible(); await expect(workflow).toHaveAttribute("lang", locale);
         await expect(workflow.getByText(locale === "ru" ? "Синтетический пример" : "Synthetic example", { exact: true })).toBeVisible();
-        await expect(workflow.getByText(CAVEAT, { exact: true })).toBeVisible();
-        const title = `QA ${locale} ${width} · ` + (locale === "ru" ? "Проверка сохранения и неизвестных данных " : "Preserved snapshot and unknown evidence ").repeat(3);
+        const uiCaveat = workflow.locator(".dk-caveat");
+        await expect(uiCaveat).toBeVisible();
+        await expect(uiCaveat).toHaveText(locale === "ru" ? `${RU_CAVEAT} ${CAVEAT}` : CAVEAT);
+        const rawTitle = `QA ${locale} ${width} · ` + (locale === "ru" ? "Проверка сохранения и неизвестных данных " : "Preserved snapshot and unknown evidence ").repeat(3);
+        // Applying a brief explicitly trims outer whitespace; persisted content must match that normalized value.
+        const title = rawTitle.trim();
         const titleInput = workflow.getByLabel(locale === "ru" ? /^Название проекта/ : /^Project title/);
         const budget = workflow.getByLabel(locale === "ru" ? /^Бюджет проекта, если известен/ : /^Project budget, if known/);
         await expect(budget).toHaveValue("");
-        started = Date.now(); await titleInput.fill(title);
+        started = Date.now(); await titleInput.fill(rawTitle);
+        await expect(titleInput).toHaveValue(rawTitle);
         const save = workflow.getByRole("button", { name: locale === "ru" ? "Сохранить на устройстве" : "Save on device", exact: true });
         await expect(save).toBeDisabled(); await expect(page.getByTestId("devkit-project-select")).toBeDisabled();
         await workflow.getByTestId("devkit-brief-apply").click();
@@ -177,7 +183,7 @@ test.describe("E1 connected P1 EN desktop", () => {
     if (await consent.isVisible()) await consent.check();
     let started = Date.now();
     await workflow.getByRole("button", { name: "Generate A/B geometry", exact: true }).click();
-    await expect(workflow.getByLabel("Selected building", { exact: true })).toBeVisible();
+    await expect(workflow.getByRole("combobox", { name: "Selected building", exact: true })).toBeVisible();
     elapsed.generatePairMs = Date.now() - started;
     const save = workflow.getByRole("button", { name: "Save on device", exact: true });
     await save.click(); await expect(page.getByTestId("devkit-project-export-json")).toBeEnabled();
@@ -187,7 +193,7 @@ test.describe("E1 connected P1 EN desktop", () => {
     expect(baselineA.buildings.length).toBeGreaterThan(0); expect(baselineB.buildings.length).toBeGreaterThan(0);
     expect(baselineA.scene).toBeDefined(); expect(baselineB.scene).toBeDefined();
     await workflow.getByRole("group", { name: "Concept variant", exact: true }).getByRole("button", { name: baseline.scenarios[0].label, exact: true }).click();
-    const buildingId = await workflow.getByLabel("Selected building", { exact: true }).inputValue();
+    const buildingId = await workflow.getByRole("combobox", { name: "Selected building", exact: true }).inputValue();
     const oldBuilding = baselineA.buildings.find(building => building.id === buildingId); expect(oldBuilding).toBeDefined();
     const oldFloors = oldBuilding!.levels; expect(oldFloors).not.toBeNull();
     await workflow.getByLabel("Total floors", { exact: true }).fill(String(oldFloors! + 1));
