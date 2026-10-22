@@ -1,4 +1,4 @@
-import { expect, test, type Page, type TestInfo } from "@playwright/test";
+import { expect, test, type BrowserContext, type Page, type TestInfo } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import type { DevkitProject } from "../../src/lib/devkit/contracts";
 
@@ -33,14 +33,14 @@ for (const locale of ["en", "ru"] as const) {
   for (const width of [1440, 390]) {
     test.describe(`E1 S1/N1/L1 controller ${locale} ${width}`, () => {
       test.use({ viewport: { width, height: 1000 } });
-      test("explicit example, save/reopen/JSON transfer, failure and viewport boundaries", async ({ page, context }, testInfo: TestInfo) => {
+      test("explicit example, save/reopen/JSON transfer, failure and viewport boundaries", async ({ page, context, browser }, testInfo: TestInfo) => {
         const base = new URL(String(testInfo.project.use.baseURL));
         expect(LOOPBACK.has(base.hostname), "This spec is bounded to Control's local integrated runtime").toBe(true);
         await context.addCookies([{ name: "geoai_locale", value: locale, url: base.origin, sameSite: "Lax" }]);
         const externalOrigins = new Set<string>(), prohibitedEndpoints = new Set<string>(), pageErrors: string[] = [];
         const durations: Record<string, number> = {};
         page.on("pageerror", error => pageErrors.push(error.message));
-        await context.route("**/*", async route => {
+        const installGuard = async (target: BrowserContext) => target.route("**/*", async route => {
           const url = new URL(route.request().url());
           if (["http:", "https:"].includes(url.protocol) && url.origin !== base.origin) {
             externalOrigins.add(url.origin); await route.abort("blockedbyclient"); return;
@@ -51,6 +51,7 @@ for (const locale of ["en", "ru"] as const) {
           }
           await route.continue();
         });
+        await installGuard(context);
         let started = Date.now();
         await page.goto("/projects/development-kit", { waitUntil: "domcontentloaded" });
         await expect(page.getByTestId("devkit-workspace-client")).toBeVisible();
@@ -99,6 +100,24 @@ for (const locale of ["en", "ru"] as const) {
         await expect(page.getByTestId("devkit-workflow").getByRole("heading", { name: title, exact: true })).toBeVisible();
         durations.reloadAndReopenMs = Date.now() - started;
         expect((await downloadSaved(page)).project).toEqual(exported.project);
+        const restoredContext = await browser.newContext({ baseURL: base.href, viewport: { width, height: 1000 }, ignoreHTTPSErrors: base.protocol === "https:", serviceWorkers: "block" });
+        try {
+          await restoredContext.addCookies([{ name: "geoai_locale", value: locale, url: base.origin, sameSite: "Lax" }]);
+          await installGuard(restoredContext);
+          const restoredPage = await restoredContext.newPage();
+          restoredPage.on("pageerror", error => pageErrors.push(error.message));
+          started = Date.now();
+          await restoredPage.goto("/projects/development-kit", { waitUntil: "domcontentloaded" });
+          await expect(restoredPage.getByTestId("devkit-project-import")).toBeEnabled();
+          await expect(restoredPage.getByTestId("devkit-workflow")).toHaveCount(0);
+          await restoredPage.getByTestId("devkit-project-import").setInputFiles({ name: "qa-public-snapshot.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(exported)) });
+          await expect(restoredPage.getByTestId("devkit-project-select")).toHaveValue(selectedId);
+          await expect(restoredPage.getByTestId("devkit-workflow").getByRole("heading", { name: title, exact: true })).toBeVisible();
+          durations.importIntoFreshBrowserContextMs = Date.now() - started;
+          expect((await downloadSaved(restoredPage)).project).toEqual(exported.project);
+          await assertNoHorizontalOverflow(restoredPage);
+          await testInfo.attach(`e1-restored-${locale}-${width}`, { body: await restoredPage.screenshot({ fullPage: true }), contentType: "image/png" });
+        } finally { await restoredContext.close(); }
         await openExamples(page, locale); await page.getByTestId("devkit-example-critical").click();
         await page.getByTestId("devkit-stage-evidence").click();
         await expect(page.getByTestId("devkit-workflow").getByText("Critical site evidence unavailable", { exact: true })).toBeVisible();
