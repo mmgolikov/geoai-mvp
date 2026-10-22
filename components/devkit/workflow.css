@@ -32,6 +32,8 @@
   width: 100%; min-width: 0; max-width: 100%; min-height: 44px; border: 1px solid #aab9c7; border-radius: 10px;
   padding: 10px 12px; color: var(--dk-ink); background: white;
 }
+/* Contain WebKit native option paint overflow on the select; keep full options and focus native. */
+.devkit-workflow select { overflow: hidden; }
 .devkit-workflow textarea { resize: vertical; min-height: 100px; }
 .devkit-workflow a { color: var(--dk-teal); text-underline-offset: 3px; }
 .dk-header, .dk-actions, .dk-panel-head, .dk-footer, .dk-inline { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
@@ -69,7 +71,6 @@
 .dk-panel { min-width: 0; padding: 24px; background: white; border: 1px solid var(--dk-line); border-radius: 16px; box-shadow: 0 5px 20px #132c4210; }
 .dk-panel-head { align-items: flex-start; justify-content: space-between; margin-bottom: 22px; }
 .dk-panel-head p { max-width: 650px; margin-top: 8px; color: var(--dk-muted); }
-/* Bound native select intrinsic sizing through every implicit grid track. */
 .dk-stack { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; max-width: 100%; gap: 18px; }
 .dk-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); min-width: 0; max-width: 100%; gap: 18px; }
 .dk-field { min-width: 0; max-width: 100%; display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 7px; font-size: 12px; font-weight: 650; }
