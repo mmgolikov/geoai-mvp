@@ -2,6 +2,7 @@ import { DEVKIT_CAVEAT, type DevkitProject, type DesignVersion } from "./contrac
 import { conceptSiteDefaults, conceptTemplate, validatePointObjectCreateAoiVertices, type PointObjectCreateAoi } from "../prototype/point-to-object-create";
 import { parseSavedPointObjectArtifact, type SavedPointObjectProject } from "../prototype/point-object-projects-contract";
 import type { PointObjectLocale, PointObjectMarketKey } from "../prototype/point-to-object-markets";
+import { mapExistingAreaContext } from "./evidence";
 
 export type DevkitBridgeResult =
   | { ok: true; project: DevkitProject; sourceArtifactId: string; sourcePayloadHash: string }
@@ -15,6 +16,8 @@ export function bridgeSavedCreateAoi(input: {
   sourceProject: SavedPointObjectProject;
   sourceArtifactId: string;
   publicInputConfirmed: boolean;
+  /** Separately opted-in retained response; never fetches or refreshes a source. */
+  includeRetainedContext?: boolean;
   projectId: string;
   now: string;
   locale: PointObjectLocale;
@@ -54,6 +57,26 @@ export function bridgeSavedCreateAoi(input: {
     provenance: { hashKind: "saved_create_payload", sourceArtifactId: artifact.artifactId, sourceProjectId: input.sourceProject.projectId, copiedAt: input.now, scope: "user_aoi_only", sourceRefreshed: false },
     rights: { licence: null, attribution: "User-confirmed public input; no official parcel claim", permittedUse: "public_demo", redistribution: "unknown" }
   }];
+  if (input.includeRetainedContext === true && project.aoi) {
+    const mapped = mapExistingAreaContext(project, project.aoi, artifact.payload.areaContext, {
+      areaContextUsed: artifact.payload.generated.areaContextUsed
+    });
+    const transfer = project.evidence[0];
+    transfer.provenance = { ...transfer.provenance, retainedContextRequested: true,
+      contextStatus: mapped.status, generationSourceUse: mapped.sourceUse,
+      contextLimitations: mapped.limitations };
+    project.evidence.push(...mapped.evidence);
+    project.claims.push(...mapped.claims);
+    project.constraints.push(...mapped.constraints);
+    project.objects.push(...mapped.objects);
+    if (mapped.status !== "retained_context") project.constraints.push({
+      id: "retained-context-unavailable", subjectId: project.aoi.id,
+      label: input.locale === "ru" ? "Сохранённый геоконтекст недоступен для этой зоны" : "Retained context is unavailable for this area",
+      status: "unknown", severity: "critical", geometry: null, evidenceIds: [transfer.id],
+      impact: input.locale === "ru" ? "Отсутствие контекста не означает пустой участок. Решения о площадке не подтверждены." : "Missing context does not imply an empty site. Site decisions remain unsupported.",
+      nextAction: input.locale === "ru" ? "Проверьте исходные данные зоны перед предметной оценкой." : "Review the original area evidence before site-specific evaluation."
+    });
+  }
   return { ok: true, project, sourceArtifactId: artifact.artifactId, sourcePayloadHash: artifact.payloadHash };
 }
 

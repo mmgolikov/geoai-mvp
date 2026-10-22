@@ -15,7 +15,7 @@ registerHooks({
     return next(local, context);
   },
   load(url, context, next) {
-    if (url.startsWith("file:") && /\.tsx?$/.test(url)) return { format: "module", shortCircuit: true, source: ts.transpileModule(readFileSync(fileURLToPath(url), "utf8"), { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText };
+    if (url.startsWith("file:") && /\.tsx?$/.test(url)) return { format: "module", shortCircuit: true, source: ts.transpileModule(readFileSync(fileURLToPath(url), "utf8"), { fileName: fileURLToPath(url), compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText };
     return next(url, context);
   }
 });
@@ -23,6 +23,9 @@ const { createDevkitDemoProject } = await import("../src/lib/devkit/fixtures.ts"
 const { bridgeSavedCreateAoi } = await import("../src/lib/devkit/project-bridge.ts");
 const create = await import("../src/lib/prototype/point-to-object-create.ts");
 const { parseSavedPointObjectArtifact } = await import("../src/lib/prototype/point-object-projects-contract.ts");
+const { normalizePointObjectAreaContext } = await import("../src/lib/prototype/point-to-object-area-context-contract.ts");
+const { parseDevkitProject, createDevkitProjectStore } = await import("../src/lib/devkit/project-store.ts");
+const { restoreEvidenceCaseFromProject } = await import("../src/lib/devkit/evidence.ts");
 const seed = createDevkitDemoProject();
 const now = "2026-10-22T14:40:00.000Z";
 const { revision, crs, provenance, ...aoi } = seed.aoi;
@@ -67,6 +70,40 @@ try {
   const damaged = structuredClone(sourceProject);
   damaged.artifacts[0].payload.aoi.coordinates[0][1] = [NaN, 2];
   assert.equal(bridgeSavedCreateAoi({ ...input, sourceProject: damaged }).ok, false); assertions++;
+  const withContext = structuredClone(sourceProject);
+  const held = normalizePointObjectAreaContext({ elements: [] }, { marketKey: "dubai", locale: "en", aoiCoordinates: structuredClone(aoi.coordinates) });
+  held.source.acquiredAt = "2026-10-20T10:00:00Z"; held.source.observedAt = null;
+  const receipt = { sourceResponseHash: held.source.sourceResponseHash, sampleSize: held.summary.sampleSize,
+    mappedBuildingCount: held.summary.mappedBuildingCount, capReached: held.coverage.capReached,
+    inclusionMethod: "returned_center_inside_aoi", completeInventory: false };
+  withContext.artifacts[0].payload.areaContext = held;
+  withContext.artifacts[0].payload.generated.areaContextUsed = receipt;
+  const noOptIn = bridgeSavedCreateAoi({ ...input, sourceProject: withContext });
+  assert.equal(noOptIn.project.evidence.length, 1, "retained source is not copied implicitly"); assertions++;
+  for (const [receiptValue, expected] of [[receipt, "matched_receipt"], [undefined, "unknown"], [null, "not_used"], [{ ...receipt, sourceResponseHash: "b".repeat(64) }, "mismatch"]]) {
+    const source = structuredClone(withContext);
+    if (receiptValue === undefined) delete source.artifacts[0].payload.generated.areaContextUsed;
+    else source.artifacts[0].payload.generated.areaContextUsed = receiptValue;
+    const result = bridgeSavedCreateAoi({ ...input, sourceProject: source, includeRetainedContext: true });
+    assert.ok(result.ok && parseDevkitProject(result.project)); assertions++;
+    assert.equal(result.project.evidence[0].provenance.generationSourceUse, expected); assertions++;
+    assert.equal(result.project.evidence[1].acquiredAt, held.source.acquiredAt); assertions++;
+    assert.equal(result.project.objects.length, 0, "mapped centres are not parcel/building substitutes"); assertions++;
+    const memory = new Map(), store = createDevkitProjectStore({ getItem: k => memory.get(k) ?? null, setItem: (k, v) => memory.set(k, v) }, `bridge-${expected}`);
+    const saved = store.save(result.project, null);
+    assert.ok(saved.ok); assertions++;
+    const reopened = store.get(result.project.id);
+    const caseId = result.project.evidence[1].provenance.caseId;
+    const restored = reopened.ok && reopened.value ? restoreEvidenceCaseFromProject(reopened.value, caseId) : null;
+    assert.equal(restored?.retainedSource.generationSourceUse, expected); assertions++;
+    assert.equal(restored?.lineage[0].observedAt, null); assertions++;
+  }
+  const unavailable = bridgeSavedCreateAoi({ ...input, includeRetainedContext: true });
+  assert.equal(unavailable.project.evidence[0].provenance.contextStatus, "source_missing"); assertions++;
+  assert.ok(unavailable.project.constraints.some(c => c.id === "retained-context-unavailable" && c.status === "unknown")); assertions++;
+  const wrongAoi = structuredClone(withContext);
+  wrongAoi.artifacts[0].payload.areaContext.request.aoiCoordinates[0][0][0] += 0.01;
+  assert.equal(bridgeSavedCreateAoi({ ...input, sourceProject: wrongAoi, includeRetainedContext: true }).ok, false, "producer parser refuses foreign AOI before transfer"); assertions++;
   assert.equal(JSON.stringify(sourceProject), original); assertions++;
   assert.equal(networkCalls, 0); assertions++;
 } finally { globalThis.fetch = savedFetch; }
