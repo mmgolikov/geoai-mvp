@@ -46,7 +46,7 @@ globalThis.__fabricBuild=async lookup=>{
     // Match the real producer's explicit nullable context lineage. Omitting
     // these fields produces undefined normalized metadata, which the strict
     // subject parser correctly rejects before reading its failure enum.
-    source:{sourceResponseHash:'a'.repeat(64),acquiredAt:new Date(now).toISOString(),fabricStatus:sourceStatus,
+    source:{sourceResponseHash:'a'.repeat(64),observedAt:null,acquiredAt:new Date(now).toISOString(),fabricStatus:sourceStatus,
       fabricResponseHash:coverage==='available'?'b'.repeat(64):null,fabricObservedAt:null,fabricAcquiredAt:coverage==='available'?new Date(now).toISOString():null,
       ...(diagnostic===undefined?{}:{fabricDiagnostic:diagnostic}),endpoint:'not-public-adapter-metadata'},
     nearbyContext:[],geoContext:{radiusM:400,coverage,sampleSize:0,capReached:false,groups:[],mappedBuildingCount:0,mappedLevelsKnownCount:0,medianMappedLevels:null,nearestTransitM:null,nearestMajorRoadM:null,districtCharacter:{code:'low_signal',confidence:'low',ruleVersion:'POINT_OBJECT_DISTRICT_RULE_V1',driverGroups:[]}},evidence:[],conflicts:[],missingInformation:[],limitations:[],caveat:'Synthetic fixture'};
@@ -66,6 +66,9 @@ try{
   assert.ok(parseLiveResolvedObject(first.subject),'Whole subject must parse before qualifying its diagnostic');checks++;
   const omittedLineage=structuredClone(first.subject);delete omittedLineage.normalizedContext.source.observedAt;
   eq(parseLiveResolvedObject(omittedLineage),null,'Missing required nullable lineage still fails closed; no parser weakening');
+  const omittedObjectLineage=structuredClone(first.subject);
+  delete omittedObjectLineage.normalizedContext.details.sources.find(source=>source.id==='osm_object').observedAt;
+  eq(parseLiveResolvedObject(omittedObjectLineage),null,'Object observation date is distinct from fabric observation date and cannot be omitted');
   const {parsePointObjectFabricDiagnostic:parse,projectPointObjectFabricDiagnostic:project}=await import('../src/lib/prototype/point-to-object-fabric-diagnostic.ts');
   const codes=['timeout','rate_limited','invalid_response','response_too_large','unavailable'];
   for(const code of [...codes,null]){

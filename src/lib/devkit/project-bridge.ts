@@ -47,10 +47,11 @@ export function bridgeSavedCreateAoi(input: {
   project.evidence = [{
     id: "input-drawn-aoi", subjectId: aoi.id,
     label: input.locale === "ru" ? "Контур из сохранённого проекта" : "Area from a saved project",
-    sourceId: `local-create:${artifact.artifactId}`, sourceUrl: null,
+    sourceId: `local-create:${artifact.payloadHash}`, sourceUrl: null,
     excerpt: input.locale === "ru" ? "Скопирован только пользовательский контур. Исходный результат и источники не изменены." : "Only the user-drawn area was copied. The original result and sources are unchanged.",
     acquiredAt: null, validAt: null, responseHash: artifact.payloadHash,
     trust: "user_provided", status: "available",
+    provenance: { hashKind: "saved_create_payload", sourceArtifactId: artifact.artifactId, sourceProjectId: input.sourceProject.projectId, copiedAt: input.now, scope: "user_aoi_only", sourceRefreshed: false },
     rights: { licence: null, attribution: "User-confirmed public input; no official parcel claim", permittedUse: "public_demo", redistribution: "unknown" }
   }];
   return { ok: true, project, sourceArtifactId: artifact.artifactId, sourcePayloadHash: artifact.payloadHash };
