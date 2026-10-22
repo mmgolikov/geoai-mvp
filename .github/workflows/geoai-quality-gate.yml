@@ -78,6 +78,12 @@ jobs:
           set -euo pipefail
           npm run lint | tee artifacts/typescript-check.txt
 
+      - name: E1 Development Kit contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:devkit | tee artifacts/devkit-contracts.txt
+
       - name: Access-decision checks
         shell: bash
         run: |
@@ -599,6 +605,7 @@ jobs:
           npx playwright test tests/e2e/point-object-cloud-sync.spec.ts --grep='demo/anonymous' --workers=1 --retries=0 --fail-on-flaky-tests | tee artifacts/cloud-demo-isolation-e2e.txt
           # Native SELECT popup observation requires a real display, not focus-only headless inference.
           PLAYWRIGHT_JUNIT_OUTPUT_FILE=artifacts/review02-final-ui-chromium-junit.xml xvfb-run --auto-servernum npx playwright test tests/e2e/review02-final-ui.spec.ts --headed --workers=1 --retries=0 --max-failures=1 --fail-on-flaky-tests --output=artifacts/review02-final-ui-chromium | tee artifacts/review02-final-ui-chromium.txt
+          PLAYWRIGHT_JUNIT_OUTPUT_FILE=artifacts/devkit-chromium-junit.xml npm run test:e2e:devkit -- --workers=1 --retries=0 --fail-on-flaky-tests --output=artifacts/devkit-chromium | tee artifacts/devkit-chromium.txt
 
       - name: Browser explicit cloud persistence isolation (mocked provider)
         shell: bash
@@ -804,6 +811,7 @@ jobs:
             --output=artifacts/playwright-point-to-object-webkit | tee artifacts/point-to-object-webkit-product.txt
           npm run test:e2e:complete25 -- --config playwright.product-https.config.ts --workers=1 --retries=0 --fail-on-flaky-tests --output=artifacts/complete25-webkit | tee artifacts/complete25-webkit.txt
           PLAYWRIGHT_JUNIT_OUTPUT_FILE=artifacts/review02-final-ui-webkit-junit.xml npx playwright test tests/e2e/review02-final-ui.spec.ts --config=playwright.product-https.config.ts --workers=1 --retries=0 --max-failures=1 --fail-on-flaky-tests --output=artifacts/review02-final-ui-webkit | tee artifacts/review02-final-ui-webkit.txt
+          PLAYWRIGHT_JUNIT_OUTPUT_FILE=artifacts/devkit-webkit-junit.xml npm run test:e2e:devkit -- --config=playwright.product-https.config.ts --workers=1 --retries=0 --fail-on-flaky-tests --output=artifacts/devkit-webkit | tee artifacts/devkit-webkit.txt
 
       - name: Preserve application log
         if: always()

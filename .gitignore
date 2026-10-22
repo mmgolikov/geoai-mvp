@@ -2,7 +2,7 @@ node_modules
 .npm-cache
 .next
 out
-artifacts/
+artifacts
 playwright-report/
 test-results/
 .env

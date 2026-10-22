@@ -335,6 +335,7 @@ export function PointObjectProjectsPageClient() {
           {cloudMessage ? <p className="mt-2 text-xs text-muted" role="status">{cloudMessage}</p> : null}
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Link href="/projects/development-kit" className={`${CONTROL} inline-flex items-center text-sm font-bold`}>Development Kit</Link>
           <div className="inline-flex rounded-xl border border-line bg-white p-1" aria-label={locale === "ru" ? "Язык" : "Language"} role="group">
             {(["en", "ru"] as const).map((item) => <button key={item} type="button" onClick={() => setLocale(item)} aria-pressed={locale === item} className={`h-11 min-w-11 rounded-lg px-2 text-xs font-bold uppercase focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] ${locale === item ? "bg-[#087f8c] text-white" : "text-[#667085]"}`}>{item}</button>)}
           </div>

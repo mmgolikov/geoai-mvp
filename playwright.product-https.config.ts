@@ -2,6 +2,7 @@ import { defineConfig } from "@playwright/test";
 import base from "./playwright.config";
 
 const productSpecs = [
+  "devkit-workspace.spec.ts",
   "point-to-object-v5-offline-flow.spec.ts",
   "point-to-object-create-reliability.spec.ts",
   "point-to-object-geocontext-v6.spec.ts",
