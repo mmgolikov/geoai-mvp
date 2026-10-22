@@ -1,15 +1,18 @@
 import assert from "node:assert/strict";
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import { registerHooks, createRequire } from "node:module";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import path from "node:path";
 const root = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const require = createRequire(import.meta.url), ts = require("typescript");
+const capacityCheckout = process.argv.find(a => a.startsWith("--capacity-checkout="))?.slice(20);
 registerHooks({
   resolve(specifier, context, next) {
     if (specifier === "server-only") return { url: "data:text/javascript,export%20{}", shortCircuit: true };
-    const local = specifier.startsWith("@/") ? pathToFileURL(path.join(root, specifier.slice(2))).href : specifier;
+    const aliasRoot = capacityCheckout && context.parentURL?.startsWith(pathToFileURL(path.resolve(capacityCheckout) + path.sep).href) ? path.resolve(capacityCheckout) : root;
+    const local = specifier.startsWith("@/") ? pathToFileURL(path.join(aliasRoot, specifier.slice(2))).href : specifier;
     if (!context.parentURL?.includes("/node_modules/") && (local.startsWith("file:") || local.startsWith("./") || local.startsWith("../")) && !/\.[cm]?[jt]sx?$/.test(local)) {
       try { return next(`${local}.ts`, context); } catch { return next(`${local}.tsx`, context); }
     }
@@ -55,7 +58,94 @@ function positiveCase() {
   };
 }
 const outputs = {};
+async function checkRegionalStoreCapacity(checkout) {
+  const target = path.resolve(checkout), file = relative => path.join(target, relative);
+  const watched = ["src/lib/devkit/contracts.ts", "src/lib/devkit/project-store.ts", "src/lib/devkit/fixtures.ts", "src/lib/devkit/region-rules.ts", "src/lib/devkit/region-data.ts", "components/devkit/evidence-stage.tsx"];
+  const sourceHashes = watched.map(relative => ({ path: relative, sha256: hash(readFileSync(file(relative))) }));
+  const headBefore = execFileSync("git", ["rev-parse", "HEAD"], { cwd: target, encoding: "utf8" }).trim();
+  const targetStore = await import(pathToFileURL(file("src/lib/devkit/project-store.ts")).href);
+  const targetFixtures = await import(pathToFileURL(file("src/lib/devkit/fixtures.ts")).href);
+  const targetRules = await import(pathToFileURL(file("src/lib/devkit/region-rules.ts")).href);
+  const targetData = await import(pathToFileURL(file("src/lib/devkit/region-data.ts")).href);
+  const { validatePointObjectCreateAoiVertices } = await import(pathToFileURL(file("src/lib/prototype/point-to-object-create.ts")).href);
+  const bytes = value => Buffer.byteLength(typeof value === "string" ? value : JSON.stringify(value));
+  let capacityChecks = 0;
+  const must = (value, message) => { assert.ok(value, message); capacityChecks++; };
+  const memory = new Map(), storage = { getItem: key => memory.get(key) ?? null, setItem: (key, value) => memory.set(key, value) };
+  const scopeId = "regional-full-payload-check", store = targetStore.createDevkitProjectStore(storage, scopeId), cases = [];
+  const mainRaw = () => [...memory.entries()].find(([key]) => !key.endsWith(":previous"))?.[1] ?? "";
+  const sourceCases = [
+    { id: "dubai-all20", market: "dubai", expected: 20 },
+    { id: "moscow-all10", market: "moscow", expected: 10 }
+  ];
+  const publicCaseFile = process.argv.find(a => a.startsWith("--public-case="))?.slice(14);
+  if (publicCaseFile) sourceCases.push({ id: "dubai-public-u4-all20", market: "dubai", expected: 20, publicCaseFile });
+  for (const spec of sourceCases) {
+    let base = spec.publicCaseFile ? JSON.parse(readFileSync(spec.publicCaseFile, "utf8")) : targetFixtures.createDevkitDemoProject(`regional-capacity-${spec.id}`);
+    base.id = `regional-capacity-${spec.id}`;
+    if (spec.market === "moscow") {
+      const ring = [[37.60,55.74],[37.602,55.74],[37.602,55.742],[37.60,55.742]];
+      const measured = validatePointObjectCreateAoiVertices(ring); must(measured.ok, "Synthetic Moscow source-capacity AOI is valid; no real parcel is asserted");
+      base.aoi = { ...base.aoi, coordinates: [[...ring, ring[0]]], areaSqM: measured.measurements.areaSqM, perimeterM: measured.measurements.perimeterM, vertexCount: 4, provenance: "synthetic" };
+      base.brief.marketKey = "moscow"; base.brief.budget.currency = "RUB";
+      base.brief.title = "Synthetic Moscow regional metadata capacity check";
+    }
+    must(targetStore.parseDevkitProject(base), `${spec.id}: actual baseline project passes target parser without stripping its existing design seed/history`);
+    const firstSave = store.save(base, null); must(firstSave.ok, `${spec.id}: baseline actual store save`);
+    const originalFacts = JSON.stringify([firstSave.value.aoi, firstSave.value.objects, firstSave.value.claims, firstSave.value.constraints]);
+    const pack = targetData.getDevkitRegionalPack(spec.market); must(pack && pack.rules.length === spec.expected, `${spec.id}: complete selected researcher package`);
+    const records = targetRules.regionalRecordsForProject(pack, { id: base.aoi.id, kind: "aoi" });
+    must(records.evidence.length === spec.expected && records.procedures.length === spec.expected, `${spec.id}: no source/procedure truncation`);
+    const attach = project => {
+      // Same composition as the inspected EvidenceStage handler; this does not render or click UI.
+      const mergedEvidence = [...project.evidence.filter(item => !records.evidence.some(next => next.id === item.id)), ...clone(records.evidence)];
+      const next = targetStore.reviseDevkitInputs(project, { evidence: mergedEvidence });
+      next.procedures = [...project.procedures.filter(item => !records.procedures.some(p => p.id === item.id)), ...clone(records.procedures)];
+      return next;
+    };
+    const attached = attach(firstSave.value);
+    must(attached.inputRevision === firstSave.value.inputRevision + 1 && JSON.stringify([attached.aoi, attached.objects, attached.claims, attached.constraints]) === originalFacts, `${spec.id}: references do not invent parcel/property claims or constraints`);
+    must(attached.designVersions.length === firstSave.value.designVersions.length && JSON.stringify(attached.designVersions) === JSON.stringify(firstSave.value.designVersions), `${spec.id}: existing designs/history preserved`);
+    must(targetStore.parseDevkitProject(attached), `${spec.id}: complete attached project parses`);
+    must(bytes(attached) < targetStore.DEVKIT_MAX_PROJECT_BYTES, `${spec.id}: complete project fits768KiB`);
+    const saved = store.save(attached, firstSave.value.revision); must(saved.ok, `${spec.id}: complete attached project saves without silent truncation`);
+    const reopened = targetStore.createDevkitProjectStore(storage, scopeId).get(saved.value.id);
+    must(reopened.ok && JSON.stringify(reopened.value) === JSON.stringify(saved.value), `${spec.id}: actual store reopened byte-equivalent project values`);
+    must(saved.value.evidence.filter(ev => ev.provenance?.moduleVersion === "DEVKIT_REGIONAL_RULES_V1").length === spec.expected && saved.value.procedures.length === spec.expected, `${spec.id}: all source/procedure records survive save`);
+    const savedMetadataHash = hash(JSON.stringify(saved.value.evidence.filter(ev => ev.provenance?.moduleVersion === "DEVKIT_REGIONAL_RULES_V1")));
+    const second = attach(saved.value), secondSave = store.save(second, saved.value.revision);
+    must(secondSave.ok && new Set(secondSave.value.evidence.map(ev => ev.id)).size === secondSave.value.evidence.length && new Set(secondSave.value.procedures.map(p => p.id)).size === secondSave.value.procedures.length, `${spec.id}: repeated composition does not duplicate records`);
+    must(hash(JSON.stringify(secondSave.value.evidence.filter(ev => ev.provenance?.moduleVersion === "DEVKIT_REGIONAL_RULES_V1"))) === savedMetadataHash, `${spec.id}: reattach does not rewrite date/version/right/unknown/source metadata`);
+    const exported = store.exportProject(base.id); must(exported.ok, `${spec.id}: complete export`);
+    const importedMemory = new Map(), importer = targetStore.createDevkitProjectStore({ getItem: key => importedMemory.get(key) ?? null, setItem: (key, value) => importedMemory.set(key, value) }, `import-${spec.id}`);
+    const imported = importer.importProject(exported.value);
+    must(imported.ok && JSON.stringify(imported.value) === JSON.stringify(secondSave.value), `${spec.id}: complete export/import equality`);
+    const projectBytes = bytes(secondSave.value), storeBytes = bytes(mainRaw());
+    must(projectBytes <= targetStore.DEVKIT_MAX_PROJECT_BYTES && storeBytes <= targetStore.DEVKIT_MAX_STORE_BYTES, `${spec.id}: actual saved sizes stay within both enforced limits`);
+    cases.push({ caseId: spec.id, market: spec.market, regionalEvidence: spec.expected, procedures: spec.expected, totalEvidence: secondSave.value.evidence.length, spatialObjects: secondSave.value.objects.length, existingDesignVersions: secondSave.value.designVersions.length,
+      projectBytes, projectHeadroomBytes: targetStore.DEVKIT_MAX_PROJECT_BYTES - projectBytes, storeBytesAfterThisCase: storeBytes,
+      totalPhysicalMainPlusBackupBytes: [...memory.values()].reduce((sum, value) => sum + bytes(value), 0), exportBytes: bytes(exported.value), savedMetadataSha256: savedMetadataHash,
+      siteFactsUnchanged: true, duplicateIds: false, inputPackageVersion: pack.packageVersion, inputSha256: pack.sourcePackage.compilationProvenance.sourceSha256 });
+  }
+  const all = targetStore.createDevkitProjectStore(storage, scopeId).list();
+  must(all.ok && all.value.length === sourceCases.length, "All complete regional projects coexist in one actual store envelope");
+  must(bytes(mainRaw()) <= targetStore.DEVKIT_MAX_STORE_BYTES, "Combined actual store stays below2MiB");
+  must(sourceHashes.every(item => hash(readFileSync(file(item.path))) === item.sha256), "All inspected/imported target files stayed byte-stable throughout capacity check");
+  return { status: "PASS", checks: capacityChecks, targetCheckout: target, targetHeadAtStart: headBefore,
+    targetHeadAtEnd: execFileSync("git", ["rev-parse", "HEAD"], { cwd: target, encoding: "utf8" }).trim(), sourceHashes,
+    projectLimitBytes: targetStore.DEVKIT_MAX_PROJECT_BYTES, storeLimitBytes: targetStore.DEVKIT_MAX_STORE_BYTES,
+    combinedStoreBytes: bytes(mainRaw()), combinedStoreHeadroomBytes: targetStore.DEVKIT_MAX_STORE_BYTES - bytes(mainRaw()), cases,
+    scope: "Actual compiled regional data -> reference records -> inspected UI-equivalent attach composition -> actual revise/store/save/reopen/export/import; in-memory Storage adapter",
+    noNetwork: true, noTruncation: true, noInferredSiteProperty: true,
+    notQualified: ["rendered browser/button handler", "browser quota", "hosted persistence", "full populated finance/kit payload", "official applicability/legal/source authenticity", "whole-root acceptance"] };
+}
 try {
+  if (capacityCheckout) {
+    const capacity = await checkRegionalStoreCapacity(capacityCheckout);
+    const capacityOutput = process.argv.find(a => a.startsWith("--capacity-output="))?.slice(18);
+    if (capacityOutput) writeFileSync(capacityOutput, `${JSON.stringify(capacity, null, 2)}\n`);
+    console.log(JSON.stringify({ regionalStoreCapacity: capacity }));
+  }
   const positive = positiveCase(), before = JSON.stringify(positive), good = e.evaluateEvidenceCase(positive, options);
   check(good.valid && good.claims[0].usable && good.claims[0].value === 0 && good.decision === "screening_only", "Explicit zero source-record count can be used only in its exact synthetic scope");
   check(JSON.stringify(positive) === before && good.evidence[0].unknownObservation, "Evaluation is pure and observation null survives");
