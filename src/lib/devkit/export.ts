@@ -1,6 +1,6 @@
 import type { DevkitProject, DerivedArtifact, DesignVersion, JsonObject, JsonValue, KitArtifact, VersionRef } from "./contracts";
 import { DEVKIT_RENDER_VERSION, escapeExportText as esc, renderCanonicalScene, type ExportCanonicalScene, type ExportPolygon } from "./render-scene";
-import { applyDesignVersions, validateDesignScene, type DesignScene } from "./design";
+import { applyDesignVersions, validateDesignProjectLineage, validateDesignScene, type DesignScene } from "./design";
 import { parseDevkitProject } from "./project-store";
 import { AREA_METHOD_VERSION, parseAreaScheduleResult } from "./areas";
 import { FINANCE_METHOD_VERSION, parseMonthlyFinanceResult } from "./finance";
@@ -138,32 +138,37 @@ function inspectSnapshot(project: DevkitProject): DevkitExportIssue[] {
         if (!parent) add("VERSION_REFERENCE_MISMATCH", item.kind, key, `Missing ${refKey(ref)}.`);
         else visit(parent);
       }
-      const input = item.data.input;
-      if (input && typeof input === "object" && !Array.isArray(input)) {
-        if (input.projectId !== undefined && input.projectId !== project.id || input.inputRevision !== undefined && input.inputRevision !== project.inputRevision) add("CALCULATION_SCOPE_MISMATCH", item.kind, key, "Saved calculation project/input revision differs from this snapshot.");
-        if (item.kind === "areas") {
-          const parentRef = item.inputs.find(ref => ref.kind === "design");
-          const design = parentRef ? index.get(refKey(parentRef)) as DesignScene | undefined : undefined;
-          if (input.design && canonicalDevkitJson(input.design) !== canonicalDevkitJson(parentRef ?? null)) add("AREA_DESIGN_REFERENCE_MISMATCH", "areas", key, "Area data and envelope reference different design versions.");
-          if (input.geometryVersion !== undefined && design?.scene && input.geometryVersion !== design.scene.geometryRevision) add("AREA_GEOMETRY_VERSION_MISMATCH", "areas", key, "Saved areas belong to another canonical geometry revision.");
+      const expectedMethod = item.kind === "areas" ? AREA_METHOD_VERSION : item.kind === "finance" ? FINANCE_METHOD_VERSION : null;
+      if (expectedMethod && item.methodVersion !== expectedMethod) {
+        add(item.kind === "areas" ? "AREA_METHOD_UNSUPPORTED" : "FINANCE_METHOD_UNSUPPORTED", item.kind, key, "Unsupported calculation method; quantities and assumptions are withheld from the memo. Original snapshot retained for diagnosis.");
+      } else {
+        const input = item.data.input;
+        if (input && typeof input === "object" && !Array.isArray(input)) {
+          if (input.projectId !== undefined && input.projectId !== project.id || input.inputRevision !== undefined && input.inputRevision !== project.inputRevision) add("CALCULATION_SCOPE_MISMATCH", item.kind, key, "Saved calculation project/input revision differs from this snapshot.");
+          if (item.kind === "areas") {
+            const parentRef = item.inputs.find(ref => ref.kind === "design");
+            const design = parentRef ? index.get(refKey(parentRef)) as DesignScene | undefined : undefined;
+            if (input.design && canonicalDevkitJson(input.design) !== canonicalDevkitJson(parentRef ?? null)) add("AREA_DESIGN_REFERENCE_MISMATCH", "areas", key, "Area data and envelope reference different design versions.");
+            if (input.geometryVersion !== undefined && design?.scene && input.geometryVersion !== design.scene.geometryRevision) add("AREA_GEOMETRY_VERSION_MISMATCH", "areas", key, "Saved areas belong to another canonical geometry revision.");
+          }
+          if (item.kind === "finance") {
+            const parentRef = item.inputs.find(ref => ref.kind === "areas");
+            const area = parentRef ? index.get(refKey(parentRef)) as DerivedArtifact | undefined : undefined;
+            if (input.areaRef && canonicalDevkitJson(input.areaRef) !== canonicalDevkitJson(parentRef ?? null)) add("FINANCE_AREA_REFERENCE_MISMATCH", "finance", key, "Finance data and envelope reference different area versions.");
+            if (input.areaCalculationVersion !== undefined && area && input.areaCalculationVersion !== area.data.version) add("FINANCE_CALCULATION_VERSION_MISMATCH", "finance", key, "Finance uses another area calculation version.");
+            const areaInput = area?.data.input;
+            if (item.data.geometryVersion !== undefined && areaInput && typeof areaInput === "object" && !Array.isArray(areaInput) && item.data.geometryVersion !== areaInput.geometryVersion) add("FINANCE_GEOMETRY_VERSION_MISMATCH", "finance", key, "Finance and area geometry versions disagree.");
+          }
         }
-        if (item.kind === "finance") {
-          const parentRef = item.inputs.find(ref => ref.kind === "areas");
-          const area = parentRef ? index.get(refKey(parentRef)) as DerivedArtifact | undefined : undefined;
-          if (input.areaRef && canonicalDevkitJson(input.areaRef) !== canonicalDevkitJson(parentRef ?? null)) add("FINANCE_AREA_REFERENCE_MISMATCH", "finance", key, "Finance data and envelope reference different area versions.");
-          if (input.areaCalculationVersion !== undefined && area && input.areaCalculationVersion !== area.data.version) add("FINANCE_CALCULATION_VERSION_MISMATCH", "finance", key, "Finance uses another area calculation version.");
-          const areaInput = area?.data.input;
-          if (item.data.geometryVersion !== undefined && areaInput && typeof areaInput === "object" && !Array.isArray(areaInput) && item.data.geometryVersion !== areaInput.geometryVersion) add("FINANCE_GEOMETRY_VERSION_MISMATCH", "finance", key, "Finance and area geometry versions disagree.");
+        if (["blocked", "stale", "partial"].includes(String(item.data.status))) add("CALCULATION_NOT_COMPLETE", item.kind, key, String(item.data.status));
+        if (Array.isArray(item.data.errors) && item.data.errors.length) add("CALCULATION_ERRORS", item.kind, key, item.data.errors.map(String).join("; "));
+        if (item.kind === "areas" && item.methodVersion === AREA_METHOD_VERSION && !parseAreaScheduleResult(item.data)) add("AREA_PAYLOAD_REJECTED", "areas", key, "The saved area payload did not pass its module validator; quantities are withheld from the memo.");
+        if (item.kind === "finance" && item.methodVersion === FINANCE_METHOD_VERSION) {
+          const areaRef = item.inputs.find(ref => ref.kind === "areas");
+          const parent = areaRef ? index.get(refKey(areaRef)) as DerivedArtifact | undefined : undefined;
+          const area = parent?.methodVersion === AREA_METHOD_VERSION ? parseAreaScheduleResult(parent.data) : null;
+          if (!area || !parseMonthlyFinanceResult(item.data, area)) add("FINANCE_PAYLOAD_REJECTED", "finance", key, "The saved finance payload did not pass its module validator; quantities are withheld from the memo.");
         }
-      }
-      if (["blocked", "stale", "partial"].includes(String(item.data.status))) add("CALCULATION_NOT_COMPLETE", item.kind, key, String(item.data.status));
-      if (Array.isArray(item.data.errors) && item.data.errors.length) add("CALCULATION_ERRORS", item.kind, key, item.data.errors.map(String).join("; "));
-      if (item.kind === "areas" && item.methodVersion === AREA_METHOD_VERSION && !parseAreaScheduleResult(item.data)) add("AREA_PAYLOAD_REJECTED", "areas", key, "The saved area payload did not pass its module validator; quantities are withheld from the memo.");
-      if (item.kind === "finance" && item.methodVersion === FINANCE_METHOD_VERSION) {
-        const areaRef = item.inputs.find(ref => ref.kind === "areas");
-        const parent = areaRef ? index.get(refKey(areaRef)) as DerivedArtifact | undefined : undefined;
-        const area = parent ? parseAreaScheduleResult(parent.data) : null;
-        if (!area || !parseMonthlyFinanceResult(item.data, area)) add("FINANCE_PAYLOAD_REJECTED", "finance", key, "The saved finance payload did not pass its module validator; quantities are withheld from the memo.");
       }
     } else if (!project.aoi || item.aoiId !== project.aoi.id || item.aoiRevision !== project.aoi.revision) add("AOI_VERSION_MISMATCH", "design", key, "AOI identity/revision differs from saved design.");
     visiting.delete(key); visited.add(key);
@@ -217,8 +222,9 @@ function renderMemo(project: DevkitProject, manifest: DevkitKitManifest, images:
   const title = heading("Development kit · draft memo and album", "Комплект проекта · черновая записка и альбом");
   const section = (name: string, content: string) => `<section><h2>${esc(name)}</h2>${content}</section>`;
   const renderArtifact = (kind: "areas" | "finance") => project.derivedArtifacts.filter(item => item.kind === kind).map(item => {
-    const rejected = manifest.issues.some(issue => issue.reference === refKey(refOf(item)) && issue.code.endsWith("PAYLOAD_REJECTED"));
-    const contents = rejected ? `<p class="warning">${heading("Saved payload rejected by its module validator; quantities withheld. Original data remain in project.json for diagnosis.", "Сохранённые данные отклонены валидатором модуля; цифры не показаны. Оригинал сохранён в project.json для диагностики.")}</p>` : dataView(item.data);
+    const rejected = manifest.issues.some(issue => issue.reference === refKey(refOf(item)) && (issue.code.endsWith("PAYLOAD_REJECTED") || issue.code.endsWith("METHOD_UNSUPPORTED")));
+    if (rejected) return `<article><h3>${esc(refKey(refOf(item)))}</h3><p>${esc(item.methodVersion)}</p><p class="warning">${heading("Unsupported or rejected calculation; quantities and assumptions withheld. Original data remain in project.json for diagnosis.", "Метод не поддерживается или данные отклонены; цифры и допущения не показаны. Оригинал сохранён в project.json для диагностики.")}</p></article>`;
+    const contents = dataView(item.data);
     return `<article><h3>${esc(refKey(refOf(item)))}</h3><p>${esc(item.status)} · ${esc(item.methodVersion)} · ${esc(item.inputs.map(refKey).join("; "))}</p>${contents}<p>${esc(item.assumptions.join("; "))}</p>${item.missingInputs.length ? `<p class="warning">${esc(item.missingInputs.join("; "))}</p>` : ""}</article>`;
   }).join("") || `<p>${heading("No saved result. Unknown values are not zero.", "Сохранённого результата нет. Неизвестные значения не равны нулю.")}</p>`;
   const sources = table(["Evidence / объект", "Source / источник", "Status / статус", "Dates / даты", "Hash", "Rights / права", "Fragment / фрагмент", "Provenance / происхождение"], project.evidence.map(evidence => [evidence.id + " · " + evidence.subjectId, [evidence.sourceId, evidence.sourceUrl].filter(Boolean).join(" · "), evidence.status + " · " + evidence.trust, `acquired: ${evidence.acquiredAt ?? "unknown"}; valid: ${evidence.validAt ?? "unknown"}`, evidence.responseHash, evidence.rights, evidence.excerpt, evidence.provenance ?? null]));
@@ -232,6 +238,8 @@ export async function buildDevelopmentKit(savedSnapshot: DevkitProject, options:
   if (!validated) throw new Error("DEVKIT_EXPORT_INVALID_SAVED_SNAPSHOT");
   const project = structuredClone(validated);
   assertSnapshot(project);
+  const lineageErrors = validateDesignProjectLineage(project);
+  if (lineageErrors.length) throw new Error(`DEVKIT_EXPORT_INVALID_DESIGN_LINEAGE: ${lineageErrors.join("; ")}`);
   const generatedAt = options.generatedAt ?? new Date().toISOString();
   if (!Number.isFinite(Date.parse(generatedAt))) throw new Error("DEVKIT_EXPORT_INVALID_TIME");
   const locale = options.locale ?? project.brief.locale;
@@ -247,7 +255,7 @@ export async function buildDevelopmentKit(savedSnapshot: DevkitProject, options:
     format: DEVKIT_EXPORT_VERSION, schemaVersion: 1, templateVersion: DEVKIT_TEMPLATE_VERSION, rendererVersion: DEVKIT_RENDER_VERSION,
     generatedAt, projectId: project.id, projectRevision: project.revision, inputRevision: project.inputRevision,
     snapshotHash: await devkitSha256(canonicalDevkitJson(project)), status: issues.length ? "partial_draft" : "coherent_draft",
-    kitMaturity: issues.length ? "K0_incomplete" : "K1_candidate", financeMaturity: project.derivedArtifacts.some(item => item.kind === "finance") ? "conditional_unreviewed" : "unavailable",
+    kitMaturity: issues.length ? "K0_incomplete" : "K1_candidate", financeMaturity: scoped.derivedArtifacts.some(item => item.kind === "finance" && !issues.some(issue => issue.reference === refKey(refOf(item)) && (issue.code.endsWith("PAYLOAD_REJECTED") || issue.code.endsWith("METHOD_UNSUPPORTED")))) ? "conditional_unreviewed" : "unavailable",
     review: "not_performed", submission: "not_submitted", storageMode: project.storageMode, dataClass: project.dataClass,
     versions: { designs: scoped.designVersions.map(refOf), artifacts: scoped.derivedArtifacts.map(item => ({ ref: refOf(item), inputs: item.inputs, methodVersion: item.methodVersion, status: item.status })), procedures: project.procedures.map(item => ({ id: item.id, version: item.version, status: item.status })) },
     historicalRefs, selection: "last_appended_saved_design_per_scenario_exact_derivations",

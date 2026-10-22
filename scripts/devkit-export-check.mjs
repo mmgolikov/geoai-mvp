@@ -40,6 +40,18 @@ const { buildDevelopmentKit, buildSourceMetadataDraft, canonicalDevkitJson, extr
 const { renderCanonicalScene } = require(path.join(root, "src/lib/devkit/render-scene.ts"));
 const polygon = (x, y, size = 0.00025) => ({ type: "Polygon", coordinates: [[[x, y], [x + size, y], [x + size, y + size], [x, y + size], [x, y]]] });
 const time = "2026-10-22T15:00:00.000Z";
+function fixtureArtifacts(design, revision = 1) {
+  const { buildAreaSchedule, toAreaArtifact } = require(path.join(financeRoot, "src/lib/devkit/areas.ts"));
+  const { makeSyntheticFinanceFixture, runMonthlyFinance, toFinanceArtifact } = require(path.join(financeRoot, "src/lib/devkit/finance.ts"));
+  const areas = buildAreaSchedule({ projectId: "export-synthetic-project", snapshotId: "export-synthetic-project@1", inputRevision: 1,
+    design: { kind: "design", id: design.id, revision: design.revision }, geometryVersion: `synthetic-manual:${design.id}:${design.revision}`, assumptionsVersion: "synthetic-manual-1", jurisdiction: "synthetic/no-authority", methodology: "Synthetic manual area inputs, not measured geometry or actual registered/permitted quantities.", provenance: "synthetic", sourceRefs: [], accuracy: "Synthetic exact arithmetic only", reviewer: null,
+    buildings: [{ id: design.buildings[0].id, aboveGroundGrossM2: design.buildings[0].levels * 100, belowGroundGrossM2: 0, commonM2: 0, technicalM2: 0, parkingM2: 0, otherNonSaleableM2: 0, residualUse: "saleable", terraceM2: 0, terraceSaleableFactor: 0, registeredM2: 1000, permittedGfaM2: 1000 }] });
+  const area = toAreaArtifact(areas, { revision, createdAt: time });
+  const input = { ...makeSyntheticFinanceFixture().input, projectId: areas.input.projectId, snapshotId: areas.input.snapshotId,
+    areaRef: { kind: "areas", id: area.id, revision }, areaCalculationVersion: areas.version };
+  const finance = toFinanceArtifact(runMonthlyFinance(input, areas), { revision, createdAt: time });
+  return [area, finance];
+}
 function fixture() {
   const programme = { templateId: "residential_mixed_use", title: "Synthetic", summary: "Synthetic only", massingStyle: "courtyard", blockCount: 1, levelsMin: 3, levelsMax: 6, targetSiteCoveragePct: 30, openSpacePct: 40, setbackM: 8, useMix: [{ use: "residential", sharePct: 60 }, { use: "open_space", sharePct: 40 }], rationale: ["Synthetic fixture"] };
   const aoi = { id: "create-aoi-export-check", revision: 1, crs: "EPSG:4326", provenance: "synthetic", coordinates: polygon(55.27, 25.2, 0.002).coordinates, areaSqM: 44000, perimeterM: 840, vertexCount: 4 };
@@ -48,11 +60,7 @@ function fixture() {
   if (!measured.ok) throw new Error("Invalid synthetic check AOI");
   aoi.areaSqM = measured.measurements.areaSqM; aoi.perimeterM = measured.measurements.perimeterM;
   const designs = ["A", "B"].map((variant, index) => ({ id: `design-${variant}`, revision: 1, scenarioId: variant, label: `Synthetic ${variant}`, createdAt: time, inputRevision: 1, aoiId: aoi.id, aoiRevision: 1, program: { ...programme, levelsMin: index ? 3 : 6, levelsMax: index ? 3 : 6 }, buildings: [{ id: `building-${variant}`, label: `Building ${variant}`, footprint: polygon(55.2702 + index * 0.0007, 25.2002), levels: index ? 3 : 6, use: "residential", retained: false, assumptionIds: [] }], retainedObjectIds: [], exclusionConstraintIds: [], assumptions: ["Synthetic; no authority or valuation conclusion."], status: "draft" }));
-  const artifacts = designs.flatMap(design => {
-    const area = { id: `areas-${design.id}`, kind: "areas", revision: 1, inputRevision: 1, inputs: [{ kind: "design", id: design.id, revision: 1 }], createdAt: time, status: "draft", methodVersion: "synthetic-area-1", assumptions: ["Synthetic input; not official area."], missingInputs: [], data: { grossAreaM2: design.buildings[0].levels * 100, registeredAreaM2: null, method: "synthetic arithmetic fixture" } };
-    const finance = { id: `finance-${design.id}`, kind: "finance", revision: 1, inputRevision: 1, inputs: [{ kind: "areas", id: area.id, revision: 1 }], createdAt: time, status: "draft", methodVersion: "synthetic-monthly-1", assumptions: ["Synthetic arithmetic units, not market prices."], missingInputs: [], data: { currency: "USD", npv: 60, months: [{ month: 0, projectCashFlow: -100 }, { month: 1, projectCashFlow: -100 }, { month: 2, projectCashFlow: 260 }] } };
-    return [area, finance];
-  });
+  const artifacts = designs.flatMap(design => fixtureArtifacts(design));
   return { schemaVersion: 1, id: "export-synthetic-project", revision: 1, inputRevision: 1, createdAt: time, updatedAt: time, storageMode: "browser_local_on_this_device", dataClass: "synthetic_demo", brief: { title: "Synthetic kit / Синтетический комплект", objective: "Compare conditional variants", marketKey: "dubai", locale: "en", strategy: "Synthetic comparison", budget: { amount: null, currency: "USD", includesLand: null }, requirements: ["Preserve unknowns"], assumptions: ["Public/synthetic demonstration"] }, aoi, objects: [], evidence: [{ id: "evidence-1", subjectId: aoi.id, label: "Synthetic source", sourceId: "synthetic-1", sourceUrl: null, excerpt: "Synthetic, not observed", acquiredAt: null, validAt: null, responseHash: null, trust: "synthetic", status: "available", rights: { licence: "synthetic", attribution: "GeoAI synthetic", permittedUse: "synthetic_demo", redistribution: "allowed" } }], claims: [], constraints: [], scenarios: [{ id: "A", label: "A", objective: "6 floors" }, { id: "B", label: "B", objective: "3 floors" }], designVersions: designs, activeDesignVersionId: "design-A", derivedArtifacts: artifacts, procedures: [{ id: "test-procedure", label: "Synthetic preparation sheet", authority: "Synthetic authority; not an actual route", sourceUrl: "https://example.invalid/synthetic", version: "synthetic-1", applicant: "Synthetic authorized applicant role", status: "draft", missingInputs: [] }], caveat: DEVKIT_EXPORT_CAVEAT };
 }
 let kit;
@@ -78,18 +86,18 @@ try {
   await assert.rejects(extractDevelopmentKitProject(JSON.stringify(futureBundle)), /UNSUPPORTED_BUNDLE/); checks++;
   const missingBundle = structuredClone(bundle); missingBundle.files = missingBundle.files.filter(file => file.path !== "scene-01.svg");
   await assert.rejects(extractDevelopmentKitProject(JSON.stringify(missingBundle)), /INVENTORY_MISMATCH/); checks++;
-  const stale = structuredClone(project); stale.designVersions[0].revision = 2;
+  const stale = structuredClone(project); stale.designVersions[0].revision = 2; stale.derivedArtifacts.forEach(item => item.status = "stale");
   const staleKit = await buildDevelopmentKit(stale, { generatedAt: time });
   check(staleKit.manifest.status === "partial_draft" && staleKit.manifest.issues.some(issue => ["VERSION_REFERENCE_MISMATCH", "DESIGN_AREA_MISSING"].includes(issue.code)), "Changed design blocks a coherent export of old area/finance");
   const history = structuredClone(project);
-  const revisedDesign = structuredClone(history.designVersions[0]); revisedDesign.revision = 2; revisedDesign.buildings[0].levels = 5; history.designVersions.push(revisedDesign);
-  const revisedArea = structuredClone(history.derivedArtifacts[0]); revisedArea.revision = 2; revisedArea.inputs[0].revision = 2;
-  const revisedFinance = structuredClone(history.derivedArtifacts[1]); revisedFinance.revision = 2; revisedFinance.inputs[0].revision = 2;
+  const revisedDesign = structuredClone(history.designVersions[0]); revisedDesign.revision = 2; revisedDesign.buildings[0].levels = 5; revisedDesign.program.levelsMin = 5; revisedDesign.program.levelsMax = 5; history.designVersions.push(revisedDesign);
+  const [revisedArea, revisedFinance] = fixtureArtifacts(revisedDesign, 2);
+  history.derivedArtifacts[0].status = "stale"; history.derivedArtifacts[1].status = "stale";
   history.derivedArtifacts.push(revisedArea, revisedFinance);
   const revisedKit = await buildDevelopmentKit(history, { generatedAt: time });
   check(revisedKit.manifest.status === "coherent_draft" && revisedKit.manifest.historicalRefs.length === 3 && revisedKit.manifest.versions.designs.some(ref => ref.id === revisedDesign.id && ref.revision === 2), "New exact derivations can form a coherent draft while complete prior history stays in project.json");
   check(JSON.parse(revisedKit.files.find(file => file.path === "project.json").content).project.designVersions.length === 3, "Historical design snapshot preserved in importable project");
-  const aoiEdit = structuredClone(project); aoiEdit.aoi.revision++;
+  const aoiEdit = structuredClone(project); aoiEdit.aoi.revision++; aoiEdit.derivedArtifacts.forEach(item => item.status = "stale");
   const aoiKit = await buildDevelopmentKit(aoiEdit, { generatedAt: time });
   check(aoiKit.manifest.status === "partial_draft" && !aoiKit.files.some(file => file.path.endsWith(".svg")), "Old geometry never rendered as current after AOI revision change");
   const sourceFailure = structuredClone(project); sourceFailure.evidence[0] = { ...sourceFailure.evidence[0], status: "unavailable", trust: "unavailable", excerpt: null, rights: { licence: null, attribution: "Unavailable", permittedUse: "unknown", redistribution: "unknown" } }; sourceFailure.claims.push({ id: "unknown-title", subjectId: project.aoi.id, field: "ownership", value: null, unit: null, status: "unknown", evidenceIds: [], explanation: "No rights document" }); sourceFailure.procedures[0].missingInputs = ["Plot identity", "Applicant authority"];
@@ -120,6 +128,19 @@ try {
   const aoiRights = structuredClone(project); aoiRights.evidence[0].trust = "user_provided"; aoiRights.evidence[0].rights.redistribution = "unknown"; aoiRights.evidence[0].excerpt = "Only the user-drawn area was copied.";
   await assert.rejects(buildDevelopmentKit(aoiRights, { generatedAt: time }), /RIGHTS_UNRESOLVED/); checks++;
   check((await buildSourceMetadataDraft(aoiRights, { generatedAt: time })).files.length === 3, "Unknown-rights AOI path still produces an explicit metadata-only draft without weakening full-snapshot gate");
+  const unsupported = structuredClone(project);
+  unsupported.derivedArtifacts.forEach(item => { item.methodVersion = "unsupported-export-check-1"; item.data.untrustedNumeric = 97341825; item.assumptions = ["Unvalidated result 97341825"]; });
+  const unsupportedBefore = JSON.stringify(unsupported);
+  const unsupportedKit = await buildDevelopmentKit(unsupported, { generatedAt: time });
+  check(unsupportedKit.manifest.status === "partial_draft" && unsupportedKit.manifest.financeMaturity === "unavailable" && unsupportedKit.manifest.issues.some(issue => issue.code === "AREA_METHOD_UNSUPPORTED") && unsupportedKit.manifest.issues.some(issue => issue.code === "FINANCE_METHOD_UNSUPPORTED"), "Unsupported area/finance methods cannot produce coherent kit or usable finance");
+  check(!unsupportedKit.files.find(file => file.path === "memo-album.html").content.includes("97341825"), "Unsupported calculation payloads and numeric assumptions are withheld from memo");
+  check(JSON.stringify(unsupported) === unsupportedBefore && JSON.stringify(JSON.parse(unsupportedKit.files.find(file => file.path === "project.json").content).project) === unsupportedBefore, "Unsupported-method snapshot remains exact and available for diagnosis without being presented as validated results");
+  const unknownArea = structuredClone(project); unknownArea.derivedArtifacts.filter(item => item.kind === "areas").forEach(item => item.methodVersion = "unsupported-area-only-1");
+  const unknownAreaKit = await buildDevelopmentKit(unknownArea, { generatedAt: time });
+  check(unknownAreaKit.manifest.financeMaturity === "unavailable" && unknownAreaKit.manifest.issues.some(issue => issue.code === "FINANCE_PAYLOAD_REJECTED") && !unknownAreaKit.files.find(file => file.path === "memo-album.html").content.includes("projectNpv"), "Known finance cannot validate against an unsupported area-envelope method");
+  const invalidKnownArea = structuredClone(project); invalidKnownArea.derivedArtifacts.filter(item => item.kind === "areas").forEach(item => item.data.totals.enclosedGrossM2 = 83619274);
+  const invalidKnownKit = await buildDevelopmentKit(invalidKnownArea, { generatedAt: time });
+  check(invalidKnownKit.manifest.status === "partial_draft" && invalidKnownKit.manifest.issues.some(issue => issue.code === "AREA_PAYLOAD_REJECTED") && !invalidKnownKit.files.find(file => file.path === "memo-album.html").content.includes("83619274"), "Known-method invalid area quantities are rejected and withheld");
   const unsaved = structuredClone(project); unsaved.revision = 0;
   await assert.rejects(buildDevelopmentKit(unsaved, { generatedAt: time }), /INVALID_SAVED_SNAPSHOT/); checks++;
   const badSchema = structuredClone(project); badSchema.schemaVersion = 0;
@@ -149,12 +170,12 @@ try {
   check(seedAndGeneratedKit.manifest.versions.designs.length === 2 && seedAndGeneratedKit.manifest.versions.designs.every(ref => generated.designs.some(design => design.id === ref.id)) && seedAndGeneratedKit.manifest.historicalRefs.length === originalSeeds.length, "Seed revision1 and first generated revision1 select only last-appended canonical alternatives; history remains intact");
   const edited = editDesignBuilding(generated.designs[0], generated.designs[0].buildings[0].id, { terraceSharePct: 20 }, generated.designs[0].revision, time);
   check(edited.ok, "Actual Create module persists an edited terrace plate");
-  canonicalProject.designVersions = [edited.design, generated.designs[1]];
+  canonicalProject.designVersions = [...originalSeeds, ...generated.designs, edited.design];
   canonicalProject.activeDesignVersionId = edited.design.id;
   const { buildAreaScheduleFromMeasurement, toAreaArtifact } = require(path.join(financeRoot, "src/lib/devkit/areas.ts"));
   const { makeSyntheticFinanceFixture, runMonthlyFinance, toFinanceArtifact } = require(path.join(financeRoot, "src/lib/devkit/finance.ts"));
   const financeTemplate = makeSyntheticFinanceFixture();
-  for (const design of canonicalProject.designVersions) {
+  for (const design of [edited.design, generated.designs[1]]) {
     const measurement = measureDesignScene(design);
     const allocations = Object.fromEntries(measurement.buildings.map(building => [building.buildingId, { belowGroundGrossM2: 0, commonM2: 0, technicalM2: 0, parkingM2: 0, otherNonSaleableM2: 0, residualUse: "saleable", terraceSaleableFactor: 0.5, registeredM2: null, permittedGfaM2: null }]));
     const areas = buildAreaScheduleFromMeasurement(measurement, { projectId: canonicalProject.id, snapshotId: `${canonicalProject.id}@1`, inputRevision: 1, assumptionsVersion: "synthetic-allocation-1", jurisdiction: "synthetic/no-authority", methodology: "Explicit synthetic test allocation, not official area or commercial efficiency.", provenance: "derived_geometry", sourceRefs: [], reviewer: null }, allocations);
@@ -168,14 +189,16 @@ try {
   check(!canonicalKit.manifest.issues.some(issue => issue.code.endsWith("PAYLOAD_REJECTED")), "Actual area/finance payloads pass their module validators before export");
   check(canonicalKit.files.find(file => file.path === "memo-album.html").content.includes("radiusM") && canonicalKit.manifest.sourceInputs[0].provenance.sourceExecution === "not_performed", "Claim radius/scope and source provenance survive memo/manifest");
   const changedBrief = structuredClone(canonicalProject); changedBrief.brief.objective += " edited without input revision";
-  const changedBriefKit = await buildDevelopmentKit(changedBrief, { generatedAt: time });
-  check(changedBriefKit.manifest.status === "partial_draft" && !changedBriefKit.files.some(file => file.path.endsWith(".svg")), "Source/brief identity mismatch cannot reuse apparently current scene revisions");
+  await assert.rejects(buildDevelopmentKit(changedBrief, { generatedAt: time }), /INVALID_(?:DESIGN_LINEAGE|SAVED_SNAPSHOT)/); checks++;
   const forgedFinance = structuredClone(canonicalProject); forgedFinance.derivedArtifacts.find(item => item.kind === "finance").data.metrics.projectNpv = 999999999;
   const rejectedFinanceKit = await buildDevelopmentKit(forgedFinance, { generatedAt: time });
   check(rejectedFinanceKit.manifest.issues.some(issue => issue.code === "FINANCE_PAYLOAD_REJECTED") && !rejectedFinanceKit.files.find(file => file.path === "memo-album.html").content.includes("999999999"), "Tampered finance is marked rejected and its quantities withheld from memo");
-  const forgedScene = structuredClone(canonicalProject); forgedScene.designVersions[0].scene.buildings[0].heightM += 1;
-  const forgedKit = await buildDevelopmentKit(forgedScene, { generatedAt: time });
-  check(forgedKit.manifest.issues.some(issue => issue.code === "SCENE_NOT_RENDERED") && forgedKit.files.filter(file => file.path.endsWith(".svg")).length === 1, "Invalid or inconsistent canonical scene is refused by Create validator before rendering");
+  const forgedScene = structuredClone(canonicalProject); forgedScene.designVersions.at(-1).scene.buildings[0].heightM += 1;
+  await assert.rejects(buildDevelopmentKit(forgedScene, { generatedAt: time }), /INVALID_(?:DESIGN_LINEAGE|SAVED_SNAPSHOT)/); checks++;
+  const forgedParent = structuredClone(canonicalProject); forgedParent.designVersions.at(-1).scene.parent = { kind: "design", id: "missing-parent", revision: 1 };
+  const forgedParentBefore = JSON.stringify(forgedParent);
+  await assert.rejects(buildDevelopmentKit(forgedParent, { generatedAt: time }), /INVALID_(?:DESIGN_LINEAGE|SAVED_SNAPSHOT)/); checks++;
+  check(JSON.stringify(forgedParent) === forgedParentBefore, "Missing canonical parent blocks full export without mutating the supplied snapshot");
   if (existsSync(path.join(foundation, "src/lib/devkit/project-store.ts"))) {
     const { parseDevkitProject, createDevkitProjectStore } = require(path.join(foundation, "src/lib/devkit/project-store.ts"));
     check(parseDevkitProject(exported.project), "Foundation parser accepts exact exported project");
@@ -209,7 +232,7 @@ try {
     host.resolveModuleNames = (names, containingFile) => names.map(name => {
       const local = ts.resolveModuleName(name, containingFile, options, host).resolvedModule;
       if (local) return local;
-      if (name === "./design" && containingFile === path.join(root, "src/lib/devkit/export.ts")) return { resolvedFileName: path.join(createRoot, "src/lib/devkit/design.ts"), extension: ts.Extension.Ts };
+      if (name === "./design") return { resolvedFileName: path.join(createRoot, "src/lib/devkit/design.ts"), extension: ts.Extension.Ts };
       if (name === "./contracts") return { resolvedFileName: path.join(foundation, "src/lib/devkit/contracts.ts"), extension: ts.Extension.Ts };
       if (name === "./project-store") return { resolvedFileName: path.join(foundation, "src/lib/devkit/project-store.ts"), extension: ts.Extension.Ts };
       if (name === "./areas" || name === "./finance") return { resolvedFileName: path.join(financeRoot, "src/lib/devkit", `${name.slice(2)}.ts`), extension: ts.Extension.Ts };
