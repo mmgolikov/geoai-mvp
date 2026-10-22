@@ -14,6 +14,7 @@ export function DevkitExportPanel({ project, locale = project.brief.locale }: { 
   const [error, setError] = useState<string | null>(null);
   const generation = useRef(0);
   const ru = locale === "ru";
+  const errorText = error?.includes("RIGHTS_UNRESOLVED") ? (ru ? "Не подтверждены права на включение источника. Уточните разрешение или исключите этот материал в новой версии проекта." : "Reuse rights for a source are unresolved. Confirm permission or remove that material in a new project version.") : error?.includes("TOO_LARGE") ? (ru ? "Комплект превышает допустимый размер. Уменьшите объём вложений в новой версии проекта." : "The kit exceeds the supported size. Reduce attachments in a new project version.") : error?.includes("CRYPTO_UNAVAILABLE") ? (ru ? "Браузер не поддерживает проверку целостности. Откройте проект в актуальном браузере через защищённый адрес." : "File integrity checks are unavailable. Open the project in a current browser using a secure address.") : (ru ? "Не удалось проверить сохранённый снимок. Сохраните проект и откройте его заново." : "The saved snapshot could not be validated. Save and reopen the project.");
 
   useEffect(() => { generation.current++; setKit(null); setError(null); setBusy(false); }, [project, locale]);
   useEffect(() => {
@@ -43,7 +44,7 @@ export function DevkitExportPanel({ project, locale = project.brief.locale }: { 
     <button type="button" onClick={() => void prepare()} disabled={busy || project.revision < 1} className="mt-4 min-h-11 rounded-lg bg-teal-800 px-4 py-2 font-medium text-white disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-800" data-testid="devkit-export-prepare">{busy ? (ru ? "Подготовка…" : "Preparing…") : (ru ? "Подготовить комплект" : "Prepare kit")}</button>
     {project.revision < 1 ? <p className="mt-2 text-sm text-amber-900">{ru ? "Сначала сохраните проект, чтобы зафиксировать снимок." : "Save the project first to establish a snapshot."}</p> : null}
     <div role="status" aria-live="polite" className="mt-3 break-words text-sm">
-      {error ? <p className="rounded-lg bg-amber-50 p-3 text-amber-950">{ru ? "Экспорт не создан. Сохранённый проект не изменён. Причина: " : "Export was not created. The saved project is unchanged. Reason: "}{error}</p> : null}
+      {error ? <p className="rounded-lg bg-amber-50 p-3 text-amber-950">{ru ? "Экспорт не создан. " : "Export was not created. "}{errorText}</p> : null}
       {kit ? <p className="rounded-lg bg-teal-50 p-3 text-teal-950">{kit.manifest.status === "partial_draft" ? (ru ? "Частичный черновик: пробелы и несовпадения версий перечислены ниже и в комплекте." : "Partial draft: gaps and version mismatches are listed below and inside the kit.") : (ru ? "Согласованный черновик подготовлен. Нужен профильный review." : "Coherent draft prepared. Professional review is required.")}</p> : null}
     </div>
     {kit ? <>
