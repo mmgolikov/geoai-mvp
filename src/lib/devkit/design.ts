@@ -33,6 +33,8 @@ export type CanonicalDesignScene = {
   sourceInputIdentity: string;
   variantId: ConceptAlternativeId;
   parent: VersionRef | null;
+  restoredFrom?: VersionRef;
+  lineageAction?: "generate" | "edit" | "restore";
   crs: "EPSG:4326";
   metricFrame: DesignMetricFrame;
   aoi: Polygon;
@@ -97,7 +99,9 @@ function sceneIdentity(scene: Omit<CanonicalDesignScene, "geometryRevision"> | C
   return identity({ methodVersion: scene.methodVersion, projectId: scene.projectId, inputRevision: scene.inputRevision,
     aoiId: scene.aoiId, aoiRevision: scene.aoiRevision, programmeIdentity: scene.programmeIdentity, sourceInputIdentity: scene.sourceInputIdentity, variantId: scene.variantId, crs: scene.crs,
     metricFrame: scene.metricFrame, aoi: scene.aoi, buildings: scene.buildings,
-    exclusionZones: scene.exclusionZones, constraints: scene.constraints });
+    exclusionZones: scene.exclusionZones, constraints: scene.constraints,
+    ...(scene.restoredFrom ? { restoredFrom: scene.restoredFrom } : {}),
+    ...(scene.lineageAction ? { lineageAction: scene.lineageAction } : {}) });
 }
 function sourceInputIdentity(project: DevkitProject): string {
   return identity({ projectId: project.id, brief: project.brief, aoi: project.aoi, objects: project.objects,
@@ -295,7 +299,7 @@ export function createDesignAlternatives(project: DevkitProject, options: Design
         const scene: CanonicalDesignScene = {
           schemaVersion: 1, methodVersion: DESIGN_METHOD_VERSION, geometryRevision: "", projectId: project.id,
           inputRevision: project.inputRevision, aoiId: project.aoi.id, aoiRevision: project.aoi.revision, programmeIdentity: identity(program), sourceInputIdentity: sourceInputIdentity(project), variantId,
-          parent: prior ? { kind: "design", id: prior.id, revision: prior.revision } : null,
+          parent: prior ? { kind: "design", id: prior.id, revision: prior.revision } : null, lineageAction: "generate",
           crs: "EPSG:4326", metricFrame: structuredClone(frame), aoi: structuredClone(aoi), buildings,
           exclusionZones: structuredClone(zones), constraints: project.constraints.map(c => ({ id: c.id, status: c.status, severity: c.severity })),
           checks: ["single_ring_geometry", "AOI_containment", "no_building_contact", "preserved_objects", "exclusion_zones", "height_floor_consistency"], caveat: DESIGN_CAVEAT
@@ -342,6 +346,8 @@ export function editDesignBuilding(design: DesignScene, buildingId: string, patc
     building.assumptionIds = [...new Set([...building.assumptionIds.filter(id => !id.startsWith("assumed_floor_height_") && !id.startsWith("user_assumed_floor_height_m:")),
       `user_assumed_floor_height_m:${building.floorHeightM}`, "user_edited_concept_parameters"])];
     next.scene.parent = { kind: "design", id: design.id, revision: design.revision };
+    next.scene.lineageAction = "edit";
+    delete next.scene.restoredFrom;
     next.scene.geometryRevision = sceneIdentity(next.scene);
     next.revision++;
     next.id = `${design.id.replace(/:r\d+:[a-f0-9]+$/, "")}:r${next.revision}:${next.scene.geometryRevision}`;
@@ -351,6 +357,50 @@ export function editDesignBuilding(design: DesignScene, buildingId: string, patc
     if (errors.length) return fail(errors);
     return { ok: true, design: next, invalidated: ["areas", "finance", "kit"] };
   } catch (error) { return fail([error instanceof Error ? error.message : "Invalid edit; last valid design retained."]); }
+}
+
+/** Restoring history is a new current revision, never selection of an old stale ID. */
+export function restoreDesignRevision(
+  project: DevkitProject, current: DesignScene, prior: DesignScene, expectedRevision: number,
+  createdAt = new Date().toISOString()
+): DesignEditResult {
+  const fail = (errors: string[]): DesignEditResult => ({ ok: false, design: current, errors });
+  if (current.revision !== expectedRevision) return fail(["Design revision conflict; refresh before restoring."]);
+  const errors = [...validateDesignScene(current), ...validateDesignScene(prior), ...validateDesignProjectLineage(project)];
+  if (errors.length) return fail(errors);
+  if (!validDate(createdAt)) return fail(["Invalid restoration date."]);
+  const sameVersion = (a: DesignVersion, b: DesignVersion) => a.id === b.id && a.revision === b.revision;
+  const currentIndex = project.designVersions.findIndex(d => sameVersion(d, current));
+  const priorIndex = project.designVersions.findIndex(d => sameVersion(d, prior));
+  const siblings = project.designVersions.filter(d => d.scenarioId === current.scenarioId && d.inputRevision === project.inputRevision);
+  if (currentIndex < 0 || priorIndex < 0 || priorIndex >= currentIndex ||
+    stableJson(project.designVersions[currentIndex]) !== stableJson(current) || stableJson(project.designVersions[priorIndex]) !== stableJson(prior) ||
+    !siblings.length || !sameVersion(siblings[siblings.length - 1], current)) {
+    return fail(["Restoration requires the current latest design and an earlier immutable version in this project."]);
+  }
+  if (prior.scenarioId !== current.scenarioId || prior.scene.variantId !== current.scene.variantId) return fail(["Cannot restore another concept into this variant."]);
+  const inputIdentity = sourceInputIdentity(project);
+  for (const design of [current, prior]) {
+    if (!project.aoi || design.scene.projectId !== project.id || design.inputRevision !== project.inputRevision ||
+      design.aoiId !== project.aoi.id || design.aoiRevision !== project.aoi.revision ||
+      stableJson(design.scene.aoi) !== stableJson(aoiGeometry(project)) || design.scene.sourceInputIdentity !== inputIdentity) {
+      return fail(["Historical geometry belongs to different project inputs or AOI; it cannot become the current design."]);
+    }
+  }
+  const next = structuredClone(prior);
+  next.revision = Math.max(...siblings.map(d => d.revision)) + 1;
+  next.scene.parent = { kind: "design", id: current.id, revision: current.revision };
+  next.scene.restoredFrom = { kind: "design", id: prior.id, revision: prior.revision };
+  next.scene.lineageAction = "restore";
+  next.scene.geometryRevision = sceneIdentity(next.scene);
+  next.id = `${current.id.replace(/:r\d+:[a-f0-9]+$/, "")}:r${next.revision}:${next.scene.geometryRevision}`;
+  next.createdAt = createdAt;
+  next.status = "review_required";
+  next.assumptions = [...prior.assumptions, `Restored from ${prior.id} revision ${prior.revision}; dependent artifacts require new derivation.`];
+  next.buildings = next.scene.buildings.map(summary);
+  const restoredErrors = validateDesignScene(next);
+  if (restoredErrors.length) return fail(restoredErrors);
+  return { ok: true, design: next, invalidated: ["areas", "finance", "kit"] };
 }
 
 export type DesignGeometryMeasurement = {
@@ -409,6 +459,60 @@ export function designSceneFeatureCollection(design: DesignScene): FeatureCollec
   return { type: "FeatureCollection", features };
 }
 
+/** Context gate for apply/save/reopen/export. Bounded JSON alone is not verified lineage. */
+export function validateDesignProjectLineage(project: DevkitProject): string[] {
+  try {
+    const errors: string[] = [];
+    const history = project.designVersions;
+    const currentInputs = sourceInputIdentity(project);
+    const sameVersion = (d: DesignVersion, ref: VersionRef) => d.id === ref.id && d.revision === ref.revision;
+    const validRef = (ref: VersionRef) => ref && ref.kind === "design" && typeof ref.id === "string" && !!ref.id && Number.isInteger(ref.revision) && ref.revision >= 1;
+    for (let index = 0; index < history.length; index++) {
+      const design = history[index];
+      if (!design.scene) continue; // Programme seeds make no geometry/lineage claim.
+      const geometryErrors = validateDesignScene(design);
+      if (geometryErrors.length) { errors.push(`${design.id}: ${geometryErrors.join(" ")}`); continue; }
+      const scene = (design as DesignScene).scene;
+      if (scene.lineageAction !== undefined && !["generate", "edit", "restore"].includes(scene.lineageAction)) errors.push(`${design.id}: unknown lineage action.`);
+      if (scene.projectId !== project.id || design.inputRevision > project.inputRevision) errors.push(`${design.id}: foreign project or future input lineage.`);
+      if (design.inputRevision === project.inputRevision && (!project.aoi || design.aoiId !== project.aoi.id || design.aoiRevision !== project.aoi.revision ||
+        stableJson(scene.aoi) !== stableJson(aoiGeometry(project)) || scene.sourceInputIdentity !== currentInputs)) errors.push(`${design.id}: current-input geometry is bound to different source content.`);
+      const earlier = history.slice(0, index).filter(d => d.scene && d.scenarioId === design.scenarioId);
+      const latestPrior = earlier.at(-1);
+      if (scene.parent === null) {
+        if (latestPrior) errors.push(`${design.id}: a previous canonical design exists but parent lineage is missing.`);
+      } else if (!validRef(scene.parent)) errors.push(`${design.id}: malformed parent reference.`);
+      else {
+        const parentIndex = history.findIndex(d => sameVersion(d, scene.parent!));
+        const parent = history[parentIndex] as DesignScene | undefined;
+        if (parentIndex < 0 || !parent?.scene) errors.push(`${design.id}: exact parent revision is missing.`);
+        else if (parentIndex >= index) errors.push(`${design.id}: cyclic or forward parent lineage.`);
+        else if (parent.scenarioId !== design.scenarioId || parent.scene.projectId !== project.id || parent.scene.variantId !== scene.variantId ||
+          !latestPrior || !sameVersion(latestPrior, scene.parent)) errors.push(`${design.id}: parent must be the latest earlier canonical revision of this project/scenario.`);
+        else if (parent.inputRevision > design.inputRevision) errors.push(`${design.id}: parent has future source inputs.`);
+        else if (parent.inputRevision < design.inputRevision) {
+          if (scene.lineageAction !== "generate") errors.push(`${design.id}: crossing source revisions requires fresh generation, not copying/editing historical geometry.`);
+        } else if (parent.aoiId !== design.aoiId || parent.aoiRevision !== design.aoiRevision || parent.scene.sourceInputIdentity !== scene.sourceInputIdentity) {
+          errors.push(`${design.id}: same-input parent refers to different AOI/source content.`);
+        }
+      }
+      if (scene.restoredFrom !== undefined) {
+        if (!validRef(scene.restoredFrom) || scene.lineageAction !== "restore") errors.push(`${design.id}: invalid restoration lineage.`);
+        else {
+          const sourceIndex = history.findIndex(d => sameVersion(d, scene.restoredFrom!));
+          const source = history[sourceIndex] as DesignScene | undefined;
+          if (sourceIndex < 0 || sourceIndex >= index || !source?.scene || source.scenarioId !== design.scenarioId || source.scene.projectId !== project.id ||
+            source.inputRevision !== design.inputRevision || source.aoiId !== design.aoiId || source.aoiRevision !== design.aoiRevision || source.scene.sourceInputIdentity !== scene.sourceInputIdentity) {
+            errors.push(`${design.id}: restoration source must be an earlier same-project/scenario/input revision.`);
+          } else if (stableJson(source.scene.buildings) !== stableJson(scene.buildings) || stableJson(source.program) !== stableJson(design.program) ||
+            stableJson(source.scene.exclusionZones) !== stableJson(scene.exclusionZones)) errors.push(`${design.id}: restored geometry/programme differs from its declared source.`);
+        }
+      } else if (scene.lineageAction === "restore") errors.push(`${design.id}: restoration source reference is missing.`);
+    }
+    return errors;
+  } catch { return ["Malformed project design lineage; preserve the last qualified snapshot."]; }
+}
+
 /** Append history and mark only affected artifact descendants stale. Parent owns persistence. */
 export function applyDesignVersions(project: DevkitProject, designs: DesignScene[], activeId = designs[0]?.id): DevkitProject {
   for (const design of designs) {
@@ -438,6 +542,14 @@ export function applyDesignVersions(project: DevkitProject, designs: DesignScene
     if (!existing) history.push(structuredClone(design));
   }
   if (activeId && !history.some(d => d.id === activeId)) throw new Error("Active design revision is absent.");
+  const active = history.find(d => d.id === activeId);
+  if (active) {
+    const siblings = history.filter(d => d.scenarioId === active.scenarioId && d.inputRevision === project.inputRevision);
+    const latest = siblings.at(-1);
+    if (!latest || latest.id !== active.id || latest.revision !== active.revision) throw new Error("Historical design is stale; restore it as a new revision instead of making it current.");
+  }
+  const lineageErrors = validateDesignProjectLineage({ ...project, designVersions: history });
+  if (lineageErrors.length) throw new Error(lineageErrors.join(" "));
   return { ...project, updatedAt: new Date().toISOString(), designVersions: history,
     activeDesignVersionId: activeId ?? project.activeDesignVersionId,
     derivedArtifacts: project.derivedArtifacts.map(a => obsolete.has(key(a)) ? { ...a, status: "stale" } : a) };

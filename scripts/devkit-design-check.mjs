@@ -11,11 +11,18 @@ registerHooks({ resolve(specifier, context, next) {
 const { conceptTemplate, conceptSiteDefaults } = await import("../src/lib/prototype/point-to-object-create.ts");
 const { createDevkitDemoProject, createDevkitCriticalGapProject } = await import("../src/lib/devkit/fixtures.ts");
 const { createDesignAlternatives, defaultDesignProgrammes, validateDesignScene, editDesignBuilding,
-  measureDesignScene, designSceneFeatureCollection, applyDesignVersions } = await import("../src/lib/devkit/design.ts");
+  measureDesignScene, designSceneFeatureCollection, applyDesignVersions, restoreDesignRevision, validateDesignProjectLineage } = await import("../src/lib/devkit/design.ts");
 const { designMetricFrame, designPolygonAreaSqM, designPolygonContained, designPolygonsConflict,
   unprojectDesignPosition, validateDesignPolygon } = await import("../src/lib/devkit/geometry.ts");
 let calls = 0;
 globalThis.fetch = async () => { calls++; throw new Error("Devkit design checks are offline only."); };
+if (process.argv.includes("--undo-only")) {
+  const output = await checkUndoOnly();
+  const outputIndex = process.argv.indexOf("--output");
+  if (outputIndex >= 0) writeFileSync(process.argv[outputIndex + 1], `${JSON.stringify(output, null, 2)}\n`);
+  console.log(JSON.stringify(output));
+  process.exit(0);
+}
 const report = [];
 function check(name, fn) { fn(); report.push({ name, status: "PASS" }); }
 const createdAt = "2026-10-22T15:00:00.000Z";
@@ -244,3 +251,134 @@ if (exampleIndex >= 0) {
 const outputIndex = process.argv.indexOf("--output");
 if (outputIndex >= 0) writeFileSync(process.argv[outputIndex + 1], `${JSON.stringify(output, null, 2)}\n`);
 console.log(JSON.stringify(output));
+
+
+async function checkUndoOnly() {
+  const { devkitRefFreshness, createDevkitProjectStore, parseDevkitProject } = await import("../src/lib/devkit/project-store.ts");
+  const date = "2026-10-22T15:30:00.000Z", checks = [];
+  const check = (name, fn) => { fn(); checks.push({ name, status: "PASS" }); };
+  const ref = design => ({ kind: "design", id: design.id, revision: design.revision });
+  const project = createDevkitDemoProject("undo-check");
+  const generated = createDesignAlternatives(project, { createdAt: date });
+  assert.ok(generated.ok, JSON.stringify(generated));
+  const [a, b] = generated.designs;
+  const original = applyDesignVersions(project, [a, b]);
+  const edited = editDesignBuilding(a, a.scene.buildings[0].id, { levels: a.scene.buildings[0].levels + 1, terraceSharePct: 20 }, a.revision, date);
+  assert.ok(edited.ok, JSON.stringify(edited));
+  const changed = applyDesignVersions(original, [edited.design]);
+  const artifact = (kind, id, inputs) => ({ kind, id, revision: 1, inputRevision: 1, inputs, createdAt: date,
+    status: "current", methodVersion: "synthetic-undo-check", assumptions: [], missingInputs: [], data: {} });
+  changed.derivedArtifacts = [
+    artifact("areas", "undo-area-a", [ref(edited.design)]), artifact("areas", "undo-area-b", [ref(b)]),
+    artifact("finance", "undo-finance-a", [{kind:"areas",id:"undo-area-a",revision:1}]),
+    artifact("kit", "undo-kit-a", [ref(edited.design), {kind:"areas",id:"undo-area-a",revision:1}, {kind:"finance",id:"undo-finance-a",revision:1}])
+  ];
+  assert.ok(parseDevkitProject(changed), "Targeted fixture must satisfy the actual foundation parser");
+  check("Negative reproduction: reselecting prior ID leaves foundation freshness stale", () => {
+    const oldUndo = { ...changed, activeDesignVersionId: a.id };
+    assert.equal(devkitRefFreshness(oldUndo, ref(a)), "stale");
+    assert.throws(() => applyDesignVersions(changed, [a], a.id), /Historical design is stale/);
+  });
+  const before = JSON.stringify(changed), originalA = JSON.stringify(a), originalB = JSON.stringify(b);
+  const restored = restoreDesignRevision(changed, edited.design, a, edited.design.revision, date);
+  assert.ok(restored.ok, JSON.stringify(restored));
+  const next = applyDesignVersions(changed, [restored.design]);
+  check("Restoration appends a new current A revision with parent and restoration lineage", () => {
+    assert.equal(next.designVersions.length, changed.designVersions.length + 1);
+    assert.equal(restored.design.revision, edited.design.revision + 1);
+    assert.notEqual(restored.design.id, a.id); assert.notEqual(restored.design.id, edited.design.id);
+    assert.notEqual(restored.design.scene.geometryRevision, a.scene.geometryRevision);
+    assert.deepEqual(restored.design.scene.parent, ref(edited.design));
+    assert.deepEqual(restored.design.scene.restoredFrom, ref(a));
+    assert.equal(next.activeDesignVersionId, restored.design.id);
+    assert.equal(devkitRefFreshness(next, ref(restored.design)), "current");
+    assert.equal(devkitRefFreshness(next, ref(edited.design)), "stale");
+    assert.equal(devkitRefFreshness(next, ref(a)), "stale");
+    assert.deepEqual(validateDesignScene(restored.design), []);
+  });
+  check("Only A geometry is restored; original history and B stay byte-equivalent/current", () => {
+    assert.deepEqual(restored.design.scene.buildings, a.scene.buildings);
+    assert.deepEqual(restored.design.program, a.program);
+    assert.equal(JSON.stringify(changed), before);
+    assert.equal(JSON.stringify(a), originalA); assert.equal(JSON.stringify(b), originalB);
+    assert.equal(devkitRefFreshness(next, ref(b)), "current");
+    assert.deepEqual(next.designVersions.slice(0, changed.designVersions.length), changed.designVersions);
+  });
+  check("A areas/finance/kit become stale; B artifact remains current and unchanged", () => {
+    assert.equal(next.derivedArtifacts[0].status, "stale");
+    assert.equal(next.derivedArtifacts[1].status, "current");
+    assert.strictEqual(next.derivedArtifacts[1], changed.derivedArtifacts[1]);
+    assert.equal(next.derivedArtifacts[2].status, "stale"); assert.equal(next.derivedArtifacts[3].status, "stale");
+  });
+  check("Foreign variant, nonlatest current, wrong revision and changed inputs fail without mutation", () => {
+    const invalids = [
+      restoreDesignRevision(changed, edited.design, b, edited.design.revision, date),
+      restoreDesignRevision(changed, a, a, a.revision, date),
+      restoreDesignRevision(changed, edited.design, a, 999, date),
+      restoreDesignRevision({...changed, inputRevision: 2}, edited.design, a, edited.design.revision, date)
+    ];
+    for (const result of invalids) assert.equal(result.ok, false);
+    assert.strictEqual(invalids[0].design, edited.design);
+    assert.equal(JSON.stringify(changed), before);
+  });
+  check("New restoration is accepted by foundation local save/reopen with current freshness", () => {
+    const data = new Map(), storage = { getItem: key => data.get(key) ?? null, setItem: (key, value) => data.set(key, value) };
+    const store = createDevkitProjectStore(storage, "undo-check");
+    const initialSave = store.save(changed, null); assert.ok(initialSave.ok, JSON.stringify(initialSave));
+    const saved = store.save({...next, revision: initialSave.value.revision}, initialSave.value.revision);
+    assert.ok(saved.ok, JSON.stringify(saved));
+    const reopened = createDevkitProjectStore(storage, "undo-check").get(changed.id);
+    assert.ok(reopened.ok, JSON.stringify(reopened));
+    assert.deepEqual(reopened.value, saved.value);
+    assert.equal(devkitRefFreshness(reopened.value, ref(restored.design)), "current");
+    assert.equal(devkitRefFreshness(reopened.value, ref(b)), "current");
+    const reopenedDesign = reopened.value.designVersions.find(d => d.id === restored.design.id);
+    assert.deepEqual(validateDesignScene(reopenedDesign), []);
+    assert.deepEqual(measureDesignScene(reopenedDesign), measureDesignScene(restored.design));
+    assert.deepEqual(validateDesignProjectLineage(reopened.value), []);
+    const exported = store.exportProject(changed.id); assert.ok(exported.ok, JSON.stringify(exported));
+    assert.deepEqual(validateDesignProjectLineage(JSON.parse(exported.value).project), []);
+  });
+  check("Editing a restored revision keeps restoration history and creates a normal new current edit", () => {
+    const laterEdit = editDesignBuilding(restored.design, restored.design.scene.buildings[0].id,
+      { levels: restored.design.scene.buildings[0].levels + 1 }, restored.design.revision, date);
+    assert.ok(laterEdit.ok, JSON.stringify(laterEdit));
+    assert.equal(laterEdit.design.scene.lineageAction, "edit");
+    assert.equal(laterEdit.design.scene.restoredFrom, undefined);
+    assert.deepEqual(laterEdit.design.scene.parent, ref(restored.design));
+    const after = applyDesignVersions(next, [laterEdit.design]);
+    assert.deepEqual(validateDesignProjectLineage(after), []);
+    assert.equal(devkitRefFreshness(after, ref(laterEdit.design)), "current");
+    assert.equal(devkitRefFreshness(after, ref(b)), "current");
+  });
+  check("Missing/forged/cyclic/cross-scenario parent fails project-context apply/save/export qualification", () => {
+    for (const parent of [
+      {kind:"design",id:"missing-parent",revision:1}, {...ref(edited.design),revision:999},
+      ref(restored.design), ref(b)
+    ]) {
+      const forged = structuredClone(restored.design); forged.scene.parent = parent;
+      assert.deepEqual(validateDesignScene(forged), [], "Standalone geometry cannot establish project membership");
+      assert.throws(() => applyDesignVersions(changed, [forged]));
+      const invalidSnapshot = {...next, designVersions: next.designVersions.map(d => d.id === forged.id ? forged : d)};
+      assert.ok(validateDesignProjectLineage(invalidSnapshot).length);
+      assert.ok(validateDesignProjectLineage(JSON.parse(JSON.stringify(invalidSnapshot))).length);
+    }
+    const missingParent = structuredClone(restored.design); missingParent.scene.parent = null;
+    assert.throws(() => applyDesignVersions(changed, [missingParent]));
+  });
+  check("Cross-input history requires fresh generation; restoration/edit cannot cross it", () => {
+    const sourceChange = structuredClone(changed); sourceChange.inputRevision++;
+    sourceChange.brief.strategy = "New explicit synthetic source revision";
+    sourceChange.derivedArtifacts = sourceChange.derivedArtifacts.map(a => ({...a,status:"stale"}));
+    const regenerated = createDesignAlternatives(sourceChange, {createdAt:date});
+    assert.ok(regenerated.ok, JSON.stringify(regenerated));
+    const attached = applyDesignVersions(sourceChange, regenerated.designs);
+    assert.deepEqual(validateDesignProjectLineage(attached), []);
+    assert.ok(regenerated.designs.every(d => d.scene.lineageAction === "generate" && d.scene.parent));
+    const forbiddenRestore = restoreDesignRevision(attached, regenerated.designs[0], a, regenerated.designs[0].revision, date);
+    assert.equal(forbiddenRestore.ok, false);
+  });
+  assert.equal(calls, 0);
+  return { status: "PASS", scope: "Targeted undo-only check against actual foundation freshness/store; no original17, browser, build or CI run.",
+    checks, checkCount: checks.length, networkCalls: calls, runtime: process.version };
+}

@@ -4,7 +4,7 @@ import { useId, useMemo, useState, type FormEvent } from "react";
 import type { DevkitProject } from "@/src/lib/devkit/contracts";
 import {
   applyDesignVersions, createDesignAlternatives, designSceneFeatureCollection, editDesignBuilding,
-  measureDesignScene, validateDesignScene, type DesignScene, type RetainedBuildingParameters
+  measureDesignScene, restoreDesignRevision, validateDesignScene, type DesignScene, type RetainedBuildingParameters
 } from "@/src/lib/devkit/design";
 import { projectDesignPosition } from "@/src/lib/devkit/geometry";
 import type { ConceptUse } from "@/src/lib/prototype/point-to-object-create";
@@ -134,8 +134,10 @@ function DesignPanelContent({ project, onChange, locale: requestedLocale }: Devk
   const undo = () => {
     const parent = active?.scene.parent;
     const prior = parent ? valid.find(d => d.id === parent.id && d.revision === parent.revision) : null;
-    if (!prior) return;
-    try { setErrors([]); onChange(applyDesignVersions(project, [prior])); } catch (error) { setErrors([error instanceof Error ? error.message : "Previous revision unavailable."]); }
+    if (!prior || !active) return;
+    const restored = restoreDesignRevision(project, active, prior, active.revision);
+    if (!restored.ok) { setErrors(restored.errors); return; }
+    try { setErrors([]); onChange(applyDesignVersions(project, [restored.design])); } catch (error) { setErrors([error instanceof Error ? error.message : "Previous revision unavailable."]); }
   };
   const number = (value: number | null) => value === null ? (ru ? "неизвестно" : "unknown") : new Intl.NumberFormat(ru ? "ru-RU" : "en-GB", { maximumFractionDigits: 0 }).format(value);
   return <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 sm:p-6" aria-labelledby={`${id}-heading`}>
