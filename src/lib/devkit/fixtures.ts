@@ -1,5 +1,5 @@
 import { DEVKIT_CAVEAT, type DevkitProject, type DesignVersion } from "./contracts";
-import { validatePointObjectCreateAoiVertices, type RedevelopmentProgramInput } from "../prototype/point-to-object-create";
+import { validatePointObjectCreateAoiVertices, validateRedevelopmentProgram, type RedevelopmentProgramInput } from "../prototype/point-to-object-create";
 
 /** Synthetic seed only: no acquired source, generated scene or financial proof. */
 export function createDevkitDemoProject(id = "devkit-synthetic-uae"): DevkitProject {
@@ -13,15 +13,19 @@ export function createDevkitDemoProject(id = "devkit-synthetic-uae"): DevkitProj
   const programA: RedevelopmentProgramInput = {
     templateId: "residential_mixed_use", title: "A · residential-led seed", summary: "Synthetic programme; geometry still to be generated.",
     massingStyle: "courtyard", blockCount: 4, levelsMin: 4, levelsMax: 8, targetSiteCoveragePct: 30,
-    openSpacePct: 40, setbackM: 8, useMix: [{ use: "residential", sharePct: 80 }, { use: "retail", sharePct: 20 }],
+    openSpacePct: 40, setbackM: 8, useMix: [{ use: "residential", sharePct: 50 }, { use: "retail", sharePct: 10 }, { use: "open_space", sharePct: 40 }],
     rationale: ["Illustrative programme, not a planning or demand conclusion."]
   };
   const programB: RedevelopmentProgramInput = {
     templateId: "commercial_hub", title: "B · office-led seed", summary: "A distinct synthetic alternative; not an acquired market finding.",
     massingStyle: "campus", blockCount: 3, levelsMin: 3, levelsMax: 6, targetSiteCoveragePct: 40,
-    openSpacePct: 30, setbackM: 10, useMix: [{ use: "office", sharePct: 70 }, { use: "retail", sharePct: 30 }],
+    openSpacePct: 30, setbackM: 10, useMix: [{ use: "office", sharePct: 55 }, { use: "retail", sharePct: 15 }, { use: "open_space", sharePct: 30 }],
     rationale: ["Different mix, massing, heights and coverage for controlled comparison."]
   };
+  for (const program of [programA, programB]) {
+    const valid = validateRedevelopmentProgram(program);
+    if (!valid.ok) throw new Error(`Synthetic Devkit programme is invalid: ${valid.errors.join("; ")}`);
+  }
   const design = (variant: "A" | "B", program: RedevelopmentProgramInput): DesignVersion => ({
     id: `design-${variant.toLowerCase()}`, revision: 1, scenarioId: variant, label: program.title, createdAt,
     inputRevision: 1, aoiId: aoi.id, aoiRevision: 1, program, buildings: [], retainedObjectIds: [],
