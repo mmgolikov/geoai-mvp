@@ -30,7 +30,8 @@ registerHooks({
 
 const sourcePaths = [
   "src/lib/devkit/contracts.ts", "src/lib/devkit/fixtures.ts", "src/lib/devkit/project-store.ts",
-  "src/lib/prototype/point-to-object-normalized-context.ts"
+  "src/lib/prototype/point-to-object-normalized-context.ts",
+  "src/lib/devkit/areas.ts", "src/lib/devkit/finance.ts", "src/lib/devkit/export.ts", "src/lib/devkit/design.ts"
 ];
 const missing = sourcePaths.filter(path => !existsSync(new URL(path, root)));
 if (missing.length) {
@@ -41,6 +42,7 @@ if (missing.length) {
   const { DEVKIT_CAVEAT } = await import("../src/lib/devkit/contracts.ts");
   const { createDevkitDemoProject, createDevkitCriticalGapProject } = await import("../src/lib/devkit/fixtures.ts");
   const { parseDevkitProject, createDevkitProjectStore, devkitRefFreshness, reviseDevkitInputs } = await import("../src/lib/devkit/project-store.ts");
+  const { createDesignAlternatives, applyDesignVersions } = await import("../src/lib/devkit/design.ts");
   const { normalizedResolvedContext, parseNormalizedPointObjectContext } = await import("../src/lib/prototype/point-to-object-normalized-context.ts");
   const cases = [];
   const check = (id, run) => {
@@ -98,17 +100,20 @@ if (missing.length) {
     assert.notEqual(parsed.aoi.coordinates[0][0][0], first.aoi.coordinates[0][0][0]);
   });
   check("S1-preservation-delta-envelope-roundtrip-only", () => {
-    const p = createDevkitDemoProject("qa-preservation");
-    // These sentinels test lossless bounded JSON only. Create/evidence modules must validate their semantics.
-    p.designVersions[0].scene = { format: "QA_ENVELOPE_SENTINEL", geometryRevision: 7, baseM: 12, terraces: [{ areaM2: 11, factor: null }], exclusions: ["qa-no-build"] };
-    p.evidence[0].provenance = { observedAt: null, acquiredAt: p.createdAt, providerProducedAt: null, cacheReturnedAt: null, geometryScope: "aoi_interior" };
-    p.claims[0].scope = { kind: "point_radius", radiusM: 400, comparisonRadiusM: 800, officialValidation: "required" };
+    const inputs = createDevkitDemoProject("qa-preservation");
+    // Optional evidence/scope metadata preserve exact JSON; scene must be genuinely canonical.
+    inputs.evidence[0].provenance = { observedAt: null, acquiredAt: inputs.createdAt, providerProducedAt: null, cacheReturnedAt: null, geometryScope: "aoi_interior" };
+    inputs.claims[0].scope = { kind: "point_radius", radiusM: 400, comparisonRadiusM: 800, officialValidation: "required" };
+    const pair = createDesignAlternatives(inputs, { createdAt: inputs.createdAt, seed: "qa-canonical-preservation" });
+    assert.equal(pair.ok, true, pair.ok ? "Canonical A/B generated" : pair.errors.join("; "));
+    const p = applyDesignVersions(inputs, pair.designs);
+    const canonical = pair.designs[0];
     const storage = memory(), store = createDevkitProjectStore(storage, "qa-preserve");
     const saved = value(store.save(p, null));
     const reopened = value(createDevkitProjectStore(storage, "qa-preserve").get(p.id)); assert.deepEqual(reopened, saved);
     const exported = value(store.exportProject(p.id));
     const restored = value(createDevkitProjectStore(memory(), "qa-restored").importProject(exported));
-    assert.deepEqual(restored, saved); assert.deepEqual(restored.designVersions[0].scene, p.designVersions[0].scene);
+    assert.deepEqual(restored, saved); assert.deepEqual(restored.designVersions.find(d => d.id === canonical.id && d.revision === canonical.revision).scene, canonical.scene);
     assert.deepEqual(restored.evidence[0].provenance, p.evidence[0].provenance); assert.deepEqual(restored.claims[0].scope, p.claims[0].scope);
   });
   check("S1-optional-delta-malformed-values-rejected-without-getter-execution", () => {
@@ -119,6 +124,9 @@ if (missing.length) {
         row[field] = bad; assert.equal(parseDevkitProject(p), null, `${field} must reject non-JSON/secret-shaped values`);
       }
     }
+    const unsupportedScene = createDevkitDemoProject();
+    unsupportedScene.designVersions[0].scene = { schemaVersion: 1, format: "QA_UNKNOWN_SCENE_FORMAT", geometryRevision: "unvalidated" };
+    assert.equal(parseDevkitProject(unsupportedScene), null, "Present bounded JSON with an unknown scene schema is not a canonical scene");
     let reads = 0; const p = createDevkitDemoProject();
     Object.defineProperty(p.designVersions[0], "scene", { enumerable: true, get() { reads++; return {}; } });
     assert.equal(parseDevkitProject(p), null); assert.equal(reads, 0);
@@ -213,13 +221,99 @@ if (missing.length) {
       assert.equal(parseNormalizedPointObjectContext(candidate), null);
     }
   });
+  const { buildAreaSchedule, toAreaArtifact } = await import("../src/lib/devkit/areas.ts");
+  const { FINANCE_FIELDS, runMonthlyFinance, calculateNpv, calculateIrr, toFinanceArtifact } = await import("../src/lib/devkit/finance.ts");
+  const { buildDevelopmentKit } = await import("../src/lib/devkit/export.ts");
+  const arithmeticArea = () => buildAreaSchedule({
+    projectId: "qa-arithmetic", snapshotId: "qa-arithmetic@1", inputRevision: 1,
+    design: { kind: "design", id: "design-a", revision: 1 }, geometryVersion: "qa-hand-rectangle-v1",
+    assumptionsVersion: "qa-explicit-allocation-v1", jurisdiction: "synthetic", methodology: "QA hand arithmetic, not official area definitions",
+    provenance: "synthetic", sourceRefs: [], accuracy: "Declared arithmetic quantities only; not a geometry acceptance", reviewer: null,
+    buildings: [{ id: "qa-building", aboveGroundGrossM2: 2400, belowGroundGrossM2: 0, commonM2: 240, technicalM2: 60,
+      parkingM2: 0, otherNonSaleableM2: 0, residualUse: "saleable", terraceM2: 100, terraceSaleableFactor: .5, registeredM2: null, permittedGfaM2: null }]
+  });
+  const arithmeticInput = areas => {
+    const zero = () => Object.fromEntries(FINANCE_FIELDS.map(field => [field, 0]));
+    return { projectId: areas.input.projectId, snapshotId: areas.input.snapshotId, inputRevision: 1,
+      areaRef: { kind: "areas", id: areas.id, revision: 1 }, areaCalculationVersion: areas.version, startMonth: "2026-10",
+      assumptions: { version: "qa-hand-monthly-v1", provenance: "synthetic", sourceRefs: [], validAt: null, reviewer: null,
+        currency: "USD", priceBasis: "nominal", taxBasis: "Explicit synthetic tax0; no classification", notes: ["QA arithmetic, not market inputs"],
+        projectAnnualDiscountRate: 0, equityAnnualDiscountRate: 0, debtAnnualEffectiveRate: 0,
+        openingAvailableCash: 0, openingDebt: 0, openingEscrow: 0, debtLimit: 50, landPaymentWeights: [1, 0, 0] },
+      rows: [{ ...zero(), land: 100, equityContribution: 100 }, { ...zero(), construction: 100, equityContribution: 50, debtDraw: 50 },
+        { ...zero(), unrestrictedIncome: 260, debtRepay: 50, financingFee: 5, equityDistribution: 205 }]
+    };
+  };
+  check("A1-independent-explicit-area-arithmetic", () => {
+    const a = arithmeticArea(); assert.equal(a.unit, "m2"); assert.equal(a.status, "calculated");
+    assert.equal(a.totals.enclosedGrossM2, 2400); assert.equal(a.totals.saleableIndoorM2, 2100);
+    assert.equal(a.totals.weightedTerraceM2, 50); assert.equal(a.totals.saleableEquivalentM2, 2150);
+    assert.equal(a.totals.physicalGrossIncludingTerracesM2, 2500); assert.equal(a.totals.registeredM2, null); assert.equal(a.totals.permittedGfaM2, null);
+  });
+  check("A1-unknown-allocation-and-overallocation-fail-closed", () => {
+    const input = structuredClone(arithmeticArea().input); input.buildings[0].commonM2 = null;
+    const unknown = buildAreaSchedule(input); assert.equal(unknown.totals.saleableEquivalentM2, null); assert.equal(unknown.status, "partial");
+    input.buildings[0].commonM2 = 2500; const impossible = buildAreaSchedule(input);
+    assert.equal(impossible.status, "blocked"); assert.ok(impossible.errors.some(error => error.startsWith("area_allocations_exceed_gross")));
+  });
+  check("F1-independent-three-month-project-equity-and-IRR", () => {
+    const a = arithmeticArea(), r = runMonthlyFinance(arithmeticInput(a), a);
+    assert.deepEqual(r.rows.map(row => row.projectCashFlow), [-100, -100, 260]); assert.deepEqual(r.rows.map(row => row.equityCashFlow), [-100, -50, 205]);
+    assert.deepEqual(r.rows.map(row => row.availableCash), [0, 0, 0]); assert.deepEqual(r.rows.map(row => row.debtBalance), [0, 50, 0]);
+    assert.equal(r.metrics.projectNpv, 60); assert.equal(r.metrics.equityNpv, 55); assert.equal(r.metrics.peakDebt, 50);
+    assert.ok(Math.abs(r.metrics.projectIrr.monthly - 0.18819430161341322) < 1e-10);
+    assert.ok(Math.abs(r.metrics.equityIrr.monthly - 0.2034441853748633) < 1e-10);
+    assert.equal(r.usableForDecision, false); assert.equal(r.input.assumptions.provenance, "synthetic");
+  });
+  check("F1-approved-available-cash-escrow-once-and-release-timing", () => {
+    const a = arithmeticArea(), input = arithmeticInput(a);
+    input.rows[1].escrowDeposit = 260; input.rows[2].unrestrictedIncome = 0; input.rows[2].escrowRelease = 260;
+    input.assumptions.projectAnnualDiscountRate = .12;
+    const r = runMonthlyFinance(input, a);
+    assert.deepEqual(r.rows.map(row => row.escrowBalance), [0, 260, 0]); assert.deepEqual(r.rows.map(row => row.availableCash), [0, 0, 0]);
+    assert.deepEqual(r.rows.map(row => row.projectCashFlow), [-100, -100, 260]);
+    assert.equal(r.metrics.totalBuyerReceipts, 260); assert.equal(r.metrics.closingEscrow, 0);
+    // Decimal oracle solved independently; rate is effective annual, periods monthly.
+    assert.ok(Math.abs(r.metrics.projectNpv - 56.0751387909571787499731077079515839344) < 1e-10);
+    assert.equal(calculateNpv([-100, -100, 260], 0), 60);
+  });
+  check("F1-unknown-cost-and-nonconventional-IRR-not-manufactured", () => {
+    const a = arithmeticArea(), input = arithmeticInput(a); input.rows[1].construction = null;
+    const r = runMonthlyFinance(input, a); assert.equal(r.rows[1].projectCashFlow, null); assert.equal(r.metrics.projectNpv, null);
+    assert.equal(r.metrics.closingCash, null); assert.equal(r.metrics.fundingFeasible, null); assert.equal(r.metrics.totalBuyerReceipts, 260);
+    const ambiguous = calculateIrr([-100, 230, -132]); assert.equal(ambiguous.status, "ambiguous_sign_changes"); assert.equal(ambiguous.monthly, null);
+  });
+  async function asyncCheck(id, run) {
+    try { await run(); cases.push({ id, result: "PASS" }); }
+    catch (error) { cases.push({ id, result: "FAIL", message: error instanceof Error ? error.message : String(error) }); }
+  }
+  await asyncCheck("K1-unsupported-method-never-promotes-bounded-arbitrary-JSON", async () => {
+    const p = withChain(); p.revision = 1;
+    for (const artifact of p.derivedArtifacts.filter(a => a.kind !== "kit")) {
+      artifact.methodVersion = "qa-unsupported-method"; artifact.data = { qaUnvalidatedAmount: 987654321 };
+    }
+    const kit = await buildDevelopmentKit(p);
+    for (const kind of ["areas", "finance"]) assert.ok(kit.manifest.issues.some(issue => issue.reference === `${kind}:qa-${kind}@1` && /METHOD|PAYLOAD_REJECTED/.test(issue.code)), `Unsupported ${kind} method needs an explicit issue`);
+    const memo = kit.files.find(file => file.path === "memo-album.html"); assert.ok(memo);
+    assert.equal(memo.content.includes("987654321"), false, "Unvalidated imported quantities must be withheld from the memo");
+    assert.equal(kit.files.find(file => file.path === "project.json").content.includes("987654321"), true, "Original bounded payload remains diagnostic/reimport data");
+  });
+  await asyncCheck("K1-known-area-finance-payloads-validate-with-draft-boundaries", async () => {
+    const p = createDevkitDemoProject("qa-arithmetic"); p.revision = 1;
+    const a = arithmeticArea(), f = runMonthlyFinance(arithmeticInput(a), a);
+    p.derivedArtifacts = [toAreaArtifact(a, { revision: 1, createdAt: p.createdAt }), toFinanceArtifact(f, { revision: 1, createdAt: p.createdAt })];
+    const kit = await buildDevelopmentKit(p);
+    assert.equal(kit.manifest.issues.some(issue => /PAYLOAD_REJECTED/.test(issue.code)), false);
+    assert.equal(kit.manifest.review, "not_performed"); assert.equal(kit.manifest.submission, "not_submitted");
+    assert.equal(kit.manifest.status, "partial_draft", "Arithmetic fixtures without generated scenes are not a coherent full P1");
+  });
   check("network-boundary", () => assert.equal(networkCalls, 0));
   const commit = execFileSync("git", ["rev-parse", "HEAD"], { cwd: fileURLToPath(root), encoding: "utf8" }).trim();
   const failed = cases.filter(c => c.result === "FAIL").length;
   process.stdout.write(JSON.stringify({ result: failed ? "FAIL" : "PASS", scope: "offline_contract_checks_only",
     acceptance: "NOT_ASSESSED", commit, node: process.version, cases, networkCalls,
     sources: sourcePaths.map(path => ({ path, sha256: createHash("sha256").update(readFileSync(new URL(path, root))).digest("hex") })),
-    limits: ["No full P1, generated-scene, areas/finance mathematics, kit semantics, caller owner-race, browser, hosted or live-source acceptance.",
-      "Opaque optional JSON sentinels test envelope preservation only; module semantic validation remains required."] }, null, 2) + "\n");
+    limits: ["Tiny synthetic arithmetic and module-validation regression fixtures only; no full P1, professional usefulness, caller owner-race, browser, hosted or live-source acceptance.",
+      "Scene roundtrip uses actual canonical generation; optional provenance/scope sentinels do not establish evidence applicability."] }, null, 2) + "\n");
   if (failed) process.exitCode = 1;
 }
