@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { runFinanceRevisionRegressions } from "./devkit-finance-revision-regressions.mjs";
 import { readFileSync } from "node:fs";
 import { createRequire, Module } from "node:module";
 import path from "node:path";
@@ -19,7 +20,7 @@ function load(relative) {
     }
     return nativeRequire(name);
   };
-  const source = ts.transpileModule(readFileSync(filename, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX } }).outputText;
+  const source = ts.transpileModule(readFileSync(filename, "utf8"), { fileName: filename, compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX } }).outputText;
   mod._compile(source, filename); return mod.exports;
 }
 const area = load("src/lib/devkit/areas.ts"), finance = load("src/lib/devkit/finance.ts");
@@ -169,6 +170,7 @@ try {
   const exampleAreas = area.parseAreaScheduleResult(areaArtifact.data);
   const financeArtifact = example.project.derivedArtifacts.filter(a => a.kind === "finance").at(-1);
   const exampleRun = finance.parseMonthlyFinanceResult(financeArtifact.data, exampleAreas);
+  runFinanceRevisionRegressions({ project: example.project, load, require, check });
   check(areaArtifact.inputs[0].id === generated.designs[0].id && exampleRun.input.areaRef.id === areaArtifact.id, "Exact active design -> area -> finance references stored");
   check(exampleRun.geometryVersion === generated.designs[0].scene.geometryRevision, "Finance is bound to measured active geometry revision");
   near(exampleRun.metrics.projectNpv, 60, "Scene-bound explicit arithmetic fixture project NPV60");

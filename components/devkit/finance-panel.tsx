@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import type { AreaAllocation, AreaScheduleResult } from "../../src/lib/devkit/areas";
 import { buildAreaScheduleFromMeasurement, calculationVersion, parseAreaScheduleResult, toAreaArtifact } from "../../src/lib/devkit/areas";
-import type { DerivedArtifact, DevkitProject } from "../../src/lib/devkit/contracts";
+import type { DerivedArtifact, DevkitProject, VersionRef } from "../../src/lib/devkit/contracts";
 import { FINANCE_FIELDS, makeSyntheticFinanceFixture, parseMonthlyFinanceResult, runFinanceSensitivity, runMonthlyFinance, toFinanceArtifact } from "../../src/lib/devkit/finance";
 import type { FinanceAssumptions, FinanceField, MonthlyFinanceInput, MonthlyFinanceRow } from "../../src/lib/devkit/finance";
 
@@ -67,10 +67,19 @@ function activeMeasurement(project: DevkitProject) {
   if (!design || design.inputRevision !== project.inputRevision || design.aoiId !== project.aoi?.id || design.aoiRevision !== project.aoi?.revision) throw new Error("Create a current canonical design before preparing areas.");
   return measureDesignScene(design as DesignScene);
 }
+function sameVersionRef(actual: VersionRef, expected: VersionRef): boolean {
+  return actual?.kind === expected.kind && actual.id === expected.id && actual.revision === expected.revision;
+}
+function areaMatchesContext(project: DevkitProject, artifact: DerivedArtifact, areas: AreaScheduleResult, measurement: ReturnType<typeof measureDesignScene>): boolean {
+  return artifact.kind === "areas" && artifact.id === areas.id && artifact.inputRevision === project.inputRevision &&
+    areas.input.projectId === project.id && areas.input.inputRevision === project.inputRevision &&
+    artifact.inputs.length === 1 && sameVersionRef(artifact.inputs[0], measurement.designRef) &&
+    sameVersionRef(areas.input.design, measurement.designRef) && areas.input.geometryVersion === measurement.geometryRevision;
+}
 function appendArtifact(project: DevkitProject, artifact: DerivedArtifact): DevkitProject {
   const invalid = new Set([`${artifact.kind}:${artifact.id}`]);
   const previous = project.derivedArtifacts.map(a => {
-    if (a.kind === artifact.kind) return { ...a };
+    if (a.kind === artifact.kind) return { ...a, status: a.id === artifact.id && a.revision < artifact.revision && a.status === "current" ? "stale" as const : a.status };
     if (a.inputs.some(ref => invalid.has(`${ref.kind}:${ref.id}`))) { invalid.add(`${a.kind}:${a.id}`); return { ...a, status: "stale" as const }; }
     return { ...a };
   });
@@ -100,7 +109,7 @@ function selectedAreas(project: DevkitProject) {
   const measurement = activeMeasurement(project);
   const artifact = project.derivedArtifacts.filter(a => a.kind === "areas" && a.inputs.some(ref => ref.kind === "design" && ref.id === measurement.designRef.id && ref.revision === measurement.designRef.revision)).sort((a, b) => b.revision - a.revision)[0];
   const areas = artifact && parseAreaScheduleResult(artifact.data);
-  if (!artifact || !areas || artifact.status === "stale" || artifact.status === "blocked" || areas.input.inputRevision !== project.inputRevision || areas.input.geometryVersion !== measurement.geometryRevision) throw new Error("Prepare a current area schedule before creating finance.");
+  if (!artifact || !areas || !areaMatchesContext(project, artifact, areas, measurement) || artifact.status === "stale" || artifact.status === "blocked") throw new Error("Prepare a current area schedule before creating finance.");
   return { artifact, areas, measurement };
 }
 export function saveProjectMonthlyFinance(project: DevkitProject, input: MonthlyFinanceInput, createdAt: string): Mutation {
@@ -164,10 +173,20 @@ function FinanceProjectWorkspace({ project, onChange, locale }: { project: Devki
   const measured = useMemo(() => { try { return { measurement: activeMeasurement(project), error: null }; } catch (error) { return { measurement: null, error: error instanceof Error ? error.message : "Canonical scene unavailable." }; } }, [project]);
   const measurement = measured.measurement;
   const areaArtifact = project.derivedArtifacts.filter(a => a.kind === "areas" && a.inputs.some(ref => ref.kind === "design" && ref.id === measurement?.designRef.id && ref.revision === measurement?.designRef.revision)).sort((a, b) => b.revision - a.revision)[0];
-  const areas = useMemo(() => areaArtifact ? parseAreaScheduleResult(areaArtifact.data) : null, [areaArtifact]);
+  const areas = useMemo(() => {
+    const parsed = areaArtifact ? parseAreaScheduleResult(areaArtifact.data) : null;
+    return areaArtifact && parsed && measurement && areaMatchesContext(project, areaArtifact, parsed, measurement) ? parsed : null;
+  }, [areaArtifact, measurement, project]);
   const financeArtifact = areaArtifact ? project.derivedArtifacts.filter(a => a.kind === "finance" && a.inputs.some(ref => ref.kind === "areas" && ref.id === areaArtifact.id && ref.revision === areaArtifact.revision)).sort((a, b) => b.revision - a.revision)[0] : undefined;
   const geometry = measurement && areaArtifact?.status !== "stale" && financeArtifact?.status !== "stale" ? measurement.geometryRevision : "geometry_or_source_inputs_unavailable";
-  const saved = useMemo(() => financeArtifact && areas ? parseMonthlyFinanceResult(financeArtifact.data, areas, geometry) : null, [financeArtifact, areas, geometry]);
+  const saved = useMemo(() => {
+    if (!financeArtifact || !areas || !areaArtifact) return null;
+    const parsed = parseMonthlyFinanceResult(financeArtifact.data, areas, geometry);
+    const expected: VersionRef = { kind: "areas", id: areaArtifact.id, revision: areaArtifact.revision };
+    return parsed && financeArtifact.inputRevision === project.inputRevision && parsed.input.projectId === project.id &&
+      financeArtifact.inputs.length === 1 && sameVersionRef(financeArtifact.inputs[0], expected) &&
+      sameVersionRef(parsed.input.areaRef, expected) ? parsed : null;
+  }, [financeArtifact, areas, areaArtifact, geometry, project]);
   const areaKey = `${areaArtifact?.id}:${areaArtifact?.revision}:${areas?.version}:${areaArtifact?.status}`;
   const financeKey = `${areaKey}:${financeArtifact?.id}:${financeArtifact?.revision}:${saved?.version}`;
   const [allocationDraft, setAllocationDraft] = useState<{ key: string; values: Record<string, AreaAllocation> }>(() => ({ key: areaKey, values: blankAllocations(measurement, areas) }));
