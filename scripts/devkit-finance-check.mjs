@@ -131,6 +131,10 @@ check(finance.applyAreaRatePlan(input, areas, { ...ratePlan, currency: "AED" }).
 check(area.parseAreaScheduleResult(JSON.parse(JSON.stringify(areas))) !== null, "Area JSON payload revalidated on reopen");
 check(area.parseAreaScheduleResult(mutated) === null, "Mutated persisted area rejected by module parser");
 check(finance.parseMonthlyFinanceResult(JSON.parse(JSON.stringify(run)), areas) !== null, "Finance JSON payload recomputed on reopen");
+const staleSaved = clone(run); staleSaved.status = "stale"; staleSaved.financialMaturity = "F0";
+check(finance.parseMonthlyFinanceResult(staleSaved, areas)?.status === "stale", "Reopen does not silently promote a persisted stale finance result");
+const staleAreas = { ...areas, status: "stale" };
+check(finance.runMonthlyFinance(input, staleAreas).status === "stale", "Persisted area staleness propagates even before a fresh geometry check");
 const forgedFinance = clone(run); forgedFinance.metrics.projectNpv = 60000;
 check(finance.parseMonthlyFinanceResult(forgedFinance, areas) === null, "Persisted fabricated NPV rejected despite valid JSON");
 check(finance.parseMonthlyFinanceResult({}, areas) === null, "Malformed finance payload rejected without throwing");

@@ -60,7 +60,7 @@ export function DevkitFinanceProjectPanel({ project, onChange, locale = "en" }: 
   const areas = areaArtifact ? parseAreaScheduleResult(areaArtifact.data) : null;
   const financeArtifact = areaArtifact ? project.derivedArtifacts.filter(a => a.kind === "finance" && a.inputs.some(ref => ref.kind === "areas" && ref.id === areaArtifact.id && ref.revision === areaArtifact.revision)).sort((a, b) => b.revision - a.revision)[0] : undefined;
   const scene = design && "scene" in design ? design.scene as { geometryRevision?: unknown } | undefined : undefined;
-  const geometry = typeof scene?.geometryRevision === "string" && areas?.input.inputRevision === project.inputRevision ? scene.geometryRevision : "geometry_or_source_inputs_unavailable";
+  const geometry = areaArtifact?.status !== "stale" && financeArtifact?.status !== "stale" && typeof scene?.geometryRevision === "string" && areas?.input.inputRevision === project.inputRevision ? scene.geometryRevision : "geometry_or_source_inputs_unavailable";
   const saved = financeArtifact && areas ? parseMonthlyFinanceResult(financeArtifact.data, areas, geometry) : null;
   const update = onChange && areas ? (nextInput: MonthlyFinanceInput) => {
     const result = runMonthlyFinance(nextInput, areas, geometry);

@@ -120,7 +120,7 @@ const monthAt = (start: string, i: number): string => {
 export function runMonthlyFinance(input: MonthlyFinanceInput, areas: AreaScheduleResult, currentGeometryVersion = areas.input.geometryVersion): MonthlyFinanceResult {
   const errors: string[] = [], missingInputs: string[] = [];
   const canonicalAreas = buildAreaSchedule(areas.input, currentGeometryVersion);
-  const stale = canonicalAreas.status === "stale" || input.areaCalculationVersion !== canonicalAreas.version || input.inputRevision !== areas.input.inputRevision;
+  const stale = areas.status === "stale" || canonicalAreas.status === "stale" || input.areaCalculationVersion !== canonicalAreas.version || input.inputRevision !== areas.input.inputRevision;
   if (input.projectId !== areas.input.projectId || input.snapshotId !== areas.input.snapshotId || input.areaRef.kind !== "areas" || input.areaRef.id !== areas.id || !Number.isInteger(input.areaRef.revision) || input.areaRef.revision < 1) errors.push("area_identity_mismatch");
   if (canonicalAreas.status === "blocked" || areas.version !== canonicalAreas.version || calculationVersion(areas.totals) !== calculationVersion(canonicalAreas.totals)) errors.push("invalid_or_mutated_area_schedule");
   if (canonicalAreas.totals.saleableEquivalentM2 === null) missingInputs.push("areas.saleableEquivalentM2");
@@ -258,6 +258,8 @@ export function parseMonthlyFinanceResult(value: unknown, areas: AreaScheduleRes
     const baseline = runMonthlyFinance(candidate.input, areas);
     if (candidate.status === "stale" && baseline.status !== "blocked") { baseline.status = "stale"; baseline.financialMaturity = "F0"; }
     if (calculationVersion(candidate) !== calculationVersion(baseline)) return null;
-    return runMonthlyFinance(candidate.input, areas, currentGeometryVersion);
+    const reopened = runMonthlyFinance(candidate.input, areas, currentGeometryVersion);
+    if (candidate.status === "stale" && reopened.status !== "blocked") { reopened.status = "stale"; reopened.financialMaturity = "F0"; }
+    return reopened;
   } catch { return null; }
 }
