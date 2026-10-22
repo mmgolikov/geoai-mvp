@@ -4,7 +4,7 @@
   "private": true,
   "description": "GeoAI MVP skeleton for spatial decision intelligence.",
   "scripts": {
-    "test:devkit": "node scripts/devkit-foundation-check.mjs && node scripts/devkit-bridge-check.mjs && node scripts/devkit-evidence-check.mjs --capacity-checkout=. && node scripts/devkit-design-check.mjs && node scripts/devkit-design-check.mjs --undo-only && node scripts/devkit-finance-check.mjs && node scripts/devkit-export-check.mjs && node scripts/devkit-find-check.mjs && node scripts/devkit-workflow-check.mjs && node scripts/devkit-qa-check.mjs",
+    "test:devkit": "node scripts/devkit-foundation-check.mjs && node scripts/devkit-bridge-check.mjs && node scripts/devkit-evidence-check.mjs --capacity-checkout=. && node scripts/devkit-evidence-check.mjs --display-only --display-checkout=. && node scripts/devkit-design-check.mjs && node scripts/devkit-design-check.mjs --undo-only && node scripts/devkit-finance-check.mjs && node scripts/devkit-export-check.mjs && node scripts/devkit-find-check.mjs && node scripts/devkit-workflow-check.mjs && node scripts/devkit-qa-check.mjs",
     "test:e2e:devkit": "playwright test tests/e2e/devkit-workspace.spec.ts",
     "dev": "WATCHPACK_POLLING=true CHOKIDAR_USEPOLLING=true next dev -H 127.0.0.1",
     "dev:turbo": "WATCHPACK_POLLING=true CHOKIDAR_USEPOLLING=true next dev -H 127.0.0.1 --turbopack",
