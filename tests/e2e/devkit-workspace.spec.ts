@@ -1,5 +1,5 @@
 import { expect, test, type BrowserContext, type Page, type TestInfo } from "@playwright/test";
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import type { DevelopmentKitBundle } from "../../src/lib/devkit/export";
 import type { MonthlyFinanceResult } from "../../src/lib/devkit/finance";
@@ -33,6 +33,20 @@ function canonicalSnapshot(value: unknown): string {
   return encoded;
 }
 const sha256 = (value: string) => createHash("sha256").update(value, "utf8").digest("hex");
+
+// Line/JUnit reporters retain attachment paths, while body-only success attachments are transient.
+async function attachDurable(testInfo: TestInfo, name: string, body: Uint8Array, contentType: "image/png" | "application/json") {
+  const fileName = `${name}.${contentType === "image/png" ? "png" : "json"}`;
+  const path = testInfo.outputPath(fileName);
+  await writeFile(path, body);
+  await testInfo.attach(name, { path, contentType });
+  const receiptPath = testInfo.outputPath(`${name}.sha256.json`);
+  await writeFile(receiptPath, JSON.stringify({
+    file: fileName, contentType, bytes: body.byteLength,
+    sha256: createHash("sha256").update(body).digest("hex")
+  }, null, 2) + "\n");
+  await testInfo.attach(`${name}-sha256`, { path: receiptPath, contentType: "application/json" });
+}
 const latestScenario = (project: DevkitProject, scenarioId: string) => {
   const design = project.designVersions.filter(item => item.scenarioId === scenarioId).at(-1);
   expect(design).toBeDefined(); return design!;
@@ -142,20 +156,20 @@ for (const locale of ["en", "ru"] as const) {
           durations.importIntoFreshBrowserContextMs = Date.now() - started;
           expect((await downloadSaved(restoredPage)).project).toEqual(exported.project);
           await assertNoHorizontalOverflow(restoredPage);
-          await testInfo.attach(`e1-restored-${locale}-${width}`, { body: await restoredPage.screenshot({ fullPage: true }), contentType: "image/png" });
+          await attachDurable(testInfo, `e1-restored-${locale}-${width}`, await restoredPage.screenshot({ fullPage: true }), "image/png");
         } finally { await restoredContext.close(); }
         await openExamples(page, locale); await page.getByTestId("devkit-example-critical").click();
         await page.getByTestId("devkit-stage-evidence").click();
         await expect(page.getByTestId("devkit-workflow").getByText("Critical site evidence unavailable", { exact: true })).toBeVisible();
         await expect(page.getByTestId("devkit-workflow").getByText(/unknown|unavailable|неизвестно|недоступно/i).first()).toBeVisible();
         await assertNoHorizontalOverflow(page);
-        await testInfo.attach(`e1-critical-${locale}-${width}`, { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
-        await testInfo.attach("e1-controller-observations", { body: Buffer.from(JSON.stringify({
+        await attachDurable(testInfo, `e1-critical-${locale}-${width}`, await page.screenshot({ fullPage: true }), "image/png");
+        await attachDurable(testInfo, "e1-controller-observations", Buffer.from(JSON.stringify({
           locale, width, height: 1000, scope: "controller synthetic snapshot transfer only", projectId: selectedId,
           harnessDurationsMs: durations, exportBytes: Buffer.byteLength(JSON.stringify(exported)),
           externalOrigins: [...externalOrigins], prohibitedEndpoints: [...prohibitedEndpoints], pageErrors,
           limitations: "No P1 completion, source/live/paid/hosted/owner-race, scene/finance mathematics or reviewed kit acceptance; durations include automation waits, not p95/SLA."
-        }, null, 2)), contentType: "application/json" });
+        }, null, 2)), "application/json");
         expect([...externalOrigins]).toEqual([]); expect([...prohibitedEndpoints]).toEqual([]); expect(pageErrors).toEqual([]);
       });
     });
@@ -255,8 +269,8 @@ test.describe("E1 connected P1 EN desktop", () => {
     const reimportFile = bundle.files.find(file => file.path === "project.json"); expect(reimportFile).toBeDefined();
     expect(JSON.parse(reimportFile!.content).project).toEqual(saved);
     const oldKitHash = sha256(bytes);
-    await testInfo.attach("connected-p1-saved-kit", { body: Buffer.from(bytes), contentType: "application/json" });
-    await testInfo.attach("connected-p1-kit-screen", { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
+    await attachDurable(testInfo, "connected-p1-saved-kit", Buffer.from(bytes), "application/json");
+    await attachDurable(testInfo, "connected-p1-kit-screen", await page.screenshot({ fullPage: true }), "image/png");
     await workflow.getByTestId("devkit-stage-brief").click();
     await workflow.getByLabel(/^Project title/).fill("QA unapplied then unsaved edit after kit");
     await workflow.getByTestId("devkit-stage-kit").click();
@@ -267,12 +281,12 @@ test.describe("E1 connected P1 EN desktop", () => {
     await expect(page.getByTestId("devkit-kit-save-gate")).toBeVisible();
     await expect(page.getByTestId("devkit-export-prepare")).toHaveCount(0);
     expect(sha256(await readFile(path!, "utf8"))).toBe(oldKitHash);
-    await testInfo.attach("connected-p1-observations", { body: Buffer.from(JSON.stringify({
+    await attachDurable(testInfo, "connected-p1-observations", Buffer.from(JSON.stringify({
       projectId: saved.id, projectRevision: saved.revision, inputRevision: saved.inputRevision, designA: editedA.id,
       unchangedDesignB: baselineB.id, areaRef: areas!.id, financeRef: finance!.id, snapshotHash: bundle.manifest.snapshotHash,
       harnessDurationsMs: elapsed, external: [...external], prohibited: [...prohibited], pageErrors,
       boundary: "Synthetic connected technical slice; partial draft and official-validation gaps retained. No real-site, paid-model, professional, hosted or Production acceptance."
-    }, null, 2)), contentType: "application/json" });
+    }, null, 2)), "application/json");
     expect([...external]).toEqual([]); expect([...prohibited]).toEqual([]); expect(pageErrors).toEqual([]);
   });
 });
