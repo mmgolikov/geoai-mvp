@@ -27,6 +27,10 @@ export type DevkitKitManifest = {
 };
 export type DevelopmentKit = { manifest: DevkitKitManifest; files: DevkitExportFile[]; artifact: KitArtifact };
 export type DevelopmentKitBundle = { format: "GEOAI_DEVKIT_BUNDLE"; schemaVersion: 1; manifest: DevkitKitManifest; files: DevkitExportFile[] };
+export type SourceMetadataDraft = {
+  manifest: { format: "geoai-devkit-source-metadata-1"; schemaVersion: 1; generatedAt: string; projectId: string; projectRevision: number; originalSnapshotHash: string; status: "metadata_only_draft"; importableProject: false; originalSnapshotIncluded: false; omitted: string[]; files: Omit<DevkitExportFile, "content">[]; caveat: string };
+  files: DevkitExportFile[];
+};
 
 const refOf = (item: DesignVersion | DerivedArtifact): VersionRef => ({ kind: "kind" in item ? item.kind : "design", id: item.id, revision: item.revision });
 const refKey = (ref: VersionRef) => `${ref.kind}:${ref.id}@${ref.revision}`;
@@ -297,4 +301,28 @@ export async function extractDevelopmentKitProject(serialized: string): Promise<
   if (canonicalDevkitJson(embeddedManifest) !== canonicalDevkitJson(value.manifest)) throw new Error("DEVKIT_IMPORT_MANIFEST_MISMATCH");
   if (envelope.format !== "GEOAI_DEVKIT_PROJECT" || envelope.schemaVersion !== 1 || !envelope.project || envelope.project.id !== value.manifest.projectId || envelope.project.revision !== value.manifest.projectRevision || envelope.project.inputRevision !== value.manifest.inputRevision || await devkitSha256(canonicalDevkitJson(envelope.project)) !== value.manifest.snapshotHash) throw new Error("DEVKIT_IMPORT_SNAPSHOT_MISMATCH");
   return projectJson;
+}
+
+/** Explicitly different deliverable: metadata only, no snapshot redaction/import or licensed source content. */
+export async function buildSourceMetadataDraft(savedSnapshot: DevkitProject, options: { locale?: "en" | "ru"; generatedAt?: string } = {}): Promise<SourceMetadataDraft> {
+  const project = parseDevkitProject(savedSnapshot);
+  if (!project || project.revision < 1) throw new Error("DEVKIT_EXPORT_INVALID_SAVED_SNAPSHOT");
+  const generatedAt = options.generatedAt ?? new Date().toISOString();
+  if (!Number.isFinite(Date.parse(generatedAt))) throw new Error("DEVKIT_EXPORT_INVALID_TIME");
+  const ru = (options.locale ?? project.brief.locale) === "ru";
+  const manifest: SourceMetadataDraft["manifest"] = { format: "geoai-devkit-source-metadata-1", schemaVersion: 1, generatedAt, projectId: project.id, projectRevision: project.revision, originalSnapshotHash: await devkitSha256(canonicalDevkitJson(project)), status: "metadata_only_draft", importableProject: false, originalSnapshotIncluded: false,
+    omitted: ["Full project snapshot/project.json", "Evidence excerpts and all provenance payloads", "Claim values/scope and constraint content", "Spatial objects/AOI/design geometry and renders", "Area and finance payloads/results", "Original source documents/forms and procedure checklist content"], files: [], caveat: DEVKIT_EXPORT_CAVEAT };
+  const sources = project.evidence.map(item => ({ evidenceId: item.id, subjectId: item.subjectId, sourceId: item.sourceId, primaryUrl: item.sourceUrl, acquiredAt: item.acquiredAt, validAt: item.validAt, responseHash: item.responseHash, status: item.status, trust: item.trust, rights: item.rights, sourceContentIncluded: false,
+    gap: item.rights.redistribution !== "allowed" || item.rights.permittedUse === "unknown" ? "Reuse rights unresolved or restrictive; source content withheld." : "Only source reference metadata included in this draft." }));
+  const procedures = project.procedures.map(item => ({ id: item.id, authority: item.authority, primaryUrl: item.sourceUrl, templateVersion: item.version, status: item.status, missingInputCount: item.missingInputs.length, submission: "not_submitted", formIncluded: false }));
+  const title = ru ? "Черновик метаданных источников" : "Source metadata draft";
+  const notice = ru ? "Это отдельный сокращённый документ. Исходный проект не изменён и не включён. Выдержки, raw content, геометрия, расчёты и формы не экспортируются. Этот файл нельзя импортировать как проект. Полный комплект требует проверки прав." : "This is a separate reduced document. The original project is unchanged and not included. Excerpts, raw content, geometry, calculations and forms are withheld. This file cannot be imported as a project. A full kit requires source-rights review.";
+  const html = `<!doctype html><html lang="${ru ? "ru" : "en"}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"><title>${esc(title)}</title><style>@page{size:A4;margin:15mm}*{box-sizing:border-box}body{margin:0 auto;padding:24px;max-width:1100px;font:14px/1.5 Arial,sans-serif;color:#183242}h1{font-size:26px}p,td,th{overflow-wrap:anywhere}.warning{padding:12px;background:#fffbeb;border-left:4px solid #a16207}.table-scroll{max-width:100%;overflow:auto}table{border-collapse:collapse;width:100%;font-size:12px}td,th{border:1px solid #cad6dc;padding:7px;text-align:left;vertical-align:top}th{background:#f0f6f6}@media(max-width:600px){body{padding:16px}td,th{min-width:100px}}@media print{body{padding:0}.table-scroll{overflow:visible}table{table-layout:fixed;font-size:8pt}thead{display:table-header-group}}</style></head><body><h1>${esc(title)}</h1><p>metadata_only_draft · ${esc(project.id)} @ ${project.revision} · ${esc(generatedAt)}</p><p class="warning">${esc(notice)}</p><p>${esc(DEVKIT_EXPORT_CAVEAT)}</p><h2>${ru ? "Ссылки и права" : "References and rights"}</h2>${table(["Evidence / subject", "Source / primary URL", "Status", "Dates", "Rights", "Gap"], sources.map(item => [`${item.evidenceId} · ${item.subjectId}`, `${item.sourceId} · ${item.primaryUrl ?? "unknown"}`, `${item.status} · ${item.trust}`, `acquired: ${item.acquiredAt ?? "unknown"}; valid: ${item.validAt ?? "unknown"}`, item.rights, item.gap]))}<h2>${ru ? "Ссылки на процедуры · не подано" : "Procedure references · not submitted"}</h2>${table(["ID", "Authority", "Primary URL", "Template version", "Status", "Missing inputs"], procedures.map(item => [item.id, item.authority, item.primaryUrl, item.templateVersion, item.status, item.missingInputCount]))}<h2>${ru ? "Исключено из этого документа" : "Withheld from this document"}</h2><ul>${manifest.omitted.map(item => `<li>${esc(item)}</li>`).join("")}</ul><p>Original snapshot SHA-256: ${esc(manifest.originalSnapshotHash)}</p><p>${ru ? "Хеш связывает документ с исходным локальным снимком; он не подтверждает достоверность, права или согласование." : "The hash links this document to its original local snapshot; it does not establish correctness, rights or approval."}</p></body></html>`;
+  const payloads = [{ path: "source-metadata.json", mediaType: "application/json", content: json({ format: manifest.format, schemaVersion: 1, projectId: project.id, projectRevision: project.revision, inputRevision: project.inputRevision, originalSnapshotHash: manifest.originalSnapshotHash, status: manifest.status, importableProject: false, originalSnapshotIncluded: false, sources, procedures, omitted: manifest.omitted, caveat: DEVKIT_EXPORT_CAVEAT }) }, { path: "source-metadata.html", mediaType: "text/html", content: html }];
+  const files: DevkitExportFile[] = [];
+  for (const file of payloads) files.push({ ...file, bytes: byteLength(file.content), sha256: await devkitSha256(file.content) });
+  manifest.files = files.map(({ path, mediaType, bytes, sha256 }) => ({ path, mediaType, bytes, sha256 }));
+  const content = json(manifest);
+  files.push({ path: "metadata-manifest.json", mediaType: "application/json", content, bytes: byteLength(content), sha256: await devkitSha256(content) });
+  return { manifest, files };
 }

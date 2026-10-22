@@ -36,7 +36,7 @@ let networkCalls = 0, checks = 0;
 globalThis.fetch = async () => { networkCalls++; throw new Error("Unexpected export network call"); };
 const check = (value, label) => { assert.ok(value, label); checks++; };
 const sha = content => createHash("sha256").update(content).digest("hex");
-const { buildDevelopmentKit, canonicalDevkitJson, extractDevelopmentKitProject, DEVKIT_EXPORT_CAVEAT } = require(path.join(root, "src/lib/devkit/export.ts"));
+const { buildDevelopmentKit, buildSourceMetadataDraft, canonicalDevkitJson, extractDevelopmentKitProject, DEVKIT_EXPORT_CAVEAT } = require(path.join(root, "src/lib/devkit/export.ts"));
 const { renderCanonicalScene } = require(path.join(root, "src/lib/devkit/render-scene.ts"));
 const polygon = (x, y, size = 0.00025) => ({ type: "Polygon", coordinates: [[[x, y], [x + size, y], [x + size, y + size], [x, y + size], [x, y]]] });
 const time = "2026-10-22T15:00:00.000Z";
@@ -106,6 +106,20 @@ try {
   check(unknownKit.files.find(file => file.path === "scene-01.svg").content.includes("?F"), "Unknown levels never rendered as zero floors");
   const rights = structuredClone(project); rights.evidence[0].rights.redistribution = "not_allowed";
   await assert.rejects(buildDevelopmentKit(rights, { generatedAt: time }), /RIGHTS_UNRESOLVED/); checks++;
+  const rawMarker = "RESTRICTED_ORIGINAL_CONTENT_74319", rawProvenanceMarker = "RESTRICTED_NESTED_PAYLOAD_38921";
+  rights.evidence[0].excerpt = rawMarker; rights.evidence[0].provenance = { retainedSource: { raw: rawProvenanceMarker } };
+  const restrictedBefore = JSON.stringify(rights);
+  const metadataDraft = await buildSourceMetadataDraft(rights, { generatedAt: time, locale: "ru" });
+  check(JSON.stringify(rights) === restrictedBefore && metadataDraft.manifest.originalSnapshotHash === sha(canonicalDevkitJson(rights)), "Metadata draft links original saved snapshot without changing it");
+  check(metadataDraft.manifest.status === "metadata_only_draft" && metadataDraft.manifest.importableProject === false && metadataDraft.manifest.originalSnapshotIncluded === false && !metadataDraft.files.some(file => file.path === "project.json"), "Explicit metadata deliverable cannot masquerade as an importable project/full kit");
+  check(metadataDraft.files.every(file => !file.content.includes(rawMarker) && !file.content.includes(rawProvenanceMarker) && !file.content.includes("grossAreaM2") && !file.content.includes("coordinates")), "Metadata fallback includes no excerpts, nested provenance, finance/area values or geometry");
+  const metadataSources = JSON.parse(metadataDraft.files.find(file => file.path === "source-metadata.json").content);
+  check(metadataSources.sources[0].evidenceId === rights.evidence[0].id && metadataSources.sources[0].rights.redistribution === "not_allowed" && metadataSources.sources[0].sourceContentIncluded === false, "Restricted source ID/status/rights preserved with explicit withheld gap");
+  for (const file of metadataDraft.files) check(file.sha256 === sha(file.content) && file.bytes === Buffer.byteLength(file.content), `Metadata draft byte integrity: ${file.path}`);
+  await assert.rejects(extractDevelopmentKitProject(JSON.stringify({ format: "GEOAI_DEVKIT_SOURCE_METADATA_DRAFT", schemaVersion: 1, manifest: metadataDraft.manifest, files: metadataDraft.files })), /UNSUPPORTED_BUNDLE/); checks++;
+  const aoiRights = structuredClone(project); aoiRights.evidence[0].trust = "user_provided"; aoiRights.evidence[0].rights.redistribution = "unknown"; aoiRights.evidence[0].excerpt = "Only the user-drawn area was copied.";
+  await assert.rejects(buildDevelopmentKit(aoiRights, { generatedAt: time }), /RIGHTS_UNRESOLVED/); checks++;
+  check((await buildSourceMetadataDraft(aoiRights, { generatedAt: time })).files.length === 3, "Unknown-rights AOI path still produces an explicit metadata-only draft without weakening full-snapshot gate");
   const unsaved = structuredClone(project); unsaved.revision = 0;
   await assert.rejects(buildDevelopmentKit(unsaved, { generatedAt: time }), /INVALID_SAVED_SNAPSHOT/); checks++;
   const badSchema = structuredClone(project); badSchema.schemaVersion = 0;
@@ -207,6 +221,7 @@ try {
     for (const file of kit.files) writeFileSync(path.join(output, file.path), file.content);
     writeFileSync(path.join(output, "critical-gap-memo.html"), failedKit.files.find(file => file.path === "memo-album.html").content);
     writeFileSync(path.join(output, "canonical-memo-album.html"), canonicalKit.files.find(file => file.path === "memo-album.html").content);
+    for (const file of metadataDraft.files) writeFileSync(path.join(output, file.path), file.content);
     writeFileSync(path.join(output, "check-result.json"), JSON.stringify({ status: "PASS", checks, networkCalls, foundationRoot: foundation, foundationStoreAvailable: existsSync(path.join(foundation, "src/lib/devkit/project-store.ts")), note: "Synthetic module checks only; no integrated runtime/hosted/official acceptance." }, null, 2) + "\n");
   }
   console.log(`PASS ${checks} export checks; network calls ${networkCalls}; synthetic module evidence only.`);
