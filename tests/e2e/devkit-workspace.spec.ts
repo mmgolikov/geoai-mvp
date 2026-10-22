@@ -246,6 +246,13 @@ test.describe("E1 connected P1 EN desktop", () => {
     expect(financeData.rows.map(row => row.equityCashFlow)).toEqual([-100, -50, 205]);
     expect(financeData.metrics.projectNpv).toBe(60); expect(financeData.metrics.equityNpv).toBe(55);
     expect(financeData.metrics.closingCash).toBe(0); expect(financeData.metrics.closingDebt).toBe(0);
+    // Official area inputs are missing, while the saved calculation versions still match.
+    const financeNavigationState = workflow.getByTestId("devkit-stage-finance").locator(".dk-stage-status");
+    const financeSnapshotState = workflow.locator('.dk-definitions > dt:text-is("Finance") + dd');
+    await expect(financeNavigationState).toHaveText("Needs inputs");
+    await expect(financeSnapshotState).toHaveText("Needs inputs");
+    await expect(workflow.locator('.dk-definitions > dt:text-is("Areas") + dd')).toHaveText("Needs inputs");
+    await expect(workflow.getByText("Out of date", { exact: true })).toHaveCount(0);
     await workflow.getByTestId("devkit-stage-kit").click();
     await expect(page.getByTestId("devkit-export-prepare")).toBeEnabled();
     started = Date.now(); await page.getByTestId("devkit-export-prepare").click();
@@ -280,6 +287,9 @@ test.describe("E1 connected P1 EN desktop", () => {
     await workflow.getByTestId("devkit-stage-kit").click();
     await expect(page.getByTestId("devkit-kit-save-gate")).toBeVisible();
     await expect(page.getByTestId("devkit-export-prepare")).toHaveCount(0);
+    // Applying the changed brief advances inputRevision; this is genuine stale derivation, not only an unsaved form.
+    await expect(financeNavigationState).toHaveText("Out of date");
+    await expect(financeSnapshotState).toHaveText("Out of date");
     expect(sha256(await readFile(path!, "utf8"))).toBe(oldKitHash);
     await attachDurable(testInfo, "connected-p1-observations", Buffer.from(JSON.stringify({
       projectId: saved.id, projectRevision: saved.revision, inputRevision: saved.inputRevision, designA: editedA.id,
