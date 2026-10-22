@@ -48,6 +48,11 @@ check("Relabelled identical programmes do not count as alternatives", () => {
   duplicate.designVersions[1].program = { ...structuredClone(duplicate.designVersions[0].program), title: "Different title only", templateId: "civic_green" };
   assert.equal(createDesignAlternatives(duplicate).ok, false);
 });
+check("Malformed programme returns a failure instead of throwing or mutating", () => {
+  const invalid = createDesignAlternatives(project, { programmes: { A: { useMix: null } }, previous: [a, b] });
+  assert.equal(invalid.ok, false); assert.equal(invalid.code, "invalid_input");
+  assert.strictEqual(invalid.previous[0], a);
+});
 check("Empty programme seed is not accepted geometry", () => assert.ok(validateDesignScene(project.designVersions[0]).length));
 const beforeA = JSON.stringify(a), beforeB = JSON.stringify(b);
 const selected = a.scene.buildings[0];
@@ -82,6 +87,14 @@ check("Overlap, outside AOI, stale revision and unsupported edit retain exact la
     const invalid = editDesignBuilding(a, selected.id, patch, expected, createdAt);
     assert.equal(invalid.ok, false);
     assert.strictEqual(invalid.design, a);
+  }
+});
+check("Canonical A/B and edit survive lossless JSON roundtrip", () => {
+  for (const design of [a, b, edit.design]) {
+    const restored = JSON.parse(JSON.stringify(design));
+    assert.deepEqual(validateDesignScene(restored), []);
+    assert.deepEqual(measureDesignScene(restored), measureDesignScene(design));
+    assert.deepEqual(designSceneFeatureCollection(restored), designSceneFeatureCollection(design));
   }
 });
 check("Tampered canonical quantities or programme do not validate", () => {
@@ -176,6 +189,8 @@ check("Only changed variant dependency descendants become stale", () => {
   const wrongProject = { ...attached, id: "another-project" };
   assert.throws(() => applyDesignVersions(wrongProject, [edit.design]));
   assert.throws(() => applyDesignVersions({ ...attached, inputRevision: 2 }, [edit.design]));
+  const changedWithoutRevision = structuredClone(attached); changedWithoutRevision.brief.strategy = "Changed input without revision";
+  assert.throws(() => applyDesignVersions(changedWithoutRevision, [edit.design]));
 });
 if (process.argv.includes("--ssr")) {
   const ts = await import("typescript");
@@ -189,6 +204,9 @@ if (process.argv.includes("--ssr")) {
   const { renderToStaticMarkup } = await import("react-dom/server");
   const { DevkitDesignPanel } = await import("../components/devkit/design-panel.tsx");
   check("EN/RU component SSR renders draft and canonical scene without browser or network", () => {
+    const warnings = [], originalError = console.error;
+    console.error = (...args) => warnings.push(args.map(String).join(" "));
+    try {
     const draftHtml = renderToStaticMarkup(createElement(DevkitDesignPanel, { project, onChange() {}, locale: "en" }));
     assert.ok(draftHtml.includes("empty buildings are not a design result"));
     assert.ok(!draftHtml.includes("<svg"));
@@ -199,12 +217,30 @@ if (process.argv.includes("--ssr")) {
       assert.ok(html.includes(locale === "ru" ? "Применить к корпусу" : "Apply to building"));
       assert.ok(html.includes(edit.design.scene.geometryRevision));
     }
+    for (const locale of ["en", "ru"]) {
+      const gapHtml = renderToStaticMarkup(createElement(DevkitDesignPanel, { project: createDevkitCriticalGapProject(), onChange() {}, locale }));
+      const consent = gapHtml.match(/<input[^>]*name="allowUnverifiedDraft"[^>]*>/)?.[0];
+      assert.ok(consent, "Critical gap draft consent must be available");
+      assert.ok(!/\bchecked\b/.test(consent), "Draft override must be off on initial render/remount");
+      assert.ok(gapHtml.includes(locale === "ru" ? "Это не подтверждает права" : "This does not confirm rights"));
+    }
+    assert.deepEqual(warnings, [], "SSR must not emit React render warnings");
+    } finally { console.error = originalError; }
   });
 }
 assert.equal(calls, 0);
 const output = { status: templateOverrides ? "PASS_TARGETED_WITH_SHARED_FIXTURE_BLOCKER" : "PASS", sharedFixturePositive: templateOverrides ? "BLOCKED" : "PASS", methodVersion: "devkit-design-1", checks: report, checkCount: report.length,
   elapsedMs: Math.round(performance.now() - start), networkCalls: calls, runtime: process.version,
   scope: "Synthetic offline module checks; not browser, full build, CI, hosted persistence or statutory validation." };
+const exampleIndex = process.argv.indexOf("--example");
+if (exampleIndex >= 0) {
+  const snapshot = applyDesignVersions(applyDesignVersions(project, [a, b]), [edit.design]);
+  writeFileSync(process.argv[exampleIndex + 1], `${JSON.stringify({
+    schemaVersion: 1, dataClass: "synthetic_demo", source: templateOverrides ? "explicit_template_overrides" : "shared_foundation_fixture",
+    project: snapshot, measurements: [measureDesignScene(edit.design), measureDesignScene(b)],
+    sceneFeatures: [designSceneFeatureCollection(edit.design), designSceneFeatureCollection(b)]
+  }, null, 2)}\n`);
+}
 const outputIndex = process.argv.indexOf("--output");
 if (outputIndex >= 0) writeFileSync(process.argv[outputIndex + 1], `${JSON.stringify(output, null, 2)}\n`);
 console.log(JSON.stringify(output));

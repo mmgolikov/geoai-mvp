@@ -30,6 +30,7 @@ export type CanonicalDesignScene = {
   aoiId: string;
   aoiRevision: number;
   programmeIdentity: string;
+  sourceInputIdentity: string;
   variantId: ConceptAlternativeId;
   parent: VersionRef | null;
   crs: "EPSG:4326";
@@ -94,9 +95,13 @@ function identity(value: unknown): string {
 }
 function sceneIdentity(scene: Omit<CanonicalDesignScene, "geometryRevision"> | CanonicalDesignScene): string {
   return identity({ methodVersion: scene.methodVersion, projectId: scene.projectId, inputRevision: scene.inputRevision,
-    aoiId: scene.aoiId, aoiRevision: scene.aoiRevision, programmeIdentity: scene.programmeIdentity, variantId: scene.variantId, crs: scene.crs,
+    aoiId: scene.aoiId, aoiRevision: scene.aoiRevision, programmeIdentity: scene.programmeIdentity, sourceInputIdentity: scene.sourceInputIdentity, variantId: scene.variantId, crs: scene.crs,
     metricFrame: scene.metricFrame, aoi: scene.aoi, buildings: scene.buildings,
     exclusionZones: scene.exclusionZones, constraints: scene.constraints });
+}
+function sourceInputIdentity(project: DevkitProject): string {
+  return identity({ projectId: project.id, brief: project.brief, aoi: project.aoi, objects: project.objects,
+    evidence: project.evidence, claims: project.claims, constraints: project.constraints, scenarios: project.scenarios });
 }
 function jsonScene(scene: CanonicalDesignScene): JsonObject & CanonicalDesignScene {
   return scene as unknown as JsonObject & CanonicalDesignScene;
@@ -244,7 +249,12 @@ export function createDesignAlternatives(project: DevkitProject, options: Design
     if (!constraint || constraint.geometry?.type !== "Polygon") return fail("invalid_input", [`${id}: an exclusion Polygon is required; missing geometry cannot be discarded.`]);
     zones.push({ id, label: constraint.label, geometry: structuredClone(constraint.geometry), reason: constraint.impact });
   }
-  const programmes = { ...defaultDesignProgrammes(project), ...options.programmes };
+  const defaults = defaultDesignProgrammes(project);
+  const programmes = { A: options.programmes?.A ?? defaults.A, B: options.programmes?.B ?? defaults.B };
+  for (const program of [programmes.A, programmes.B]) {
+    const validation = validateRedevelopmentProgram(program);
+    if (!validation.ok) return fail("invalid_input", validation.errors);
+  }
   const a = programmes.A, b = programmes.B;
   const meaningfulProgramme = (p: RedevelopmentProgramInput) => ({ useMix: [...p.useMix].sort((l, r) => l.use.localeCompare(r.use)),
     massingStyle: p.massingStyle, blockCount: p.blockCount, levelsMin: p.levelsMin, levelsMax: p.levelsMax,
@@ -284,7 +294,7 @@ export function createDesignAlternatives(project: DevkitProject, options: Design
         buildings.push(...structuredClone(preserved));
         const scene: CanonicalDesignScene = {
           schemaVersion: 1, methodVersion: DESIGN_METHOD_VERSION, geometryRevision: "", projectId: project.id,
-          inputRevision: project.inputRevision, aoiId: project.aoi.id, aoiRevision: project.aoi.revision, programmeIdentity: identity(program), variantId,
+          inputRevision: project.inputRevision, aoiId: project.aoi.id, aoiRevision: project.aoi.revision, programmeIdentity: identity(program), sourceInputIdentity: sourceInputIdentity(project), variantId,
           parent: prior ? { kind: "design", id: prior.id, revision: prior.revision } : null,
           crs: "EPSG:4326", metricFrame: structuredClone(frame), aoi: structuredClone(aoi), buildings,
           exclusionZones: structuredClone(zones), constraints: project.constraints.map(c => ({ id: c.id, status: c.status, severity: c.severity })),
@@ -405,7 +415,7 @@ export function applyDesignVersions(project: DevkitProject, designs: DesignScene
     const errors = validateDesignScene(design);
     if (errors.length) throw new Error(errors.join(" "));
     if (!project.aoi || design.scene.projectId !== project.id || design.inputRevision !== project.inputRevision || design.aoiId !== project.aoi.id || design.aoiRevision !== project.aoi.revision ||
-      stableJson(design.scene.aoi) !== stableJson(aoiGeometry(project))) {
+      stableJson(design.scene.aoi) !== stableJson(aoiGeometry(project)) || design.scene.sourceInputIdentity !== sourceInputIdentity(project)) {
       throw new Error("Cannot attach geometry from different project inputs or AOI revision.");
     }
     if (!project.scenarios.some(s => s.id === design.scenarioId)) throw new Error("Design scenario is not in this project.");

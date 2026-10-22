@@ -50,12 +50,12 @@ export function DesignScenePreview({ design, locale = "en" }: { design: DesignSc
         const p = feature.properties, ring = feature.geometry.coordinates[0];
         if (p.kind === "exclusion") return <polygon key={p.id} points={points(ring)} fill="#fee2e2" fillOpacity="0.75" stroke="#b91c1c" strokeWidth="0.8" strokeDasharray="2 2"><title>{p.id}</title></polygon>;
         const color = p.retained ? "#b6bcc5" : COLORS[p.use ?? "civic"];
-        if (p.heightM === null) return <polygon key={p.id} points={points(ring)} fill={color} fillOpacity="0.45" stroke="#475569" strokeWidth="1" strokeDasharray="2 2"><title>{p.buildingId}: {locale === "ru" ? "высота неизвестна" : "height unknown"}</title></polygon>;
+        if (p.heightM === null) return <polygon key={p.id} points={points(ring)} fill={color} fillOpacity="0.45" stroke="#475569" strokeWidth="1" strokeDasharray="2 2"><title>{`${p.buildingId}: ${locale === "ru" ? "высота неизвестна" : "height unknown"}`}</title></polygon>;
         return <g key={p.id}>
           {ring.slice(0, -1).map((point, index) => <polygon key={index}
             points={[screen(point, p.baseM), screen(ring[index + 1], p.baseM), screen(ring[index + 1], p.heightM!), screen(point, p.heightM!)].map(q => q.join(",")).join(" ")}
             fill={color} fillOpacity="0.7" stroke="#64748b" strokeWidth="0.3" />)}
-          <polygon points={points(ring, p.heightM)} fill={color} stroke="#475569" strokeWidth="0.5"><title>{p.buildingId}: {p.heightM.toFixed(1)} m</title></polygon>
+          <polygon points={points(ring, p.heightM)} fill={color} stroke="#475569" strokeWidth="0.5"><title>{`${p.buildingId}: ${p.heightM.toFixed(1)} m`}</title></polygon>
         </g>;
       })}
     </svg>
@@ -70,6 +70,8 @@ function DesignPanelContent({ project, onChange, locale: requestedLocale }: Devk
   const id = useId();
   const [errors, setErrors] = useState<string[]>([]);
   const [selectedId, setSelectedId] = useState("");
+  const [allowDraft, setAllowDraft] = useState(false);
+  const criticalGaps = project.constraints.filter(c => c.severity === "critical" && ["unknown", "conflicting"].includes(c.status));
   const [retention, setRetention] = useState<Record<string, { selected: boolean; use: string; levels: string; height: string }>>({});
   const [exclusions, setExclusions] = useState<Record<string, boolean>>({});
   const valid = useMemo(() => project.designVersions.filter(d => validateDesignScene(d).length === 0) as DesignScene[], [project.designVersions]);
@@ -112,7 +114,7 @@ function DesignPanelContent({ project, onChange, locale: requestedLocale }: Devk
       ...project.constraints.filter(c => exclusionSelected(c.id)).map(c => c.id),
       ...((active?.exclusionConstraintIds ?? seedExclusionIds).filter(existing => !project.constraints.some(c => c.id === existing)))
     ])];
-    const result = createDesignAlternatives(project, { retainedBuildings, exclusionConstraintIds });
+    const result = createDesignAlternatives(project, { retainedBuildings, exclusionConstraintIds, allowUnverifiedDraft: allowDraft });
     if (!result.ok) { setErrors(result.errors); return; }
     try { onChange(applyDesignVersions(project, result.designs)); } catch (error) { setErrors([error instanceof Error ? error.message : "Invalid project revision."]); }
   };
@@ -142,6 +144,12 @@ function DesignPanelContent({ project, onChange, locale: requestedLocale }: Devk
         <p className="mt-1 text-sm text-slate-600">{ru ? "Сначала — программы A/B, затем — корпуса одной сохранённой сцены. Площади и экспорт требуют актуальной версии." : "Generate A/B programmes, then edit buildings in one saved scene. Areas and export require the current revision."}</p></div>
       <button type="button" onClick={generate} disabled={!project.aoi || scenarios.length < 2} className={buttonClass}>{ru ? "Создать геометрию A/B" : "Generate A/B geometry"}</button>
     </div>
+    {criticalGaps.length > 0 && <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
+      <p className="font-medium">{ru ? "Критические исходные сведения не подтверждены" : "Critical source inputs are unverified"}</p>
+      <ul className="mt-2 list-disc space-y-1 break-words pl-5">{criticalGaps.map(gap => <li key={gap.id}>{gap.label}<span className="block text-xs leading-5">{gap.nextAction}</span></li>)}</ul>
+      <label className="mt-3 flex items-start gap-2"><input type="checkbox" name="allowUnverifiedDraft" checked={allowDraft} onChange={e => setAllowDraft(e.target.checked)} className="mt-1" /><span>{ru ? "Разрешаю только концептуальный черновик с этими пробелами. Это не подтверждает права, допустимость строительства или полноту исходных данных." : "Allow a conceptual draft with these gaps. This does not confirm rights, development permission or complete source inputs."}</span></label>
+      <p className="mt-2 text-xs leading-5">{ru ? "Без согласия генерация заблокирована. Все неизвестные и требования проверки сохраняются; при изменении исходных данных согласие сбрасывается." : "Generation is blocked without consent. Unknowns and review requirements remain; consent resets when source inputs change."}</p>
+    </div>}
     {errors.length > 0 && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900"><p className="font-medium">{ru ? "Изменение не применено. Последняя корректная сцена сохранена." : "Change was not applied. The last valid scene is preserved."}</p><ul className="mt-2 list-disc space-y-1 break-words pl-5">{errors.slice(0, 10).map((error, i) => <li key={i}>{error}</li>)}</ul></div>}
     <div className="grid gap-3 sm:grid-cols-2">{seeds.map((seed, index) => seed && <div key={seed.scenarioId} className="min-w-0 rounded-xl border border-slate-200 p-3">
       <p className="break-words text-sm font-semibold text-slate-800">{scenarios[index].label}</p>
