@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { dirname } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
 const ts = require("typescript");
@@ -182,6 +183,51 @@ if (storeArg !== -1) check("mapped Find selection survives actual foundation loc
     assert.deepEqual(api.restoreDevkitFindSelectionFromEvidence(imported.value.evidence.find(item => item.id === mapped.evidence[0].id)), selection);
   }
 });
+
+check("connected panel uses active owner/project only and rejects stale scope, artifact and criterion inputs", () => {
+  const Module = require("node:module"); const originalResolve = Module._resolveFilename; const originalLoad = Module._load;
+  const repo = fileURLToPath(new URL("../", import.meta.url));
+  let panel;
+  try {
+    Module._resolveFilename = function(request, parent, ...rest) { return originalResolve.call(this, request.startsWith("@/") ? resolve(repo, request.slice(2)) : request, parent, ...rest); };
+    Module._load = function(request, parent, ...rest) {
+      if (parent?.filename.endsWith("/components/devkit/find-project-panel.tsx") && request === "../auth/auth-provider") return { useAuth: () => ({ user: null, isSessionResolved: true }) };
+      if (parent?.filename.endsWith("/components/devkit/find-project-panel.tsx") && request.endsWith("/point-object-projects")) return { POINT_OBJECT_PROJECTS_EVENT: "local-test-event", pointObjectProjectIdentity: () => null, readVerifiedPointObjectProjects() { throw new Error("No live reader in offline test"); }, inspectPointObjectProjects() { throw new Error("No storage access in offline test"); } };
+      return originalLoad.call(this, request, parent, ...rest);
+    };
+    panel = require("../components/devkit/find-project-panel.tsx");
+  } finally { Module._resolveFilename = originalResolve; Module._load = originalLoad; }
+  const session = { version: 1, marketKey: "dubai", locale: "en", audience: "b2b", role: "developer", scenario: "b2b_redevelopment_selected_aoi", group: "construction", mappedMinimumLevels: "", mappedMaximumLevels: "", result: clone(result), shortlist: [clone(result.candidates[2])], comparisonOpen: false, analysisTargetSourceFeatureId: null, updatedAt: "2026-10-22T15:00:00.000Z" };
+  const artifact = { kind: "find", schemaVersion: 1, locale: "en", marketKey: "dubai", label: "Saved fixture Find", payload: { session }, artifactId: "find-saved-test", idempotencyKey: "test-find", payloadHash: "a".repeat(64), completedAt: session.updatedAt, updatedAt: session.updatedAt, viewRevision: 0 };
+  const active = { schemaVersion: 1, projectId: "legacy-active", name: "Active local project", storageMode: "browser_local_on_this_device", createdAt: session.updatedAt, updatedAt: session.updatedAt, artifacts: [artifact] };
+  const read = { status: "ready", rawPreserved: true, store: { schemaVersion: 1, identityKey: "demo:owner", activeProjectId: active.projectId, projects: [active, { ...clone(active), projectId: "inactive", artifacts: [] }] } };
+  const input = panel.activeSavedDevkitFind(read, "demo:owner", "dubai"); assert.ok(input); assert.equal(input.origin.legacyProjectId, "legacy-active");
+  assert.equal(panel.activeSavedDevkitFind(read, "demo:another", "dubai"), null); assert.equal(panel.activeSavedDevkitFind(read, "demo:owner", "moscow"), null);
+  assert.equal(panel.activeSavedDevkitFind({ ...read, store: { ...read.store, activeProjectId: "inactive" } }, "demo:owner", "dubai"), null);
+  const broken = clone(read); broken.store.projects[0].artifacts[0].payload.session.result.candidates[0].sourceElementId = "999";
+  assert.equal(panel.activeSavedDevkitFind(broken, "demo:owner", "dubai"), null);
+  const scope = { owner: "demo:owner", projectId: "e1-test", inputRevision: 1, market: "dubai", resolved: true };
+  assert.equal(panel.devkitFindPanelScopeMatches(scope, { ...scope }), true);
+  for (const patch of [{ owner: "demo:other" }, { projectId: "other" }, { inputRevision: 2 }, { market: "moscow" }, { resolved: false }]) assert.equal(panel.devkitFindPanelScopeMatches(scope, { ...scope, ...patch }), false);
+  const project = require("../src/lib/devkit/fixtures.ts").createDevkitDemoProject(); const before = clone(project);
+  const copied = panel.reviseDevkitFindPanel(project, input, input.state); assert.deepEqual(copied.aoi, before.aoi); assert.deepEqual(copied.objects, before.objects);
+  assert.ok(copied.evidence.some(row => row.id === before.evidence[0].id)); assert.equal(copied.inputRevision, before.inputRevision + 1);
+  const restored = panel.restoredDevkitFindPanelState(JSON.parse(JSON.stringify(copied)), input); assert.deepEqual(restored, input.state);
+  assert.equal(panel.restoredDevkitFindPanelState(copied, { ...input, origin: { ...input.origin, ownerScope: "demo:other" } }), null);
+  assert.equal(panel.restoredDevkitFindPanelState(copied, { ...input, origin: { ...input.origin, viewRevision: 1 } }), null);
+  const selection = selectDevkitFindCandidate(rank(input.state.result, input.state.criteria), "way/900"); selection.inputKind = "existing_find_result";
+  const chosenState = { ...restored, selectedSourceFeatureId: "way/900", shortlist: [result.candidates[2], result.candidates[1]] };
+  const chosen = panel.reviseDevkitFindPanel(copied, input, chosenState, selection); assert.deepEqual(chosen.aoi, before.aoi);
+  assert.equal(chosen.objects.find(row => row.sourceFeatureId === "way/900").kind, "building"); assert.ok(chosen.evidence.some(row => row.id === before.evidence[0].id));
+  assert.deepEqual(panel.restoredDevkitFindPanelState(chosen, input), chosenState);
+  assert.throws(() => panel.reviseDevkitFindPanel(chosen, input, { ...chosenState, criteria: { ...chosenState.criteria, maximumMappedLevels: 2 } }, selection));
+  assert.deepEqual(project, before);
+  const html = require("react-dom/server").renderToStaticMarkup(require("react").createElement(panel.DevkitFindProjectPanel, { project, locale: "en", onChange() { throw new Error("No automatic transfer"); } }));
+  assert.ok(html.includes("No verified active-project Find")); assert.ok(html.includes("/prototype/point-to-object?mode=find")); assert.ok(!html.includes("Synthetic test example"));
+  const source = readFileSync(new URL("../components/devkit/find-project-panel.tsx", import.meta.url), "utf8");
+  assert.ok(source.includes("useState(false)")); assert.ok(source.includes("disabled={!confirmed}")); assert.ok(source.includes("sequence !== epoch.current")); assert.ok(!source.includes("fetch("));
+});
+
 if (process.argv[2] === "--write-fixture") {
   if (!process.argv[3]) throw new Error("Fixture output path required.");
   writeFileSync(process.argv[3], JSON.stringify({ inputKind: "synthetic_fixture", note: "Invented candidate IDs and source receipts; no network performed.", state: createDevkitFindState(result, criteria, "synthetic_fixture") }, null, 2) + "\n");
