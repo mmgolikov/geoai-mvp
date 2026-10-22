@@ -146,8 +146,15 @@ isolatedAreaInput.buildings[0].aboveGroundGrossM2 = 999;
 near(isolatedAreas.input.buildings[0].aboveGroundGrossM2, 200, "Area result owns a copy of measurement assumptions");
 // Render actual owned UI without a server or external network if present.
 try {
-  const { FinancePanel } = load("components/devkit/finance-panel.tsx");
+  const { FinancePanel, DevkitFinanceProjectPanel } = load("components/devkit/finance-panel.tsx");
   const React = require("react"), { renderToStaticMarkup } = require("react-dom/server");
+  const shared = load("src/lib/devkit/fixtures.ts");
+  for (const factory of [shared.createDevkitDemoProject, shared.createDevkitCriticalGapProject]) {
+    const project = factory(), before = JSON.stringify(project);
+    const html = renderToStaticMarkup(React.createElement(DevkitFinanceProjectPanel, { project, locale: "en" }));
+    check(html.includes("Select an area schedule") && !html.includes(">0</"), "Shared default/critical-gap project remains unknown until finance inputs exist");
+    check(JSON.stringify(project) === before, "Default finance slot does not mutate shared project or fabricate artifacts");
+  }
   for (const locale of ["en", "ru"]) {
     const html = renderToStaticMarkup(React.createElement(FinancePanel, { areas, input, locale }));
     check(html.includes("260") && html.includes("USD") && html.includes("Screening hypothesis"), `Actual ${locale} finance panel renders rows/currency/caveat`);
