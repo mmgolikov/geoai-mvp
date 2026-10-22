@@ -5,6 +5,9 @@
   --dk-teal: #076b73;
   --dk-purple: #5b48d8;
   color: var(--dk-ink);
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
   max-width: 1440px;
   margin: 0 auto;
   padding: 32px 24px 48px;
@@ -26,7 +29,7 @@
   outline-offset: 3px;
 }
 .devkit-workflow input, .devkit-workflow select, .devkit-workflow textarea {
-  width: 100%; min-width: 0; min-height: 44px; border: 1px solid #aab9c7; border-radius: 10px;
+  width: 100%; min-width: 0; max-width: 100%; min-height: 44px; border: 1px solid #aab9c7; border-radius: 10px;
   padding: 10px 12px; color: var(--dk-ink); background: white;
 }
 .devkit-workflow textarea { resize: vertical; min-height: 100px; }
@@ -66,9 +69,10 @@
 .dk-panel { min-width: 0; padding: 24px; background: white; border: 1px solid var(--dk-line); border-radius: 16px; box-shadow: 0 5px 20px #132c4210; }
 .dk-panel-head { align-items: flex-start; justify-content: space-between; margin-bottom: 22px; }
 .dk-panel-head p { max-width: 650px; margin-top: 8px; color: var(--dk-muted); }
-.dk-stack { display: grid; gap: 18px; }
-.dk-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
-.dk-field { min-width: 0; display: grid; align-content: start; gap: 7px; font-size: 12px; font-weight: 650; }
+/* Bound native select intrinsic sizing through every implicit grid track. */
+.dk-stack { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; max-width: 100%; gap: 18px; }
+.dk-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); min-width: 0; max-width: 100%; gap: 18px; }
+.dk-field { min-width: 0; max-width: 100%; display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 7px; font-size: 12px; font-weight: 650; }
 .dk-field-wide { grid-column: 1 / -1; }
 .dk-field .dk-small { font-weight: 400; }
 .dk-callout { border: 1px solid #edd29f; border-radius: 10px; background: #fffbf2; color: #76501d; padding: 12px 14px; font-size: 12px; }
@@ -140,3 +144,5 @@
 
 .devkit-workflow summary { min-height: 44px; padding-block: 10px; cursor: pointer; }
 .dk-file-control:focus-within { outline: 3px solid #087f8c; outline-offset: 3px; }
+
+.devkit-workspace-client { box-sizing: border-box; width: 100%; min-width: 0; max-width: 100%; }
