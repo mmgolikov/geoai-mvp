@@ -37,26 +37,29 @@ function findArtifact(project: DevkitProject, ref: VersionRef): DerivedArtifact 
   return project.derivedArtifacts.find((artifact) => artifact.kind === ref.kind && artifact.id === ref.id && artifact.revision === ref.revision);
 }
 
-function refCurrent(project: DevkitProject, ref: VersionRef, seen: Set<string>): boolean {
+function refState(project: DevkitProject, ref: VersionRef, seen: Set<string>): WorkflowArtifactState {
   if (ref.kind === "design") {
     const design = project.designVersions.find((item) => item.id === ref.id && item.revision === ref.revision);
-    return Boolean(design && isWorkflowDesignCurrent(project, design));
+    return !design ? "missing" : isWorkflowDesignCurrent(project, design) ? "current" : "stale";
   }
   const artifact = findArtifact(project, ref);
-  return Boolean(artifact && workflowArtifactState(project, artifact, seen) === "current");
+  return artifact ? workflowArtifactState(project, artifact, seen) : "missing";
 }
 
 /** UI freshness only. Geometry, financial arithmetic and export checks belong to their modules. */
 export function workflowArtifactState(project: DevkitProject, artifact: DerivedArtifact | null, seen = new Set<string>()): WorkflowArtifactState {
   if (!artifact) return "missing";
-  if (artifact.status === "blocked") return "blocked";
   const key = `${artifact.kind}:${artifact.id}:${artifact.revision}`;
   if (seen.has(key)) return "blocked";
   const branch = new Set(seen).add(key);
+  if (artifact.inputRevision !== project.inputRevision || artifact.status === "stale" || project.derivedArtifacts.some((other) => other.kind === artifact.kind && other.id === artifact.id && other.revision > artifact.revision)) return "stale";
+  if (artifact.status === "blocked") return "blocked";
   const required = artifact.kind === "areas" ? ["design"] : artifact.kind === "finance" ? ["areas"] : ["design", "areas", "finance"];
   if (required.some((kind) => !artifact.inputs.some((ref) => ref.kind === kind))) return "blocked";
-  if (artifact.inputRevision !== project.inputRevision || artifact.status === "stale" || project.derivedArtifacts.some((other) => other.kind === artifact.kind && other.id === artifact.id && other.revision > artifact.revision)) return "stale";
-  if (artifact.inputs.some((ref) => !refCurrent(project, ref, branch))) return "stale";
+  const upstream = artifact.inputs.map((ref) => refState(project, ref, branch));
+  if (upstream.includes("stale")) return "stale";
+  // Incomplete or unavailable inputs do not establish that versions are old.
+  if (upstream.some((state) => state !== "current")) return "blocked";
   if (artifactDesignRefs(project, artifact).size !== 1) return "blocked";
   if (artifact.missingInputs.length) return "blocked";
   return artifact.status === "current" ? "current" : "draft";

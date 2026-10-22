@@ -116,12 +116,60 @@ try {
     const p = withOutputs();
     for (const a of p.derivedArtifacts) assert.equal(model.workflowArtifactState(p, a), "current");
     p.derivedArtifacts[0].inputs[0].revision = 9;
-    assert.equal(model.workflowArtifactState(p, p.derivedArtifacts[2]), "stale");
+    assert.equal(model.workflowArtifactState(p, p.derivedArtifacts[2]), "blocked", "Missing exact dependency is unavailable, not evidence of staleness");
     p.derivedArtifacts[0].inputs = [];
     assert.equal(model.workflowArtifactState(p, p.derivedArtifacts[0]), "blocked");
     p.derivedArtifacts[0].status = "blocked";
     assert.equal(model.workflowArtifactState(p, p.derivedArtifacts[0]), "blocked");
     assert.equal(model.workflowArtifactState(p, null), "missing");
+  });
+  group("matrix04 legal area gaps propagate needs-inputs, not stale finance", () => {
+    const p = withOutputs();
+    const areas = p.derivedArtifacts[0], finance = p.derivedArtifacts[1];
+    areas.revision = 2;
+    finance.inputs[0].revision = 2;
+    p.derivedArtifacts[2].inputs.find((ref) => ref.kind === "areas").revision = 2;
+    areas.missingInputs = [1, 2, 3, 4].flatMap((i) => [`building-${i}.registeredM2`, `building-${i}.permittedGfaM2`]);
+    const before = JSON.stringify(p);
+    assert.equal(areas.status, "current"); assert.equal(finance.status, "current");
+    assert.equal(model.workflowArtifactForDesign(p, "areas"), areas);
+    assert.equal(model.workflowArtifactForDesign(p, "finance"), finance);
+    assert.equal(model.workflowArtifactState(p, areas), "blocked");
+    assert.equal(model.workflowArtifactState(p, finance), "blocked");
+    assert.equal(model.workflowArtifactState(p, p.derivedArtifacts[2]), "blocked");
+    for (const locale of ["en", "ru"]) {
+      const html = renderToStaticMarkup(React.createElement(DevkitWorkflow, { project: p, locale, initialStage: "finance", onProjectChange() {} }));
+      assert(html.includes(locale === "ru" ? "Нужны данные" : "Needs inputs"));
+      assert(!html.includes(locale === "ru" ? "Устарело" : "Out of date"));
+    }
+    assert.equal(JSON.stringify(p), before, "All eight gaps and producer statuses remain unchanged");
+  });
+  group("missing, rejected and draft dependencies never become stale or current by propagation", () => {
+    for (const dependency of ["missing", "blocked", "draft"]) {
+      const p = withOutputs();
+      if (dependency === "missing") p.derivedArtifacts[1].inputs[0].id = "area-ref-not-found";
+      else p.derivedArtifacts[0].status = dependency;
+      assert.equal(model.workflowArtifactState(p, p.derivedArtifacts[1]), "blocked");
+      assert.equal(model.workflowArtifactState(p, p.derivedArtifacts[2]), "blocked");
+    }
+  });
+  group("real input revisions and superseded parents remain stale despite gaps", () => {
+    const inputChanged = withOutputs(); inputChanged.inputRevision++;
+    assert.equal(model.workflowArtifactState(inputChanged, inputChanged.derivedArtifacts[1]), "stale");
+    const p = withOutputs();
+    p.derivedArtifacts[0].status = "blocked";
+    p.derivedArtifacts[0].missingInputs = ["building-1.registeredM2"];
+    p.derivedArtifacts.push({ ...structuredClone(p.derivedArtifacts[0]), revision: 2, status: "current" });
+    assert.equal(model.workflowArtifactState(p, p.derivedArtifacts[0]), "stale");
+    assert.equal(model.workflowArtifactState(p, p.derivedArtifacts[1]), "stale");
+    const q = withOutputs();
+    q.designVersions.push({ ...structuredClone(q.designVersions[0]), revision: 2 });
+    assert.equal(model.workflowArtifactState(q, q.derivedArtifacts[1]), "stale");
+  });
+  group("cyclic dependency rejection stays blocked after state-preserving propagation", () => {
+    const p = withOutputs();
+    p.derivedArtifacts[0].inputs.push({ kind: "finance", id: p.derivedArtifacts[1].id, revision: 1 });
+    for (const artifact of p.derivedArtifacts) assert.equal(model.workflowArtifactState(p, artifact), "blocked");
   });
   group("mixed option lineage cannot become a coherent current kit", () => {
     const p = withOutputs();
