@@ -34,6 +34,9 @@ const storeFile = requestedStore ?? path.join(root, "src/lib/devkit/project-stor
 const storeBytes = existsSync(storeFile) ? readFileSync(storeFile) : null;
 const projectStore = storeBytes ? await import(pathToFileURL(storeFile).href) : null;
 const persistence = { status: "NOT_RUN", moduleSha256: storeBytes ? hash(storeBytes) : null, mode: "in_memory_storage_adapter_only" };
+const staticFile = path.join(root, "src/lib/devkit/region-data.ts");
+const staticData = existsSync(staticFile) ? await import(pathToFileURL(staticFile).href) : null;
+const staticRegionalData = { status: "NOT_RUN", regions: [] };
 let checks = 0, networkCalls = 0;
 const check = (value, message) => { assert.ok(value, message); checks++; };
 const originalFetch = globalThis.fetch;
@@ -174,6 +177,19 @@ try {
   for (const mutate of [p => p.schema_version = "unknown", p => p.procedures[0].source_ids = ["missing"], p => p.sources[0].url = "https://user:pass@example.com/", p => p.procedures[0].jurisdiction = "RU-MOW"]) {
     const bad = clone(regionalSynthetic); mutate(bad); check(!r.parseRegionalRulePack(bad).ok, "Unsupported schema, absent source, credential URL and jurisdiction mismatch fail closed");
   }
+  if (staticData) {
+    check(staticData.getDevkitRegionalPack("abu_dhabi") === null && staticData.getDevkitRegionalPack("singapore") === null && staticData.getDevkitRegionalPack("__proto__") === null, "Unresearched regions cannot borrow Dubai or Moscow authority/procedures");
+    for (const [market, expected] of [["dubai", "AE-DU"], ["moscow", "RU-MOW"]]) {
+      const pack = staticData.getDevkitRegionalPack(market);
+      check(pack?.jurisdiction === expected && pack.rules.length > 0 && pack.sources.every(source => source.observedAt === null && source.serviceTested !== true) && pack.sourcePackage.compiledMetadataOnly === true, `${market} browser bundle contains conditional researcher metadata and independent time/access states`);
+      const original = pack.rules[0].label; pack.rules[0].label = "Consumer edit";
+      check(staticData.getDevkitRegionalPack(market).rules[0].label === original, `${market} consumer editing cannot mutate frozen shared source metadata`);
+      const rejectRaw = value => !value || typeof value !== "object" || Object.entries(value).every(([key, v]) => !["rawBody", "rawHtml", "fullText", "full_text", "licenseText", "pdfBytes", "base64"].includes(key) && (Array.isArray(v) ? v.every(rejectRaw) : rejectRaw(v)));
+      check(rejectRaw(pack), `${market} browser source pack excludes raw documents/forms/terms payloads`);
+      staticRegionalData.regions.push({ market, jurisdiction: expected, packageVersion: pack.packageVersion, rules: pack.rules.length, sources: pack.sources.length, inputSha256: pack.sourcePackage.compilationProvenance.sourceSha256 });
+    }
+    staticRegionalData.status = "PASS";
+  }
   const regionalDir = process.argv.find(a => a.startsWith("--regional-dir="))?.slice(15);
   const regionalReports = [];
   if (regionalDir) for (const [region, registry] of [["uae_1", null], ["moscow_1", "source-verifications.json"]]) {
@@ -199,7 +215,7 @@ try {
   outputs["synthetic-positive-case.json"] = positive; outputs["synthetic-critical-gap-case.json"] = sourceFailure;
   outputs["u4-retained-source-case.json"] = actual; outputs["retained-aoi-context-case.json"] = mapped.evidenceCase;
   const result = { status: "PASS", checks, node: process.version, typescript: ts.version, networkCalls,
-    actualSourceHash: u4.U4_SOURCE_HASH, licenceHash: hash(licenseBytes), regionalReports, persistence,
+    actualSourceHash: u4.U4_SOURCE_HASH, licenceHash: hash(licenseBytes), regionalReports, persistence, staticRegionalData,
     scope: "module provenance, source failure, claim scope/conflict/staleness, exact existing source binding, saved AOI bridge and regional metadata",
     notQualified: ["independent QA", "browser/layout/usefulness", "hosted persistence", "CI/build/Preview", "new model acceptance", "official/legal/planning/valuation conclusion"] };
   const outDir = process.argv.find(a => a.startsWith("--out-dir="))?.slice(10);
