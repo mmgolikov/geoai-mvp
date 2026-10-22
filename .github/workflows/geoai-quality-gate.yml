@@ -886,14 +886,28 @@ jobs:
           printf '%s\n' \
             'Acquire::Retries "2";' \
             'Acquire::http::Timeout "30";' \
-            'Acquire::https::Timeout "30";' > "$apt_config"
-          # Verify effective values: later system apt config must not mask them.
+            'Acquire::https::Timeout "30";' \
+            'Binary::apt-config::Acquire::Retries "2";' \
+            'Binary::apt-config::Acquire::http::Timeout "30";' \
+            'Binary::apt-config::Acquire::https::Timeout "30";' \
+            'Binary::apt-get::Acquire::Retries "2";' \
+            'Binary::apt-get::Acquire::http::Timeout "30";' \
+            'Binary::apt-get::Acquire::https::Timeout "30";' > "$apt_config"
+          # Binary settings apply after runner parts/main, without skipping either.
+          # Check both the active probe and the exact apt-get consumer subtree.
           sudo -n env APT_CONFIG="$apt_config" apt-config shell \
             RETRIES Acquire::Retries HTTP_TIMEOUT Acquire::http::Timeout \
-            HTTPS_TIMEOUT Acquire::https::Timeout | tee artifacts/protected-effective-apt.txt
+            HTTPS_TIMEOUT Acquire::https::Timeout \
+            APT_GET_RETRIES Binary::apt-get::Acquire::Retries \
+            APT_GET_HTTP_TIMEOUT Binary::apt-get::Acquire::http::Timeout \
+            APT_GET_HTTPS_TIMEOUT Binary::apt-get::Acquire::https::Timeout \
+            | tee artifacts/protected-effective-apt.txt
           grep -Fxq "RETRIES='2'" artifacts/protected-effective-apt.txt
           grep -Fxq "HTTP_TIMEOUT='30'" artifacts/protected-effective-apt.txt
           grep -Fxq "HTTPS_TIMEOUT='30'" artifacts/protected-effective-apt.txt
+          grep -Fxq "APT_GET_RETRIES='2'" artifacts/protected-effective-apt.txt
+          grep -Fxq "APT_GET_HTTP_TIMEOUT='30'" artifacts/protected-effective-apt.txt
+          grep -Fxq "APT_GET_HTTPS_TIMEOUT='30'" artifacts/protected-effective-apt.txt
           # Root entry preserves APT_CONFIG through Playwright's apt subprocess.
           # This is the locked CLI; no npx fallback can install a newer package.
           sudo -n env DEBIAN_FRONTEND=noninteractive APT_CONFIG="$apt_config" \

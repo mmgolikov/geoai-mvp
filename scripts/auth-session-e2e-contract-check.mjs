@@ -379,6 +379,96 @@ for (const [name, command] of [
   if (packageJson.scripts?.[name] !== command) failures.push(`Missing exact source acceptance command: ${name}`);
   requireText(workflow, `npm run ${name}`, `CI must run the source acceptance contract: ${name}`);
 }
+// Canonical bounded setup wiring. No product/Auth assertion is replaced.
+// Ignore shell comments and continuation formatting; require real run commands.
+const protectedSetupContract = [
+  {
+    "name": "Prepare protected installation evidence",
+    "timeout": null,
+    "commands": [
+      "set -euo pipefail",
+      "mkdir -p artifacts",
+      "git rev-parse HEAD | tee artifacts/protected-tested-commit-sha.txt",
+      "node --version | tee artifacts/protected-node-version.txt",
+      "npm --version | tee artifacts/protected-npm-version.txt",
+      "cat /etc/os-release | tee artifacts/protected-runner-os.txt"
+    ]
+  },
+  {
+    "name": "Install locked JavaScript dependencies",
+    "timeout": 5,
+    "commands": [
+      "set -euo pipefail",
+      "trap 'status=$?; printf \"exit=%s elapsed_seconds=%s\\n\" \"$status\" \"$SECONDS\" >> artifacts/protected-npm-phase.txt; exit \"$status\"' EXIT",
+      "npm ci | tee artifacts/protected-npm-ci.txt",
+      "command -v google-chrome",
+      "google-chrome --version | tee artifacts/protected-chrome-version.txt"
+    ]
+  },
+  {
+    "name": "Install bounded WebKit system dependencies",
+    "timeout": 7,
+    "commands": [
+      "set -euo pipefail",
+      "trap 'status=$?; printf \"exit=%s elapsed_seconds=%s\\n\" \"$status\" \"$SECONDS\" >> artifacts/protected-os-phase.txt; exit \"$status\"' EXIT",
+      "command -v timeout",
+      "node_bin=\"$(command -v node)\"",
+      "test -f \"$PWD/node_modules/playwright/cli.js\"",
+      "apt_config=\"$PWD/artifacts/protected-apt.conf\"",
+      "printf '%s\\n'  'Acquire::Retries \"2\";'  'Acquire::http::Timeout \"30\";'  'Acquire::https::Timeout \"30\";'  'Binary::apt-config::Acquire::Retries \"2\";'  'Binary::apt-config::Acquire::http::Timeout \"30\";'  'Binary::apt-config::Acquire::https::Timeout \"30\";'  'Binary::apt-get::Acquire::Retries \"2\";'  'Binary::apt-get::Acquire::http::Timeout \"30\";'  'Binary::apt-get::Acquire::https::Timeout \"30\";' > \"$apt_config\"",
+      "sudo -n env APT_CONFIG=\"$apt_config\" apt-config shell  RETRIES Acquire::Retries HTTP_TIMEOUT Acquire::http::Timeout  HTTPS_TIMEOUT Acquire::https::Timeout  APT_GET_RETRIES Binary::apt-get::Acquire::Retries  APT_GET_HTTP_TIMEOUT Binary::apt-get::Acquire::http::Timeout  APT_GET_HTTPS_TIMEOUT Binary::apt-get::Acquire::https::Timeout  | tee artifacts/protected-effective-apt.txt",
+      "grep -Fxq \"RETRIES='2'\" artifacts/protected-effective-apt.txt",
+      "grep -Fxq \"HTTP_TIMEOUT='30'\" artifacts/protected-effective-apt.txt",
+      "grep -Fxq \"HTTPS_TIMEOUT='30'\" artifacts/protected-effective-apt.txt",
+      "grep -Fxq \"APT_GET_RETRIES='2'\" artifacts/protected-effective-apt.txt",
+      "grep -Fxq \"APT_GET_HTTP_TIMEOUT='30'\" artifacts/protected-effective-apt.txt",
+      "grep -Fxq \"APT_GET_HTTPS_TIMEOUT='30'\" artifacts/protected-effective-apt.txt",
+      "sudo -n env DEBIAN_FRONTEND=noninteractive APT_CONFIG=\"$apt_config\"  timeout --signal=TERM --kill-after=15s 360s  \"$node_bin\" \"$PWD/node_modules/playwright/cli.js\" install-deps webkit  | tee artifacts/protected-webkit-system-install.txt"
+    ]
+  },
+  {
+    "name": "Install and prove locked WebKit browser binary",
+    "timeout": 4,
+    "commands": [
+      "set -euo pipefail",
+      "trap 'status=$?; printf \"exit=%s elapsed_seconds=%s\\n\" \"$status\" \"$SECONDS\" >> artifacts/protected-browser-phase.txt; exit \"$status\"' EXIT",
+      "timeout --signal=TERM --kill-after=15s 180s  node node_modules/playwright/cli.js install webkit  | tee artifacts/protected-webkit-browser-install.txt",
+      "node -p \"require('playwright-core/package.json').version\"  | tee artifacts/protected-playwright-version.txt",
+      "browser_executable=\"$(node -p \"require('playwright').webkit.executablePath()\")\"",
+      "test -x \"$browser_executable\"",
+      "printf '%s\\n' \"$browser_executable\" | tee artifacts/protected-webkit-executable.txt"
+    ]
+  }
+];
+
+function validateProtectedBrowserSetup(lane) {
+  const failures = [];
+  const starts = [...lane.matchAll(/^      - name: ([^\n]+)\n/gm)];
+  const steps = starts.map((m, i) => ({ name: m[1].trim(), text: lane.slice(m.index, starts[i + 1]?.index ?? lane.length) }));
+  const positions = [];
+  for (const expected of protectedSetupContract) {
+    const matches = steps.map((step, index) => ({ ...step, index })).filter(step => step.name === expected.name);
+    if (matches.length !== 1) { failures.push('Protected setup requires exactly one ' + expected.name); continue; }
+    const step = matches[0];
+    positions.push(step.index);
+    if (!/^        shell: bash$/m.test(step.text)) failures.push('Protected setup requires bash: ' + expected.name);
+    if (/^        (?:if|continue-on-error):/m.test(step.text)) failures.push('Protected setup must be unconditional and fail closed: ' + expected.name);
+    const timeout = step.text.match(/^        timeout-minutes: (\d+)$/m);
+    if ((timeout ? Number(timeout[1]) : null) !== expected.timeout) failures.push('Protected setup deadline changed: ' + expected.name);
+    const run = step.text.match(/^        run: \|\n((?:          [^\n]*\n|\n)*)/m);
+    if (!run) { failures.push('Protected setup requires literal run block: ' + expected.name); continue; }
+    const commands = run[1].split('\n').map(line => line.startsWith('          ') ? line.slice(10) : line)
+      .filter(line => !line.trim().startsWith('#')).join('\n').replace(/\\\n\s*/g, ' ')
+      .split('\n').map(line => line.trim()).filter(Boolean);
+    if (JSON.stringify(commands) !== JSON.stringify(expected.commands)) failures.push('Protected bounded setup command/proof contract changed: ' + expected.name);
+  }
+  if (positions.length === 4 && positions.some((position, index) => index > 0 && position !== positions[index - 1] + 1)) failures.push('Protected setup phase order must remain prepare/npm/system/binary');
+  const firstAuth = steps.findIndex(step => step.name === 'Protected anonymous entry and byte preservation');
+  if (positions.length !== 4 || firstAuth < 0 || positions.some(position => position >= firstAuth)) failures.push('Complete bounded setup must precede protected browser assertions');
+  return failures;
+}
+
+failures.push(...validateProtectedBrowserSetup(protectedStep));
 for (const marker of [
   "NEXT_PUBLIC_AUTH_MODE: supabase_auth",
   "NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321",
@@ -388,7 +478,6 @@ for (const marker of [
   "npm run test:e2e:auth-persona:protected",
   "npm run test:e2e:auth-boundary:protected",
   "node scripts/sprint10-local-https.mjs",
-  "npx playwright install --with-deps webkit",
   "npx lighthouse https://127.0.0.1:3443/login",
   "artifacts/lighthouse-desktop-login.json",
   "npm run test:lighthouse-budget -- --protected-login"

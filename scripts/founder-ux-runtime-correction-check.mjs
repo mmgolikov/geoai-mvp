@@ -96,24 +96,30 @@ requireCondition(
 // Follow the approved security patch; use the same exact-pin predicate for the
 // real manifest and regression fixtures, without weakening other UX contracts.
 function hasRequiredNextVersion(manifest) {
-  return manifest?.dependencies?.next === "15.5.27";
+  return manifest?.dependencies?.next === "15.5.28";
 }
 
 requireCondition(
   hasRequiredNextVersion(packageJson),
-  "Next.js must resolve to patched Maintenance LTS version 15.5.27."
+  "Next.js must resolve to patched Maintenance LTS version 15.5.28."
 );
 
 for (const [label, manifest] of [
   ["unpatched 15.5.25", { dependencies: { next: "15.5.25" } }],
   ["unpatched 15.5.26", { dependencies: { next: "15.5.26" } }],
+  ["unpatched 15.5.27", { dependencies: { next: "15.5.27" } }],
   ["a different release family", { dependencies: { next: "16.0.0" } }],
   ["a non-exact version range", { dependencies: { next: "^15.5.27" } }],
+  ["the current non-exact version range", { dependencies: { next: "^15.5.28" } }],
   ["a missing Next dependency", { dependencies: {} }],
   ["a missing dependency root", {}],
   ["Next in the wrong dependency root", { devDependencies: { next: "15.5.27" } }],
+  ["current Next in the wrong dependency root", { devDependencies: { next: "15.5.28" } }],
   ["mismatched dependency roots", {
     dependencies: { next: "15.5.25" }, devDependencies: { next: "15.5.27" }
+  }],
+  ["current mismatched dependency roots", {
+    dependencies: { next: "15.5.27" }, devDependencies: { next: "15.5.28" }
   }]
 ]) {
   requireCondition(!hasRequiredNextVersion(manifest), `Next.js version guard must reject ${label}.`);
