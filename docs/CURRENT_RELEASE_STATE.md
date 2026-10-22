@@ -8,7 +8,11 @@ Successor: None; any replacement must update `DOCUMENTATION_INDEX.md`
 Operational dashboard: [Confluence Project Hub](https://geoaimvp.atlassian.net/wiki/spaces/PH/overview)
 Navigation: [Documentation Index](DOCUMENTATION_INDEX.md) · [Full System Audit](FULL_SYSTEM_AUDIT_2026_07_16.md) · [Architecture](architecture.md) · [Data Strategy](data-strategy.md) · [QA Checklist](qa-checklist.md) · [Codex Backlog](CODEX_BACKLOG_2026_07_16.md)
 
-## Current externally verified release
+## Current isolated candidate on 22 October 2026
+
+[Development Kit E1](DEVKIT_E1_2026_10_22.md) is in integration, not released. Its preserved D2 baseline is `d8c8495cc962dbe3de4b08f47ff17453ed80664c`, protected deployment `dpl_CKYvZZsSVuwCc2kChGyx5tVJpBtc`, [original Preview](https://geoai-5kim9iocf-geoaidev.vercel.app/prototype/point-to-object). Baseline inspection recorded Production on `main@21b91c4`; E1 does not modify either. The new route is `/projects/development-kit` in `devkit/2026-10-22-e1`. Deployment, full regression, browser and usefulness acceptance remain pending exact final evidence. Local persistence is not hosted acceptance. Older release and rehearsal sections below retain their original dates and are not current execution authority.
+
+## September 12 externally verified release snapshot
 
 The Sprint09 pre-release inspection on 2026-09-12 independently read GitHub and Vercel: PR [#147](https://github.com/mmgolikov/geoai-mvp/pull/147) is merged at `42c68171aaec6ff2f875c1c98f4ba4527c8f4232`; the Production alias resolves to Ready deployment `dpl_9D6c6t2hcSkGm4iFwt5V3EjKmdKc` at `https://geoai-gd56czies-geoaidev.vercel.app`, on that exact commit. This is the Sprint09 rollback baseline, not an assertion that the successor is released.
 

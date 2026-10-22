@@ -1,5 +1,7 @@
 # GeoAI Delivery Roadmap
 
+**22 October current scope:** [Development Kit E1](DEVKIT_E1_2026_10_22.md) adds one connected saved project path on an isolated branch, with a first bounded handoff due at 22:00 MSK. The immediate sequence is compatible contracts → linked local workflow and regional metadata → independent negative/usefulness checks → exact protected Preview and handoff. It does not activate hosted custody, confidential pilots or Production. After founder review, the next decision must address real-case data sufficiency, useful geometry-linked assumptions and persistence before commercial pilot claims. Prior October/November/December and 15 February 2027 horizons remain conditional planning targets, not newly confirmed release dates; E1 does not erase missed forecasts or D2 limitations. The earlier dated scopes below are retained as history.
+
 Current isolated Preview work: [September 10 correction](change-requests/point-to-object-001/experience-v6/SEPT10_REGRESSION_PROJECT_HUB_CHANGE_REQUEST.md). Order: map/source reliability → unified Project Hub and mobile/desktop landing → combined tests and exact Preview → founder physical-device retest. Contact-form transmission, cloud synchronization and collaborative projects remain later, separately scoped capabilities.
 
 Status: Active
