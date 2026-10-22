@@ -2,18 +2,29 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { registerHooks, stripTypeScriptTypes } from "node:module";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { resolve } from "node:path";
 
 const root = new URL("../", import.meta.url);
+// Optional explicit read-only dependency root for an unintegrated worker patch.
+// Exactly two authored dependency files are admitted, never a directory wildcard.
+const dependencyArg = process.argv.find(arg => arg.startsWith("--design-root="));
+const designRoot = dependencyArg ? pathToFileURL(`${resolve(dependencyArg.slice(14))}/`) : root;
+const designUrl = new URL("src/lib/devkit/design.ts", designRoot).href;
+const geometryUrl = new URL("src/lib/devkit/geometry.ts", designRoot).href;
 const allowed = new Set([
   "src/lib/devkit/contracts.ts", "src/lib/devkit/project-store.ts", "src/lib/devkit/fixtures.ts",
   "src/lib/prototype/point-to-object-create.ts", "src/lib/prototype/point-to-object-markets.ts",
   "src/lib/polygon-aoi.ts", "src/types/aoi.ts"
 ].map(path => new URL(path, root).href));
+allowed.add(designUrl); allowed.add(geometryUrl);
 registerHooks({
   resolve(specifier, context, next) {
     let target = specifier;
-    if (specifier.startsWith("@/")) target = new URL(`${specifier.slice(2)}.ts`, root).href;
+    if (specifier === "./design" && context.parentURL === new URL("src/lib/devkit/project-store.ts", root).href) target = designUrl;
+    else if (specifier === "./geometry" && context.parentURL === designUrl) target = geometryUrl;
+    else if (specifier === "../prototype/point-to-object-create" && context.parentURL === designUrl) target = new URL("src/lib/prototype/point-to-object-create.ts", root).href;
+    else if (specifier.startsWith("@/")) target = new URL(`${specifier.slice(2)}.ts`, root).href;
     else if ((specifier.startsWith("./") || specifier.startsWith("../")) && !/\.[cm]?[jt]s$/.test(specifier)) target = `${specifier}.ts`;
     const resolved = next(target, context);
     if (resolved.url.endsWith(".ts") && !allowed.has(resolved.url)) throw new Error(`Unapproved foundation dependency: ${resolved.url}`);
@@ -28,6 +39,7 @@ let networkCalls = 0, checks = 0;
 globalThis.fetch = async () => { networkCalls++; throw new Error("Network forbidden in foundation checks"); };
 const { createDevkitDemoProject: demo, createDevkitCriticalGapProject: negative } = await import("../src/lib/devkit/fixtures.ts");
 const {validateRedevelopmentProgram} = await import("../src/lib/prototype/point-to-object-create.ts");
+const {createDesignAlternatives, applyDesignVersions, editDesignBuilding, restoreDesignRevision, validateDesignScene, validateDesignProjectLineage} = await import(designUrl);
 const { parseDevkitProject: parse, createDevkitProjectStore: store, reviseDevkitInputs: revise, devkitRefFreshness: freshness, DEVKIT_MAX_PROJECT_BYTES } = await import("../src/lib/devkit/project-store.ts");
 const copy = value => structuredClone(value);
 const check = callback => { callback(); checks++; };
@@ -69,12 +81,16 @@ check(() => {const p = copy(fixture); let reads = 0; Object.defineProperty(p.bri
 check(() => {const p = copy(fixture); p.brief.loop = p; assert.equal(parse(p), null);});
 check(() => {const p = copy(fixture); p.brief[Symbol("hidden")] = "synthetic"; assert.equal(parse(p), null);});
 
-const rich = demo("devkit-rich");
-rich.designVersions[0].scene = {version: "synthetic-scene-v1", parent: null, terraces: [{areaSqM: null}], frame: {crs: "EPSG:4326"}};
+let rich = demo("devkit-rich");
 rich.evidence[0].provenance = {fetchedAt: "2026-10-22T14:30:00.000Z", observedAt: null, providerUpdatedAt: null, cacheServedAt: null, geometryScope: "synthetic_aoi", rights: {allowedOperations: ["local_demo"]}};
 rich.claims[0].scope = {radiusM: 400, extraCitationRadiusM: 800, kind: "aoi_interior", inputRefs: []};
+const richPair = createDesignAlternatives(rich, {allowUnverifiedDraft: true, createdAt: fixture.createdAt, seed: "foundation-rich"});
+assert.equal(richPair.ok, true, richPair.errors?.join("; "));
+rich = applyDesignVersions(rich, richPair.designs);
+const firstScene = project => project.designVersions.find(design => design.scene);
 check(() => assert.deepEqual(parse(rich), rich, "Optional scene/provenance/scope survive parser losslessly"));
-const carriers = [p => [p.designVersions[0], "scene"], p => [p.evidence[0], "provenance"], p => [p.claims[0], "scope"]];
+const carriers = [p => [firstScene(p), "scene"], p => [p.evidence[0], "provenance"], p => [p.claims[0], "scope"]];
+check(() => {const p = copy(rich); p.evidence[0].provenance.opaqueSentinel = {version: "synthetic-opaque-json", sourceFragment: null}; p.inputRevision++; assert.deepEqual(parse(p), p, "Opaque bounded provenance stays lossless without being promoted to a canonical scene");});
 for (const carrier of carriers) {
   for (const value of [null, [], "synthetic", 1, undefined, new Date(), {apiKey: "synthetic-sentinel"}, {nested: {accessToken: "synthetic-sentinel"}}, {value: Infinity}]) check(() => {
     const p = copy(rich), [row, key] = carrier(p); row[key] = value; assert.equal(parse(p), null);
@@ -99,7 +115,7 @@ check(() => assert.deepEqual(unwrap(store(backing, "browser-demo-a").get(rich.id
 check(() => assert.deepEqual(unwrap(store(backing, "browser-demo-b").list()), [], "Different namespace has no project list"));
 check(() => assert.equal(unwrap(store(backing, "browser-demo-b").get(saved.id)), null));
 check(() => {const read = unwrap(primary.get(saved.id)); read.brief.title = "mutated return"; assert.deepEqual(unwrap(primary.get(saved.id)), saved);});
-check(() => {rich.designVersions[0].scene.terraces[0].areaSqM = 999; assert.deepEqual(unwrap(primary.get(saved.id)), saved);});
+check(() => {firstScene(rich).scene.buildings[0].heightM = 999; assert.deepEqual(unwrap(primary.get(saved.id)), saved);});
 const exported = unwrap(primary.exportProject(saved.id));
 check(() => {assert.equal(JSON.parse(exported).format, "GEOAI_DEVKIT_PROJECT"); assert.equal(Object.hasOwn(JSON.parse(exported), "scopeId"), false);});
 const imported = unwrap(store(backing, "browser-demo-b").importProject(exported));
@@ -113,7 +129,8 @@ check(() => assert.equal(store(null, "demo").list().code, "storage_unavailable")
 check(() => assert.equal(store(backing, "../unsafe").list().code, "scope_mismatch"));
 check(() => {backing.denyRead = true; assert.equal(primary.list().code, "storage_unavailable"); backing.denyRead = false;});
 check(() => {const before = copy([...backing.data]); assert.equal(primary.save(saved, null).code, "conflict"); assert.equal(primary.save(saved, 99).code, "conflict"); assert.deepEqual([...backing.data], before);});
-check(() => {const p = copy(saved); p.brief.title = "Unversioned input"; assert.equal(primary.save(p, 1).code, "conflict");});
+check(() => {const p = copy(saved), before = copy([...backing.data]); p.brief.title = "Unversioned input"; assert.equal(primary.save(p, 1).code, "invalid_project", "Canonical scene rejects changed source identity before the local revision gate"); assert.deepEqual([...backing.data], before);});
+check(() => {const isolated = store(memory(), "legacy-input-conflict"), p = unwrap(isolated.save(demo("legacy-input-conflict"), null)); p.brief.title = "Unversioned input"; assert.equal(isolated.save(p, 1).code, "conflict", "Legacy scene-less input revision guard remains intact");});
 check(() => {const p = copy(saved); p.designVersions[0].program.levelsMax = 9; assert.equal(primary.save(p, 1).code, "conflict");});
 check(() => {const p = copy(saved); p.designVersions.pop(); p.activeDesignVersionId = "design-a"; assert.equal(primary.save(p, 1).code, "conflict");});
 check(() => assert.throws(() => revise(saved, {id: "foreign-project"})));
@@ -131,7 +148,7 @@ check(() => {const next = revise(derived, {brief: {...derived.brief, objective: 
 check(() => {const p = copy(derived); p.derivedArtifacts[0].inputs[0].id = "missing-design"; assert.equal(parse(p), null); p.derivedArtifacts.forEach(a => {a.status = "blocked"; a.missingInputs = ["Synthetic missing design"]}); assert.ok(parse(p));});
 check(() => {const p = copy(derived); p.derivedArtifacts[1].inputs = [ref("finance", "finance-a")]; assert.equal(parse(p), null); assert.equal(freshness(p, ref("finance", "finance-a")), "blocked");});
 check(() => {const p = copy(derived); p.designVersions.push({...copy(p.designVersions[0]), id: "design-a-v2", revision: 2}); p.activeDesignVersionId = "design-a-v2"; p.derivedArtifacts.forEach(a => {a.status = "stale"}); assert.ok(parse(p)); assert.equal(freshness(p, ref("design", "design-a")), "stale"); assert.equal(freshness(p, ref("design", "design-a-v2", 2)), "current"); assert.equal(freshness(p, ref("design", "design-b")), "current");});
-check(() => {const p = copy(derived); p.designVersions.push({...copy(p.designVersions[0]), id: "first-generated-a", scene: {parent: {id: "design-a", revision: 1}}}); p.derivedArtifacts.forEach(a => {a.status = "stale"}); assert.ok(parse(p)); assert.equal(freshness(p, ref("design", "design-a")), "stale"); assert.equal(freshness(p, ref("design", "first-generated-a")), "current"); assert.equal(freshness(p, ref("design", "design-b")), "current");});
+check(() => {const p = copy(derived); p.designVersions.push({...copy(p.designVersions[0]), id: "new-programme-envelope-a"}); p.derivedArtifacts.forEach(a => {a.status = "stale"}); assert.ok(parse(p)); assert.equal(freshness(p, ref("design", "design-a")), "stale"); assert.equal(freshness(p, ref("design", "new-programme-envelope-a")), "current"); assert.equal(freshness(p, ref("design", "design-b")), "current");});
 check(() => {const isolated = store(memory(), "history-order"), before = unwrap(isolated.save(demo("history-prefix"), null)); const reordered = copy(before); reordered.designVersions.reverse(); assert.equal(isolated.save(reordered, 1).code, "conflict", "Canonical history cannot be reordered to change the latest scene silently");});
 check(() => {
   const reverseKeys = value => Array.isArray(value) ? value.map(reverseKeys) : value && typeof value === "object" ? Object.fromEntries(Object.keys(value).reverse().map(key => [key, reverseKeys(value[key])])) : value;
@@ -162,5 +179,68 @@ check(() => {const before = backing.data.get(mainKey), backup = backing.data.get
 const limited = store(memory(), "capacity-demo");
 for (let index = 0; index < 12; index++) unwrap(limited.save(demo(`capacity-${index}`), null));
 check(() => assert.equal(limited.save(demo("capacity-overflow"), null).code, "capacity"));
+
+// Independent shared-boundary checks, not the design author's own test suite.
+// Parent is intentionally not a geometry-content hash input: these mutations
+// remain valid individual scenes and exercise the NEW project lineage gate.
+const lineageStart = copy(saved);
+const originalA = lineageStart.designVersions.find(d => d.scene && d.scenarioId === "A");
+const originalB = lineageStart.designVersions.find(d => d.scene && d.scenarioId === "B");
+const edit = editDesignBuilding(originalA, originalA.buildings[0].id, {levels: originalA.buildings[0].levels + 1}, originalA.revision, fixture.createdAt);
+assert.equal(edit.ok, true, edit.errors?.join("; "));
+const afterEdit = applyDesignVersions(lineageStart, [edit.design]);
+const restoration = restoreDesignRevision(afterEdit, edit.design, originalA, edit.design.revision, fixture.createdAt);
+assert.equal(restoration.ok, true, restoration.errors?.join("; "));
+const goodHistory = applyDesignVersions(afterEdit, [restoration.design]);
+const latestA = project => project.designVersions.filter(d => d.scene && d.scenarioId === "A").at(-1);
+check(() => {assert.deepEqual(validateDesignProjectLineage(goodHistory), []); assert.deepEqual(parse(goodHistory), goodHistory);});
+check(() => {const s = store(memory(), "lineage-positive"), written = unwrap(s.save(goodHistory, null)); assert.deepEqual(unwrap(s.get(written.id)), written); const transferred = unwrap(store(memory(), "lineage-positive-import").importProject(unwrap(s.exportProject(written.id)))); assert.deepEqual(transferred, written);});
+check(() => {
+  const historical = revise(goodHistory, {brief: {...goodHistory.brief, title: "New source-input revision; old scenes remain history"}});
+  assert.equal(historical.inputRevision, 2); assert.ok(historical.designVersions.filter(d => d.scene).every(d => d.inputRevision === 1));
+  assert.deepEqual(parse(historical), historical, "Historical scenes are not required to equal current inputRevision");
+  const s = store(memory(), "historical-positive"), written = unwrap(s.save(historical, null));
+  assert.deepEqual(unwrap(store(memory(), "historical-reimport").importProject(unwrap(s.exportProject(written.id)))), written);
+});
+check(() => {assert.equal(freshness(goodHistory, ref("design", "design-a")), "stale"); assert.equal(freshness(goodHistory, ref("design", restoration.design.id, restoration.design.revision)), "current"); assert.equal(freshness(goodHistory, ref("design", originalB.id, originalB.revision)), "current");});
+const lineageNegatives = [
+  ["missing-parent", p => {latestA(p).scene.parent = ref("design", "missing-parent");}],
+  ["self-parent", p => {const d = latestA(p); d.scene.parent = ref("design", d.id, d.revision);}],
+  ["forward-parent", p => {const d = p.designVersions.find(d => d.id === originalA.id); d.scene.parent = ref("design", restoration.design.id, restoration.design.revision);}],
+  ["cyclic-parent", p => {const first = p.designVersions.find(d => d.id === originalA.id), second = p.designVersions.find(d => d.id === edit.design.id); first.scene.parent = ref("design", second.id, second.revision); second.scene.parent = ref("design", first.id, first.revision);}],
+  ["cross-scenario-parent", p => {latestA(p).scene.parent = ref("design", originalB.id, originalB.revision);}],
+  ["restored-from-wrong-input", p => {
+    const next = revise(p, {brief: {...p.brief, title: "Different source input for a restoration-negative"}});
+    const pair = createDesignAlternatives(next, {previous: [], allowUnverifiedDraft: true, createdAt: fixture.createdAt, seed: "foundation-other-input"});
+    assert.equal(pair.ok, true, pair.errors?.join("; "));
+    // A separate valid generated scene has different input identity. Bind its
+    // envelope to the referenced old ID, without copying the hash algorithm.
+    // All scenes still pass individual geometry validation; relational history
+    // must reject both a future-input parent and the wrong restoration source.
+    const replacement = {...copy(pair.designs[0]), id: originalA.id, revision: originalA.revision};
+    next.designVersions = next.designVersions.map(d => d.id === originalA.id && d.revision === originalA.revision ? replacement : d);
+    Object.assign(p, next);
+  }]
+];
+for (const [name, forge] of lineageNegatives) check(() => {
+  const bad = copy(goodHistory); forge(bad);
+  assert.ok(bad.designVersions.filter(d => d.scene).every(d => validateDesignScene(d).length === 0), `${name}: rejection must not rely on malformed individual geometry`);
+  const errors = validateDesignProjectLineage(bad);
+  assert.ok(errors.length > 0, name);
+  if (name === "restored-from-wrong-input") assert.ok(errors.some(error => error.includes("restoration source must be an earlier same-project/scenario/input revision")));
+  assert.equal(parse(bad), null, `${name}: common parser gate`);
+  const adapter = memory(), s = store(adapter, `lineage-${name}`), qualified = unwrap(s.save(goodHistory, null));
+  bad.revision = qualified.revision;
+  const before = copy([...adapter.data]);
+  assert.equal(s.save(bad, qualified.revision).code, "invalid_project", `${name}: save gate`);
+  assert.deepEqual([...adapter.data], before, `${name}: failed save preserves previous bytes`);
+  assert.equal(s.importProject(JSON.stringify({format: "GEOAI_DEVKIT_PROJECT", schemaVersion: 1, exportedAt: fixture.createdAt, project: bad})).code, "invalid_import", `${name}: import gate before duplicate-ID handling`);
+  assert.deepEqual([...adapter.data], before);
+  const key = [...adapter.data.keys()].find(key => !key.endsWith(":previous"));
+  const raw = JSON.parse(adapter.data.get(key)); raw.projects[0] = bad;
+  const tampered = JSON.stringify(raw); adapter.data.set(key, tampered);
+  assert.equal(s.exportProject(bad.id).code, "store_damaged", `${name}: fresh readback/export gate`);
+  assert.equal(adapter.data.get(key), tampered, `${name}: corrupted source bytes are preserved, not sanitized`);
+});
 check(() => {assert.equal(networkCalls, 0); assert.equal(primary.persistence, "browser_local_only");});
-console.log(JSON.stringify({status: "PASS", checks, networkCalls, persistence: "browser_local_only", scope: "Synthetic contract/save/reopen/import/recovery/namespace/freshness checks; not hosted Auth, tenant security, source rights or finance validation"}));
+console.log(JSON.stringify({status: "PASS", checks, networkCalls, persistence: "browser_local_only", lineageNegatives: lineageNegatives.map(([name]) => name), dependencyMode: dependencyArg ? "explicit_readonly_checkout" : "integrated_root", scope: "Synthetic contract/save/reopen/import/recovery/namespace/freshness/canonical-lineage checks; not hosted Auth, tenant security, source rights or finance validation"}));

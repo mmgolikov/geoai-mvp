@@ -5,6 +5,7 @@ import {
 } from "./contracts";
 import { validatePointObjectCreateAoiVertices, validateRedevelopmentProgram } from "../prototype/point-to-object-create";
 import { isPointObjectLocale, isPointObjectMarketKey } from "../prototype/point-to-object-markets";
+import { validateDesignProjectLineage } from "./design";
 
 export const DEVKIT_MAX_PROJECT_BYTES = 768 * 1024;
 export const DEVKIT_MAX_STORE_BYTES = 2 * 1024 * 1024;
@@ -199,6 +200,7 @@ export function parseDevkitProject(value: unknown): DevkitProject | null {
         p.designVersions.some(d => d.inputRevision > p.inputRevision || !p.scenarios.some(s => s.id === d.scenarioId) ||
           d.retainedObjectIds.some(objectId => !p.objects.some(o => o.id === objectId)) || d.exclusionConstraintIds.some(constraintId => !p.constraints.some(c => c.id === constraintId))) ||
         p.derivedArtifacts.some(a => a.inputRevision > p.inputRevision || a.status === "current" && devkitRefFreshness(p, {kind: a.kind, id: a.id, revision: a.revision}) !== "current")) return null;
+    if (validateDesignProjectLineage(p).length !== 0) return null;
     return clone(p);
   } catch { return null; }
 }
