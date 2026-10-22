@@ -1,32 +1,39 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { DevkitProject } from "../../src/lib/devkit/contracts";
-import { buildDevelopmentKit, buildSourceMetadataDraft, type DevelopmentKit, type SourceMetadataDraft } from "../../src/lib/devkit/export";
+import { buildDevelopmentKit, buildSourceMetadataDraft, canonicalDevkitJson, type DevelopmentKit, type SourceMetadataDraft } from "../../src/lib/devkit/export";
 
 type Download = { path: string; url: string };
 
 /** Control wires this bounded panel into the existing project workflow. */
 export function DevkitExportPanel({ project, locale = project.brief.locale }: { project: DevkitProject; locale?: "en" | "ru" }) {
+  // A different exact snapshot/locale gets a different React state owner during reconciliation,
+  // before passive effects. Even a same-revision input mutation cannot display the prior kit.
+  return <ExportPreparationPanel key={`${locale}:${canonicalDevkitJson(project)}`} project={project} locale={locale} />;
+}
+
+function ExportPreparationPanel({ project, locale }: { project: DevkitProject; locale: "en" | "ru" }) {
   const [kit, setKit] = useState<DevelopmentKit | null>(null);
   const [metadataDraft, setMetadataDraft] = useState<SourceMetadataDraft | null>(null);
-  const [downloads, setDownloads] = useState<Download[]>([]);
+  const [downloadState, setDownloadState] = useState<{ owner: DevelopmentKit | SourceMetadataDraft | null; files: Download[] }>({ owner: null, files: [] });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const generation = useRef(0);
+  const prepared = kit ?? metadataDraft;
+  const downloads = downloadState.owner === prepared ? downloadState.files : [];
   const ru = locale === "ru";
   const errorText = error?.includes("RIGHTS_UNRESOLVED") ? (ru ? "Не подтверждены права на включение источника. Уточните разрешение или исключите этот материал в новой версии проекта." : "Reuse rights for a source are unresolved. Confirm permission or remove that material in a new project version.") : error?.includes("TOO_LARGE") ? (ru ? "Комплект превышает допустимый размер. Уменьшите объём вложений в новой версии проекта." : "The kit exceeds the supported size. Reduce attachments in a new project version.") : error?.includes("CRYPTO_UNAVAILABLE") ? (ru ? "Браузер не поддерживает проверку целостности. Откройте проект в актуальном браузере через защищённый адрес." : "File integrity checks are unavailable. Open the project in a current browser using a secure address.") : (ru ? "Не удалось проверить сохранённый снимок. Сохраните проект и откройте его заново." : "The saved snapshot could not be validated. Save and reopen the project.");
 
-  useEffect(() => { generation.current++; setKit(null); setMetadataDraft(null); setError(null); setBusy(false); }, [project, locale]);
+  useLayoutEffect(() => () => { generation.current++; }, []);
   useEffect(() => {
-    const prepared = kit ?? metadataDraft;
-    if (!prepared) { setDownloads([]); return; }
+    if (!prepared) { setDownloadState({ owner: null, files: [] }); return; }
     const files = prepared.files.map(file => ({ path: file.path, url: URL.createObjectURL(new Blob([file.content], { type: `${file.mediaType};charset=utf-8` })) }));
     const bundle = { format: kit ? "GEOAI_DEVKIT_BUNDLE" : "GEOAI_DEVKIT_SOURCE_METADATA_DRAFT", schemaVersion: 1, manifest: prepared.manifest, files: prepared.files };
     files.unshift({ path: kit ? "development-kit.json" : "source-metadata-draft.json", url: URL.createObjectURL(new Blob([JSON.stringify(bundle, null, 2)], { type: "application/json;charset=utf-8" })) });
-    setDownloads(files);
+    setDownloadState({ owner: prepared, files });
     return () => files.forEach(file => URL.revokeObjectURL(file.url));
-  }, [kit, metadataDraft]);
+  }, [prepared, kit]);
 
   async function prepare() {
     const token = ++generation.current;

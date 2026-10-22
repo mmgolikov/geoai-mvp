@@ -191,6 +191,11 @@ try {
   } else console.log("NOT_RUN foundation import/reopen: project-store.ts not yet available");
   const React = require("react"), { renderToStaticMarkup } = require("react-dom/server");
   const { DevkitExportPanel } = require(path.join(root, "components/devkit/export-panel.tsx"));
+  const originalPanel = DevkitExportPanel({ project, locale: "en" });
+  const newProject = structuredClone(project); newProject.id = "another-export-project";
+  const sameRevisionEdit = structuredClone(project); sameRevisionEdit.brief.objective += " changed";
+  check(originalPanel.key !== DevkitExportPanel({ project: newProject, locale: "en" }).key && originalPanel.key !== DevkitExportPanel({ project: sameRevisionEdit, locale: "en" }).key && originalPanel.key !== DevkitExportPanel({ project, locale: "ru" }).key, "Project/content/locale changes synchronously replace the export preparation state owner before passive effects");
+  check(originalPanel.key === DevkitExportPanel({ project: structuredClone(project), locale: "en" }).key, "Equivalent saved snapshot retains the same preparation identity");
   for (const locale of ["en", "ru"]) {
     const html = renderToStaticMarkup(React.createElement(DevkitExportPanel, { project, locale }));
     check(html.includes("devkit-export-prepare") && html.includes("official validation required"), `Panel SSR ${locale}: action and caveat visible`);
