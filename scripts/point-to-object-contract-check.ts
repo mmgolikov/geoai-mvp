@@ -1282,6 +1282,15 @@ async function assertRepositoryAuthorityQuarantine(): Promise<void> {
   );
 }
 
+// E1 shares only the existing locale hook at this exact client boundary.
+// Do not add this file to the Candidate allowlist: extra references still fail.
+function requiresPointObjectCandidateAllowlist(relativePath: string, source: string): boolean {
+  const candidateBoundarySource = relativePath === "components/devkit/workspace-client.tsx"
+    ? source.replace(/^import \{ usePointObjectLocale \} from "@\/components\/point-to-object\/locale-provider";$/m, "")
+    : source;
+  return /(?:src\/lib|@\/src\/lib|\.\.\/.*src\/lib)\/point-to-object|point-to-object\//.test(candidateBoundarySource);
+}
+
 function assertStaticBoundaries(): void {
   for (const heldSurface of [
     "app/prototypes/live-point",
@@ -1371,6 +1380,33 @@ function assertStaticBoundaries(): void {
     "components/landing/geoai-landing-page.tsx",
     "components/auth/profile-panel.tsx"
   ]);
+
+  const e1LocaleConsumer = "components/devkit/workspace-client.tsx";
+  const e1LocaleHookImport = "import { usePointObjectLocale } from \"@/components/point-to-object/locale-provider\";";
+  assert.equal(pointObjectIntegrationAllowlist.has(e1LocaleConsumer), false,
+    "E1 locale reuse must not grant general Candidate integration authority.");
+  assert.equal(requiresPointObjectCandidateAllowlist(e1LocaleConsumer, e1LocaleHookImport), false,
+    "The exact E1 locale-only hook consumer is shared UI context, not Candidate integration.");
+  for (const [label, relativePath, fixture] of [
+    ["neighboring devkit file","components/devkit/unapproved.tsx","import { usePointObjectLocale } from \"@/components/point-to-object/locale-provider\";"],
+    ["similar filename","components/devkit/workspace-client-copy.tsx","import { usePointObjectLocale } from \"@/components/point-to-object/locale-provider\";"],
+    ["Candidate core","components/devkit/workspace-client.tsx","import { usePointObjectLocale } from \"@/components/point-to-object/locale-provider\";\nimport type { EvidenceBundle } from \"@/src/lib/point-to-object/types\";"],
+    ["Candidate UI","components/devkit/workspace-client.tsx","import { usePointObjectLocale } from \"@/components/point-to-object/locale-provider\";\nimport { Candidate } from \"@/components/point-to-object/prototype-client\";"],
+    ["server assertion wrapper","components/devkit/workspace-client.tsx","import { usePointObjectLocale } from \"@/components/point-to-object/locale-provider\";\nimport { assertCandidate } from \"@/src/lib/point-to-object/candidate-assertion\";"],
+    ["pure assertion core","components/devkit/workspace-client.tsx","import { usePointObjectLocale } from \"@/components/point-to-object/locale-provider\";\nimport { assertCandidate } from \"@/src/lib/point-to-object/candidate-assertion-core\";"],
+    ["locale provider component","components/devkit/workspace-client.tsx","import { PointObjectLocaleProvider } from \"@/components/point-to-object/locale-provider\";"],
+    ["mixed hook/provider binding","components/devkit/workspace-client.tsx","import { usePointObjectLocale, PointObjectLocaleProvider } from \"@/components/point-to-object/locale-provider\";"],
+    ["namespace import","components/devkit/workspace-client.tsx","import * as locale from \"@/components/point-to-object/locale-provider\";"],
+    ["re-export","components/devkit/workspace-client.tsx","export { usePointObjectLocale } from \"@/components/point-to-object/locale-provider\";"],
+    ["dynamic import","components/devkit/workspace-client.tsx","const locale = import(\"@/components/point-to-object/locale-provider\");"],
+    ["require","components/devkit/workspace-client.tsx","const locale = require(\"@/components/point-to-object/locale-provider\");"],
+    ["relative import","components/devkit/workspace-client.tsx","import { usePointObjectLocale } from \"../point-to-object/locale-provider\";"],
+    ["duplicate hook import","components/devkit/workspace-client.tsx","import { usePointObjectLocale } from \"@/components/point-to-object/locale-provider\";\nimport { usePointObjectLocale } from \"@/components/point-to-object/locale-provider\";"],
+    ["additional Candidate route reference","components/devkit/workspace-client.tsx","import { usePointObjectLocale } from \"@/components/point-to-object/locale-provider\";\nconst url = \"/api/prototype/point-to-object/context\";"],
+  ]) {
+    assert.equal(requiresPointObjectCandidateAllowlist(relativePath, fixture), true,
+      `The locale-only exception must not bypass Candidate quarantine: ${label}.`);
+  }
 
   const prototypeUiFiles = candidateSurfaceFiles.filter((filePath) =>
     filePath.includes(`${path.sep}app${path.sep}prototype${path.sep}`) ||
@@ -1530,7 +1566,7 @@ function assertStaticBoundaries(): void {
     for (const filePath of collectFiles(path.join(ROOT, root)).filter((entry) => /\.(?:ts|tsx)$/.test(entry))) {
       const source = readFileSync(filePath, "utf8");
       const relativePath = path.relative(ROOT, filePath).split(path.sep).join("/");
-      const integratesPointToObject = /(?:src\/lib|@\/src\/lib|\.\.\/.*src\/lib)\/point-to-object|point-to-object\//.test(source);
+      const integratesPointToObject = requiresPointObjectCandidateAllowlist(relativePath, source);
       if (integratesPointToObject) {
         assert.equal(pointObjectIntegrationAllowlist.has(relativePath), true,
           `${relativePath} is not allowlisted to integrate the point-to-object Candidate.`);
