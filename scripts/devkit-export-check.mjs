@@ -1,0 +1,185 @@
+import assert from "node:assert/strict";
+import { createRequire } from "node:module";
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { webcrypto, createHash } from "node:crypto";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
+
+const root = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
+const option = name => { const at = process.argv.indexOf(name); return at < 0 ? null : process.argv[at + 1]; };
+const dependencies = option("--dependencies-root") ?? root;
+const foundation = option("--foundation-root") ?? root;
+const createRoot = option("--create-root") ?? root;
+const financeRoot = option("--finance-root") ?? root;
+const output = option("--output");
+const require = createRequire(path.join(dependencies, "package.json"));
+const ts = require("typescript"), Module = require("node:module");
+const previousTs = Module._extensions[".ts"], previousTsx = Module._extensions[".tsx"], previousResolve = Module._resolveFilename;
+const resolveDependency = (request, parent, ...rest) => {
+  const mapped = request.startsWith("@/") ? path.join(root, request.slice(2)) : request;
+  try { return previousResolve(mapped, parent, ...rest); }
+  catch (failure) {
+    if (request === "./contracts" || request === "./project-store") return path.join(foundation, "src/lib/devkit", `${request.slice(2)}.ts`);
+    if (request === "./design") return path.join(createRoot, "src/lib/devkit/design.ts");
+    if (request === "./areas" || request === "./finance") return path.join(financeRoot, "src/lib/devkit", `${request.slice(2)}.ts`);
+    if (!request.startsWith(".") && !request.startsWith("/") && !request.startsWith("@/")) return require.resolve(request);
+    throw failure;
+  }
+};
+Module._resolveFilename = resolveDependency;
+const loadTs = (module, filename) => module._compile(ts.transpileModule(readFileSync(filename, "utf8"), { fileName: filename, compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText, filename);
+Module._extensions[".ts"] = loadTs;
+Module._extensions[".tsx"] = loadTs;
+globalThis.crypto ??= webcrypto;
+const originalFetch = globalThis.fetch;
+let networkCalls = 0, checks = 0;
+globalThis.fetch = async () => { networkCalls++; throw new Error("Unexpected export network call"); };
+const check = (value, label) => { assert.ok(value, label); checks++; };
+const sha = content => createHash("sha256").update(content).digest("hex");
+const { buildDevelopmentKit, canonicalDevkitJson, extractDevelopmentKitProject, DEVKIT_EXPORT_CAVEAT } = require(path.join(root, "src/lib/devkit/export.ts"));
+const { renderCanonicalScene } = require(path.join(root, "src/lib/devkit/render-scene.ts"));
+const polygon = (x, y, size = 0.00025) => ({ type: "Polygon", coordinates: [[[x, y], [x + size, y], [x + size, y + size], [x, y + size], [x, y]]] });
+const time = "2026-10-22T15:00:00.000Z";
+function fixture() {
+  const programme = { templateId: "residential_mixed_use", title: "Synthetic", summary: "Synthetic only", massingStyle: "courtyard", blockCount: 1, levelsMin: 3, levelsMax: 6, targetSiteCoveragePct: 30, openSpacePct: 40, setbackM: 8, useMix: [{ use: "residential", sharePct: 60 }, { use: "open_space", sharePct: 40 }], rationale: ["Synthetic fixture"] };
+  const aoi = { id: "create-aoi-export-check", revision: 1, crs: "EPSG:4326", provenance: "synthetic", coordinates: polygon(55.27, 25.2, 0.002).coordinates, areaSqM: 44000, perimeterM: 840, vertexCount: 4 };
+  const { validatePointObjectCreateAoiVertices } = require(path.join(root, "src/lib/prototype/point-to-object-create.ts"));
+  const measured = validatePointObjectCreateAoiVertices(aoi.coordinates[0].slice(0, -1));
+  if (!measured.ok) throw new Error("Invalid synthetic check AOI");
+  aoi.areaSqM = measured.measurements.areaSqM; aoi.perimeterM = measured.measurements.perimeterM;
+  const designs = ["A", "B"].map((variant, index) => ({ id: `design-${variant}`, revision: 1, scenarioId: variant, label: `Synthetic ${variant}`, createdAt: time, inputRevision: 1, aoiId: aoi.id, aoiRevision: 1, program: { ...programme, levelsMin: index ? 3 : 6, levelsMax: index ? 3 : 6 }, buildings: [{ id: `building-${variant}`, label: `Building ${variant}`, footprint: polygon(55.2702 + index * 0.0007, 25.2002), levels: index ? 3 : 6, use: "residential", retained: false, assumptionIds: [] }], retainedObjectIds: [], exclusionConstraintIds: [], assumptions: ["Synthetic; no authority or valuation conclusion."], status: "draft" }));
+  const artifacts = designs.flatMap(design => {
+    const area = { id: `areas-${design.id}`, kind: "areas", revision: 1, inputRevision: 1, inputs: [{ kind: "design", id: design.id, revision: 1 }], createdAt: time, status: "draft", methodVersion: "synthetic-area-1", assumptions: ["Synthetic input; not official area."], missingInputs: [], data: { grossAreaM2: design.buildings[0].levels * 100, registeredAreaM2: null, method: "synthetic arithmetic fixture" } };
+    const finance = { id: `finance-${design.id}`, kind: "finance", revision: 1, inputRevision: 1, inputs: [{ kind: "areas", id: area.id, revision: 1 }], createdAt: time, status: "draft", methodVersion: "synthetic-monthly-1", assumptions: ["Synthetic arithmetic units, not market prices."], missingInputs: [], data: { currency: "USD", npv: 60, months: [{ month: 0, projectCashFlow: -100 }, { month: 1, projectCashFlow: -100 }, { month: 2, projectCashFlow: 260 }] } };
+    return [area, finance];
+  });
+  return { schemaVersion: 1, id: "export-synthetic-project", revision: 1, inputRevision: 1, createdAt: time, updatedAt: time, storageMode: "browser_local_on_this_device", dataClass: "synthetic_demo", brief: { title: "Synthetic kit / Синтетический комплект", objective: "Compare conditional variants", marketKey: "dubai", locale: "en", strategy: "Synthetic comparison", budget: { amount: null, currency: "USD", includesLand: null }, requirements: ["Preserve unknowns"], assumptions: ["Public/synthetic demonstration"] }, aoi, objects: [], evidence: [{ id: "evidence-1", subjectId: aoi.id, label: "Synthetic source", sourceId: "synthetic-1", sourceUrl: null, excerpt: "Synthetic, not observed", acquiredAt: null, validAt: null, responseHash: null, trust: "synthetic", status: "available", rights: { licence: "synthetic", attribution: "GeoAI synthetic", permittedUse: "synthetic_demo", redistribution: "allowed" } }], claims: [], constraints: [], scenarios: [{ id: "A", label: "A", objective: "6 floors" }, { id: "B", label: "B", objective: "3 floors" }], designVersions: designs, activeDesignVersionId: "design-A", derivedArtifacts: artifacts, procedures: [{ id: "test-procedure", label: "Synthetic preparation sheet", authority: "Synthetic authority; not an actual route", sourceUrl: "https://example.invalid/synthetic", version: "synthetic-1", applicant: "Synthetic authorized applicant role", status: "draft", missingInputs: [] }], caveat: DEVKIT_EXPORT_CAVEAT };
+}
+let kit;
+try {
+  const project = fixture(), before = JSON.stringify(project);
+  kit = await buildDevelopmentKit(project, { generatedAt: time, locale: "en" });
+  check(JSON.stringify(project) === before, "Builder preserves exact saved input without mutation");
+  check(kit.manifest.status === "coherent_draft" && kit.manifest.review === "not_performed" && kit.manifest.submission === "not_submitted", "Coherent synthetic draft does not imply review or submission");
+  check(kit.files.length === 7 && new Set(kit.files.map(file => file.path)).size === kit.files.length, "Seven unique payload/manifest files for A/B");
+  check(kit.manifest.snapshotHash === sha(canonicalDevkitJson(project)), "Canonical original snapshot SHA matches independent node SHA");
+  for (const file of kit.files) check(file.sha256 === sha(file.content) && file.bytes === Buffer.byteLength(file.content), `Exact UTF-8 byte hash: ${file.path}`);
+  check(!kit.manifest.files.some(file => file.path === "manifest.json"), "Manifest excludes itself from inventory to prevent circular hash");
+  const exported = JSON.parse(kit.files.find(file => file.path === "project.json").content);
+  check(exported.format === "GEOAI_DEVKIT_PROJECT" && JSON.stringify(exported.project) === before, "Import-ready project envelope preserves snapshot byte-equivalent semantics");
+  const repeated = await buildDevelopmentKit(project, { generatedAt: time, locale: "en" });
+  check(JSON.stringify(repeated) === JSON.stringify(kit), "Same saved snapshot/time generates identical complete export");
+  const bundle = { format: "GEOAI_DEVKIT_BUNDLE", schemaVersion: 1, manifest: kit.manifest, files: kit.files };
+  check(await extractDevelopmentKitProject(JSON.stringify(bundle)) === kit.files.find(file => file.path === "project.json").content, "Single-file bundle extracts exact foundation import envelope after integrity checks");
+  const damagedBundle = structuredClone(bundle); damagedBundle.files.find(file => file.path === "project.json").content += " ";
+  await assert.rejects(extractDevelopmentKitProject(JSON.stringify(damagedBundle)), /HASH_MISMATCH/); checks++;
+  const futureBundle = structuredClone(bundle); futureBundle.schemaVersion = 2;
+  await assert.rejects(extractDevelopmentKitProject(JSON.stringify(futureBundle)), /UNSUPPORTED_BUNDLE/); checks++;
+  const missingBundle = structuredClone(bundle); missingBundle.files = missingBundle.files.filter(file => file.path !== "scene-01.svg");
+  await assert.rejects(extractDevelopmentKitProject(JSON.stringify(missingBundle)), /INVENTORY_MISMATCH/); checks++;
+  const stale = structuredClone(project); stale.designVersions[0].revision = 2;
+  const staleKit = await buildDevelopmentKit(stale, { generatedAt: time });
+  check(staleKit.manifest.status === "partial_draft" && staleKit.manifest.issues.some(issue => ["VERSION_REFERENCE_MISMATCH", "DESIGN_AREA_MISSING"].includes(issue.code)), "Changed design blocks a coherent export of old area/finance");
+  const history = structuredClone(project);
+  const revisedDesign = structuredClone(history.designVersions[0]); revisedDesign.revision = 2; revisedDesign.buildings[0].levels = 5; history.designVersions.push(revisedDesign);
+  const revisedArea = structuredClone(history.derivedArtifacts[0]); revisedArea.revision = 2; revisedArea.inputs[0].revision = 2;
+  const revisedFinance = structuredClone(history.derivedArtifacts[1]); revisedFinance.revision = 2; revisedFinance.inputs[0].revision = 2;
+  history.derivedArtifacts.push(revisedArea, revisedFinance);
+  const revisedKit = await buildDevelopmentKit(history, { generatedAt: time });
+  check(revisedKit.manifest.status === "coherent_draft" && revisedKit.manifest.historicalRefs.length === 3 && revisedKit.manifest.versions.designs.some(ref => ref.id === revisedDesign.id && ref.revision === 2), "New exact derivations can form a coherent draft while complete prior history stays in project.json");
+  check(JSON.parse(revisedKit.files.find(file => file.path === "project.json").content).project.designVersions.length === 3, "Historical design snapshot preserved in importable project");
+  const aoiEdit = structuredClone(project); aoiEdit.aoi.revision++;
+  const aoiKit = await buildDevelopmentKit(aoiEdit, { generatedAt: time });
+  check(aoiKit.manifest.status === "partial_draft" && !aoiKit.files.some(file => file.path.endsWith(".svg")), "Old geometry never rendered as current after AOI revision change");
+  const sourceFailure = structuredClone(project); sourceFailure.evidence[0] = { ...sourceFailure.evidence[0], status: "unavailable", trust: "unavailable", excerpt: null, rights: { licence: null, attribution: "Unavailable", permittedUse: "unknown", redistribution: "unknown" } }; sourceFailure.claims.push({ id: "unknown-title", subjectId: project.aoi.id, field: "ownership", value: null, unit: null, status: "unknown", evidenceIds: [], explanation: "No rights document" }); sourceFailure.procedures[0].missingInputs = ["Plot identity", "Applicant authority"];
+  const failedKit = await buildDevelopmentKit(sourceFailure, { generatedAt: time, locale: "ru" });
+  check(failedKit.manifest.status === "partial_draft" && failedKit.manifest.issues.some(issue => issue.code === "EVIDENCE_GAP") && failedKit.manifest.issues.some(issue => issue.code === "MANDATORY_ATTACHMENT_MISSING"), "Failure/missing documents produce an honest partial draft");
+  check(JSON.parse(failedKit.files.find(file => file.path === "sources.json").content).claims[0].value === null, "Unknown source claim stays null in export");
+  check(failedKit.files.find(file => file.path === "memo-album.html").content.includes("не является официальной формой"), "RU memo marks procedure draft and official-form boundary");
+  const hostile = structuredClone(project); hostile.brief.title = '<script>alert("x")</script>'; hostile.designVersions[0].label = '<script>bad()</script>';
+  const safeKit = await buildDevelopmentKit(hostile, { generatedAt: time });
+  const safeViews = safeKit.files.filter(file => /html|svg/.test(file.mediaType));
+  check(safeViews.every(file => !file.content.includes("<script>")) && safeViews.some(file => file.mediaType === "text/html" && file.content.includes("&lt;script&gt;")), "Untrusted project labels remain inert escaped text in HTML");
+  const unknownLevels = structuredClone(project); unknownLevels.designVersions[0].buildings[0].levels = null;
+  const unknownKit = await buildDevelopmentKit(unknownLevels, { generatedAt: time });
+  check(unknownKit.files.find(file => file.path === "scene-01.svg").content.includes("?F"), "Unknown levels never rendered as zero floors");
+  const rights = structuredClone(project); rights.evidence[0].rights.redistribution = "not_allowed";
+  await assert.rejects(buildDevelopmentKit(rights, { generatedAt: time }), /RIGHTS_UNRESOLVED/); checks++;
+  const unsaved = structuredClone(project); unsaved.revision = 0;
+  await assert.rejects(buildDevelopmentKit(unsaved, { generatedAt: time }), /INVALID_SAVED_SNAPSHOT/); checks++;
+  const badSchema = structuredClone(project); badSchema.schemaVersion = 0;
+  await assert.rejects(buildDevelopmentKit(badSchema, { generatedAt: time }), /INVALID_SAVED_SNAPSHOT/); checks++;
+  const secretShape = structuredClone(project); secretShape.derivedArtifacts[0].data.apiKey = "synthetic-marker-not-a-secret";
+  await assert.rejects(buildDevelopmentKit(secretShape, { generatedAt: time }), /INVALID_SAVED_SNAPSHOT/); checks++;
+  const cycle = structuredClone(project); cycle.derivedArtifacts[0].inputs.push({ kind: "finance", id: cycle.derivedArtifacts[1].id, revision: 1 });
+  await assert.rejects(buildDevelopmentKit(cycle, { generatedAt: time }), /INVALID_SAVED_SNAPSHOT/); checks++;
+  const scene = { projectId: "p", snapshotId: "p@1", variantId: "A", revisionId: "design-A@1", geometryCrs: "EPSG:4326", aoi: { id: "a", revisionId: "1", geometry: polygon(55.27, 25.2, 0.002) }, buildings: [{ id: "b", footprint: polygon(55.2701, 25.2001), floors: 5, heightM: 16 }], preservedBuildings: [{ id: "kept", footprint: polygon(55.271, 25.201), floors: null, heightM: null }], exclusionZones: [{ id: "excluded", geometry: polygon(55.271, 25.2001), reason: "Preserve" }] };
+  const svg = renderCanonicalScene(scene, { view: "axonometric" });
+  check(svg.includes("unknownHeightBuildingIds") && svg.includes("kept") && svg.includes("excluded") && svg.includes("revisionId"), "Renderer carries scene identity, exclusions, preserved features and unknown heights");
+  const maliciousScene = structuredClone(scene); maliciousScene.buildings[0].id = '"/><script>bad()</script>';
+  check(!renderCanonicalScene(maliciousScene).includes("<script>") && renderCanonicalScene(maliciousScene).includes("&lt;script&gt;"), "Direct renderer treats untrusted labels as inert escaped SVG text");
+  assert.throws(() => renderCanonicalScene({ ...scene, geometryCrs: "unknown" }), /INVALID_SCENE/); checks++;
+  assert.throws(() => renderCanonicalScene({ ...scene, buildings: [{ ...scene.buildings[0], heightM: NaN }] }), /INVALID_BUILDING/); checks++;
+  const { createDevkitDemoProject } = require(path.join(foundation, "src/lib/devkit/fixtures.ts"));
+  const { createDesignAlternatives, editDesignBuilding } = require(path.join(createRoot, "src/lib/devkit/design.ts"));
+  const canonicalProject = createDevkitDemoProject("canonical-export-test"); canonicalProject.revision = 1;
+  const generated = createDesignAlternatives(canonicalProject, { allowUnverifiedDraft: true, createdAt: time });
+  check(generated.ok, `Actual Create module generates canonical fixture for export: ${JSON.stringify(generated.ok ? [] : generated.errors)}`);
+  const edited = editDesignBuilding(generated.designs[0], generated.designs[0].buildings[0].id, { terraceSharePct: 20 }, generated.designs[0].revision, time);
+  check(edited.ok, "Actual Create module persists an edited terrace plate");
+  canonicalProject.designVersions = [edited.design, generated.designs[1]];
+  canonicalProject.activeDesignVersionId = edited.design.id;
+  const canonicalKit = await buildDevelopmentKit(canonicalProject, { generatedAt: time });
+  check(canonicalKit.files.filter(file => file.path.endsWith(".svg")).length === 2 && canonicalKit.files.some(file => file.path.endsWith(".svg") && file.content.includes(edited.design.scene.geometryRevision)), "Canonical saved geometry revision reaches both A/B scene SVGs");
+  const forgedScene = structuredClone(canonicalProject); forgedScene.designVersions[0].scene.buildings[0].heightM += 1;
+  const forgedKit = await buildDevelopmentKit(forgedScene, { generatedAt: time });
+  check(forgedKit.manifest.issues.some(issue => issue.code === "SCENE_NOT_RENDERED") && forgedKit.files.filter(file => file.path.endsWith(".svg")).length === 1, "Invalid or inconsistent canonical scene is refused by Create validator before rendering");
+  if (existsSync(path.join(foundation, "src/lib/devkit/project-store.ts"))) {
+    const { parseDevkitProject, createDevkitProjectStore } = require(path.join(foundation, "src/lib/devkit/project-store.ts"));
+    check(parseDevkitProject(exported.project), "Foundation parser accepts exact exported project");
+    const memory = new Map(), storage = { getItem: key => memory.get(key) ?? null, setItem: (key, value) => memory.set(key, value) };
+    const store = createDevkitProjectStore(storage, "export-check");
+    const imported = store.importProject(kit.files.find(file => file.path === "project.json").content);
+    check(imported.ok, "Foundation store imports exact project.json");
+    const reopened = store.get(project.id);
+    check(reopened.ok && reopened.value.id === project.id, "Imported project reopens through foundation store");
+  } else console.log("NOT_RUN foundation import/reopen: project-store.ts not yet available");
+  const React = require("react"), { renderToStaticMarkup } = require("react-dom/server");
+  const { DevkitExportPanel } = require(path.join(root, "components/devkit/export-panel.tsx"));
+  for (const locale of ["en", "ru"]) {
+    const html = renderToStaticMarkup(React.createElement(DevkitExportPanel, { project, locale }));
+    check(html.includes("devkit-export-prepare") && html.includes("official validation required"), `Panel SSR ${locale}: action and caveat visible`);
+  }
+  check(networkCalls === 0, "No export or render network operations");
+  if (process.argv.includes("--typecheck")) {
+    const config = ts.readConfigFile(path.join(root, "tsconfig.json"), ts.sys.readFile);
+    const parsed = ts.parseJsonConfigFileContent(config.config, ts.sys, root);
+    const options = { ...parsed.options, noEmit: true, incremental: false, typeRoots: [path.join(dependencies, "node_modules/@types")] };
+    const host = ts.createCompilerHost(options), originalResolve = host.resolveModuleNames;
+    host.resolveModuleNames = (names, containingFile) => names.map(name => {
+      const local = ts.resolveModuleName(name, containingFile, options, host).resolvedModule;
+      if (local) return local;
+      if (name === "./design" && containingFile === path.join(root, "src/lib/devkit/export.ts")) return { resolvedFileName: path.join(createRoot, "src/lib/devkit/design.ts"), extension: ts.Extension.Ts };
+      if (name === "./contracts") return { resolvedFileName: path.join(foundation, "src/lib/devkit/contracts.ts"), extension: ts.Extension.Ts };
+      if (name === "./project-store") return { resolvedFileName: path.join(foundation, "src/lib/devkit/project-store.ts"), extension: ts.Extension.Ts };
+      if (name === "./areas" || name === "./finance") return { resolvedFileName: path.join(financeRoot, "src/lib/devkit", `${name.slice(2)}.ts`), extension: ts.Extension.Ts };
+      return ts.resolveModuleName(name, path.join(dependencies, "index.ts"), options, host).resolvedModule;
+    });
+    const program = ts.createProgram([path.join(root, "src/lib/devkit/export.ts"), path.join(root, "src/lib/devkit/render-scene.ts"), path.join(root, "components/devkit/export-panel.tsx")], options, host);
+    const diagnostics = ts.getPreEmitDiagnostics(program);
+    if (diagnostics.length) throw new Error(ts.formatDiagnosticsWithColorAndContext(diagnostics, { getCanonicalFileName: file => file, getCurrentDirectory: () => root, getNewLine: () => "\n" }));
+    check(true, "Selected export modules typecheck against exact read-only foundation/Create worker inputs");
+    host.resolveModuleNames = originalResolve;
+  }
+  if (output) {
+    mkdirSync(output, { recursive: true });
+    for (const file of kit.files) writeFileSync(path.join(output, file.path), file.content);
+    writeFileSync(path.join(output, "critical-gap-memo.html"), failedKit.files.find(file => file.path === "memo-album.html").content);
+    writeFileSync(path.join(output, "canonical-memo-album.html"), canonicalKit.files.find(file => file.path === "memo-album.html").content);
+    writeFileSync(path.join(output, "check-result.json"), JSON.stringify({ status: "PASS", checks, networkCalls, foundationRoot: foundation, foundationStoreAvailable: existsSync(path.join(foundation, "src/lib/devkit/project-store.ts")), note: "Synthetic module checks only; no integrated runtime/hosted/official acceptance." }, null, 2) + "\n");
+  }
+  console.log(`PASS ${checks} export checks; network calls ${networkCalls}; synthetic module evidence only.`);
+} finally {
+  globalThis.fetch = originalFetch;
+  Module._extensions[".ts"] = previousTs; Module._extensions[".tsx"] = previousTsx; Module._resolveFilename = previousResolve;
+}
