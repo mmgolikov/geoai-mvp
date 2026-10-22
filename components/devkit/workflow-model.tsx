@@ -132,3 +132,26 @@ export function parseWorkflowCommand(text: string): WorkflowCommand | null {
   const select = /^\/(?:select|выбрать)\s+([^\s]+)$/iu.exec(input);
   return select ? { type: "select", designId: select[1] } : null;
 }
+
+/** Local namespace only; never a tenant/authentication guarantee. */
+export async function workflowLocalScopeId(identityKey: string): Promise<string> {
+  const hash = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(identityKey));
+  return "local:" + [...new Uint8Array(hash)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+/** Invalidate before changing context; late file reads must not write. */
+export function createWorkflowOperationGuard(contextCurrent: () => boolean = () => true) {
+  let generation = 0, closed = false;
+  return {
+    begin: () => ++generation,
+    isCurrent: (token: number) => !closed && token === generation && contextCurrent(),
+    invalidate: () => { generation++; },
+    close: () => { closed = true; generation++; }
+  };
+}
+
+/** A saved revision number alone is insufficient; the complete store readback must match. */
+export function matchWorkflowSavedSnapshot(project: DevkitProject | null, readback: DevkitProject | null, dirty: boolean, unappliedBrief: boolean): DevkitProject | null {
+  if (!project || !readback || dirty || unappliedBrief || project.id !== readback.id || project.revision !== readback.revision) return null;
+  return JSON.stringify(project) === JSON.stringify(readback) ? readback : null;
+}

@@ -40,6 +40,7 @@ try {
   const { renderToStaticMarkup } = await import("react-dom/server");
   const { DevkitWorkflow } = await import(new URL("components/devkit/workflow.tsx", root));
   const make = fixtures.createDevkitDemoProject;
+  const { createDevkitProjectStore } = await import(new URL("src/lib/devkit/project-store.ts", root));
   const now = "2026-10-22T15:00:00.000Z";
   const artifact = (kind, id, inputs) => ({ id, kind, revision: 1, inputRevision: 1, inputs,
     createdAt: now, status: "current", methodVersion: "synthetic-test-only-v1", assumptions: [], missingInputs: [], data: {} });
@@ -129,6 +130,26 @@ try {
     p.derivedArtifacts[1].inputs.push({ kind: "design", id: "design-b", revision: 1 });
     assert.equal(model.workflowArtifactState(p, p.derivedArtifacts[1]), "blocked");
   });
+  group("superseded design and artifact revisions stay stale", () => {
+    const p = withOutputs();
+    p.designVersions.push({ ...structuredClone(p.designVersions[0]), revision: 2, createdAt: now });
+    assert.equal(model.isWorkflowDesignCurrent(p, p.designVersions[0]), false);
+    assert.equal(model.workflowArtifactState(p, p.derivedArtifacts[0]), "stale");
+    const q = withOutputs();
+    q.derivedArtifacts.push({ ...structuredClone(q.derivedArtifacts[0]), revision: 2 });
+    assert.equal(model.workflowArtifactState(q, q.derivedArtifacts[0]), "stale");
+  });
+  group("claim scope keeps 400m separate from 800m", () => {
+    const p = make();
+    p.claims[0].scope = { kind: "radius", radiusM: 800, completeInventory: false };
+    p.claims.push({ ...structuredClone(p.claims[0]), id: "claim-400", value: 0, status: "source_backed", evidenceIds: [p.evidence[0].id], unit: "source records", scope: { kind: "radius", radiusM: 400, completeInventory: false } });
+    for (const locale of ["en", "ru"]) {
+      const html = renderToStaticMarkup(React.createElement(DevkitWorkflow, { project: p, locale, initialStage: "evidence", onProjectChange() {} }));
+      assert(html.includes("800 m")); assert(html.includes("400 m"));
+      assert(html.includes(locale === "ru" ? "Неизвестно" : "Unknown"));
+      assert(html.includes(locale === "ru" ? "не полный перечень" : "not a complete inventory"));
+    }
+  });
   group("missing inputs and reference cycles cannot become current", () => {
     const p = withOutputs();
     p.derivedArtifacts[0].missingInputs = ["method unknown"];
@@ -155,6 +176,20 @@ try {
       if (initialStage === "evidence") assert(html.includes(locale === "ru" ? "Затронутое решение на hold" : "The affected decision is on hold"));
     }
   });
+  group("kit requires matching store readback; revision alone cannot qualify a dirty draft", () => {
+    const p = make(); p.revision = 3;
+    const readback = structuredClone(p);
+    assert.equal(model.matchWorkflowSavedSnapshot(p, readback, false, false), readback);
+    assert.equal(model.matchWorkflowSavedSnapshot(p, readback, true, false), null);
+    assert.equal(model.matchWorkflowSavedSnapshot(p, readback, false, true), null);
+    const changed = structuredClone(p); changed.brief.title = "Unsaved change at saved revision 3";
+    assert.equal(model.matchWorkflowSavedSnapshot(changed, readback, false, false), null);
+    assert.equal(model.matchWorkflowSavedSnapshot(p, null, false, false), null);
+    const gated = renderToStaticMarkup(React.createElement(DevkitWorkflow, { project: changed, locale: "en", initialStage: "kit", saveState: "saved", savedSnapshot: readback, onProjectChange() {}, slots: { kit: () => React.createElement("p", null, "MUST_NOT_RENDER") } }));
+    assert(gated.includes("devkit-kit-save-gate")); assert(!gated.includes("MUST_NOT_RENDER"));
+    const allowed = renderToStaticMarkup(React.createElement(DevkitWorkflow, { project: p, locale: "en", initialStage: "kit", saveState: "saved", savedSnapshot: readback, onProjectChange() {}, slots: { kit: (context) => React.createElement("p", null, context.savedSnapshot === readback ? "MATCHED_READBACK" : "WRONG") } }));
+    assert(allowed.includes("MATCHED_READBACK"));
+  });
   group("render escapes source/user content and disables unwired persistence", () => {
     const p = make();
     p.brief.title = '<script>alert("test")</script>';
@@ -162,6 +197,75 @@ try {
     assert(html.includes("&lt;script&gt;"));
     assert(!html.includes('<script>alert("test")</script>'));
     assert(html.includes("disabled=\"\">Save on device"));
+  });
+  {
+    const a = await model.workflowLocalScopeId("demo:synthetic-a"), b = await model.workflowLocalScopeId("demo:synthetic-b");
+    assert.equal(a, await model.workflowLocalScopeId("demo:synthetic-a"));
+    assert.notEqual(a, b);
+    assert(/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,79}$/.test(a));
+    assert(!a.includes("synthetic-a"));
+    groups.push({ name: "stable local identity namespace without raw identity in key", status: "PASS" });
+  }
+  {
+    const guard = model.createWorkflowOperationGuard();
+    let release;
+    const file = new Promise((resolve) => { release = resolve; });
+    const token = guard.begin(); let writes = 0;
+    const pending = file.then(() => { if (guard.isCurrent(token)) writes++; });
+    guard.invalidate(); release("synthetic file"); await pending;
+    assert.equal(writes, 0, "Late file result cannot write after context switch");
+    const next = guard.begin(); assert(guard.isCurrent(next));
+    assert(!guard.isCurrent(token)); guard.close(); assert(!guard.isCurrent(next));
+    groups.push({ name: "late import guarded before writer; close invalidates identity work", status: "PASS" });
+  }
+  {
+    let identity = "synthetic-owner-a", release;
+    const guard = model.createWorkflowOperationGuard(() => identity === "synthetic-owner-a");
+    const token = guard.begin(); let writes = 0;
+    const pending = new Promise((resolve) => { release = resolve; }).then(() => { if (guard.isCurrent(token)) writes++; });
+    identity = "synthetic-owner-b";
+    release(); await pending;
+    assert.equal(writes, 0, "Identity guard denies late write before passive unmount cleanup");
+    assert(!guard.isCurrent(token));
+    groups.push({ name: "identity switch denies late writer before React cleanup", status: "PASS" });
+  }
+  group("workflow brief-save-reopen uses store revision guard", () => {
+    const raw = new Map();
+    const storage = { getItem: (key) => raw.get(key) ?? null, setItem: (key, value) => raw.set(key, value) };
+    const store = createDevkitProjectStore(storage, "workflow-test-save");
+    const draft = make("workflow-test-project");
+    assert.equal(draft.revision, 0);
+    const first = store.save(draft, null);
+    assert(first.ok); assert.equal(first.value.revision, 1);
+    const edit = model.applyWorkflowBrief(first.value, model.workflowScope(first.value), { ...first.value.brief, objective: "New decision for the same project" }, now);
+    assert(edit.ok);
+    const second = store.save(edit.project, first.value.revision);
+    assert(second.ok); assert.equal(second.value.revision, 2);
+    const before = JSON.stringify([...raw]);
+    const older = store.save(first.value, first.value.revision);
+    assert.equal(older.ok, false); assert.equal(older.code, "conflict");
+    assert.equal(JSON.stringify([...raw]), before);
+    const reopened = store.get(draft.id); assert(reopened.ok);
+    assert.equal(reopened.value.brief.objective, edit.project.brief.objective);
+    assert.equal(reopened.value.brief.budget.amount, null);
+  });
+  group("local JSON roundtrip preserves scope and refuses old/invalid/colliding import", () => {
+    const raw = new Map();
+    const storage = { getItem: (key) => raw.get(key) ?? null, setItem: (key, value) => raw.set(key, value) };
+    const source = createDevkitProjectStore(storage, "workflow-test-source"), target = createDevkitProjectStore(storage, "workflow-test-target");
+    const p = make("workflow-test-roundtrip");
+    p.claims[0].scope = { kind: "radius", radiusM: 800, completeInventory: false };
+    p.evidence[0].provenance = { observedAt: null, fetchedAt: null, mode: "synthetic" };
+    const saved = source.save(p, null); assert(saved.ok);
+    const exported = source.exportProject(p.id); assert(exported.ok);
+    const imported = target.importProject(exported.value); assert(imported.ok);
+    assert.deepEqual(imported.value, saved.value);
+    const before = JSON.stringify([...raw]);
+    const old = JSON.parse(exported.value); old.schemaVersion = 0;
+    for (const invalid of ["{", JSON.stringify(old), exported.value]) assert.equal(target.importProject(invalid).ok, false);
+    assert.equal(JSON.stringify([...raw]), before);
+    const empty = createDevkitProjectStore(storage, "workflow-test-third").list();
+    assert(empty.ok); assert.equal(empty.value.length, 0);
   });
   assert.equal(networkCalls, 0);
   process.stdout.write(JSON.stringify({ check: "devkit-workflow", status: "PASS", groups, networkCalls,

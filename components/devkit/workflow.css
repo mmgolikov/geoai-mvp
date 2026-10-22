@@ -137,3 +137,6 @@
 @media (prefers-reduced-motion: reduce) {
   .devkit-workflow * { scroll-behavior: auto !important; transition: none !important; }
 }
+
+.devkit-workflow summary { min-height: 44px; padding-block: 10px; cursor: pointer; }
+.dk-file-control:focus-within { outline: 3px solid #087f8c; outline-offset: 3px; }
