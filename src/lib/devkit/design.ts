@@ -469,7 +469,7 @@ export function validateDesignProjectLineage(project: DevkitProject): string[] {
     const validRef = (ref: VersionRef) => ref && ref.kind === "design" && typeof ref.id === "string" && !!ref.id && Number.isInteger(ref.revision) && ref.revision >= 1;
     for (let index = 0; index < history.length; index++) {
       const design = history[index];
-      if (!design.scene) continue; // Programme seeds make no geometry/lineage claim.
+      if (!Object.hasOwn(design, "scene")) continue; // Scene-less seeds make no geometry/lineage claim.
       const geometryErrors = validateDesignScene(design);
       if (geometryErrors.length) { errors.push(`${design.id}: ${geometryErrors.join(" ")}`); continue; }
       const scene = (design as DesignScene).scene;

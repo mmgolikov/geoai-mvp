@@ -365,6 +365,11 @@ async function checkUndoOnly() {
     }
     const missingParent = structuredClone(restored.design); missingParent.scene.parent = null;
     assert.throws(() => applyDesignVersions(changed, [missingParent]));
+    assert.deepEqual(validateDesignProjectLineage(project), [], "Scene-less legacy programme seeds stay valid");
+    for (const invalidScene of [null, false, 0, "", undefined, {}, []]) {
+      const invalidPresentScene = structuredClone(project); invalidPresentScene.designVersions[0].scene = invalidScene;
+      assert.ok(validateDesignProjectLineage(invalidPresentScene).length, "Present invalid scene must fail closed");
+    }
   });
   check("Cross-input history requires fresh generation; restoration/edit cannot cross it", () => {
     const sourceChange = structuredClone(changed); sourceChange.inputRevision++;
