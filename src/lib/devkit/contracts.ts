@@ -30,11 +30,13 @@ export type Evidence = {
   excerpt: string | null; acquiredAt: string | null; validAt: string | null; responseHash: string | null;
   trust: DevkitTrust; status: "available" | "partial" | "unavailable" | "conflicting";
   rights: { licence: string | null; attribution: string; permittedUse: "public_demo" | "synthetic_demo" | "unknown"; redistribution: "allowed" | "not_allowed" | "unknown" };
+  provenance?: JsonObject;
 };
 export type Claim = {
   id: string; subjectId: string; field: string; value: string | number | boolean | null; unit: string | null;
   status: "source_backed" | "assumption" | "derived" | "generated" | "unknown" | "conflicting";
   evidenceIds: string[]; explanation: string;
+  scope?: JsonObject;
 };
 export type Constraint = {
   id: string; subjectId: string; label: string; status: "source_backed" | "proposed" | "assumed" | "unknown" | "conflicting";
@@ -51,6 +53,7 @@ export type DesignVersion = {
   inputRevision: number; aoiId: string; aoiRevision: number; program: RedevelopmentProgramInput;
   buildings: DesignBuilding[]; retainedObjectIds: string[]; exclusionConstraintIds: string[];
   assumptions: string[]; status: "draft" | "review_required";
+  scene?: JsonObject;
 };
 /** Module-specific data stay bounded JSON; that module validates mathematics.
  * Foundation validates references, scope and persistence, not finance accuracy. */
