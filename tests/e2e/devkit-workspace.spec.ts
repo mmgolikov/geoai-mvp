@@ -479,7 +479,7 @@ test.describe("E1 RU390 generated revision/reimport delta", () => {
       const month = chain0.financeData.rows[2].month;
       const monthFields = workflow.getByRole("group", { name: month, exact: true });
       const receipts = monthFields.getByLabel("Свободные поступления покупателей", { exact: true });
-      await ruOpenDetail(p, "Изменить ручные месячные входы", receipts);
+      await ruOpenDetail(p, "Ручные помесячные входы", receipts);
       await receipts.fill(String(chain0.financeData.input.rows[2].unrestrictedIncome! + 1));
       await monthFields.getByLabel("Выплата equity", { exact: true }).fill(String(chain0.financeData.input.rows[2].equityDistribution! + 1));
       await workflow.getByRole("button", { name: "Сохранить изменённые месячные значения", exact: true }).click();
