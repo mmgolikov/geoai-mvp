@@ -42,7 +42,7 @@ if (missing.length) {
   const { DEVKIT_CAVEAT } = await import("../src/lib/devkit/contracts.ts");
   const { createDevkitDemoProject, createDevkitCriticalGapProject } = await import("../src/lib/devkit/fixtures.ts");
   const { parseDevkitProject, createDevkitProjectStore, devkitRefFreshness, reviseDevkitInputs } = await import("../src/lib/devkit/project-store.ts");
-  const { createDesignAlternatives, applyDesignVersions } = await import("../src/lib/devkit/design.ts");
+  const { createDesignAlternatives, applyDesignVersions, measureDesignScene } = await import("../src/lib/devkit/design.ts");
   const { normalizedResolvedContext, parseNormalizedPointObjectContext } = await import("../src/lib/prototype/point-to-object-normalized-context.ts");
   const cases = [];
   const check = (id, run) => {
@@ -99,7 +99,7 @@ if (missing.length) {
     assert.notEqual(second.designVersions[0].program.title, "QA edit A");
     assert.notEqual(parsed.aoi.coordinates[0][0][0], first.aoi.coordinates[0][0][0]);
   });
-  check("S1-preservation-delta-envelope-roundtrip-only", () => {
+  check("S1-canonical-scene-provenance-scope-roundtrip", () => {
     const inputs = createDevkitDemoProject("qa-preservation");
     // Optional evidence/scope metadata preserve exact JSON; scene must be genuinely canonical.
     inputs.evidence[0].provenance = { observedAt: null, acquiredAt: inputs.createdAt, providerProducedAt: null, cacheReturnedAt: null, geometryScope: "aoi_interior" };
@@ -221,7 +221,7 @@ if (missing.length) {
       assert.equal(parseNormalizedPointObjectContext(candidate), null);
     }
   });
-  const { buildAreaSchedule, toAreaArtifact } = await import("../src/lib/devkit/areas.ts");
+  const { buildAreaSchedule, buildAreaScheduleFromMeasurement, toAreaArtifact } = await import("../src/lib/devkit/areas.ts");
   const { FINANCE_FIELDS, runMonthlyFinance, calculateNpv, calculateIrr, toFinanceArtifact } = await import("../src/lib/devkit/finance.ts");
   const { buildDevelopmentKit } = await import("../src/lib/devkit/export.ts");
   const arithmeticArea = () => buildAreaSchedule({
@@ -299,8 +299,20 @@ if (missing.length) {
     assert.equal(kit.files.find(file => file.path === "project.json").content.includes("987654321"), true, "Original bounded payload remains diagnostic/reimport data");
   });
   await asyncCheck("K1-known-area-finance-payloads-validate-with-draft-boundaries", async () => {
-    const p = createDevkitDemoProject("qa-arithmetic"); p.revision = 1;
-    const a = arithmeticArea(), f = runMonthlyFinance(arithmeticInput(a), a);
+    const inputs = createDevkitDemoProject("qa-export-known"); inputs.brief.budget.currency = "USD";
+    const pair = createDesignAlternatives(inputs, { createdAt: inputs.createdAt, seed: "qa-export-known" });
+    assert.equal(pair.ok, true, pair.ok ? "Canonical pair generated" : pair.errors.join("; "));
+    const p = applyDesignVersions(inputs, pair.designs); p.revision = 1;
+    const measured = measureDesignScene(pair.designs[0]);
+    const allocations = Object.fromEntries(measured.buildings.map(building => [building.buildingId, {
+      belowGroundGrossM2: 0, commonM2: 0, technicalM2: 0, parkingM2: 0, otherNonSaleableM2: 0,
+      residualUse: building.use === "civic" || building.use === "open_space" ? "non_saleable" : "saleable",
+      terraceSaleableFactor: .5, registeredM2: null, permittedGfaM2: null
+    }]));
+    const a = buildAreaScheduleFromMeasurement(measured, { projectId: p.id, snapshotId: `${p.id}@1`, inputRevision: p.inputRevision,
+      assumptionsVersion: "qa-known-explicit-allocation", jurisdiction: "synthetic", methodology: "QA explicit zero service allocations and declared residual assumption; no authority definition",
+      provenance: "synthetic", sourceRefs: [], reviewer: null }, allocations);
+    const f = runMonthlyFinance(arithmeticInput(a), a);
     p.derivedArtifacts = [toAreaArtifact(a, { revision: 1, createdAt: p.createdAt }), toFinanceArtifact(f, { revision: 1, createdAt: p.createdAt })];
     const kit = await buildDevelopmentKit(p);
     assert.equal(kit.manifest.issues.some(issue => /PAYLOAD_REJECTED/.test(issue.code)), false);
