@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { registerHooks, stripTypeScriptTypes } from "node:module";
 import { fileURLToPath } from "node:url";
@@ -7,7 +8,9 @@ import { fileURLToPath } from "node:url";
 registerHooks({
   resolve(specifier, context, nextResolve) {
     if (specifier === "server-only") return { url: "data:text/javascript,export%20{}", shortCircuit: true };
-    if (specifier === "next/cache") return { url: "data:text/javascript,export%20const%20unstable_cache%20%3D%20fn%20%3D%3E%20fn", shortCircuit: true };
+    if (specifier === "next/cache") return {
+      url: `data:text/javascript,${encodeURIComponent("export const unstable_cache = fn => async (...args) => { const value = await fn(...args); if (value && typeof value === \"object\" && value.pack && value.receipt && value.integrityHash) globalThis.__night21ObservedLeases?.push(structuredClone(value)); return value; };")}`, shortCircuit: true
+    };
     const routeAdapters: Record<string, string> = {
       "next/server": "export const NextResponse = { json: (body, init) => Response.json(body, init) };",
       "@/src/lib/ai/openai-upstream-gate": "export const getPointObjectSurfaceStatus = () => ({enabled:true});",
@@ -31,6 +34,49 @@ const { buildLivePointObjectEvidencePack, LivePointEvidenceError } = await impor
 const { rememberExactFindElements } = await import("../src/lib/prototype/point-to-object-exact-source");
 const { semanticHash } = await import("../src/lib/point-to-object/hash");
 const { parsePublicEvidenceReceipt, PUBLIC_EVIDENCE_LEASE_MS } = await import("../src/lib/prototype/point-to-object-evidence-receipt");
+// Observe the real callback result; never manufacture a receipt/pack or cache it.
+type ObservedSourceLease = {
+  pack: Awaited<ReturnType<typeof buildLivePointObjectEvidencePack>>;
+  receipt: NonNullable<ReturnType<typeof parsePublicEvidenceReceipt>>;
+  integrityHash: string;
+};
+const evidenceLeaseObservations: ObservedSourceLease[] = [];
+const evidenceLeaseObserverGlobal = globalThis as typeof globalThis & { __night21ObservedLeases?: ObservedSourceLease[] };
+evidenceLeaseObserverGlobal.__night21ObservedLeases = evidenceLeaseObservations;
+
+// Independent test encoder/digest: do not call the Product semanticHash oracle.
+function independentFullHash(value: unknown): string {
+  const ordered = (entry: unknown): unknown => {
+    if (Array.isArray(entry)) return entry.map(ordered);
+    if (entry && typeof entry === "object") {
+      const result: Record<string, unknown> = Object.create(null);
+      for (const key of Object.keys(entry).sort()) result[key] = ordered((entry as Record<string, unknown>)[key]);
+      return result;
+    }
+    return entry;
+  };
+  return createHash("sha256").update(JSON.stringify(ordered(value))).digest("hex");
+}
+function fullEvidenceCore(pack: ObservedSourceLease["pack"]) {
+  return Object.fromEntries(Object.entries(pack).filter(([key]) => !["evidencePackHash", "evidencePackId", "displayGeometry"].includes(key)));
+}
+function assertObservedPackIdentity(lease: ObservedSourceLease, receipt: ObservedSourceLease["receipt"]): void {
+  const expected = independentFullHash(fullEvidenceCore(lease.pack));
+  assert.equal(lease.pack.evidencePackHash, expected, "Every full core field, including evidence/clock/climate, enters its snapshot hash.");
+  assert.equal(lease.pack.evidencePackId, `p2o_live_evidence_${expected.slice(0, 24)}`);
+  assert.equal(lease.integrityHash, independentFullHash(lease.pack), "Lease integrity covers the complete pack, including display geometry.");
+  assert.deepEqual(lease.receipt, receipt, "The response receipt must be the same real lease callback result.");
+  assert.equal(receipt.evidencePackHash, expected, "Receipt binds to this actual full pack, not a separate acquisition.");
+  assert.equal(receipt.sourceResponseHash, lease.pack.source.sourceResponseHash);
+  assert.equal(receipt.acquiredAt, lease.pack.source.acquiredAt);
+}
+function assertOriginalSourceContinuity(actual: ObservedSourceLease["pack"], original: ObservedSourceLease["pack"]): void {
+  assert.equal(actual.selectedObject.sourceFeatureId, original.selectedObject.sourceFeatureId);
+  assert.equal(actual.source.sourceResponseHash, original.source.sourceResponseHash);
+  assert.equal(actual.source.acquiredAt, original.source.acquiredAt);
+  assert.deepEqual(actual.displayGeometry, original.displayGeometry);
+}
+
 const originalFetch = globalThis.fetch;
 const queries: string[] = [];
 const climateQueries: string[] = [];
@@ -193,11 +239,12 @@ try {
   checks++;
   const warmCore = Object.fromEntries(Object.entries(warm).filter(([key]) => !["evidencePackHash", "evidencePackId", "displayGeometry"].includes(key)));
   assert.equal(semanticHash(warmCore), warm.evidencePackHash, "No source or climate field is exempted from the pack hash.");
+  assert.equal(independentFullHash(warmCore), warm.evidencePackHash, "Independent full-core oracle also validates the direct snapshot.");
   const withoutClimate = { ...warmCore };
   delete withoutClimate.climate;
   assert.notEqual(semanticHash(withoutClimate), warm.evidencePackHash, "Omitting optional climate is not the same evidence snapshot.");
   assert.notEqual(semanticHash({ ...warmCore, climate: { ...warm.climate, reason: "network_error" } }), warm.evidencePackHash, "Changing the climate outage evidence must change the pack hash.");
-  checks += 2;
+  checks += 3;
 
   // Actual route + source module. Only framework/runtime/identity adapters are
   // isolated: no credentials, hosted auth or network. This is not auth acceptance.
@@ -237,6 +284,7 @@ try {
       checks++;
     }
     mockFetch(() => new Response("unavailable", { status: 503 }), true);
+    evidenceLeaseObservations.length = 0;
     const response = await route.POST(routeRequest(warmId));
     const body = await response.json();
     assert.equal(response.status, 200);
@@ -252,7 +300,49 @@ try {
     assertCombinedContextQuery(queries[0]);
     assert.equal(climateQueries.length, 1);
     assert.deepEqual(body.subject.climate, warm.climate, "Direct and route packs use the same explicit optional-source fixture.");
-    assert.equal(receipt.evidencePackHash, warm.evidencePackHash);
+    // These are two acquisitions, not one full snapshot: cacheServedAt may differ.
+    // Select the observed callback by request identity, never by the hash under test.
+    const matchingLeases = evidenceLeaseObservations.filter(lease => lease.receipt.lookupSourceFeatureId === `way/${warmId}`);
+    assert.equal(matchingLeases.length, 1, "Exactly one real route lease callback must be observed.");
+    const routeLease = matchingLeases[0];
+    assertObservedPackIdentity(routeLease, receipt);
+    assert.equal(receipt.evidencePackHash, routeLease.pack.evidencePackHash);
+    assertOriginalSourceContinuity(routeLease.pack, warm);
+    const hashMutations: Array<[string, (pack: ObservedSourceLease["pack"]) => void]> = [
+      ["independent delivery clock", candidate => {
+        const entry = candidate.evidence.find(item => item.id === "EVD-OVERTURE-SNAPSHOT");
+        assert.ok(entry && typeof entry.value === "string");
+        const snapshot = JSON.parse(entry.value);
+        assert.ok(Number.isFinite(Date.parse(snapshot.cacheServedAt)));
+        snapshot.cacheServedAt = new Date(Date.parse(snapshot.cacheServedAt) + 1).toISOString();
+        entry.value = JSON.stringify(snapshot);
+      }],
+      ["climate evidence", candidate => {
+        assert.ok(candidate.climate?.status === "unavailable");
+        candidate.climate.reason = "network_error";
+      }],
+      ["selected-source hash", candidate => { candidate.source.sourceResponseHash = "f".repeat(64); }]
+    ];
+    for (const [label, mutate] of hashMutations) {
+      const mixed = structuredClone(routeLease);
+      mutate(mixed.pack);
+      const changedHash = independentFullHash(fullEvidenceCore(mixed.pack));
+      assert.notEqual(changedHash, routeLease.pack.evidencePackHash, label);
+      // Even an internally rehashed different pack must not bind to this receipt.
+      mixed.pack.evidencePackHash = changedHash;
+      mixed.pack.evidencePackId = `p2o_live_evidence_${changedHash.slice(0, 24)}`;
+      mixed.integrityHash = independentFullHash(mixed.pack);
+      assert.throws(() => assertObservedPackIdentity(mixed, receipt), assert.AssertionError, label);
+    }
+    const alteredGeometry = structuredClone(routeLease);
+    assert.ok(alteredGeometry.pack.displayGeometry);
+    alteredGeometry.pack.displayGeometry = null;
+    alteredGeometry.integrityHash = independentFullHash(alteredGeometry.pack);
+    assertObservedPackIdentity(alteredGeometry, receipt); // Geometry is outside core by the existing Product contract.
+    assert.throws(() => assertOriginalSourceContinuity(alteredGeometry.pack, warm), assert.AssertionError);
+    assert.throws(() => assertObservedPackIdentity(routeLease, { ...receipt, evidencePackHash: "0".repeat(64) }), assert.AssertionError);
+    assert.throws(() => assertObservedPackIdentity({ ...routeLease, integrityHash: "0".repeat(64) }, receipt), assert.AssertionError);
+    checks += 6;
     assert.equal(receipt.sourceResponseHash, warm.source.sourceResponseHash);
     assert.equal(receipt.acquiredAt, acquiredAt, "The lease must preserve the original source acquisition time.");
     assert.equal(receipt.sourceLocale, "en");
@@ -266,6 +356,7 @@ try {
   assert.deepEqual(fetchContractErrors, [], "Provider sanitization must not hide a violated offline fetch contract.");
 } finally {
   globalThis.fetch = originalFetch;
+  delete evidenceLeaseObserverGlobal.__night21ObservedLeases;
 }
 console.log(`NIGHT21 source reliability PASS: ${checks} offline cases; exact identity first; bounded sanitized errors; no retries/fallback; server snapshot geometry/height/hash/time preserved; optional outage is unavailable, not zero.`);
 console.log(JSON.stringify({ status: "PASS", offlineCases: checks, combinedQueryOracles: 3, combinedQueryNegatives: 12, sectionBindingNegatives: 7, mockRequests,

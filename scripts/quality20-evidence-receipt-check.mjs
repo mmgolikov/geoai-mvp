@@ -1,16 +1,76 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { stripTypeScriptTypes } from "node:module";
+import { registerHooks, stripTypeScriptTypes } from "node:module";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const integrationRoot = resolve(process.argv[2] ?? process.cwd());
+
+// The Node-only harness resolves exactly the real, inspected TS dependency edges.
+// No alias wildcard, source replacement, load hook or provider stub is added.
+const receiptHarnessImports = new Map([
+  ["point-to-object-normalized-context.ts", ["./point-to-object-context-details-v2", "./point-to-object-independent-context", "./point-to-object-citation-context"]],
+  ["point-to-object-context-details-v2.ts", ["./point-to-object-map-replacement"]],
+  ["point-to-object-independent-context.ts", ["./point-to-object-overture-projection-bindings"]]
+].map(([file, specifiers]) => [
+  pathToFileURL(resolve(integrationRoot, "src/lib/prototype", file)).href, new Set(specifiers)
+]));
+function resolveReceiptHarnessModule(specifier, context, nextResolve) {
+  const permitted = receiptHarnessImports.get(context.parentURL);
+  return nextResolve(permitted?.has(specifier)
+    ? new URL(`${specifier}.ts`, context.parentURL).href : specifier, context);
+}
+let harnessResolverChecks = 0;
+for (const [parentURL, specifiers] of receiptHarnessImports) {
+  for (const specifier of specifiers) {
+    const context = { parentURL };
+    const expected = new URL(`${specifier}.ts`, parentURL).href;
+    const calls = [];
+    const result = resolveReceiptHarnessModule(specifier, context, (request, forwarded) => {
+      assert.equal(forwarded, context); calls.push(request); return { url: request };
+    });
+    assert.deepEqual(calls, [expected]); assert.equal(result.url, expected); harnessResolverChecks++;
+  }
+}
+const receiptHarnessParent = pathToFileURL(resolve(integrationRoot, "src/lib/prototype/point-to-object-normalized-context.ts")).href;
+for (const [specifier, parentURL] of [
+  ["./point-to-object-unapproved", receiptHarnessParent],
+  ["./point-to-object-context-details-v2.ts", receiptHarnessParent],
+  ["./point-to-object-context-details-v2?instance=unexpected", receiptHarnessParent],
+  ["@/src/lib/prototype/point-to-object-context-details-v2", receiptHarnessParent],
+  ["@maplibre/maplibre-gl-style-spec", receiptHarnessParent],
+  ["server-only", receiptHarnessParent],
+  ["./point-to-object-context-details-v2", `${receiptHarnessParent}?instance=unexpected`],
+  ["./point-to-object-context-details-v2", "data:text/javascript,export%20{}"],
+  ["./point-to-object-context-details-v2", pathToFileURL(resolve(integrationRoot, "app/unapproved.ts")).href]
+]) {
+  const context = { parentURL };
+  let calls = 0;
+  const result = resolveReceiptHarnessModule(specifier, context, (request, forwarded) => {
+    calls++; assert.equal(request, specifier); assert.equal(forwarded, context); return { url: request };
+  });
+  assert.equal(calls, 1); assert.equal(result.url, specifier); harnessResolverChecks++;
+}
+const missingHarnessDependency = new Error("Unresolved inspected dependency");
+assert.throws(() => resolveReceiptHarnessModule("./point-to-object-context-details-v2",
+  { parentURL: receiptHarnessParent }, () => { throw missingHarnessDependency; }),
+  error => error === missingHarnessDependency, "Resolver errors must propagate, never become empty modules.");
+harnessResolverChecks++;
+registerHooks({ resolve: resolveReceiptHarnessModule });
 const routePath = `${integrationRoot}/app/api/prototype/point-to-object/context/route.ts`;
 const original = readFileSync(routePath, "utf8");
 const { parseNormalizedPointObjectContext } = await import(pathToFileURL(resolve(integrationRoot,
   "src/lib/prototype/point-to-object-normalized-context.ts")).href);
 const { createPointObjectContextSourceAdmission, PointObjectSourceAdmissionError } = await import(pathToFileURL(resolve(integrationRoot,
   "src/lib/prototype/point-to-object-source-admission.ts")).href);
+
+// Verify the actual imported module, not a synthetic replacement.
+const contextDetailsModule = await import(pathToFileURL(resolve(integrationRoot,
+  "src/lib/prototype/point-to-object-context-details-v2.ts")).href);
+assert.equal(contextDetailsModule.CONTEXT_DETAILS_VERSION, "POINT_OBJECT_CONTEXT_DETAILS_V2");
+assert.equal(contextDetailsModule.contextExplicitTag("12", "levels"), 12);
+assert.equal(contextDetailsModule.contextExplicitTag("12 ft", "levels"), null);
+assert.equal(contextDetailsModule.parseContextDetailsV2({}, "way/123", [55.27, 25.20], "point_radius"), null);
 
 function replaceRequired(source, pattern, replacement, label) {
   const updated = source.replace(pattern, replacement);
@@ -99,7 +159,7 @@ transformed = replaceRequired(transformed,
        receipt: ${JSON.stringify(actualReceipt)},
        pack: {
          evidencePackHash: ${JSON.stringify(actualEvidencePackHash)},
-         source: { sourceResponseHash: ${JSON.stringify(actualSourceResponseHash)}, acquiredAt: ${JSON.stringify(actualReceipt.acquiredAt)}, rawProviderPayload: "DO_NOT_EXPOSE_SOURCE_PAYLOAD", fabricStatus: "unavailable", fabricResponseHash: null, fabricObservedAt: null, fabricAcquiredAt: null, fabricDiagnostic: { failureCode: "timeout" } },
+         source: { sourceResponseHash: ${JSON.stringify(actualSourceResponseHash)}, acquiredAt: ${JSON.stringify(actualReceipt.acquiredAt)}, observedAt: null, rawProviderPayload: "DO_NOT_EXPOSE_SOURCE_PAYLOAD", fabricStatus: "unavailable", fabricResponseHash: null, fabricObservedAt: null, fabricAcquiredAt: null, fabricDiagnostic: { failureCode: "timeout" } },
          coordinates: { longitude: lookup.longitude, latitude: lookup.latitude, crs: "EPSG:4326" }, nearbyContext: [],
          selectedObject: {
            name: "Synthetic object", displayAddress: "Synthetic address", featureClass: "building",
@@ -195,6 +255,12 @@ assert.deepEqual(payload.subject.normalizedContext.source, {
 const missingLineage = structuredClone(payload.subject.normalizedContext);
 delete missingLineage.source.observedAt;
 assert.equal(parseNormalizedPointObjectContext(missingLineage), null, "Missing required nullable source metadata still rejects.");
+const missingSelectedLineage = structuredClone(payload.subject.normalizedContext);
+assert.ok(missingSelectedLineage.details?.sources[0], "Real V2 details must remain present in this fixture.");
+delete missingSelectedLineage.details.sources[0].observedAt;
+assert.equal(parseNormalizedPointObjectContext(missingSelectedLineage), null,
+  "Missing selected-source nullable metadata must still reject; explicit null is not omission.");
+
 assert.doesNotMatch(JSON.stringify(payload), /DO_NOT_EXPOSE|rawProviderPayload|internalSecret/,
   "The public response must not expose raw provider data or internal fixture fields.");
 // Use the real limiter with a deterministic local policy, not hosted env or a
@@ -210,7 +276,7 @@ assert.equal(networkCalls, 0);
 
 console.log(JSON.stringify({ status: "PASS", scope: "synthetic exact server receipt with actual route/normalizer/admission", networkCalls,
   sourceAcquisitions: globalThis.__quality20AcquisitionCalls, sourceAdmissions: globalThis.__quality20AdmissionCalls,
-  routeCases: 4, normalizedContextCases: 3, admissionChecks: 13, liveAcceptance: false }));
+  routeCases: 4, normalizedContextCases: 4, admissionChecks: 13, harnessResolverChecks, contextDetailsModuleChecks: 4, liveAcceptance: false }));
 } finally {
   globalThis.fetch = originalFetch;
   for (const key of ["__quality20AcquisitionCalls", "__quality20AdmissionCalls", "__quality20IdentityAllowed", "__quality20LeaseLookup"]) delete globalThis[key];
