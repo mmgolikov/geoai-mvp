@@ -139,6 +139,35 @@ try {
     q.derivedArtifacts.push({ ...structuredClone(q.derivedArtifacts[0]), revision: 2 });
     assert.equal(model.workflowArtifactState(q, q.derivedArtifacts[0]), "stale");
   });
+  group("canonical appended scenario design supersedes seed or higher-numbered older ID", () => {
+    const p = make();
+    p.designVersions[0].revision = 8;
+    const next = { ...structuredClone(p.designVersions[0]), id: "generated-a-first", revision: 1 };
+    p.designVersions.push(next);
+    assert.equal(model.latestWorkflowDesigns(p).find((d) => d.scenarioId === "A").id, next.id);
+    assert.equal(model.isWorkflowDesignCurrent(p, p.designVersions[0]), false);
+    assert.equal(model.isWorkflowDesignCurrent(p, next), true);
+    const chosen = model.selectWorkflowDesign(p, model.workflowScope(p), next.id, now);
+    assert(chosen.ok); assert.equal(model.activeWorkflowDesign(chosen.project).id, next.id);
+  });
+  group("external saved snapshot replaces clean cache; dirty or unapplied stays unchanged", () => {
+    const p1 = make("workflow-cross-tab"); p1.revision = 1;
+    const p2 = structuredClone(p1); p2.revision = 2; p2.inputRevision = 2; p2.brief.objective = "Externally saved decision";
+    const before1 = JSON.stringify(p1), before2 = JSON.stringify(p2);
+    const clean = model.reconcileWorkflowSnapshot(p1, p2, false, false);
+    assert.equal(clean.status, "updated"); assert.equal(clean.project, p2); assert.equal(clean.project.revision, 2);
+    for (const [dirty, pending] of [[true, false], [false, true]]) {
+      const held = model.reconcileWorkflowSnapshot(p1, p2, dirty, pending);
+      assert.equal(held.status, "conflict"); assert.equal(held.project, p1); assert.equal(held.project.revision, 1);
+    }
+    assert.equal(model.reconcileWorkflowSnapshot(p1, null, false, false).status, "conflict");
+    assert.equal(JSON.stringify(p1), before1); assert.equal(JSON.stringify(p2), before2);
+  });
+  group("retained context requires its separate explicit consent", () => {
+    assert.deepEqual(model.workflowTransferConsent(true, false), { publicInputConfirmed: true });
+    assert.deepEqual(model.workflowTransferConsent(false, true), { publicInputConfirmed: false });
+    assert.deepEqual(model.workflowTransferConsent(true, true), { publicInputConfirmed: true, includeRetainedContext: true });
+  });
   group("claim scope keeps 400m separate from 800m", () => {
     const p = make();
     p.claims[0].scope = { kind: "radius", radiusM: 800, completeInventory: false };

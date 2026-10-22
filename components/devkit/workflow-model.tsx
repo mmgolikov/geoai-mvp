@@ -1,4 +1,5 @@
 import type { DerivedArtifact, DesignVersion, DevkitProject, ProjectBrief, VersionRef } from "@/src/lib/devkit/contracts";
+import { devkitRefFreshness } from "@/src/lib/devkit/project-store";
 
 export const WORKFLOW_STAGES = ["brief", "evidence", "concepts", "finance", "kit"] as const;
 export type WorkflowStage = typeof WORKFLOW_STAGES[number];
@@ -16,21 +17,20 @@ function scopeMatches(project: DevkitProject, expected: WorkflowScope): boolean 
 }
 
 export function activeWorkflowDesign(project: DevkitProject): DesignVersion | null {
-  return project.designVersions.filter((design) => design.id === project.activeDesignVersionId)
-    .sort((a, b) => b.revision - a.revision)[0] ?? null;
+  return project.designVersions.filter((design) => design.id === project.activeDesignVersionId).slice(-1)[0] ?? null;
 }
 
 export function latestWorkflowDesigns(project: DevkitProject): DesignVersion[] {
   const latest = new Map<string, DesignVersion>();
   for (const design of project.designVersions) {
-    const previous = latest.get(design.scenarioId);
-    if (!previous || design.revision > previous.revision || (design.revision === previous.revision && design.createdAt > previous.createdAt)) latest.set(design.scenarioId, design);
+    // Foundation history is append-only; a new immutable ID may start at revision 1.
+    latest.set(design.scenarioId, design);
   }
   return [...latest.values()];
 }
 
 export function isWorkflowDesignCurrent(project: DevkitProject, design: DesignVersion): boolean {
-  return Boolean(project.aoi && design.inputRevision === project.inputRevision && design.aoiId === project.aoi.id && design.aoiRevision === project.aoi.revision && !project.designVersions.some((other) => other.id === design.id && other.revision > design.revision));
+  return devkitRefFreshness(project, { kind: "design", id: design.id, revision: design.revision }) === "current";
 }
 
 function findArtifact(project: DevkitProject, ref: VersionRef): DerivedArtifact | undefined {
@@ -112,7 +112,7 @@ export function applyWorkflowBrief(project: DevkitProject, expected: WorkflowSco
 
 export function selectWorkflowDesign(project: DevkitProject, expected: WorkflowScope, designId: string, updatedAt: string): WorkflowChangeResult {
   if (!scopeMatches(project, expected)) return { ok: false, reason: "scope_changed" };
-  const design = project.designVersions.filter((item) => item.id === designId).sort((a, b) => b.revision - a.revision)[0];
+  const design = project.designVersions.filter((item) => item.id === designId).slice(-1)[0];
   if (!design) return { ok: false, reason: "missing_design" };
   if (!isWorkflowDesignCurrent(project, design)) return { ok: false, reason: "stale_design" };
   return { ok: true, project: project.activeDesignVersionId === designId ? project : { ...project, activeDesignVersionId: designId, updatedAt } };
@@ -154,4 +154,16 @@ export function createWorkflowOperationGuard(contextCurrent: () => boolean = () 
 export function matchWorkflowSavedSnapshot(project: DevkitProject | null, readback: DevkitProject | null, dirty: boolean, unappliedBrief: boolean): DevkitProject | null {
   if (!project || !readback || dirty || unappliedBrief || project.id !== readback.id || project.revision !== readback.revision) return null;
   return JSON.stringify(project) === JSON.stringify(readback) ? readback : null;
+}
+
+/** AOI consent never silently authorizes saved context copying. */
+export function workflowTransferConsent(publicInputConfirmed: boolean, retainedContextSelected: boolean): { publicInputConfirmed: boolean; includeRetainedContext?: true } {
+  return { publicInputConfirmed, ...(publicInputConfirmed === true && retainedContextSelected === true ? { includeRetainedContext: true as const } : {}) };
+}
+
+/** Reconcile one externally changed saved snapshot without rebasing local edits. */
+export function reconcileWorkflowSnapshot(local: DevkitProject, incoming: DevkitProject | null, dirty: boolean, unappliedBrief: boolean): { status: "unchanged" | "updated" | "conflict"; project: DevkitProject } {
+  if (incoming && JSON.stringify(local) === JSON.stringify(incoming)) return { status: "unchanged", project: local };
+  if (!incoming || incoming.id !== local.id || dirty || unappliedBrief) return { status: "conflict", project: local };
+  return { status: "updated", project: incoming };
 }
