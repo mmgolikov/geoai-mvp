@@ -853,12 +853,67 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - name: Install dependencies and browser engine
+      # Replace ONLY protected-browser's old combined installation step.
+      # Do not change the runner, job deadline, env, tests or browser projects.
+      - name: Prepare protected installation evidence
+        shell: bash
         run: |
-          npm ci
-          npx playwright install --with-deps webkit
+          set -euo pipefail
           mkdir -p artifacts
-          git rev-parse HEAD > artifacts/protected-tested-commit-sha.txt
+          git rev-parse HEAD | tee artifacts/protected-tested-commit-sha.txt
+          node --version | tee artifacts/protected-node-version.txt
+          npm --version | tee artifacts/protected-npm-version.txt
+          cat /etc/os-release | tee artifacts/protected-runner-os.txt
+      - name: Install locked JavaScript dependencies
+        timeout-minutes: 5
+        shell: bash
+        run: |
+          set -euo pipefail
+          trap 'status=$?; printf "exit=%s elapsed_seconds=%s\n" "$status" "$SECONDS" >> artifacts/protected-npm-phase.txt; exit "$status"' EXIT
+          npm ci | tee artifacts/protected-npm-ci.txt
+          command -v google-chrome
+          google-chrome --version | tee artifacts/protected-chrome-version.txt
+      - name: Install bounded WebKit system dependencies
+        timeout-minutes: 7
+        shell: bash
+        run: |
+          set -euo pipefail
+          trap 'status=$?; printf "exit=%s elapsed_seconds=%s\n" "$status" "$SECONDS" >> artifacts/protected-os-phase.txt; exit "$status"' EXIT
+          command -v timeout
+          node_bin="$(command -v node)"
+          test -f "$PWD/node_modules/playwright/cli.js"
+          apt_config="$PWD/artifacts/protected-apt.conf"
+          printf '%s\n' \
+            'Acquire::Retries "2";' \
+            'Acquire::http::Timeout "30";' \
+            'Acquire::https::Timeout "30";' > "$apt_config"
+          # Verify effective values: later system apt config must not mask them.
+          sudo -n env APT_CONFIG="$apt_config" apt-config shell \
+            RETRIES Acquire::Retries HTTP_TIMEOUT Acquire::http::Timeout \
+            HTTPS_TIMEOUT Acquire::https::Timeout | tee artifacts/protected-effective-apt.txt
+          grep -Fxq "RETRIES='2'" artifacts/protected-effective-apt.txt
+          grep -Fxq "HTTP_TIMEOUT='30'" artifacts/protected-effective-apt.txt
+          grep -Fxq "HTTPS_TIMEOUT='30'" artifacts/protected-effective-apt.txt
+          # Root entry preserves APT_CONFIG through Playwright's apt subprocess.
+          # This is the locked CLI; no npx fallback can install a newer package.
+          sudo -n env DEBIAN_FRONTEND=noninteractive APT_CONFIG="$apt_config" \
+            timeout --signal=TERM --kill-after=15s 360s \
+            "$node_bin" "$PWD/node_modules/playwright/cli.js" install-deps webkit \
+            | tee artifacts/protected-webkit-system-install.txt
+      - name: Install and prove locked WebKit browser binary
+        timeout-minutes: 4
+        shell: bash
+        run: |
+          set -euo pipefail
+          trap 'status=$?; printf "exit=%s elapsed_seconds=%s\n" "$status" "$SECONDS" >> artifacts/protected-browser-phase.txt; exit "$status"' EXIT
+          timeout --signal=TERM --kill-after=15s 180s \
+            node node_modules/playwright/cli.js install webkit \
+            | tee artifacts/protected-webkit-browser-install.txt
+          node -p "require('playwright-core/package.json').version" \
+            | tee artifacts/protected-playwright-version.txt
+          browser_executable="$(node -p "require('playwright').webkit.executablePath()")"
+          test -x "$browser_executable"
+          printf '%s\n' "$browser_executable" | tee artifacts/protected-webkit-executable.txt
       - name: Protected anonymous entry and byte preservation
         shell: bash
         run: |
