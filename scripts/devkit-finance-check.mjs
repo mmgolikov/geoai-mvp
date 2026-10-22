@@ -146,7 +146,7 @@ isolatedAreaInput.buildings[0].aboveGroundGrossM2 = 999;
 near(isolatedAreas.input.buildings[0].aboveGroundGrossM2, 200, "Area result owns a copy of measurement assumptions");
 // Render actual owned UI without a server or external network if present.
 try {
-  const { FinancePanel, DevkitFinanceProjectPanel } = load("components/devkit/finance-panel.tsx");
+  const { FinancePanel, DevkitFinanceProjectPanel, prepareProjectAreaSchedule, createProjectMonthlyScenario, createProjectSyntheticFinanceExample, saveProjectMonthlyFinance } = load("components/devkit/finance-panel.tsx");
   const React = require("react"), { renderToStaticMarkup } = require("react-dom/server");
   const shared = load("src/lib/devkit/fixtures.ts");
   for (const factory of [shared.createDevkitDemoProject, shared.createDevkitCriticalGapProject]) {
@@ -155,6 +155,55 @@ try {
     check(html.includes("Select an area schedule") && !html.includes(">0</"), "Shared default/critical-gap project remains unknown until finance inputs exist");
     check(JSON.stringify(project) === before, "Default finance slot does not mutate shared project or fabricate artifacts");
   }
+  const designModule = load("src/lib/devkit/design.ts");
+  const seedProject = shared.createDevkitDemoProject("finance-initializer-check");
+  const generated = designModule.createDesignAlternatives(seedProject, { createdAt: "2026-10-22T16:00:00.000Z", seed: "finance-initializer-check" });
+  check(generated.ok, "Shared default project generates actual canonical A/B scenes for finance initializer");
+  const canonicalProject = designModule.applyDesignVersions(seedProject, generated.designs, generated.designs[0].id);
+  const canonicalBefore = JSON.stringify(canonicalProject);
+  const createdAt = "2026-10-22T16:01:00.000Z";
+  const example = createProjectSyntheticFinanceExample(canonicalProject, { currency: "AED", startMonth: "2026-10", createdAt });
+  check(example.ok, "Explicit synthetic action creates area and monthly finance artifacts from active scene");
+  check(JSON.stringify(canonicalProject) === canonicalBefore, "Initializer leaves original canonical project unchanged");
+  const areaArtifact = example.project.derivedArtifacts.filter(a => a.kind === "areas").at(-1);
+  const exampleAreas = area.parseAreaScheduleResult(areaArtifact.data);
+  const financeArtifact = example.project.derivedArtifacts.filter(a => a.kind === "finance").at(-1);
+  const exampleRun = finance.parseMonthlyFinanceResult(financeArtifact.data, exampleAreas);
+  check(areaArtifact.inputs[0].id === generated.designs[0].id && exampleRun.input.areaRef.id === areaArtifact.id, "Exact active design -> area -> finance references stored");
+  check(exampleRun.geometryVersion === generated.designs[0].scene.geometryRevision, "Finance is bound to measured active geometry revision");
+  near(exampleRun.metrics.projectNpv, 60, "Scene-bound explicit arithmetic fixture project NPV60");
+  near(exampleRun.metrics.equityNpv, 55, "Scene-bound explicit arithmetic fixture equity NPV55");
+  const initializedHtml = renderToStaticMarkup(React.createElement(DevkitFinanceProjectPanel, { project: example.project, locale: "ru", onChange: () => {} }));
+  check(initializedHtml.includes("Сохранить изменённые месячные значения") && initializedHtml.includes("Подготовить ведомость площадей") && initializedHtml.includes("Применить эти синтетические допущения"), "Actual project component exposes working creation/save actions");
+  check(initializedHtml.includes("260") && initializedHtml.includes("AED"), "Saved same-project finance reopens through component with expected cash ledger");
+  const manual = createProjectMonthlyScenario(example.project, { currency: "AED", startMonth: "2026-11", periods: 3, createdAt: "2026-10-22T16:02:00.000Z" });
+  check(manual.ok, "Explicit manual monthly scenario can be initialized after areas");
+  const manualArtifact = manual.project.derivedArtifacts.filter(a => a.kind === "finance").at(-1), manualRun = finance.parseMonthlyFinanceResult(manualArtifact.data, exampleAreas);
+  check(manualRun.input.rows.every(row => Object.values(row).every(value => value === null)) && manualRun.input.assumptions.openingDebt === null && manualRun.metrics.projectNpv === null, "Manual initialization keeps all monetary/rate/opening values unknown");
+  const editedInput = structuredClone(exampleRun.input); editedInput.rows[2].unrestrictedIncome = 270; editedInput.rows[2].equityDistribution = 215;
+  const edited = saveProjectMonthlyFinance(example.project, editedInput, "2026-10-22T16:03:00.000Z");
+  check(edited.ok, "Edited monthly values can be explicitly saved as a new finance revision");
+  const editedArtifact = edited.project.derivedArtifacts.filter(a => a.kind === "finance").at(-1);
+  check(editedArtifact.revision === financeArtifact.revision + 1, "Monthly edit advances immutable finance revision");
+  near(finance.parseMonthlyFinanceResult(editedArtifact.data, exampleAreas).metrics.projectNpv, 70, "Saved income edit updates project NPV70");
+  const held = JSON.stringify(example.project);
+  const allocationMap = Object.fromEntries(exampleAreas.buildings.map(b => [b.id, { belowGroundGrossM2: b.belowGroundGrossM2, commonM2: b.commonM2, technicalM2: b.technicalM2, parkingM2: b.parkingM2, otherNonSaleableM2: b.otherNonSaleableM2, residualUse: b.residualUse, terraceSaleableFactor: b.terraceSaleableFactor, registeredM2: b.registeredM2, permittedGfaM2: b.permittedGfaM2 }]));
+  allocationMap[exampleAreas.buildings[0].id].commonM2 += 1;
+  const withKit = structuredClone(example.project);
+  withKit.derivedArtifacts.unshift({ id: "dependent-kit", kind: "kit", revision: 1, inputRevision: 1, inputs: [{ kind: "finance", id: financeArtifact.id, revision: financeArtifact.revision }], createdAt, status: "current", methodVersion: "test", assumptions: [], missingInputs: [], data: {} });
+  const beforeKit = JSON.stringify(withKit);
+  const reallocated = prepareProjectAreaSchedule(withKit, allocationMap, { createdAt: "2026-10-22T16:04:00.000Z" });
+  check(reallocated.ok, "Manual area allocation changes can be prepared and saved");
+  check(reallocated.project.derivedArtifacts.find(a => a.id === financeArtifact.id).status === "stale" && reallocated.project.derivedArtifacts.find(a => a.id === "dependent-kit").status === "stale", "New area revision invalidates finance and kit even with non-topological saved order");
+  check(JSON.stringify(withKit) === beforeKit && JSON.stringify(example.project) === held, "Invalidation never mutates old snapshot or its descendant statuses");
+  const noDefaults = prepareProjectAreaSchedule(canonicalProject, {}, { createdAt });
+  check(noDefaults.ok && noDefaults.project.derivedArtifacts.at(-1).status === "draft" && noDefaults.project.derivedArtifacts.at(-1).data.totals.saleableEquivalentM2 === null, "Blank manual allocation creates a draft with unknown area, not underground/efficiency defaults");
+  const publicProject = { ...canonicalProject, dataClass: "public_demo" };
+  check(!createProjectSyntheticFinanceExample(publicProject, { currency: "AED", startMonth: "2026-10", createdAt }).ok, "Synthetic autofill is unavailable for public/manual project class");
+  const moved = designModule.editDesignBuilding(generated.designs[0], generated.designs[0].buildings[0].id, { levels: generated.designs[0].buildings[0].levels + 1 }, generated.designs[0].revision, "2026-10-22T16:05:00.000Z");
+  check(moved.ok, "Actual canonical geometry can change for stale finance verification");
+  const changedProject = designModule.applyDesignVersions(example.project, [moved.design], moved.design.id);
+  check(!saveProjectMonthlyFinance(changedProject, exampleRun.input, "2026-10-22T16:06:00.000Z").ok, "Geometry edit cannot save finance against old area ref");
   for (const locale of ["en", "ru"]) {
     const html = renderToStaticMarkup(React.createElement(FinancePanel, { areas, input, locale }));
     check(html.includes("260") && html.includes("USD") && html.includes("Screening hypothesis"), `Actual ${locale} finance panel renders rows/currency/caveat`);

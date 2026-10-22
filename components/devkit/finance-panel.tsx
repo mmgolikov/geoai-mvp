@@ -1,11 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { AreaScheduleResult } from "../../src/lib/devkit/areas";
-import { parseAreaScheduleResult } from "../../src/lib/devkit/areas";
-import type { DevkitProject } from "../../src/lib/devkit/contracts";
-import { FINANCE_FIELDS, parseMonthlyFinanceResult, runFinanceSensitivity, runMonthlyFinance, toFinanceArtifact } from "../../src/lib/devkit/finance";
-import type { FinanceField, MonthlyFinanceInput } from "../../src/lib/devkit/finance";
+import type { AreaAllocation, AreaScheduleResult } from "../../src/lib/devkit/areas";
+import { buildAreaScheduleFromMeasurement, calculationVersion, parseAreaScheduleResult, toAreaArtifact } from "../../src/lib/devkit/areas";
+import type { DerivedArtifact, DevkitProject } from "../../src/lib/devkit/contracts";
+import { FINANCE_FIELDS, makeSyntheticFinanceFixture, parseMonthlyFinanceResult, runFinanceSensitivity, runMonthlyFinance, toFinanceArtifact } from "../../src/lib/devkit/finance";
+import type { FinanceAssumptions, FinanceField, MonthlyFinanceInput, MonthlyFinanceRow } from "../../src/lib/devkit/finance";
+
+import { measureDesignScene } from "../../src/lib/devkit/design";
+import type { DesignScene } from "../../src/lib/devkit/design";
 
 type Props = {
   areas: AreaScheduleResult | null; input: MonthlyFinanceInput | null; locale?: "en" | "ru";
@@ -53,21 +56,170 @@ export function FinancePanel({ areas, input, locale = "en", currentGeometryVersi
 export const DevkitFinancePanel = FinancePanel;
 
 
-/** Slot adapter for workflow_1; calculation creation remains explicit in the controller. */
+type Mutation = { ok: true; project: DevkitProject } | { ok: false; errors: string[] };
+type ScenarioSetup = { currency: FinanceAssumptions["currency"]; startMonth: string; periods: number; createdAt: string };
+const allocationFields = ["belowGroundGrossM2", "commonM2", "technicalM2", "parkingM2", "otherNonSaleableM2", "terraceSaleableFactor", "registeredM2", "permittedGfaM2"] as const;
+const allocationLabels = {
+  belowGroundGrossM2: ["Underground gross m²", "Подземная общая, м²"], commonM2: ["Common space m²", "Общие зоны, м²"], technicalM2: ["Technical space m²", "Технические зоны, м²"], parkingM2: ["Parking m²", "Паркинг, м²"], otherNonSaleableM2: ["Other non-saleable m²", "Прочая непродаваемая, м²"], terraceSaleableFactor: ["Terrace saleable factor, 0…1", "Коэффициент террас, 0…1"], registeredM2: ["Registered area m²", "Зарегистрированная, м²"], permittedGfaM2: ["Permitted GFA m²", "Разрешённая GFA, м²"]
+};
+function activeMeasurement(project: DevkitProject) {
+  const design = project.designVersions.find(d => d.id === project.activeDesignVersionId);
+  if (!design || design.inputRevision !== project.inputRevision || design.aoiId !== project.aoi?.id || design.aoiRevision !== project.aoi?.revision) throw new Error("Create a current canonical design before preparing areas.");
+  return measureDesignScene(design as DesignScene);
+}
+function appendArtifact(project: DevkitProject, artifact: DerivedArtifact): DevkitProject {
+  const invalid = new Set([`${artifact.kind}:${artifact.id}`]);
+  const previous = project.derivedArtifacts.map(a => {
+    if (a.kind === artifact.kind) return { ...a };
+    if (a.inputs.some(ref => invalid.has(`${ref.kind}:${ref.id}`))) { invalid.add(`${a.kind}:${a.id}`); return { ...a, status: "stale" as const }; }
+    return { ...a };
+  });
+  // A kit may precede its finance entry in the saved array; resolve all descendants.
+  for (let i = 0; i < previous.length; i++) for (const a of previous) if (a.kind !== artifact.kind && a.inputs.some(ref => invalid.has(`${ref.kind}:${ref.id}`))) { a.status = "stale"; invalid.add(`${a.kind}:${a.id}`); }
+  return { ...project, updatedAt: artifact.createdAt, derivedArtifacts: [...previous, artifact] };
+}
+function nextArtifactRevision(project: DevkitProject, kind: DerivedArtifact["kind"], id: string) {
+  return 1 + Math.max(0, ...project.derivedArtifacts.filter(a => a.kind === kind && a.id === id).map(a => a.revision));
+}
+export function prepareProjectAreaSchedule(project: DevkitProject, allocations: Record<string, AreaAllocation>, options: { createdAt: string; synthetic?: boolean }): Mutation {
+  try {
+    if (options.synthetic && project.dataClass !== "synthetic_demo") return { ok: false, errors: ["Synthetic example is available only for an explicitly synthetic project."] };
+    const measurement = activeMeasurement(project);
+    const areas = buildAreaScheduleFromMeasurement(measurement, {
+      projectId: project.id, snapshotId: `${project.id}:input-${project.inputRevision}`, inputRevision: project.inputRevision,
+      assumptionsVersion: `allocation-${calculationVersion(allocations)}`, jurisdiction: project.brief.marketKey,
+      methodology: options.synthetic ? "EXPLICIT SYNTHETIC: common20% of measured indoor gross, technical10%, underground/parking/other0; residual saleable only for non-civic uses, terrace factor0.5 for those uses; registered/permitted unknown. Not authority definitions." : "User-entered allocation of measured canonical scene. Blank quantities remain unknown. Residual saleability and terrace coefficient are explicit assumptions; registered/permitted values are not inferred.",
+      provenance: options.synthetic ? "synthetic" : "derived_geometry", sourceRefs: [`design:${measurement.designRef.id}@${measurement.designRef.revision}`], reviewer: null
+    }, allocations);
+    if (areas.status === "blocked") return { ok: false, errors: areas.errors };
+    const artifact = toAreaArtifact(areas, { revision: nextArtifactRevision(project, "areas", areas.id), createdAt: options.createdAt });
+    return { ok: true, project: appendArtifact(project, artifact) };
+  } catch (error) { return { ok: false, errors: [error instanceof Error ? error.message : "Area preparation failed."] }; }
+}
+function selectedAreas(project: DevkitProject) {
+  const measurement = activeMeasurement(project);
+  const artifact = project.derivedArtifacts.filter(a => a.kind === "areas" && a.inputs.some(ref => ref.kind === "design" && ref.id === measurement.designRef.id && ref.revision === measurement.designRef.revision)).sort((a, b) => b.revision - a.revision)[0];
+  const areas = artifact && parseAreaScheduleResult(artifact.data);
+  if (!artifact || !areas || artifact.status === "stale" || artifact.status === "blocked" || areas.input.inputRevision !== project.inputRevision || areas.input.geometryVersion !== measurement.geometryRevision) throw new Error("Prepare a current area schedule before creating finance.");
+  return { artifact, areas, measurement };
+}
+export function saveProjectMonthlyFinance(project: DevkitProject, input: MonthlyFinanceInput, createdAt: string): Mutation {
+  try {
+    const { areas, artifact: areaArtifact, measurement } = selectedAreas(project);
+    if (input.areaRef.id !== areaArtifact.id || input.areaRef.revision !== areaArtifact.revision) return { ok: false, errors: ["Finance must reference the latest selected area revision."] };
+    const result = runMonthlyFinance(input, areas, measurement.geometryRevision);
+    if (result.status === "stale" || result.status === "blocked") return { ok: false, errors: result.errors.length ? result.errors : ["Finance input versions are stale."] };
+    const artifact = toFinanceArtifact(result, { revision: nextArtifactRevision(project, "finance", result.id), createdAt });
+    return { ok: true, project: appendArtifact(project, artifact) };
+  } catch (error) { return { ok: false, errors: [error instanceof Error ? error.message : "Finance save failed."] }; }
+}
+export function createProjectMonthlyScenario(project: DevkitProject, setup: ScenarioSetup): Mutation {
+  try {
+    const { areas, artifact } = selectedAreas(project);
+    if (!Number.isInteger(setup.periods) || setup.periods < 1 || setup.periods > 120 || !/^\d{4}-(0[1-9]|1[0-2])$/.test(setup.startMonth)) return { ok: false, errors: ["Choose a valid month and 1–120 monthly periods."] };
+    const input: MonthlyFinanceInput = {
+      projectId: project.id, snapshotId: areas.input.snapshotId, inputRevision: project.inputRevision, areaRef: { kind: "areas", id: artifact.id, revision: artifact.revision }, areaCalculationVersion: areas.version,
+      startMonth: setup.startMonth, rows: Array.from({ length: setup.periods }, () => Object.fromEntries(FINANCE_FIELDS.map(field => [field, null])) as MonthlyFinanceRow),
+      assumptions: { version: "manual-monthly-input-1", provenance: "user_provided", sourceRefs: [], validAt: null, reviewer: null, currency: setup.currency, priceBasis: "nominal", taxBasis: "Manual tax classification pending; tax payment amounts remain unknown until entered.", notes: ["Manual scenario initialized explicitly. No monetary, tax, interest or funding value has been assumed zero. Price basis nominal; review and edit assumptions before use."], projectAnnualDiscountRate: null, equityAnnualDiscountRate: null, debtAnnualEffectiveRate: null, openingAvailableCash: null, openingDebt: null, openingEscrow: null, debtLimit: null, landPaymentWeights: null }
+    };
+    return saveProjectMonthlyFinance(project, input, setup.createdAt);
+  } catch (error) { return { ok: false, errors: [error instanceof Error ? error.message : "Scenario creation failed."] }; }
+}
+export function createProjectSyntheticFinanceExample(project: DevkitProject, setup: Omit<ScenarioSetup, "periods">): Mutation {
+  try {
+    if (project.dataClass !== "synthetic_demo") return { ok: false, errors: ["Synthetic example is available only for an explicitly synthetic project."] };
+    const measurement = activeMeasurement(project);
+    const allocations = Object.fromEntries(measurement.buildings.map(b => {
+      const saleable = b.use !== "civic" && b.use !== "open_space";
+      return [b.buildingId, { belowGroundGrossM2: 0, commonM2: b.grossFloorAreaSqM === null ? null : b.grossFloorAreaSqM * 0.2, technicalM2: b.grossFloorAreaSqM === null ? null : b.grossFloorAreaSqM * 0.1, parkingM2: 0, otherNonSaleableM2: 0, residualUse: saleable ? "saleable" : "non_saleable", terraceSaleableFactor: saleable ? 0.5 : 0, registeredM2: null, permittedGfaM2: null } as AreaAllocation];
+    }));
+    const prepared = prepareProjectAreaSchedule(project, allocations, { createdAt: setup.createdAt, synthetic: true });
+    if (!prepared.ok) return prepared;
+    const { areas, artifact } = selectedAreas(prepared.project);
+    if (areas.totals.saleableEquivalentM2 === null || areas.totals.saleableEquivalentM2 <= 0) return { ok: false, errors: ["A synthetic commercial-receipts example requires known positive saleable area. No revenue is invented for civic/open space."] };
+    const input = makeSyntheticFinanceFixture().input;
+    const bound: MonthlyFinanceInput = { ...input, projectId: project.id, snapshotId: areas.input.snapshotId, inputRevision: project.inputRevision, areaRef: { kind: "areas", id: artifact.id, revision: artifact.revision }, areaCalculationVersion: areas.version, startMonth: setup.startMonth, assumptions: { ...input.assumptions, currency: setup.currency, version: `explicit-synthetic:${areas.version}`, taxBasis: "Synthetic cash-payment test: tax0 at initialization, not a transaction classification. Edited monthly tax values supersede that initialization amount.", notes: ["INITIAL SYNTHETIC TEMPLATE ONLY; later edited rows are authoritative. 3-month arithmetic example: land100, construction100, buyer receipts260, equity100+50, debt50, financing fee5, equity distribution205, other flows/rates0. No market claim or FX conversion.", "Amounts are fixed arithmetic units in the selected currency, not a price/cost estimate from this concept. Geometry supplies area lineage only; geometry edits require a fresh area/finance revision."] } };
+    return saveProjectMonthlyFinance(prepared.project, bound, setup.createdAt);
+  } catch (error) { return { ok: false, errors: [error instanceof Error ? error.message : "Synthetic example failed."] }; }
+}
+
+const assumptionFields = ["projectAnnualDiscountRate", "equityAnnualDiscountRate", "debtAnnualEffectiveRate", "openingAvailableCash", "openingDebt", "openingEscrow", "debtLimit"] as const;
+const assumptionLabels = {
+  projectAnnualDiscountRate: ["Project discount, effective annual decimal", "Ставка проекта, эффективная годовая доля"], equityAnnualDiscountRate: ["Equity discount, effective annual decimal", "Ставка equity, эффективная годовая доля"], debtAnnualEffectiveRate: ["Debt rate, effective annual decimal", "Ставка долга, эффективная годовая доля"], openingAvailableCash: ["Opening available cash", "Доступные деньги на начало"], openingDebt: ["Opening debt", "Долг на начало"], openingEscrow: ["Opening escrow", "Эскроу на начало"], debtLimit: ["Debt limit", "Лимит долга"]
+};
+function blankAllocations(measurement: ReturnType<typeof measureDesignScene> | null, areas: AreaScheduleResult | null): Record<string, AreaAllocation> {
+  return Object.fromEntries((measurement?.buildings ?? []).map(b => {
+    const previous = areas?.buildings.find(row => row.id === b.buildingId);
+    return [b.buildingId, { ...Object.fromEntries(allocationFields.map(field => [field, previous?.[field] ?? null])), residualUse: previous?.residualUse ?? "unknown" } as AreaAllocation];
+  }));
+}
+
+/** Explicit creation/editor slot; parent still owns persistent project Save. */
 export function DevkitFinanceProjectPanel({ project, onChange, locale = "en" }: { project: DevkitProject; onChange?: (project: DevkitProject) => void; locale?: "en" | "ru" }) {
   const design = project.designVersions.find(d => d.id === project.activeDesignVersionId);
-  const areaArtifact = project.derivedArtifacts.filter(a => a.kind === "areas" && a.inputs.some(ref => ref.kind === "design" && ref.id === design?.id && ref.revision === design?.revision)).sort((a, b) => b.revision - a.revision)[0];
-  const areas = areaArtifact ? parseAreaScheduleResult(areaArtifact.data) : null;
+  return <FinanceProjectWorkspace key={`${project.id}:${project.inputRevision}:${design?.id}:${design?.revision}`} project={project} onChange={onChange} locale={locale} />;
+}
+function FinanceProjectWorkspace({ project, onChange, locale }: { project: DevkitProject; onChange?: (project: DevkitProject) => void; locale: "en" | "ru" }) {
+  const ru = locale === "ru", t = words[locale], index = ru ? 1 : 0;
+  const measured = useMemo(() => { try { return { measurement: activeMeasurement(project), error: null }; } catch (error) { return { measurement: null, error: error instanceof Error ? error.message : "Canonical scene unavailable." }; } }, [project]);
+  const measurement = measured.measurement;
+  const areaArtifact = project.derivedArtifacts.filter(a => a.kind === "areas" && a.inputs.some(ref => ref.kind === "design" && ref.id === measurement?.designRef.id && ref.revision === measurement?.designRef.revision)).sort((a, b) => b.revision - a.revision)[0];
+  const areas = useMemo(() => areaArtifact ? parseAreaScheduleResult(areaArtifact.data) : null, [areaArtifact]);
   const financeArtifact = areaArtifact ? project.derivedArtifacts.filter(a => a.kind === "finance" && a.inputs.some(ref => ref.kind === "areas" && ref.id === areaArtifact.id && ref.revision === areaArtifact.revision)).sort((a, b) => b.revision - a.revision)[0] : undefined;
-  const scene = design && "scene" in design ? design.scene as { geometryRevision?: unknown } | undefined : undefined;
-  const geometry = areaArtifact?.status !== "stale" && financeArtifact?.status !== "stale" && typeof scene?.geometryRevision === "string" && areas?.input.inputRevision === project.inputRevision ? scene.geometryRevision : "geometry_or_source_inputs_unavailable";
-  const saved = financeArtifact && areas ? parseMonthlyFinanceResult(financeArtifact.data, areas, geometry) : null;
-  const update = onChange && areas ? (nextInput: MonthlyFinanceInput) => {
-    const result = runMonthlyFinance(nextInput, areas, geometry);
-    const revision = 1 + Math.max(0, ...project.derivedArtifacts.filter(a => a.kind === "finance" && a.id === result.id).map(a => a.revision));
-    const createdAt = new Date().toISOString();
-    const artifact = toFinanceArtifact(result, { revision, createdAt });
-    onChange({ ...project, updatedAt: createdAt, derivedArtifacts: [...project.derivedArtifacts.map(a => a.kind === "kit" ? { ...a, status: "stale" as const } : a), artifact] });
-  } : undefined;
-  return <FinancePanel areas={areas} input={saved?.input ?? null} locale={locale} currentGeometryVersion={geometry} onInputChange={update} />;
+  const geometry = measurement && areaArtifact?.status !== "stale" && financeArtifact?.status !== "stale" ? measurement.geometryRevision : "geometry_or_source_inputs_unavailable";
+  const saved = useMemo(() => financeArtifact && areas ? parseMonthlyFinanceResult(financeArtifact.data, areas, geometry) : null, [financeArtifact, areas, geometry]);
+  const areaKey = `${areaArtifact?.id}:${areaArtifact?.revision}:${areas?.version}:${areaArtifact?.status}`;
+  const financeKey = `${areaKey}:${financeArtifact?.id}:${financeArtifact?.revision}:${saved?.version}`;
+  const [allocationDraft, setAllocationDraft] = useState<{ key: string; values: Record<string, AreaAllocation> }>(() => ({ key: areaKey, values: blankAllocations(measurement, areas) }));
+  const allocations = allocationDraft.key === areaKey ? allocationDraft.values : blankAllocations(measurement, areas);
+  const [financeDraft, setFinanceDraft] = useState<{ key: string; input: MonthlyFinanceInput | null }>(() => ({ key: financeKey, input: saved?.input ?? null }));
+  const input = financeDraft.key === financeKey ? financeDraft.input : saved?.input ?? null;
+  const hasUnsavedFinance = !!input && calculationVersion(input) !== calculationVersion(saved?.input);
+  const [currency, setCurrency] = useState<FinanceAssumptions["currency"]>(project.brief.budget.currency);
+  const [startMonth, setStartMonth] = useState("2026-10"), [periods, setPeriods] = useState("3"), [notice, setNotice] = useState<string[]>([]);
+  const commit = (result: Mutation) => {
+    if (!result.ok) { setNotice(result.errors); return; }
+    if (!onChange) return;
+    onChange(result.project);
+    setNotice([ru ? "Добавлено в текущий проект. Для сохранения на устройстве нажмите «Сохранить» в workflow." : "Added to the current project. Use workflow Save to persist on this device."]);
+  };
+  const updateInput = (next: MonthlyFinanceInput) => setFinanceDraft({ key: financeKey, input: next });
+  const button = "rounded-md bg-blue-700 px-3 py-2 text-sm font-medium text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-slate-300";
+  return <div className="min-w-0 space-y-4">
+    <section className={`${panel} space-y-3`} aria-label={ru ? "Создание площадей и экономики" : "Create areas and finance"}>
+      <h2 className="text-lg font-semibold">{ru ? "Подготовить площади и месячный сценарий" : "Prepare areas and a monthly scenario"}</h2>
+      <p className="text-sm text-slate-600">{ru ? "Площади берутся из активной канонической сцены. Пустое поле — неизвестно; ноль и доля продаваемой площади вводятся явно. Все результаты условные, без профессиональной приёмки." : "Areas come from the active canonical scene. Blank means unknown; zero and saleability are explicit inputs. All results are conditional, without professional acceptance."}</p>
+      {!onChange && <p className="text-sm text-amber-800">{ru ? "Просмотр: изменение проекта не подключено." : "Read-only: project editing is not connected."}</p>}
+      {!measurement && <p role="status" className="text-sm text-amber-800">{ru ? "Сначала создайте актуальную каноническую концепцию в разделе Create." : "Create a current canonical concept in Create first."} <span className="break-words text-xs">{measured.error}</span></p>}
+      {measurement && <details className="rounded-lg border border-slate-200 p-3" open={!areas}>
+        <summary className="cursor-pointer text-sm font-semibold">{ru ? "1. Ручные распределения площадей" : "1. Manual area allocations"}</summary>
+        {measurement.buildings.map(b => <fieldset className="mt-3 border-t border-slate-200 pt-3" key={b.buildingId}>
+          <legend className="max-w-full break-words text-sm font-medium">{b.buildingId} · {b.use}</legend>
+          <p className="mb-2 text-xs">{t.gross}: {b.grossFloorAreaSqM === null ? t.unknown : b.grossFloorAreaSqM.toFixed(2)} m² · {ru ? "Террасы" : "Terraces"}: {b.terraceAreaSqM === null ? t.unknown : b.terraceAreaSqM.toFixed(2)} m²</p>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{allocationFields.map(field => <label className="min-w-0 text-xs" key={field}>{allocationLabels[field][index]}<input className={`${control} mt-1`} type="number" min="0" max={field === "terraceSaleableFactor" ? "1" : undefined} step="any" value={allocations[b.buildingId]?.[field] ?? ""} onChange={event => { const raw = event.target.value; const value = raw.trim() ? Number(raw) : null; if (value !== null && (!Number.isFinite(value) || value < 0)) return; setAllocationDraft({ key: areaKey, values: { ...allocations, [b.buildingId]: { ...allocations[b.buildingId], [field]: value } } }); }} /></label>)}
+            <label className="text-xs">{ru ? "Остаток закрытой площади" : "Residual enclosed space"}<select className={`${control} mt-1`} value={allocations[b.buildingId]?.residualUse ?? "unknown"} onChange={event => setAllocationDraft({ key: areaKey, values: { ...allocations, [b.buildingId]: { ...allocations[b.buildingId], residualUse: event.target.value as AreaAllocation["residualUse"] } } })}><option value="unknown">{t.unknown}</option><option value="saleable">{ru ? "Продаваемый — ручное допущение" : "Saleable — manual assumption"}</option><option value="non_saleable">{ru ? "Непродаваемый" : "Non-saleable"}</option></select></label>
+          </div>
+        </fieldset>)}
+        <button className={`${button} mt-3`} disabled={!onChange || hasUnsavedFinance} type="button" onClick={() => commit(prepareProjectAreaSchedule(project, allocations, { createdAt: new Date().toISOString() }))}>{ru ? "Подготовить ведомость площадей" : "Prepare area schedule"}</button>
+      </details>}
+      {areas && <p className="text-sm">{t.area}: <strong>{areas.status}</strong> · {t.saleable}: {areas.totals.saleableEquivalentM2 === null ? t.unknown : areas.totals.saleableEquivalentM2.toFixed(2)} m² · {t.missing}: {areas.missingInputs.length}</p>}
+      <div className="grid gap-3 sm:grid-cols-3"><label className="text-xs">{t.currency}<select className={`${control} mt-1`} value={currency} onChange={event => setCurrency(event.target.value as FinanceAssumptions["currency"])}>{["AED", "RUB", "USD"].map(value => <option key={value}>{value}</option>)}</select></label><label className="text-xs">{ru ? "Первый месяц" : "First month"}<input className={`${control} mt-1`} type="month" value={startMonth} onChange={event => setStartMonth(event.target.value)} /></label><label className="text-xs">{ru ? "Число месяцев, 1–120" : "Months, 1–120"}<input className={`${control} mt-1`} type="number" min="1" max="120" step="1" value={periods} onChange={event => setPeriods(event.target.value)} /></label></div>
+      <button className={button} disabled={!onChange || hasUnsavedFinance || !measurement || !areas || areaArtifact?.status === "stale"} type="button" onClick={() => commit(createProjectMonthlyScenario(project, { currency, startMonth, periods: Number(periods), createdAt: new Date().toISOString() }))}>{ru ? "2. Создать месячный сценарий с неизвестными входами" : "2. Create monthly scenario with unknown inputs"}</button>
+      {project.dataClass === "synthetic_demo" && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+        <p className="text-xs text-amber-900">{ru ? "Только учебный пример: общие зоны20%, технические10%, подземная/паркинг/прочие0; продаваемый остаток только у коммерческих функций, террасы×0,5. Земля100, стройка100, поступления260, equity100+50, долг50, комиссия5, выплата205, прочие потоки/ставки0. Цифры — условные единицы выбранной валюты, не оценка этой концепции. Разрешённая и зарегистрированная площади неизвестны." : "Educational only: common20%, technical10%, underground/parking/other0; saleable residual only for commercial uses, terraces×0.5. Land100, construction100, receipts260, equity100+50, debt50, fee5, distribution205, other flows/rates0. Fixed arithmetic units in the chosen currency, not an estimate of this concept. Registered/permitted areas unknown."}</p>
+        <button className={`${button} mt-3`} disabled={!onChange || hasUnsavedFinance || !measurement} type="button" onClick={() => commit(createProjectSyntheticFinanceExample(project, { currency, startMonth, createdAt: new Date().toISOString() }))}>{ru ? "Применить эти синтетические допущения и создать 3 месяца" : "Apply these synthetic assumptions and create 3 months"}</button>
+      </div>}
+      {hasUnsavedFinance && <div className="rounded-lg bg-amber-50 p-3 text-sm"><p>{ru ? "Есть несохранённые месячные правки. Сохраните их перед созданием новой ведомости или сценария." : "Monthly edits are not saved. Save them before replacing the area schedule or scenario."}</p><button className="mt-2 rounded-md border border-slate-400 px-3 py-2 text-sm" type="button" onClick={() => setFinanceDraft({ key: financeKey, input: saved?.input ?? null })}>{ru ? "Отменить несохранённые правки" : "Discard unsaved edits"}</button></div>}
+      {notice.length > 0 && <ul role="status" className="list-disc space-y-1 break-words pl-5 text-sm text-amber-900">{notice.map((message, i) => <li key={i}>{message}</li>)}</ul>}
+    </section>
+    {input && <section className={`${panel} space-y-3`} aria-label={ru ? "Редактор допущений" : "Assumption editor"}>
+      <h3 className="font-semibold">{ru ? "Допущения месячного сценария" : "Monthly scenario assumptions"} · {input.assumptions.currency}</h3>
+      <p className="text-xs text-slate-600">{ru ? "Пустое поле сохраняется как неизвестное. Доли годовых ставок вводятся десятичным числом: 0,1 означает10%, не месячную ставку. Конвертация валюты не выполняется." : "Blank stays unknown. Effective annual rates are decimals:0.1 means10%, not a monthly rate. No currency conversion."}</p>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{assumptionFields.map(field => <label className="text-xs" key={field}>{assumptionLabels[field][index]}<input className={`${control} mt-1`} type="number" step="any" value={input.assumptions[field] ?? ""} onChange={event => { const value = event.target.value.trim() ? Number(event.target.value) : null; if (value !== null && !Number.isFinite(value)) return; updateInput({ ...input, assumptions: { ...input.assumptions, [field]: value, version: `manual-assumptions-${calculationVersion({ field, value, previous: input.assumptions.version })}` } }); }} /></label>)}<label className="text-xs">{ru ? "База цен и ставок" : "Price/rate basis"}<select className={`${control} mt-1`} value={input.assumptions.priceBasis} onChange={event => updateInput({ ...input, assumptions: { ...input.assumptions, priceBasis: event.target.value as "nominal" | "real" } })}><option value="nominal">{ru ? "Номинальная" : "Nominal"}</option><option value="real">{ru ? "Реальная" : "Real"}</option></select></label></div>
+      <label className="block text-xs">{t.tax}<textarea className={`${control} mt-1`} rows={2} value={input.assumptions.taxBasis} onChange={event => updateInput({ ...input, assumptions: { ...input.assumptions, taxBasis: event.target.value } })} /></label>
+      <button className={button} type="button" disabled={!onChange} onClick={() => commit(saveProjectMonthlyFinance(project, input, new Date().toISOString()))}>{ru ? "Сохранить новую версию сценария в проект" : "Save a new scenario revision to project"}</button>
+    </section>}
+    <FinancePanel areas={areas} input={input} locale={locale} currentGeometryVersion={geometry} onInputChange={onChange ? updateInput : undefined} />
+    {input && onChange && <button className={button} type="button" onClick={() => commit(saveProjectMonthlyFinance(project, input, new Date().toISOString()))}>{ru ? "Сохранить изменённые месячные значения" : "Save edited monthly values"}</button>}
+  </div>;
 }
