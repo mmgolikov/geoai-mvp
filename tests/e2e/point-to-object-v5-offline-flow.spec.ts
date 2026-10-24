@@ -629,7 +629,7 @@ test("Sprint06 J06 keeps unsent RU refinement separate on Back and restores it w
   await page.getByLabel("Что вы хотите узнать?").fill(original);
   await page.getByRole("button", { name: "Анализировать", exact: true }).click();
   await expect(page).toHaveURL(/\/analysis$/);
-  const composer = page.getByLabel("Провести целевой анализ", { exact: true });
+  const composer = page.getByRole("textbox", { name: "Провести целевой анализ", exact: true });
   const run = page.getByRole("button", { name: "Запустить целевой анализ", exact: true });
   await expect(run).toBeEnabled();
   // Opening Analyse only prepares the draft; the user must explicitly start AI.
@@ -658,7 +658,7 @@ test("Sprint06 J06 keeps unsent RU refinement separate on Back and restores it w
   await expect(composer).toHaveValue(draft);
   expect(aiRequests).toEqual({ challenge: 1, generation: 1 });
   await page.getByRole("button", { name: "en", exact: true }).click();
-  await expect(page.getByLabel("Run a focused analysis", { exact: true })).toHaveValue(original);
+  await expect(page.getByRole("textbox", { name: "Run a focused analysis", exact: true })).toHaveValue(original);
   await page.getByRole("button", { name: "ru", exact: true }).click();
   await expect(composer).toHaveValue(draft);
   expect(aiRequests).toEqual({ challenge: 1, generation: 1 });
@@ -935,6 +935,69 @@ test("map-first layout keeps a compact desktop drawer across all modes and break
   expect(unexpectedExternal).toEqual([]);
 });
 
+for (const width of [720, 640] as const) {
+  test(`RU short-height Analyse preserves title, CTA and verification access ${width}x450`, async ({ page }, testInfo) => {
+    contextRequests.length = 0;
+    const aiRequestMethods: string[] = [];
+    page.on("request", request => {
+      if (new URL(request.url()).pathname.endsWith("/point-to-object/ai")) aiRequestMethods.push(request.method());
+    });
+    const unexpectedExternal = await installOfflineRoutes(page);
+    const viewport = { width, height: 450 };
+    await page.setViewportSize(viewport);
+    await page.goto("/prototype/point-to-object");
+    await expect(page.locator(".maplibregl-canvas")).toBeVisible();
+    await page.getByRole("button", { name: "ru", exact: true }).click();
+    await page.getByRole("combobox", { name: "Поиск адреса или места", exact: true }).fill("Shangri");
+    await page.getByRole("option", { name: /Shangri-La exact search result/ }).click();
+    const modeTab = page.getByRole("tab", { name: "Анализ", exact: true });
+    await modeTab.click();
+    await expect(modeTab).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByTestId("mobile-workspace-shell")).toHaveAttribute("data-sheet", "full");
+    await expect(page.getByRole("button", { name: "На карту", exact: true })).toBeVisible();
+    const content = page.locator("#workspace-task-content");
+    const selectedObject = page.getByTestId("selected-object");
+    const analyze = page.getByTestId("analyse-composer").getByRole("button", { name: "Анализировать", exact: true });
+    await expect(selectedObject).toHaveText("Shangri-La exact search result");
+    await expect(analyze).toBeEnabled();
+    const contextCallsAfterSelection = contextRequests.length;
+    await content.evaluate(element => { element.scrollTop = 0; });
+    await expect(selectedObject).toBeVisible();
+    const selectedBox = await selectedObject.boundingBox();
+    expect(selectedBox).not.toBeNull();
+    expect((selectedBox?.y ?? 0)).toBeGreaterThanOrEqual(64);
+    expect((selectedBox?.y ?? viewport.height) + (selectedBox?.height ?? 0)).toBeLessThanOrEqual(viewport.height + 1);
+    const verification = content.getByTestId("verification-export");
+    const summary = verification.locator("summary");
+    await expect(verification).toHaveCount(1);
+    await expect(verification).not.toHaveAttribute("open");
+    await expect(summary).toBeVisible();
+    const summaryBox = await summary.boundingBox();
+    expect(summaryBox?.height ?? 0).toBeGreaterThanOrEqual(44);
+    await page.screenshot({ path: testInfo.outputPath(`ru-short-height-${width}-closed.png`) });
+    await summary.focus();
+    await page.keyboard.press("Enter");
+    await expect(verification).toHaveAttribute("open", "");
+    const prepare = verification.getByTestId("verification-prepare");
+    await prepare.scrollIntoViewIfNeeded();
+    await expect(prepare).toBeVisible();
+    await expect(prepare).toBeEnabled();
+    await page.screenshot({ path: testInfo.outputPath(`ru-short-height-${width}-open.png`) });
+    await summary.scrollIntoViewIfNeeded();
+    await summary.focus();
+    await page.keyboard.press("Enter");
+    await expect(verification).not.toHaveAttribute("open");
+    await analyze.scrollIntoViewIfNeeded();
+    await expect(analyze).toBeVisible();
+    const analyzeBox = await analyze.boundingBox();
+    expect(analyzeBox).not.toBeNull();
+    expect((analyzeBox?.y ?? viewport.height) + (analyzeBox?.height ?? 0)).toBeLessThanOrEqual(viewport.height + 1);
+    expect(contextRequests.length).toBe(contextCallsAfterSelection);
+    expect(aiRequestMethods).toEqual([]);
+    expect(unexpectedExternal).toEqual([]);
+  });
+}
+
 test("V5.1 keeps exact identity and the complete Find comparison flow coherent offline", async ({ page }, testInfo) => {
   contextRequests.length = 0;
   findPostRequests.length = 0;
@@ -1041,8 +1104,28 @@ test("V5.1 keeps exact identity and the complete Find comparison flow coherent o
   await expect(page.getByRole("button", { name: "← Back to compact comparison", exact: true })).toBeFocused();
   await expect.poll(() => page.evaluate(() => document.body.style.overflow)).toBe("hidden");
   await expect.poll(() => page.getByTestId("find-drawer").evaluate((element) => (element instanceof HTMLElement && element.inert) || element.closest("[inert]") !== null)).toBe(true);
+  // Derive the real sequential tab endpoints from public DOM, including the
+  // optional Preview disclosure before the initial-focus Back button.
+  const comparisonDialog = page.getByTestId("find-full-comparison-dashboard");
+  const focusCandidates = comparisonDialog.locator("a[href],button,input,select,textarea,summary,[tabindex]");
+  const tabOrder = await focusCandidates.evaluateAll(elements => elements.flatMap((element, index) => {
+    const control = element as HTMLElement;
+    const visibility = window.getComputedStyle(control).visibility;
+    return control.tabIndex >= 0 && !control.matches(":disabled") && !control.closest("[inert]") &&
+      control.getClientRects().length > 0 && visibility !== "hidden" && visibility !== "collapse"
+      ? [{ index, tabIndex: control.tabIndex }] : [];
+  }).sort((a, b) => (a.tabIndex || Infinity) - (b.tabIndex || Infinity) || a.index - b.index));
+  expect(tabOrder.length).toBeGreaterThan(1);
+  const firstTabStop = focusCandidates.nth(tabOrder[0].index);
+  const lastTabStop = focusCandidates.nth(tabOrder[tabOrder.length - 1].index);
+  await expect(lastTabStop).toHaveText("Source and data boundaries");
+  await firstTabStop.focus();
+  await expect(firstTabStop).toBeFocused();
   await page.keyboard.press("Shift+Tab");
   await expect(page.getByText("Source and data boundaries", { exact: true })).toBeFocused();
+  await expect.poll(() => comparisonDialog.evaluate(element => element.contains(document.activeElement))).toBe(true);
+  await page.keyboard.press("Tab");
+  await expect(firstTabStop).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("find-full-comparison-dashboard")).toHaveCount(0);
   await expect(fullComparisonAction).toBeFocused();

@@ -102,7 +102,7 @@ export function D2SourceLinks({ references, fallbackLabel }: { references: strin
   return <ul className="mt-2 flex min-w-0 flex-wrap gap-2">{[...new Set(references)].map(reference => {
     const resolved = resolveEvidence(evidence.context, evidence.subject, reference, ru);
     return <li key={reference} className="min-w-0 max-w-full"><button type="button" onClick={() => evidence.selectReference(reference)} aria-controls={evidence.panelId} className="min-h-11 max-w-full break-words rounded-lg border border-[#dce6e3] px-3 py-2 text-start text-[11px] font-semibold leading-5 text-[#087f8c] underline decoration-[#b6d4ce] underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087f8c]" data-testid="d2-source-link" data-evidence-ref={reference} data-evidence-available={Boolean(resolved)}>
-      {resolved?.title ?? fallbackLabel?.(reference) ?? reference}{!resolved ? (ru ? " · источник недоступен" : " · source unavailable") : ""}
+      {resolved?.title ?? fallbackLabel?.(reference) ?? (ru ? "Цитата отчёта" : "Report citation")}{!resolved ? (ru ? " · источник недоступен" : " · source unavailable") : ""}
     </button></li>;
   })}</ul>;
 }

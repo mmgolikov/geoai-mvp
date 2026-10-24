@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test";
 import { chooseD2ThroughSearch, openD2Analysis, openD2Projects, installD2Transport, expectD2TransportQuiet,
@@ -125,10 +125,12 @@ async function reopen(page: Page, label: string, locale: D2Locale) {
   await expect(page.getByTestId("ai-success")).toBeVisible();
 }
 async function attach(info: TestInfo, page: Page, data: Record<string, unknown>) {
+  const observation = info.outputPath("source-citation-closure-observation.json");
+  writeFileSync(observation, JSON.stringify(data, null, 2) + "\n");
   const screenshot = info.outputPath("source-citation-closure.png");
   await page.screenshot({ path: screenshot, fullPage: false });
   await info.attach("source-citation-closure", { path: screenshot, contentType: "image/png" });
-  await info.attach("source-citation-closure-observation", { body: JSON.stringify(data), contentType: "application/json" });
+  await info.attach("source-citation-closure-observation", { path: observation, contentType: "application/json" });
 }
 
 for (const locale of ["en", "ru"] as const) for (const width of [1440, 390]) {
@@ -158,11 +160,41 @@ for (const locale of ["en", "ru"] as const) for (const width of [1440, 390]) {
     const form = await prepareForm(page, locale, width, locale === "ru"
       ? "Синтетическая проверка связности цитат, вариантов и следующих действий."
       : "Synthetic citation, option-consequence and next-check closure.");
-    const before = source(await publicD2Snapshot(page));
+    const entry = await publicD2Snapshot(page);
+    const before = source(entry);
+    const sourceBranch = before.context === null ? "null-refresh" : "non-null-preservation";
+    // Freeze independent expectations before the action: a null UI context is
+    // not the submission source; Product may resolve it before its AI POST.
+    const expectedSource = { context: clone(item.envelope.subject) };
+    const expectedIntent = clone((entry.preSubmit as { intent: Record<string, unknown> }).intent);
+    expectedIntent.evidenceReceipt = clone(item.envelope.evidenceReceipt);
+    expect((entry.preSubmit as { operation: string }).operation).toBe("analyse");
+    expect((entry.currentSelection as { sourceFeatureId: string }).sourceFeatureId).toBe(item.sourceFeatureId);
+    expect(expectedIntent.expectedSourceFeatureId).toBe(item.sourceFeatureId);
+    expect(expectedSource.context.sourceFeatureId).toBe(item.sourceFeatureId);
+    expect(expectedSource.context.evidenceReceipt).toEqual(item.envelope.evidenceReceipt);
+    expect(item.envelope.evidenceReceipt.lookupSourceFeatureId).toBe(item.sourceFeatureId);
+    if (before.context !== null) expect(before).toEqual(expectedSource);
+    const contextCountBeforeSubmit = signals.contextPosts.length;
     await form.locator('button[type="submit"]').click();
     await expect(page.getByTestId("ai-success")).toBeVisible();
     const saved = modelRecord(await publicD2Snapshot(page));
-    expect(saved.sourceSnapshot).toEqual(before);
+    expect(saved.sourceSnapshot).toEqual(expectedSource);
+    expect(saved.originalSubmissionIntent).toEqual(expectedIntent);
+    expect(signals.aiPosts).toHaveLength(1);
+    const actualIntent = { ...signals.aiPosts[0] };
+    delete actualIntent.challenge;
+    expect(actualIntent).toEqual(expectedIntent);
+    if (sourceBranch === "null-refresh") {
+      expect(signals.contextPosts.slice(contextCountBeforeSubmit)).toEqual([{
+        caseKey: "dubai", longitude: item.anchor[0], latitude: item.anchor[1],
+        locale, expectedSourceFeatureId: item.sourceFeatureId
+      }]);
+    } else {
+      expect(saved.sourceSnapshot).toEqual(before);
+      expect(signals.contextPosts).toHaveLength(contextCountBeforeSubmit);
+    }
+    const contextCountAfterSubmit = signals.contextPosts.length;
     expect(saved.response.content).toEqual(reply.value!.content);
     const dashboard = page.getByTestId("normalized-context-dashboard");
     const screening = page.getByTestId("d2-scenario-screening");
@@ -249,17 +281,17 @@ for (const locale of ["en", "ru"] as const) for (const width of [1440, 390]) {
     await expect(independent.getByTestId("independent-point-plot")).toHaveAttribute("data-map-view", "overview");
     const counts = count(signals);
     const original = modelRecord(await publicD2Snapshot(page));
-    expect(original.sourceSnapshot).toEqual(before);
+    expect(original.sourceSnapshot).toEqual(expectedSource);
     expect(original.response.content).toEqual(saved.response.content);
     await reopen(page, item.label, locale);
     await expect(page.getByTestId("ai-success").getByText(statement, { exact: true })).toBeVisible();
-    expect(source(await publicD2Snapshot(page))).toEqual(before);
+    expect(source(await publicD2Snapshot(page))).toEqual(expectedSource);
     await expect(screening).toHaveAttribute("data-analysis-goal", "custom");
     await expect(screening).toHaveAttribute("data-analysis-scenario", "b2b_redevelopment_selected_aoi");
     const other = locale === "en" ? "ru" : "en";
     await page.getByRole("button", { name: other, exact: true }).click();
     await expect(page.getByRole("button", { name: other, exact: true })).toHaveAttribute("aria-pressed", "true");
-    expect(source(await publicD2Snapshot(page))).toEqual(before);
+    expect(source(await publicD2Snapshot(page))).toEqual(expectedSource);
     expect(count(signals)).toEqual(counts);
     expect(findSetup.calls()).toBe(1);
     expectD2TransportQuiet(signals);
@@ -267,6 +299,20 @@ for (const locale of ["en", "ru"] as const) for (const width of [1440, 390]) {
     await attach(info, page, { classification: "MIXED_GOLDEN_SELECTED_OBJECT_SYNTHETIC_CATALOGUE_AND_AI_TRANSPORT_NOT_PAID_G2", locale, width,
       university: { id: university.id, ref: university.evidenceRef, distanceM: 548, featureClass: university.featureClass },
       kpiRadiusM: 400, sampleSize: 123, citationRadiusM: 800, counts, syntheticFindPosts: findSetup.calls(), sourceRetained: true,
+      sourceLifecycle: {
+        branch: sourceBranch,
+        contextCounts: { preSubmit: contextCountBeforeSubmit, postSubmit: contextCountAfterSubmit,
+          afterReopenAndLocale: signals.contextPosts.length },
+        sourceIdentity: { expected: item.sourceFeatureId,
+          entry: (entry.currentSelection as { sourceFeatureId: string }).sourceFeatureId,
+          saved: saved.sourceSnapshot.context.sourceFeatureId },
+        receiptSha256: { expected: sha(JSON.stringify(expectedIntent.evidenceReceipt)!),
+          submitted: sha(JSON.stringify(actualIntent.evidenceReceipt)!),
+          saved: sha(JSON.stringify(saved.sourceSnapshot.context.evidenceReceipt)!) },
+        hashEncoding: "SHA256 of complete JSON receipt serialization; key-order-sensitive, not an equality substitute",
+        equalityOutcome: { independentSourceAndFullIntent: "PASS", downstreamReopenAndLocale: "PASS",
+          originalNonNullBefore: sourceBranch === "non-null-preservation" ? "PASS" : "NOT_APPLICABLE" }
+      },
       panelResetAndKeyboardFocus: true, newLiveAiEvidence: false });
   });
 
@@ -307,6 +353,10 @@ for (const locale of ["en", "ru"] as const) for (const width of [1440, 390]) {
     const notice = page.getByTestId("d2-missing-citation-notice");
     await expect(notice).toBeVisible();
     const button = refLink(notice, "EVD-CONTEXT-1");
+    const unavailableLabel = locale === "ru" ? "Цитата отчёта · источник недоступен" : "Report citation · source unavailable";
+    await expect(button).toHaveText(unavailableLabel);
+    await expect(button).toHaveAccessibleName(unavailableLabel);
+    await expect(button).toHaveAttribute("data-evidence-available", "false");
     const panel = await evidenceOpen(page, button, "EVD-CONTEXT-1", false);
     await expect(panel.getByTestId("d2-citation-unavailable")).toBeVisible();
     await expect(panel.getByTestId("d2-evidence-plot")).toHaveCount(0);

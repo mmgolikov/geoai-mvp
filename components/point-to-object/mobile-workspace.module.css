@@ -26,6 +26,10 @@
 @media (max-height: 599px) and (max-width: 1023px) {
   .shell[data-sheet="half"] { --sheet-height: 100%; }
   .halfControl { display: none; }
+  .content > [data-testid="verification-export"]:not([open]) {
+    margin-block: 4px;
+    padding-block: 0;
+  }
 }
 @media (min-width: 1024px) {
   .shell { display: grid; grid-template-columns: minmax(0, 1fr) 430px; --sheet-height: 0px !important; }
